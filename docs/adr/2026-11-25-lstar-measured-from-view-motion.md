@@ -21,6 +21,7 @@
   記録の角度は「FOV 104 の腰だめの画面で同じ大きさに見える角度」になり、アプリを FOV 104 で描くと録画と同じ大きさに見える。
 - 計測の記録（射撃ごとの各発の角度と画面の動きのピクセル、換算の条件、許容差）は数値だけを `docs/measurements/lstar.json` に置く。
   解析のスクリプトと動画・切り出したフレームはリポジトリの外に置く。換算が式どおりかはテストがピクセルから計算し直して確かめる。
+- リコイルの正確なデータは、射撃訓練場を自分で録画し、この方法で計測して入手する。L-STAR 以外の武器も同じ方法で計測できる。
 - これは**未確認の近似**である。Apex の FOV の換算式が違う、または ADS の倍率（腰だめと ADS の壁の大きさの比では約 1.45 倍）を
   角度に入れるべきと分かったときは、記録のピクセルから計算し直し、この ADR を置き換える。
 
@@ -35,5 +36,6 @@
 ## 影響
 
 - spec/weapons.md（MVP の武器、計測した武器データ、WPN-14〜WPN-17）
+- docs/roadmap.md の未決定「リコイルの正確なデータの入手方法」はこの決定で決まったので消した
 - src/data/weapons/lstar.json, docs/measurements/lstar.json, tests/acceptance/weapons.acceptance.test.ts
 - spec/screens.md「FOV と画面への投影」・src/render/fov.ts（PR #22）の換算式を変えたら、記録の角度と L-STAR の pattern も計算し直す
