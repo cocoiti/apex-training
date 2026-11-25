@@ -149,9 +149,12 @@ export class Page {
     if (drawn < n) throw new Error(`${n} 回の描画を待つ途中、${drawn} 回目のあと ${stall} ms 描画が進まない`);
   }
 
-  /** 画面写し（PNG）。 */
+  /**
+   * 画面写し（PNG）。圧縮を軽くして（optimizeForSpeed、画素は変わらない）撮るのにかかる時間を短くする。
+   * 撮るあいだも練習の時計は進むので、マシンが重いときに撮り終わる前に次の画面へ移らないように（ARC-20）。
+   */
   async screenshot(): Promise<Buffer> {
-    const { data } = await this.send<{ data: string }>('Page.captureScreenshot', { format: 'png' });
+    const { data } = await this.send<{ data: string }>('Page.captureScreenshot', { format: 'png', optimizeForSpeed: true });
     return Buffer.from(data, 'base64');
   }
 

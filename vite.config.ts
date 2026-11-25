@@ -53,11 +53,14 @@ export default defineConfig({
     hookTimeout: 60_000,
     // テストは 2 つの組に分ける（docs/spec/architecture.md「テストの実行」）。npm test は両方を流す。
     // unit（ブラウザを使わない）はファイル単位で並列に、browser（Chromium を使う）は 1 ファイルずつ流す。
+    // npm test では unit を流し終えてから browser を流す（sequence.groupOrder）。unit にはビルドや git の clone、入れ子の
+    // npm test を子のプロセスで動かす重いテストがあり、同時に流すと描画の間隔が伸びて画面のテストが不安定になるため（ARC-20）。
     projects: [
       {
         extends: true,
         test: {
           name: 'unit',
+          sequence: { groupOrder: 0 },
           include: [`${TEST_DIR}/**/*${TEST_SUFFIX}`],
           exclude: [...configDefaults.exclude, ...BROWSER_FILES],
         },
@@ -66,6 +69,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'browser',
+          sequence: { groupOrder: 1 },
           // 当たるファイルがないときも既定の include に戻らないよう、当たらないパターンを置く。
           include: BROWSER_FILES.length > 0 ? BROWSER_FILES : [`${TEST_DIR}/__no_browser_tests__${TEST_SUFFIX}`],
           fileParallelism: false,
