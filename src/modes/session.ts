@@ -6,7 +6,7 @@ import type { Angles } from '../sim/angles';
 import { Gun, type ShotRecord } from '../sim/gun';
 import { MAX_REPLAY_SECONDS, PracticeEndRule, type PracticeEndReason } from '../sim/practice';
 import { Simulation } from '../sim/simulation';
-import type { WeaponData } from '../sim/weapon';
+import { idealCorrectionRate, type WeaponData } from '../sim/weapon';
 import type { World } from '../sim/world';
 import type { ModeContext, ModeResult, TrainingMode } from './types';
 
@@ -19,6 +19,11 @@ export interface PracticeResult {
   readonly endReason: PracticeEndReason;
   /** 練習の入力方式。1 発目を撃ったときの今の入力方式（docs/spec/input.md「入力方式ごとの保存」）。 */
   readonly inputMethod: InputMethod;
+  /**
+   * 練習の入力方式がパッドのとき、1 発目を撃ったときに入力に使っていたパッドの名前（Gamepad API の id）。
+   * マウスのとき、名前が分からないときは undefined（docs/spec/pad.md「リザルトの入力推移のグラフ」）。
+   */
+  readonly padName: string | undefined;
   /** 練習の開始から終わりまでの時間（秒、固定ステップの時刻）。 */
   readonly duration: number;
   readonly modeResult: ModeResult;
@@ -35,6 +40,8 @@ export interface PracticeSessionOptions {
   readonly seed: number;
   /** 今の入力方式。1 発目を撃ったステップで 1 回だけ読む。省いたときはマウス。 */
   readonly inputMethod?: () => InputMethod;
+  /** 入力に使っているパッドの名前。入力方式と同じく、1 発目を撃ったステップで 1 回だけ読む。省いたときは分からない。 */
+  readonly padName?: () => string | undefined;
   readonly dt?: number;
 }
 
@@ -54,12 +61,16 @@ export class PracticeSession {
   private readonly currentInputMethod: () => InputMethod;
   /** 1 発目を撃ったときの入力方式。まだ撃っていなければ undefined。 */
   private firstShotInputMethod: InputMethod | undefined;
+  private readonly currentPadName: () => string | undefined;
+  /** 1 発目を撃ったときのパッドの名前。 */
+  private firstShotPadName: string | undefined;
 
   constructor(options: PracticeSessionOptions) {
     this.world = options.world;
     this.weapon = options.weapon;
     this.mode = options.mode;
     this.currentInputMethod = options.inputMethod ?? (() => 'mouse');
+    this.currentPadName = options.padName ?? (() => undefined);
     const random = createRandom(options.seed);
     this.gun = new Gun(options.weapon, random);
     this.sim = new Simulation(options.world, options.input, options.dt);
@@ -69,6 +80,7 @@ export class PracticeSession {
       this.gun.step(world, dt);
       if (this.firstShotInputMethod === undefined && this.gun.shots.length > 0) {
         this.firstShotInputMethod = this.currentInputMethod();
+        this.firstShotPadName = this.currentPadName();
       }
       const reason = this.endRule.step(world.player, this.gun, dt);
       const keepGoing = this.mode.step(this.context, dt);
@@ -104,6 +116,15 @@ export class PracticeSession {
     return this.mode.ghost?.(this.context);
   }
 
+  /**
+   * 今の理想の補正速度（ヨー・ピッチ、度/秒、docs/spec/pad.md「理想の補正速度」）。今の fire の状態と次に撃つ弾から求める。
+   * パッド向けのガイドの理想の位置に使う。練習が終わったあとは 0。
+   */
+  get idealRate(): Angles {
+    if (this.finished) return { yaw: 0, pitch: 0 };
+    return idealCorrectionRate(this.weapon, { fire: this.world.player.fire, nextShot: this.gun.nextPatternShot, ammo: this.gun.ammo });
+  }
+
   /** 1 固定ステップ進める。終わったあとは何もしない。 */
   step(): void {
     if (this.finished) return;
@@ -113,12 +134,15 @@ export class PracticeSession {
   private finish(endReason: PracticeEndReason, dt: number): void {
     const modeResult = this.mode.result(this.context);
     this.mode.teardown(this.context);
+    const inputMethod = this.firstShotInputMethod ?? this.currentInputMethod();
+    const padName = this.firstShotInputMethod === undefined ? this.currentPadName() : this.firstShotPadName;
     this.finished = {
       weapon: this.weapon,
       mode: { id: this.mode.id, name: this.mode.name, category: this.mode.category },
       shots: [...this.gun.shots],
       endReason,
-      inputMethod: this.firstShotInputMethod ?? this.currentInputMethod(),
+      inputMethod,
+      padName: inputMethod === 'pad' ? padName : undefined,
       // フックはステップの数を数える前に呼ばれるので、このステップの終わりの時刻はステップの数 + 1 から求める。
       duration: (this.sim.stepCount + 1) * dt,
       modeResult,

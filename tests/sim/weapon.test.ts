@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildWeaponList, fireInterval, idealCorrection, parseWeapon, uncorrectedPattern, type WeaponData } from '../../src/sim/weapon';
+import { buildWeaponList, fireInterval, idealCorrection, idealCorrectionRate, parseWeapon, uncorrectedPattern, type WeaponData } from '../../src/sim/weapon';
 
 const WEAPONS_DIR = resolve(__dirname, '../../src/data/weapons');
 
@@ -179,5 +179,32 @@ describe('補正しなかった場合のパターン', () => {
   it('弾数が 0 なら空、pattern の長さを超えた分は含めない', () => {
     expect(uncorrectedPattern({ pattern }, 0)).toEqual([]);
     expect(uncorrectedPattern({ pattern }, 10)).toHaveLength(3);
+  });
+});
+
+describe('理想の補正速度', () => {
+  const weapon = { rpm: 600, pattern: [{ dx: 0, dy: 1 }, { dx: 0.5, dy: 1 }, { dx: -0.5, dy: 0.5 }] };
+
+  it('fire を押していて次の弾が k 発目（k ≥ 2）なら、k 発目と k − 1 発目の理想の補正軌道の差 ÷ 発射間隔', () => {
+    // 発射間隔 0.1 秒。2 発目の差は (−0.5, −1)、3 発目の差は (+0.5, −0.5)。
+    const second = idealCorrectionRate(weapon, { fire: true, nextShot: 2, ammo: 2 });
+    expect(second.yaw).toBeCloseTo(-5, 12);
+    expect(second.pitch).toBeCloseTo(-10, 12);
+    const third = idealCorrectionRate(weapon, { fire: true, nextShot: 3, ammo: 1 });
+    expect(third.yaw).toBeCloseTo(5, 12);
+    expect(third.pitch).toBeCloseTo(-5, 12);
+  });
+
+  it('fire を押していない、次の弾が 1 発目、撃ち切ったときは 0', () => {
+    const zero = { yaw: 0, pitch: 0 };
+    expect(idealCorrectionRate(weapon, { fire: false, nextShot: 2, ammo: 2 })).toEqual(zero);
+    expect(idealCorrectionRate(weapon, { fire: true, nextShot: 1, ammo: 3 })).toEqual(zero);
+    expect(idealCorrectionRate(weapon, { fire: true, nextShot: 4, ammo: 0 })).toEqual(zero);
+  });
+
+  it('差が 0 の成分は -0 にしない', () => {
+    const rate = idealCorrectionRate({ rpm: 600, pattern: [{ dx: 0, dy: 1 }, { dx: 0, dy: 0 }] }, { fire: true, nextShot: 2, ammo: 1 });
+    expect(Object.is(rate.yaw, 0)).toBe(true);
+    expect(Object.is(rate.pitch, 0)).toBe(true);
   });
 });

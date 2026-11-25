@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { escapeHtml, plotExtent, plotHtml } from '../../src/ui/result-plot';
+import { escapeHtml, plotExtent, plotHtml, traceDuration, tracePlotHtml } from '../../src/ui/result-plot';
 
 describe('リザルトの図', () => {
   it('点の系列は円、線の系列は折れ線で描き、上を正にするため SVG の y を反転する', () => {
@@ -36,5 +36,29 @@ describe('リザルトの図', () => {
 
   it('文言はエスケープする', () => {
     expect(escapeHtml('<a href="x">&</a>')).toBe('&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;');
+  });
+});
+
+describe('推移の図', () => {
+  it('横軸を時刻、縦軸を −100〜100% にして折れ線で描き、上を正にするため SVG の y を反転する', () => {
+    const html = tracePlotHtml({
+      name: 'stick-x',
+      title: '左右',
+      series: [
+        { name: 'ideal', label: '理想', points: [{ time: 0, value: 0 }, { time: 0.5, value: -0.25 }] },
+        { name: 'stick', label: '自分', points: [{ time: 0, value: 0.5 }] },
+      ],
+    });
+    expect(html).toContain('data-plot="stick-x"');
+    expect(html).toContain('viewBox="0 -100 0.5 200"');
+    expect(html).toContain('preserveAspectRatio="none"');
+    expect(html).toMatch(/<polyline [^>]*data-series="ideal" data-count="2" points="0,0 0.5,25" \/>/);
+    expect(html).toMatch(/<polyline [^>]*data-series="stick" data-count="1" points="0,-50" \/>/);
+    expect(html).toContain('理想');
+    expect(html).toContain('自分');
+  });
+
+  it('横軸の幅は点が 1 つでも 0 にならない', () => {
+    expect(traceDuration({ series: [{ name: 'a', label: 'a', points: [{ time: 0, value: 0 }] }] })).toBeGreaterThan(0);
   });
 });

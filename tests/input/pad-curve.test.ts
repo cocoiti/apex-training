@@ -5,6 +5,7 @@ import {
   lookRate,
   simpleToAdvanced,
   stickAmount,
+  stickPosition,
   type PadSettings,
 } from '../../src/input/pad-curve';
 
@@ -86,5 +87,58 @@ describe('簡易設定', () => {
 
   it('範囲外の感度は 1〜6 に収める', () => {
     expect(simpleToAdvanced({ look: 0, ads: 9, curve: 'linear' })).toMatchObject({ yaw: 120, adsYaw: 120 });
+  });
+});
+
+describe('カーブの逆', () => {
+  const alc = (responseCurve: number): PadSettings => ({ ...DEFAULT_PAD_SETTINGS, deadzone: 10, outerThreshold: 2, responseCurve });
+
+  it.each([
+    ['リニア', 0],
+    ['クラシック', 8],
+  ])('PAD-15: %s で、最大回転速度より遅い回転速度を位置に直して式に通すと元の速度に戻る（腰撃ち・ADS）', (_, curve) => {
+    const settings = alc(curve);
+    const rates = [
+      { yaw: 75, pitch: 0 },
+      { yaw: 0, pitch: -40 },
+      { yaw: -120, pitch: 90 },
+      { yaw: 3, pitch: 2 },
+      { yaw: 200, pitch: -150 },
+    ];
+    for (const ads of [false, true]) {
+      const scale = ads ? 0.25 : 1;
+      for (const rate of rates) {
+        const target = { yaw: rate.yaw * scale, pitch: rate.pitch * scale };
+        const { x, y } = stickPosition(target, settings, ads);
+        const back = lookRate(x, y, settings, ads);
+        expect(back.yaw).toBeCloseTo(target.yaw, 9);
+        expect(back.pitch).toBeCloseTo(target.pitch, 9);
+      }
+    }
+  });
+
+  it('PAD-16: クラシック・ヨー速度 300 で右 75 度/秒は右に 54%、回転速度 0 は中心', () => {
+    const settings = { ...alc(8), yaw: 300 };
+    const position = stickPosition({ yaw: 75, pitch: 0 }, settings, false);
+    expect(position.x).toBeCloseTo(0.54, 12);
+    expect(position.y).toBe(0);
+    expect(stickPosition({ yaw: 0, pitch: 0 }, settings, false)).toEqual({ x: 0, y: 0 });
+  });
+
+  it('最大回転速度より速いときは同じ向きに倒し切った位置（1 − 外側しきい値）になる', () => {
+    const position = stickPosition({ yaw: 600, pitch: 520 }, alc(8), false);
+    expect(Math.hypot(position.x, position.y)).toBeCloseTo(0.98, 12);
+    expect(position.x).toBeCloseTo(position.y, 12);
+  });
+
+  it('ADS 中は ADS の最大回転速度で割る', () => {
+    expect(stickPosition({ yaw: 90, pitch: 0 }, linear, true).x).toBeCloseTo(1, 12);
+    expect(stickPosition({ yaw: 90, pitch: 0 }, linear, false).x).toBeCloseTo(0.3, 12);
+  });
+
+  it('最大回転速度が 0 の軸に 0 でない速度を求めたときは、その軸の成分を 0 にする', () => {
+    const settings = { ...linear, pitch: 0 };
+    expect(stickPosition({ yaw: 150, pitch: 50 }, settings, false)).toEqual({ x: 0.5, y: 0 });
+    expect(stickPosition({ yaw: 0, pitch: 50 }, settings, false)).toEqual({ x: 0, y: 0 });
   });
 });

@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { TimedAction } from '../../src/input/actions';
+import { PadInput, type GamepadLike } from '../../src/input/pad';
+import { DEFAULT_PAD_SETTINGS, stickPosition, type PadSettings } from '../../src/input/pad-curve';
 import { RecordingInput } from '../../src/input/recording';
 import { modes } from '../../src/modes/registry';
 import { PracticeSession, type PracticeResult } from '../../src/modes/session';
@@ -14,7 +16,7 @@ import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
 import { createWorld, type World } from '../../src/sim/world';
 import { parsePersonalBest, personalBestKey } from '../../src/ui/personal-best';
 import { historyKey, parseHistory } from '../../src/ui/practice-history';
-import { completePractice, metricRows, renderResult, type FinishedPractice } from '../../src/ui/result-view';
+import { completePractice, metricRows, padTraceView, renderResult, type FinishedPractice } from '../../src/ui/result-view';
 import { SafeStorage } from '../../src/ui/storage';
 
 const DATA = resolve(__dirname, '../../src/data');
@@ -330,6 +332,7 @@ describe('リザルト画面の要素', () => {
     comments: { textContent: '' },
     best: { textContent: '' },
     plots: { innerHTML: '' },
+    padTrace: { innerHTML: '', hidden: true },
   });
 
   it('採点するモードでは指標・コメント・自己ベスト・図を書き、採点しないモードでは指標の要素を隠す', () => {
@@ -347,5 +350,111 @@ describe('リザルト画面の要素', () => {
     expect(e.best.textContent).toBe('');
     expect(e.plots.innerHTML).toContain('data-plot="pattern"');
     expect(e.plots.innerHTML).not.toContain('data-plot="scatter"');
+    expect(e.padTrace.hidden).toBe(true);
+    expect(e.padTrace.innerHTML).toBe('');
+  });
+
+  it('PAD-19: 右スティックの入力推移のグラフは見出し（パッドの名前）と左右・上下の図を書き、ないときは隠す', () => {
+    const e = elements();
+    renderResult(e, completePractice(padPractice('ghost', 'DualSense Wireless Controller'), memoryStorage(), NOW));
+    expect(e.padTrace.hidden).toBe(false);
+    expect(e.padTrace.innerHTML).toContain('DualSense Wireless Controller');
+    expect(e.padTrace.innerHTML).toContain('data-plot="stick-x"');
+    expect(e.padTrace.innerHTML).toContain('data-plot="stick-y"');
+
+    renderResult(e, completePractice(practice('r301', 'center'), memoryStorage(), NOW));
+    expect(e.padTrace.hidden).toBe(true);
+    expect(e.padTrace.innerHTML).toBe('');
+  });
+});
+
+const linearPad: PadSettings = { ...DEFAULT_PAD_SETTINGS, deadzone: 10, outerThreshold: 2, responseCurve: 0 };
+
+/** 右スティックを (x, y)（上が正）に倒し、R2 を fire だけ押した標準配置のパッド。 */
+function padState(x: number, y: number, fire: boolean): GamepadLike {
+  const buttons = Array.from({ length: 17 }, () => ({ value: 0, pressed: false }));
+  buttons[7] = { value: fire ? 1 : 0, pressed: fire };
+  return { connected: true, id: 'test-pad', mapping: 'standard', axes: [0, 0, x, 0 - y], buttons };
+}
+
+/**
+ * パッドで練習する。各ステップでパッドを読み、右スティックを理想の補正速度をカーブの逆で直した位置（hold を渡したらその位置）に倒し、
+ * パッドの look をそのステップの開始の時刻で積んでから進める（src/main.ts のループと同じ順）。
+ */
+function padPractice(modeId: string, padName: string | undefined, options: { hold?: { x: number; y: number }; settings?: PadSettings } = {}): FinishedPractice {
+  const settings = options.settings ?? linearPad;
+  const world = rangeWorld();
+  const weapon = loadWeapon('r301');
+  const input = new RecordingInput(7);
+  const session = new PracticeSession({
+    world,
+    weapon,
+    mode: modeById(modeId),
+    input,
+    seed: input.seed,
+    inputMethod: () => 'pad',
+    padName: () => padName,
+  });
+  const pad = new PadInput({ emit: (action) => input.push(session.sim.time, action), settings: () => settings });
+  for (let i = 0; i < 2000 && !session.ended; i += 1) {
+    const target = options.hold ?? stickPosition(session.idealRate, settings, world.player.ads);
+    pad.poll(padState(target.x, target.y, true));
+    const look = pad.step(session.sim.dt);
+    if (look) input.push(session.sim.time, look);
+    session.step();
+  }
+  const result = session.result;
+  if (!result) throw new Error('練習が終わらない');
+  return { result, recording: input.recording(), world, input: 'pad', dt: session.sim.dt, padSettings: settings };
+}
+
+describe('右スティックの入力推移のグラフ', () => {
+  it('PAD-19: パッドでゴースト追従・センター維持を終えたとき、左右と上下の図にそれぞれ自分と理想の推移を出し、見出しにパッドの名前を出す', () => {
+    for (const modeId of ['ghost', 'center']) {
+      const view = completePractice(padPractice(modeId, 'Xbox Wireless Controller'), memoryStorage(), NOW);
+      expect(view.padTrace?.title).toContain('Xbox Wireless Controller');
+      expect(view.padTrace?.plots.map((p) => p.name)).toEqual(['stick-x', 'stick-y']);
+      for (const plot of view.padTrace?.plots ?? []) {
+        expect(plot.series.map((s) => s.name)).toEqual(['ideal', 'stick']);
+        expect(plot.series[0]?.points.length).toBeGreaterThan(0);
+        expect(plot.series[0]?.points.length).toBe(plot.series[1]?.points.length);
+      }
+    }
+  });
+
+  it('PAD-19: 名前が分からないパッドは「パッド」と出す', () => {
+    const view = completePractice(padPractice('ghost', undefined), memoryStorage(), NOW);
+    expect(view.padTrace?.title).toBe('右スティックの入力推移（パッド）');
+  });
+
+  it('PAD-19: マウスで終えたとき、パターン観察で終えたときは出さない', () => {
+    expect(completePractice(practice('r301', 'ghost'), memoryStorage(), NOW).padTrace).toBeNull();
+    expect(completePractice(padPractice('pattern', 'Xbox Wireless Controller'), memoryStorage(), NOW).padTrace).toBeNull();
+  });
+
+  it('PAD-20: リニアの設定で理想の位置に各ステップで倒した記録から作ると、自分の推移と理想の推移が一致する', () => {
+    const p = padPractice('ghost', 'test-pad');
+    const trace = padTraceView(p);
+    for (const plot of trace.plots) {
+      const [ideal, mine] = plot.series;
+      expect(mine?.points.length).toBe(ideal?.points.length);
+      mine?.points.forEach((point, i) => {
+        expect(point.time).toBe(ideal?.points[i]?.time);
+        expect(point.value).toBeCloseTo(ideal?.points[i]?.value ?? NaN, 9);
+      });
+    }
+    // 撃っているあいだは理想の位置が中心でない（比べる値が 0 だけになっていない）。
+    const pitch = trace.plots[1]?.series[0]?.points ?? [];
+    expect(pitch.some((point) => point.value !== 0)).toBe(true);
+  });
+
+  it('スティックを右に倒したまま撃つと、自分の推移は左右がその位置、上下が中心のままで、理想の推移とずれる', () => {
+    const trace = padTraceView(padPractice('ghost', 'test-pad', { hold: { x: 0.5, y: 0 } }));
+    const [, mineX] = trace.plots[0]?.series ?? [];
+    const [idealY, mineY] = trace.plots[1]?.series ?? [];
+    expect(mineX?.points.length).toBeGreaterThan(1);
+    mineX?.points.forEach((point) => expect(point.value).toBeCloseTo(0.5, 9));
+    expect(mineY?.points.every((point) => point.value === 0)).toBe(true);
+    expect(idealY?.points.some((point) => point.value !== 0)).toBe(true);
   });
 });

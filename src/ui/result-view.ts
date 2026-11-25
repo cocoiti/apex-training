@@ -1,12 +1,14 @@
+import { DEFAULT_PAD_SETTINGS, stickPosition, type PadSettings } from '../input/pad-curve';
 import type { InputRecording } from '../input/recording';
 import type { PracticeResult } from '../modes/session';
 import { scoreShots, shotDeviations, targetRadius, type ScoreResult } from '../sim/scoring';
-import { aimAtShots } from '../sim/trajectory';
+import { aimAtShots, lookRateTrace } from '../sim/trajectory';
 import { idealCorrection, uncorrectedPattern } from '../sim/weapon';
 import type { World } from '../sim/world';
+import { UNKNOWN_PAD_NAME } from './pad-guide';
 import { personalBestKey, recordPersonalBest, type InputMethod, type PersonalBestOutcome } from './personal-best';
 import { recordHistory } from './practice-history';
-import { escapeHtml, plotHtml, type Plot } from './result-plot';
+import { escapeHtml, plotHtml, tracePlotHtml, type Plot, type TracePlot } from './result-plot';
 import { resultSummaryText } from './result-summary';
 import type { SafeStorage } from './storage';
 
@@ -20,6 +22,16 @@ export interface FinishedPractice {
   readonly input: InputMethod;
   /** 固定ステップの長さ（秒）。 */
   readonly dt: number;
+  /** その練習に当てたパッドの設定。右スティックの入力推移をカーブの逆で求める。省いたときは既定値。 */
+  readonly padSettings?: Readonly<PadSettings>;
+}
+
+/** 右スティックの入力推移のグラフ（docs/spec/pad.md「リザルトの入力推移のグラフ」）。 */
+export interface PadTraceView {
+  /** 見出し。使ったパッドの名前を含む。 */
+  readonly title: string;
+  /** 左右の成分と上下の成分の図。 */
+  readonly plots: readonly TracePlot[];
 }
 
 /** 指標の 1 行。 */
@@ -42,6 +54,8 @@ export interface ResultView {
   /** この練習で自己ベストを更新したか。 */
   readonly bestUpdated: boolean;
   readonly plots: readonly Plot[];
+  /** 右スティックの入力推移のグラフ。練習の入力方式がパッドで、採点するモードのときだけ。ほかは null。 */
+  readonly padTrace: PadTraceView | null;
 }
 
 export function formatDegrees(value: number | null): string {
@@ -81,6 +95,34 @@ export function personalBestText(outcome: PersonalBestOutcome): string {
 }
 
 /**
+ * 右スティックの入力推移のグラフを作る。入力の記録を再生して固定ステップごとの自分の回転速度と理想の補正速度を求め、
+ * どちらもカーブの逆でスティックの位置に直す。ADS の状態はステップごとに記録の ads から決める。
+ */
+export function padTraceView(
+  practice: Pick<FinishedPractice, 'recording' | 'dt' | 'padSettings'> & { readonly result: Pick<PracticeResult, 'weapon' | 'padName'> },
+): PadTraceView {
+  const settings = practice.padSettings ?? DEFAULT_PAD_SETTINGS;
+  const trace = lookRateTrace(practice.recording, practice.result.weapon, practice.dt).map((point) => ({
+    time: point.time,
+    stick: stickPosition(point.rate, settings, point.ads),
+    ideal: stickPosition(point.ideal, settings, point.ads),
+  }));
+  const plot = (name: string, title: string, axis: 'x' | 'y'): TracePlot => ({
+    name,
+    title,
+    series: [
+      { name: 'ideal', label: '理想', points: trace.map((p) => ({ time: p.time, value: p.ideal[axis] })) },
+      { name: 'stick', label: '自分', points: trace.map((p) => ({ time: p.time, value: p.stick[axis] })) },
+    ],
+  });
+  const name = practice.result.padName ?? UNKNOWN_PAD_NAME;
+  return {
+    title: `右スティックの入力推移（${name}）`,
+    plots: [plot('stick-x', '左右（右が正、%）', 'x'), plot('stick-y', '上下（上が正、%）', 'y')],
+  };
+}
+
+/**
  * 練習の結果を採点し、採点するモードなら自己ベストと比べて保存し、履歴に足し、リザルト画面に出すものを作る。
  * 保存は SafeStorage を通すので、保存できない環境でも投げない。
  */
@@ -104,6 +146,7 @@ export function completePractice(
       best: null,
       meanDeviation: null,
       bestUpdated: false,
+      padTrace: null,
       plots: [
         {
           name: 'pattern',
@@ -130,6 +173,7 @@ export function completePractice(
     best: personalBestText(outcome),
     meanDeviation: scored.meanDeviation,
     bestUpdated: outcome.updated,
+    padTrace: result.inputMethod === 'pad' ? padTraceView(practice) : null,
     plots: [
       { name: 'scatter', title: '弾痕の散布図', series: [shotSeries], circle: radius },
       {
@@ -153,6 +197,8 @@ export interface ResultElements {
   readonly comments: Pick<HTMLElement, 'textContent'>;
   readonly best: Pick<HTMLElement, 'textContent'>;
   readonly plots: Pick<HTMLElement, 'innerHTML'>;
+  /** 右スティックの入力推移のグラフの要素。グラフがないときは隠す。 */
+  readonly padTrace: Pick<HTMLElement, 'innerHTML' | 'hidden'>;
 }
 
 /** リザルト画面の要素を書き換える。 */
@@ -165,4 +211,9 @@ export function renderResult(elements: ResultElements, view: ResultView): void {
   elements.comments.textContent = view.comments.join(' / ');
   elements.best.textContent = view.best ?? '';
   elements.plots.innerHTML = view.plots.map(plotHtml).join('');
+  const trace = view.padTrace;
+  elements.padTrace.hidden = trace === null;
+  elements.padTrace.innerHTML = trace
+    ? `<h3 class="result-pad-title">${escapeHtml(trace.title)}</h3><div class="result-plots">${trace.plots.map(tracePlotHtml).join('')}</div>`
+    : '';
 }

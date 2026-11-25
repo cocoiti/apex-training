@@ -66,6 +66,32 @@ export function lookRate(x: number, y: number, settings: Readonly<PadSettings>, 
   return { yaw: amount * (x / raw) * maxYaw, pitch: amount * (y / raw) * maxPitch };
 }
 
+/** 右スティックの位置。x は右が正、y は上が正で、中心が (0, 0)、倒し切った位置の大きさが 1。 */
+export interface StickPosition {
+  x: number;
+  y: number;
+}
+
+/**
+ * カーブの逆（docs/spec/pad.md「カーブの逆」）。回転速度 rate（度/秒）を出すスティックの位置を、lookRate の式の逆で求める。
+ * 最大回転速度より速いときは同じ向きに倒し切った位置にする。最大回転速度が 0 の軸の成分は 0 として扱う。
+ */
+export function stickPosition(rate: Readonly<LookRate>, settings: Readonly<PadSettings>, ads: boolean): StickPosition {
+  const maxYaw = ads ? settings.adsYaw : settings.yaw;
+  const maxPitch = ads ? settings.adsPitch : settings.pitch;
+  const u = maxYaw === 0 ? 0 : rate.yaw / maxYaw;
+  const w = maxPitch === 0 ? 0 : rate.pitch / maxPitch;
+  const raw = Math.hypot(u, w);
+  if (raw === 0 || !Number.isFinite(raw)) return { x: 0, y: 0 };
+  const q = Math.min(raw, 1);
+  const d = settings.deadzone / 100;
+  const o = settings.outerThreshold / 100;
+  const t = q ** (1 / (1 + settings.responseCurve / CURVE_DIVISOR));
+  const m = d + t * (1 - o - d);
+  // 0 + x にして、成分が 0 のときに -0 にならないようにする。
+  return { x: 0 + (u / raw) * m, y: 0 + (w / raw) * m };
+}
+
 /** 簡易設定（ALC OFF 相当）。 */
 export type SimpleCurve = 'classic' | 'linear';
 

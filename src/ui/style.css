@@ -132,6 +132,63 @@ a {
   font-size: 18px;
 }
 
+/*
+ * パッド向けのガイド。右スティックの可動範囲の円と、理想の位置（緑、ゴーストと同じ色）と今の位置（水色）の点。
+ * 点は --x・--y（右と上が正の %、円の縁が 100）で置く。照準の邪魔にならないよう画面の右下に出す。
+ */
+.pad-guide {
+  position: absolute;
+  right: 24px;
+  bottom: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.pad-guide-stick {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border: 2px solid rgb(164 169 178 / 70%);
+  border-radius: 50%;
+  background: rgb(27 30 36 / 55%);
+}
+
+.pad-guide-dot {
+  --x: 0;
+  --y: 0;
+  position: absolute;
+  left: calc(50% + var(--x) * 0.5%);
+  top: calc(50% - var(--y) * 0.5%);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.pad-guide-ideal {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #5dff7a;
+  box-sizing: border-box;
+}
+
+.pad-guide-current {
+  width: 8px;
+  height: 8px;
+  background: #7cf;
+}
+
+.pad-guide-name {
+  max-width: 200px;
+  margin: 0;
+  overflow: hidden;
+  color: #a4a9b2;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pad-guide[hidden],
 .pointer-lock-notice[hidden],
 .paused[hidden] {
   display: none;
@@ -411,6 +468,29 @@ polyline.plot-aim {
 
 .plot-aim {
   color: #7cf;
+}
+
+polyline.plot-stick {
+  stroke: #7cf;
+}
+
+.plot-stick {
+  color: #7cf;
+}
+
+/* 右スティックの入力推移の図は、横軸の時刻を広く取るため横長にする。 */
+.plot-trace svg {
+  width: 420px;
+  aspect-ratio: 2;
+}
+
+.result-pad[hidden] {
+  display: none;
+}
+
+.result-pad-title {
+  margin: 0 0 8px;
+  font-size: 16px;
 }
 
 .plot-legends {

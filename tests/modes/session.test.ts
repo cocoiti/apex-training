@@ -6,7 +6,7 @@ import { modes } from '../../src/modes/registry';
 import { PracticeSession, replayPracticeSession } from '../../src/modes/session';
 import type { TrainingMode } from '../../src/modes/types';
 import { vec3 } from '../../src/sim/vec3';
-import type { RecoilStep, WeaponData } from '../../src/sim/weapon';
+import { idealCorrectionRate, type RecoilStep, type WeaponData } from '../../src/sim/weapon';
 import { createWorld, type World } from '../../src/sim/world';
 
 /** 正面 10 メートルに大きな壁だけがある World。開始時の照準はヨー 0・ピッチ 0。 */
@@ -223,5 +223,53 @@ describe('練習の入力方式（docs/spec/input.md「入力方式ごとの保�
     const s = session([press(0)]);
     advance(s, 5);
     expect(s.result?.inputMethod).toBe('mouse');
+  });
+});
+
+describe('パッド向けのガイドと入力推移に使うもの（docs/spec/pad.md）', () => {
+  it('理想の補正速度は今の fire の状態と次に撃つ弾から求め、離したときと終わったあとは 0', () => {
+    const weapon = makeWeapon();
+    const s = session([press(0), release(0.15)], { weapon });
+    expect(s.idealRate).toEqual({ yaw: 0, pitch: 0 });
+    s.step();
+    expect(s.gun.nextPatternShot).toBe(2);
+    expect(s.idealRate).toEqual(idealCorrectionRate(weapon, { fire: true, nextShot: 2, ammo: s.gun.ammo }));
+    expect(s.idealRate.pitch).toBeLessThan(0);
+    advance(s, 0.2);
+    expect(s.idealRate).toEqual({ yaw: 0, pitch: 0 });
+    advance(s, 3);
+    expect(s.ended).toBe(true);
+    expect(s.idealRate).toEqual({ yaw: 0, pitch: 0 });
+  });
+
+  it('練習の入力方式がパッドなら、1 発目を撃ったときのパッドの名前を結果に載せる', () => {
+    let name: string | undefined = 'DualSense Wireless Controller';
+    const s = new PracticeSession({
+      world: wallWorld(),
+      weapon: makeWeapon(),
+      mode: modeById('pattern'),
+      input: inputFromTimedActions([press(0)]),
+      seed: 1,
+      inputMethod: () => 'pad',
+      padName: () => name,
+    });
+    s.step();
+    name = 'Xbox Wireless Controller';
+    advance(s, 5);
+    expect(s.result?.padName).toBe('DualSense Wireless Controller');
+  });
+
+  it('練習の入力方式がマウスなら、パッドの名前は載せない', () => {
+    const s = new PracticeSession({
+      world: wallWorld(),
+      weapon: makeWeapon(),
+      mode: modeById('pattern'),
+      input: inputFromTimedActions([press(0)]),
+      seed: 1,
+      inputMethod: () => 'mouse',
+      padName: () => 'DualSense Wireless Controller',
+    });
+    advance(s, 5);
+    expect(s.result?.padName).toBeUndefined();
   });
 });
