@@ -254,24 +254,37 @@
           <h2>履歴</h2>
           <!-- 書き出しや外部へ送る操作は置かない（docs/spec/screens.md「履歴の画面」、UI-30）。 -->
           <p id="history-unavailable" class="history-unavailable" role="status" hidden></p>
-          <div class="history-choices">
-            <label class="choice">武器 <select id="history-weapon"></select></label>
-            <label class="choice">モード <select id="history-mode"></select></label>
-            <label class="choice">入力方式
-              <select id="history-input">
-                <option value="mouse">マウス</option>
-                <option value="pad">パッド</option>
-              </select>
-            </label>
+          <div id="history-body">
+            <div class="history-choices">
+              <label class="choice">武器 <select id="history-weapon"></select></label>
+              <label class="choice">モード <select id="history-mode"></select></label>
+              <label class="choice">入力方式
+                <select id="history-input">
+                  <option value="mouse">マウス</option>
+                  <option value="pad">パッド</option>
+                </select>
+              </label>
+            </div>
+            <dl id="history-averages" class="result-metrics"></dl>
+            <div id="history-plot" class="result-plots"></div>
+            <p id="history-empty" class="history-empty" hidden></p>
+            <div id="history-list" class="history-list"></div>
+            <nav class="menu menu-row">
+              <button id="history-clear" type="button">この履歴を消す</button>
+              <a href="#/">トップへ戻る</a>
+            </nav>
           </div>
-          <dl id="history-averages" class="result-metrics"></dl>
-          <div id="history-plot" class="result-plots"></div>
-          <p id="history-empty" class="history-empty" hidden></p>
-          <div id="history-list" class="history-list"></div>
-          <nav class="menu menu-row">
-            <button id="history-clear" type="button">この履歴を消す</button>
-            <a href="#/">トップへ戻る</a>
-          </nav>
+          <!-- 消してよいかの確認。ブラウザの確認のダイアログは使わず、画面の中に出す（docs/spec/screens.md「履歴の画面」）。
+               出している間は #history-body を操作できなくする。パッドでは「取りやめる」にフォーカスを置き、B / ○ で取りやめる。 -->
+          <div id="history-confirm" class="history-confirm" role="alertdialog" aria-modal="true" aria-labelledby="history-confirm-message" hidden>
+            <div class="history-confirm-box">
+              <p id="history-confirm-message"></p>
+              <div class="menu menu-row">
+                <button id="history-confirm-ok" type="button">消す</button>
+                <button id="history-confirm-cancel" type="button" data-pad-default data-pad-cancel>取りやめる</button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
       <footer class="footer">

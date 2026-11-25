@@ -9,7 +9,8 @@ import { attachMouse } from './input/mouse';
 import type { MouseSettings } from './input/mouse-sensitivity';
 import { PadInput } from './input/pad';
 import { DEFAULT_PAD_SETTINGS, type PadSettings } from './input/pad-curve';
-import { choosePad, MAPPING_ITEMS, padDisplayName, padStatusText, type MappingItem, type PadStatus } from './input/pad-layout';
+import { choosePad, isStandardMapping, MAPPING_ITEMS, padDisplayName, padStatusText, type MappingItem, type PadStatus } from './input/pad-layout';
+import { PadNavigator } from './input/pad-navigation';
 import { canRumble, rumbleShot } from './input/pad-rumble';
 import { createSeed, RecordingInput } from './input/recording';
 import { keyControl, PadButtons, type ScreenControl } from './input/screen-controls';
@@ -32,6 +33,7 @@ import { renderCalibration, calibrationRadii, type CalibrationElements } from '.
 import { MappingAutoOpen, PadMappingScreen, PadMappingStore } from './ui/pad-mappings';
 import { bindCalibrationDeadzone, bindPadSettingsForm, type PadFormBinding, type PadSettingsFormElements } from './ui/pad-settings-form';
 import { fillModeSelect } from './ui/mode-choices';
+import { PadMenu } from './ui/pad-menu';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { padGuideState, padGuideVisible, renderPadGuide, type PadGuideElements } from './ui/pad-guide';
 import { PracticeFlow } from './ui/practice-flow';
@@ -206,9 +208,16 @@ function historyElements(): HistoryElements | null {
     empty: byId('empty'),
     clear: byId<HTMLButtonElement>('clear'),
     unavailable: byId('unavailable'),
+    body: byId('body'),
   };
-  if (Object.values(elements).some((element) => !element)) return null;
-  return elements as HistoryElements;
+  const confirm = {
+    root: byId('confirm'),
+    message: byId('confirm-message'),
+    ok: byId<HTMLButtonElement>('confirm-ok'),
+    cancel: byId<HTMLButtonElement>('confirm-cancel'),
+  };
+  if ([...Object.values(elements), ...Object.values(confirm)].some((element) => !element)) return null;
+  return { ...elements, confirm } as HistoryElements;
 }
 
 /** 画面に入ったときに、パッドの画面の表示を保存された値に揃える。 */
@@ -219,6 +228,8 @@ interface PadScreens {
 /**
  * 設定画面のパッドの区分・キャリブレーション画面・ボタン割り当て画面（docs/spec/pad.md）。練習の読み込みに失敗しても動くよう、
  * 練習とは別に描画のたびにパッドを読む。トップ画面と設定画面では、標準配置でないパッドのボタンでボタン割り当て画面を開く。
+ * トップ・設定・履歴・キャリブレーション・ボタン割り当ての画面では、パッドで項目を移動・変更する
+ * （docs/spec/screens.md「パッドでの項目の移動と変更」）。
  */
 function startPadScreens(): PadScreens {
   const byId = <T extends Element>(id: string) => document.querySelector<T>(`#${id}`);
@@ -295,9 +306,22 @@ function startPadScreens(): PadScreens {
   /** 前に enter() で入った画面。ボタン割り当て画面を出たことを知るのに使う。 */
   let shownScreen: ScreenId = 'top';
   const autoOpen = new MappingAutoOpen();
+  // パッドでの項目の移動と変更。どの画面でも読み（押したままのものを画面をまたいで覚えるため）、項目のある画面でだけ当てる。
+  const padNavigator = new PadNavigator();
+  const menu = new PadMenu({
+    section: (screen) => document.querySelector<HTMLElement>(`[data-screen="${screen}"]`),
+    navigate: (screen) => {
+      location.hash = SCREEN_HASHES[screen];
+    },
+  });
   const tick = (time: number) => {
     const pads = readGamepads(time);
     const status = choosePad(pads, padMappings.get);
+    // 操作に使うのは入力に使うパッドで、標準配置のときだけ（割り当てを保存した標準配置でないパッドは使わない）。
+    const navPad = status.kind === 'using' && isStandardMapping(status.pad) ? status.pad : null;
+    const commands = padNavigator.poll(navPad, time);
+    // ボタン割り当て画面で操作を待っている間は、項目の移動・決定・戻るを受け付けない。
+    menu.frame(currentScreen, commands, currentScreen === 'settings-pad-mapping' && mappingScreen.waiting);
     if (autoOpen.check(currentScreen, pads, status.kind === 'using')) location.hash = SCREEN_HASHES['settings-pad-mapping'];
     if (currentScreen === 'settings') {
       setText(settingsStatus, padStatusText(status));
@@ -321,6 +345,9 @@ function startPadScreens(): PadScreens {
     enter: (screen) => {
       if (shownScreen === 'settings-pad-mapping' && screen !== shownScreen) mappingScreen.leave();
       shownScreen = screen;
+      // 画面を開いたときはどの項目にもフォーカスがなく、前の画面から押し続けているものは一度離すまで操作にしない。
+      menu.enter();
+      padNavigator.block();
       if (screen === 'settings' || screen === 'settings-pad') for (const form of forms) form.refresh();
     },
   };
@@ -432,11 +459,7 @@ async function start(): Promise<void> {
   if (historyEls) {
     fillWeaponSelect(historyEls.weapon as HTMLSelectElement, weapons);
     fillModeSelect(historyEls.mode as HTMLSelectElement, SCORED_MODES);
-    const historyView = bindHistoryView(historyEls, {
-      storage: appStorage,
-      confirm: (message) => window.confirm(message),
-      now: () => new Date(),
-    });
+    const historyView = bindHistoryView(historyEls, { storage: appStorage, now: () => new Date() });
     const weaponIds = weapons.map((w) => w.id);
     openHistory = () => historyView.open(initialHistorySelection(lastScored, weaponIds));
   }
@@ -484,11 +507,16 @@ async function start(): Promise<void> {
   };
   // 今の入力方式のデバイスのアクションだけを積む。今の入力方式はページを開いている間、練習をまたいで引き継ぐ。
   const inputs = new InputSwitch({ preference: () => inputPreference, emit: push });
+  // 操作とみなすのはプレイ画面を表示している間の入力だけ。メニューをパッドで操作しても今の入力方式は変えない
+  // （docs/spec/input.md「入力方式の切替」）。
+  const activity = (device: InputMethod) => {
+    if (currentScreen === 'play') inputs.activity(device);
+  };
   // パッドの fire・ads は読んだ時刻で積み、look は固定ステップごとにそのステップの開始時刻で積む（docs/spec/pad.md）。
   const pad = new PadInput({
     emit: (action) => inputs.input('pad', action),
     settings: () => padSettings,
-    onActivity: () => inputs.activity('pad'),
+    onActivity: () => activity('pad'),
   });
 
   // 今のセット（回数が 1 のときも 1 回のセットとして持つ）と、その武器とモード。回ごと・やり直しごとに同じものを使う。
@@ -681,7 +709,7 @@ async function start(): Promise<void> {
   // 設定していなければ既定値（MOU-11）。ロックが外れたら練習を止め、ロックし直したら再開する（docs/spec/mouse.md「一時停止と再開」）。
   attachMouse(canvas, {
     emit: (action) => inputs.input('mouse', action),
-    onActivity: () => inputs.activity('mouse'),
+    onActivity: () => activity('mouse'),
     settings: () => mouseSettings,
     onLockResult: (result) => showPointerLockNotice(lockNotice, result),
     onLockChange: (locked) => {

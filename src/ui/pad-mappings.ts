@@ -101,6 +101,11 @@ export class PadMappingScreen<P extends DetectedGamepadLike & MappingSource> {
     return this.state();
   }
 
+  /** 「割り当てる」を押して操作を待っているか。 */
+  get waiting(): boolean {
+    return this.capture.pending !== undefined;
+  }
+
   /** item の「割り当てる」を押した。対象がないときは何もしない。 */
   start(item: MappingItem): void {
     if (this.target) this.capture.start(item, this.target);
