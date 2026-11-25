@@ -1,5 +1,5 @@
 // docs/spec/scoring.md の「練習の履歴」の受け入れテスト（SCO-23〜SCO-30）と、
-// docs/spec/screens.md の「履歴の画面」の受け入れテスト（UI-16〜UI-22）。
+// docs/spec/screens.md の「履歴の画面」の受け入れテスト（UI-24〜UI-30）。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、武器の JSON、SPEC に書かれた localStorage のキーと値の形）だけを使い、
 // 実装の内部には依存しない。画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、マウス（ポインターロック + 左ボタン）で撃つ。
 // 履歴の画面は、選択（武器・モード・入力方式の select）、平均の dt / dd、推移のグラフ（svg の circle を画面上の位置で読む）、
@@ -525,7 +525,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
 
   // -------------------------------------------------------------------------
   describe('履歴の画面（screens.md）', () => {
-    it('UI-16: マウスで R-301 とセンター維持を 3 回練習したあと、履歴の画面で選ぶと、グラフに 3 点が回の順に、一覧に 3 回分の平均ズレがリザルトと同じ順で表示される', async () => {
+    it('UI-24: マウスで R-301 とセンター維持を 3 回練習したあと、履歴の画面で選ぶと、グラフに 3 点が回の順に、一覧に 3 回分の平均ズレがリザルトと同じ順で表示される', async () => {
       const page = await openFresh();
       const results: ResultState[] = [];
       for (let i = 0; i < 3; i += 1) results.push(await practice(page, R301.name, 'センター維持'));
@@ -552,7 +552,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 120_000);
 
-    it('UI-17: トップ画面で「履歴」を押すと履歴の画面になり、トップ画面へ戻るリンクで戻れる', async () => {
+    it('UI-25: トップ画面で「履歴」を押すと履歴の画面になり、トップ画面へ戻るリンクで戻れる', async () => {
       const page = await openFresh();
       const link = await page.evaluate<boolean>(`[...document.querySelectorAll('[data-screen="top"] a, [data-screen="top"] button')].some((e) => e.textContent.trim() === '履歴')`);
       expect(link).toBe(true);
@@ -576,7 +576,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-18: 履歴の画面のモードの選択肢に、ゴースト追従とセンター維持が出て、パターン観察が出ない', async () => {
+    it('UI-26: 履歴の画面のモードの選択肢に、ゴースト追従とセンター維持が出て、パターン観察が出ない', async () => {
       const page = await openFresh();
       await openHistory(page);
       const h = await historyState(page);
@@ -589,7 +589,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-19: 履歴がある組で「この履歴を消す」を押して消すことを選ぶと、空になり、再読み込みしても空で、ほかの組の履歴と自己ベストは残る', async () => {
+    it('UI-27: 履歴がある組で「この履歴を消す」を押して消すことを選ぶと、空になり、再読み込みしても空で、ほかの組の履歴と自己ベストは残る', async () => {
       const target = historyKey('mouse', 'r301', 'center');
       const others = {
         [historyKey('mouse', 'r99', 'center')]: stored([entry(4.56)]),
@@ -626,7 +626,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-20: 「この履歴を消す」を押して確認で取りやめると、履歴の表示と保存してある履歴が変わらない', async () => {
+    it('UI-28: 「この履歴を消す」を押して確認で取りやめると、履歴の表示と保存してある履歴が変わらない', async () => {
       const target = historyKey('mouse', 'r301', 'center');
       const value = stored([entry(1.5), entry(2.5, '2026-01-02T00:00:00.000Z'), entry(0.75, '2026-01-03T00:00:00.000Z')]);
       const page = await openFresh({ [target]: value });
@@ -644,7 +644,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-21: localStorage への書き込みが例外になる環境で履歴の画面を開くと、エラーで止まらずに表示され、保存できない旨が表示される', async () => {
+    it('UI-29: localStorage への書き込みが例外になる環境で履歴の画面を開くと、エラーで止まらずに表示され、保存できない旨が表示される', async () => {
       const page = await openFresh({}, ALWAYS_THROW);
       await openHistory(page);
       const h = await historyState(page);
@@ -660,7 +660,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-22: 履歴の画面に、履歴をファイルに書き出す操作や外部へ送る操作がない', async () => {
+    it('UI-30: 履歴の画面に、履歴をファイルに書き出す操作や外部へ送る操作がない', async () => {
       const page = await openFresh({ [historyKey('mouse', 'r301', 'center')]: stored([entry(1.5)]) });
       await openHistory(page);
       await selectGroup(page, R301.name, 'センター維持', 'マウス');

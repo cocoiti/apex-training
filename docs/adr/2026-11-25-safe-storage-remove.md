@@ -4,7 +4,7 @@
 
 ## 背景
 
-SPEC（docs/spec/screens.md「履歴の画面」、UI-19）は、「この履歴を消す」で選んでいる組の履歴だけを消し、
+SPEC（docs/spec/screens.md「履歴の画面」、UI-27）は、「この履歴を消す」で選んでいる組の履歴だけを消し、
 再読み込みしても空のままにすることを求める。localStorage の読み書きは SafeStorage を通す
 （ADR: 2026-11-25-safe-storage-wrapper）が、SafeStorage には消す操作がなかった。
 SafeStorage は書いた値をメモリにも持ち、`get` はこのページで書いた値を優先する。
@@ -23,5 +23,5 @@ SafeStorage は書いた値をメモリにも持ち、`get` はこのページ�
 
 ## 影響
 
-- docs/spec/screens.md（UI-19, UI-20）、docs/spec/scoring.md（練習の履歴）
+- docs/spec/screens.md（UI-27, UI-28）、docs/spec/scoring.md（練習の履歴）
 - src/ui/storage.ts、src/ui/practice-history.ts、src/ui/history-view.ts

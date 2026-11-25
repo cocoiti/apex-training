@@ -75,7 +75,7 @@ const pointCount = (html: string) => Number(/data-series="history" data-count="(
 const listedMeans = (html: string) => [...html.matchAll(/data-field="meanError">([^<]*)</g)].map((m) => m[1]);
 
 describe('履歴の画面の選択肢', () => {
-  it('UI-18: モードの選択肢はゴースト追従とセンター維持で、パターン観察は出ない', () => {
+  it('UI-26: モードの選択肢はゴースト追従とセンター維持で、パターン観察は出ない', () => {
     expect(SCORED_MODES.map((m) => m.name)).toEqual(['ゴースト追従', 'センター維持']);
     expect(SCORED_MODES.map((m) => m.id)).not.toContain('pattern');
     // 登録されたモードと id・名前が食い違わない。
@@ -132,7 +132,7 @@ describe('推移のグラフと一覧', () => {
 });
 
 describe('履歴の画面', () => {
-  it('UI-16: 3 回の履歴の組を選ぶと、3 つの点と 3 回分の平均ズレを回の順に出す', () => {
+  it('UI-24: 3 回の履歴の組を選ぶと、3 つの点と 3 回分の平均ズレを回の順に出す', () => {
     const backing = new FakeBacking();
     const page = openPage(backing);
     [0.5, 0.25, 0.75].forEach((h) => recordHistory(page.storage, R301_CENTER, result(h), NOW));
@@ -157,7 +157,7 @@ describe('履歴の画面', () => {
     );
   });
 
-  it('UI-19: 確認で消すと選んだ組だけが消え、再読み込みしても空で、ほかの組と自己ベストは残る', () => {
+  it('UI-27: 確認で消すと選んだ組だけが消え、再読み込みしても空で、ほかの組と自己ベストは残る', () => {
     const backing = new FakeBacking();
     const best = 'apex-training:best:mouse:r301:center';
     backing.items.set(best, '{"version":1,"meanError":1}');
@@ -178,7 +178,7 @@ describe('履歴の画面', () => {
     expect(backing.items.get(best)).toBe('{"version":1,"meanError":1}');
   });
 
-  it('UI-20: 確認で取りやめると表示も保存してある履歴も変えない', () => {
+  it('UI-28: 確認で取りやめると表示も保存してある履歴も変えない', () => {
     const backing = new FakeBacking();
     const page = openPage(backing, () => false);
     recordHistory(page.storage, R301_CENTER, result(1), NOW);
@@ -190,7 +190,7 @@ describe('履歴の画面', () => {
     expect(backing.items.get(historyKey(R301_CENTER))).toBe(saved);
   });
 
-  it('UI-21・SCO-30: 書き込みが例外になる環境でも止まらず、保存できない文言とこのページの練習を出す', () => {
+  it('UI-29・SCO-30: 書き込みが例外になる環境でも止まらず、保存できない文言とこのページの練習を出す', () => {
     const backing = new FakeBacking();
     backing.failWrites = true;
     const page = openPage(backing);
@@ -208,7 +208,7 @@ describe('履歴の画面', () => {
     expect(page.elements.unavailable.hidden).toBe(true);
   });
 
-  it('UI-22: 画面の HTML に書き出しや外部へ送る操作がない', () => {
+  it('UI-30: 画面の HTML に書き出しや外部へ送る操作がない', () => {
     const page = openPage(new FakeBacking());
     recordHistory(page.storage, R301_CENTER, result(1), NOW);
     page.view.open(R301_CENTER);
