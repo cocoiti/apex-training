@@ -16,7 +16,7 @@ import { parseMap, type MapData } from '../../src/sim/map';
 import { createPractice, practiceOutcome, replayRecording, type Practice } from '../../src/sim/practice';
 import { aimTrajectory } from '../../src/sim/trajectory';
 import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const WEAPON_DIR = join(ROOT, 'src/data/weapons');
@@ -294,10 +294,7 @@ describe('ARC-3: ブラウザなしで、入力の記録だけから発射・弾
 
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
-const STATIC_PORT = 3120;
-const DEBUG_PORT = 3121;
 const chromium = findChromium();
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** 保存・コピー・外部への送信の API の呼び出しを記録する（ページのスクリプトより先に実行する）。 */
 const SPY = `
@@ -364,15 +361,16 @@ describe.skipIf(NESTED || !chromium)('INP-8: 練習とリザルトの画面に�
   let server: Server | undefined;
   let browser: Browser | undefined;
   let page: Page;
-  const origin = `http://127.0.0.1:${STATIC_PORT}`;
+  let origin = '';
 
   beforeAll(async () => {
     const out = mkdtempSync(join(tmpdir(), 'inp8-dist-'));
     temps.push(out);
     const build = spawnSync(`npm run build -- --outDir "${out}" --emptyOutDir`, { cwd: ROOT, shell: true, encoding: 'utf8' });
     if (build.status !== 0) throw new Error(`ビルドが失敗した:\n${build.stdout}${build.stderr}`);
-    server = await serveStatic(out, BASE, STATIC_PORT);
-    browser = await launchBrowser(chromium!, DEBUG_PORT);
+    server = await serveStatic(out, BASE);
+    origin = originOf(server);
+    browser = await launchBrowser(chromium!);
     page = await browser.newPage();
     await page.addInitScript(SPY);
   }, 180_000);
@@ -388,7 +386,7 @@ describe.skipIf(NESTED || !chromium)('INP-8: 練習とリザルトの画面に�
     await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden`);
-    await pause(800);
+    await page.frames(5);
 
     // 練習の画面の操作。
     const play = await page.evaluate<Parameters<typeof expectNoExportControls>[0] | null>(CONTROLS('play'));
@@ -399,7 +397,7 @@ describe.skipIf(NESTED || !chromium)('INP-8: 練習とリザルトの画面に�
     await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: 640, y: 400, button: 'left', clickCount: 1 });
     for (let i = 0; i < 20; i += 1) {
       await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 640 + (i % 3), y: 400 + i, button: 'left' });
-      await pause(50);
+      await page.frames(1);
     }
     for (const key of ['c', 's']) {
       for (const modifiers of [2, 4]) {
@@ -407,7 +405,8 @@ describe.skipIf(NESTED || !chromium)('INP-8: 練習とリザルトの画面に�
         await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: `Key${key.toUpperCase()}`, modifiers });
       }
     }
-    await pause(1500);
+    // 押したまま何度も描画される（練習が進む）まで待つ。
+    await page.frames(90);
     await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 640, y: 420, button: 'left', clickCount: 1 });
     // 練習の終わり（撃ち切り・離したあとの一定時間）でリザルトになるなら、それを待つ。
     try {

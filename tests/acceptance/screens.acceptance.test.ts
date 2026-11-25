@@ -10,15 +10,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer, type ViteDevServer } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
-const STATIC_PORT = 3106;
-const DEBUG_PORT = 3107;
-const DEV_PORT = 3108;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const chromium = findChromium();
@@ -26,11 +23,9 @@ const chromium = findChromium();
 type RGB = [number, number, number];
 const distance = (a: RGB, b: RGB) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 const hex = (s: string): RGB => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)];
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function screenshot(page: Page): Promise<Image> {
-  const { data } = await page.send<{ data: string }>('Page.captureScreenshot', { format: 'png' });
-  return decodePng(Buffer.from(data, 'base64'));
+  return decodePng(await page.screenshot());
 }
 
 /** トップ画面から「開始」でプレイ画面に入る。 */
@@ -39,14 +34,15 @@ async function enterPlay(page: Page, origin: string) {
   await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
   await page.clickSelector('[data-screen="top"] a[href="#/play"]');
   await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden`);
-  // 何度か描画されるのを待つ。ポインターロックはかけない（照準を動かさない）。
-  await pause(1000);
+  // 何度か描画されるまで待つ。ポインターロックはかけない（照準を動かさない）。
+  await page.frames(10);
 }
 
 /** HTML の画面を見えなくし、キャンバスだけを写す。 */
 async function hideHtml(page: Page) {
   await page.evaluate(`for (const el of document.body.children) if (el.tagName !== 'CANVAS') el.style.visibility = 'hidden'`);
-  await pause(300);
+  // 隠した状態で描画し直されるまで待つ。
+  await page.frames(2);
 }
 
 /** (x, y) から dx, dy の向きに、色が base に近い画素が続く数。 */
@@ -66,8 +62,8 @@ describe.skipIf(NESTED || !chromium)('画面の 3D の表示とクロスヘア',
   let server: Server | undefined;
   let dev: ViteDevServer | undefined;
   let browser: Browser | undefined;
-  const staticOrigin = `http://127.0.0.1:${STATIC_PORT}`;
-  const devOrigin = `http://127.0.0.1:${DEV_PORT}`;
+  let staticOrigin = '';
+  let devOrigin = '';
   const cx = WIDTH / 2;
   const cy = HEIGHT / 2;
 
@@ -76,10 +72,13 @@ describe.skipIf(NESTED || !chromium)('画面の 3D の表示とクロスヘア',
     temps.push(out);
     const build = spawnSync(`npm run build -- --outDir "${out}" --emptyOutDir`, { cwd: ROOT, shell: true, encoding: 'utf8' });
     if (build.status !== 0) throw new Error(`ビルドが失敗した:\n${build.stdout}${build.stderr}`);
-    server = await serveStatic(out, BASE, STATIC_PORT);
-    dev = await createServer({ root: ROOT, server: { port: DEV_PORT, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
+    server = await serveStatic(out, BASE);
+    staticOrigin = originOf(server);
+    // 開発サーバーもポート 0 で待ち受け、OS が選んだポートを読む（ARC-18）。
+    dev = await createServer({ root: ROOT, server: { port: 0, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
     await dev.listen();
-    browser = await launchBrowser(chromium!, DEBUG_PORT);
+    devOrigin = originOf(dev.httpServer as Server);
+    browser = await launchBrowser(chromium!);
   }, 300_000);
 
   afterAll(async () => {
@@ -93,8 +92,8 @@ describe.skipIf(NESTED || !chromium)('画面の 3D の表示とクロスヘア',
     it('トップ画面を開くと、ウィンドウ全体を覆うキャンバスが HTML の画面の後ろにあり、3D のシーンが描画されている', async () => {
       const page = await browser!.newPage();
       await page.goto(`${staticOrigin}${BASE}`);
-      await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
-      await pause(1000);
+      await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden && document.querySelector('#weapon').options.length > 0`);
+      await page.frames(5);
       const state = await page.evaluate<{ full: boolean; behind: boolean }>(`(() => {
         const canvas = [...document.querySelectorAll('canvas')].find((c) => { const r = c.getBoundingClientRect();
           return Math.abs(r.left) < 1 && Math.abs(r.top) < 1 && Math.abs(r.width - innerWidth) < 1 && Math.abs(r.height - innerHeight) < 1; });
@@ -241,7 +240,7 @@ describe.skipIf(NESTED || !chromium)('画面の 3D の表示とクロスヘア',
 
       // 赤の十字: 中心と上下左右の腕が赤く、斜めは赤くない。点より長い。
       await apply('cross', '#ff2020');
-      await pause(300);
+      await page.frames(2);
       img = await screenshot(page);
       const red = hex('#ff2020');
       let e = extent(img, red);
@@ -258,7 +257,7 @@ describe.skipIf(NESTED || !chromium)('画面の 3D の表示とクロスヘア',
 
       // 緑の輪: 中心は緑でなく、中心から離れた所に緑の輪がある。
       await apply('circle', '#20ff40');
-      await pause(300);
+      await page.frames(2);
       img = await screenshot(page);
       const green = hex('#20ff40');
       e = extent(img, green);
@@ -271,7 +270,7 @@ describe.skipIf(NESTED || !chromium)('画面の 3D の表示とクロスヘア',
 
       // 点に戻し、色も変える。
       await apply('dot', '#ffff00');
-      await pause(300);
+      await page.frames(2);
       img = await screenshot(page);
       e = extent(img, hex('#ffff00'));
       expect(e.center).toBe(true);

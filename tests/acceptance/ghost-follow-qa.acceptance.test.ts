@@ -13,16 +13,16 @@
 // pattern はマウスの 1 カウントの角度の整数倍）を足してビルドした画面で確かめる。照準はポインターロック中のマウスの移動
 // （DevTools の mouseMoved の座標の差が movementX / movementY になる）で動かす。
 // パッドは Gamepad API（navigator.getGamepads）の形で与え、R2 で撃つ。
-// サーバーと DevTools のポートは OS に選ばせる（並行して動くほかの作業ツリーとぶつからないように）。
+// サーバーと DevTools のポートは OS に選ばせる（並行して動くほかの作業ツリーとぶつからないように。ARC-18）。
+// 待ちは決まった時間の sleep にせず、画面の状態（DOM・描画・HUD の経過時間 = 練習の固定ステップの時刻）の条件で待つ（ARC-22）。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
@@ -88,7 +88,6 @@ const ZERO_WEAPON: WeaponJson & { version: string; source: string } = {
 type RGB = [number, number, number];
 type Point = [number, number];
 const distance = (a: RGB, b: RGB) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const rad = (d: number) => (d * Math.PI) / 180;
 
 /** i 発目（1 から）の理想の補正軌道: 1〜i 発目の pattern の合計の反転（weapons.md）。 */
@@ -129,22 +128,40 @@ const FAKE_PAD = `
     timestamp: performance.now(), axes: window.__pad.axes.slice(), buttons: window.__pad.buttons.map((b) => ({ ...b })), vibrationActuator: null }];
   window.__setR2 = (v) => { window.__pad.buttons[7] = { value: v, pressed: v >= 0.5, touched: v > 0 }; };
   window.__ammo = () => { const m = (document.querySelector('[data-hud="ammo"]')?.textContent ?? '').match(/\\d+/); return m ? Number(m[0]) : NaN; };
+  // HUD の経過時間（練習の開始からの固定ステップの時刻。0.1 秒の切り捨て）。
+  window.__time = () => { const m = (document.querySelector('[data-hud="time"]')?.textContent ?? '').match(/[\\d.]+/); return m ? Number(m[0]) : NaN; };
+  // 次の描画まで待つ（ページの中で条件を確かめ直す間隔）。
+  window.__nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
 `;
 
 const hash = (page: Page) => page.evaluate<string>('location.hash');
 const ammo = (page: Page) => page.evaluate<number>('window.__ammo()');
 const resultText = (page: Page) => page.evaluate<string>(`document.querySelector('[data-screen="result"]')?.innerText ?? ''`);
+/** HUD の経過時間（秒）。 */
+const time = (page: Page) => page.evaluate<number>('window.__time()');
+/** 練習の時刻（HUD の経過時間）が from から seconds 秒進むまで待つ。 */
+const untilTime = (page: Page, from: number, seconds: number, timeout = 15_000) =>
+  page.waitFor(`window.__time() >= ${from + seconds}`, timeout);
+
+/** リザルト画面が表示され、中身が描かれるまで待つ。 */
+const waitResult = (page: Page) =>
+  page.waitFor(`location.hash === '#/result' && !document.querySelector('[data-screen="result"]').hidden && document.querySelector('[data-screen="result"]').innerText.trim().length > 0`);
+
+/** タブを閉じる。閉じ終わるのを待つ（閉じた接続の応答は待たない）。 */
+const closePage = (page: Page) => page.send('Page.close').catch(() => undefined);
 
 async function screenshot(page: Page): Promise<Image> {
-  const { data } = await page.send<{ data: string }>('Page.captureScreenshot', { format: 'png' });
-  return decodePng(Buffer.from(data, 'base64'));
+  return decodePng(await page.screenshot());
 }
 
-/** HTML の画面（HUD・クロスヘア）を隠し、キャンバスだけを写す。 */
-async function canvasOnly(page: Page): Promise<Image> {
+/**
+ * HTML の画面（HUD・クロスヘア）を隠し、キャンバスだけを写す。隠した状態で描き直されるまで待ってから写す。
+ * stable なら、画面の動き（カメラの補間・照準の移動）が止まって続けて撮った画面写しが同じになってから写す。
+ */
+async function canvasOnly(page: Page, { stable = false } = {}): Promise<Image> {
   await page.evaluate(`document.getElementById('ui').style.visibility = 'hidden'`);
-  await pause(120);
-  const img = await screenshot(page);
+  await page.frames(2);
+  const img = decodePng(stable ? await page.stableScreenshot() : await page.screenshot());
   await page.evaluate(`document.getElementById('ui').style.visibility = ''`);
   return img;
 }
@@ -168,7 +185,8 @@ async function setNative(page: Page, id: string, value: string) {
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   })()`);
-  await pause(100);
+  // 保存した値が欄に出し直される（読めない値なら直前の値に戻る）。
+  await page.waitFor(`document.getElementById(${JSON.stringify(id)}).value === ${JSON.stringify(value)}`);
 }
 
 /** 保存された設定を消す（既定値の状態にする）。 */
@@ -191,7 +209,8 @@ async function typeFov(page: Page, value: string) {
   for (const type of ['keyDown', 'keyUp']) {
     await page.send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: type === 'keyDown' ? '\r' : undefined });
   }
-  await pause(100);
+  // 確定した値が欄に出し直される。
+  await page.waitFor(`document.getElementById('setting-fov').value === ${JSON.stringify(value)}`);
 }
 
 /** トップ画面を開き、武器とモードを選んで「開始」を押し、プレイ画面になるまで待つ。 */
@@ -202,15 +221,17 @@ async function start(page: Page, origin: string, weapon: string, mode: string) {
   await choose(page, '#mode', mode);
   await page.clickSelector('[data-screen="top"] a[href="#/play"]');
   await page.waitFor(`location.hash === '#/play' && !document.querySelector('[data-screen="play"]').hidden && window.__ammo() > 0`);
-  await pause(600);
+  // 練習が進み始め（HUD の経過時間が 0.5 秒に達し）、その状態が描かれるまで待つ。
+  await page.waitFor('window.__time() >= 0.5', 15_000);
+  await page.frames(2);
 }
 
-/** R2 を押し続け、残弾が left 以下になったら離す。離したときの残弾を返す。 */
-async function holdUntil(page: Page, left: number): Promise<number> {
-  return page.evaluate<number>(`(async () => {
+/** R2 を押し続け、残弾が left 以下になったら離す。離したときの残弾と、HUD の経過時間を返す。 */
+async function holdUntil(page: Page, left: number): Promise<{ ammo: number; time: number }> {
+  return page.evaluate<{ ammo: number; time: number }>(`(async () => {
     window.__setR2(1); const t0 = performance.now();
-    while (!(window.__ammo() <= ${left}) && location.hash === '#/play' && performance.now() - t0 < 15000) await new Promise((r) => setTimeout(r, 1));
-    window.__setR2(0); return window.__ammo(); })()`);
+    while (!(window.__ammo() <= ${left}) && location.hash === '#/play' && performance.now() - t0 < 15000) await window.__nextFrame();
+    window.__setR2(0); return { ammo: window.__ammo(), time: window.__time() }; })()`);
 }
 
 /** 残弾が left になるまで待つ（R2 は押したまま）。 */
@@ -273,14 +294,14 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
     return page;
   };
   afterEach(async () => {
-    for (const p of opened) await Promise.race([p.send('Page.close').catch(() => undefined), pause(1000)]);
+    for (const p of opened) await closePage(p);
     opened = [];
   });
   const exceptions = (page: Page) => page.errors.filter((e) => e.startsWith('exception:'));
 
   /** ゴーストの色で探したゴーストの画素の中心（なければ undefined）。 */
-  async function ghostAt(page: Page): Promise<{ center: Point | undefined; count: number; size: number }> {
-    const ps = pixelsOfColor(await canvasOnly(page), ghostColor);
+  async function ghostAt(page: Page, { stable = false } = {}): Promise<{ center: Point | undefined; count: number; size: number }> {
+    const ps = pixelsOfColor(await canvasOnly(page, { stable }), ghostColor);
     return { center: ps.length ? centroid(ps) : undefined, count: ps.length, size: ps.length ? spread(ps) : 0 };
   }
 
@@ -311,29 +332,31 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       [mainDist, (o: string) => (main = o)],
       [copyDist, (o: string) => (copy = o)],
     ] as const) {
-      const server = await serveStatic(dir, BASE, 0);
+      const server = await serveStatic(dir, BASE);
       servers.push(server);
-      set(`http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+      set(originOf(server));
     }
-    browser = await launchBrowser(chromium!, 0);
+    browser = await launchBrowser(chromium!);
 
     // 対照: パターン観察（ゴーストを表示しない）で始めた直後のキャンバス。
     const ref = await newPage();
     await resetSettings(ref, main);
     await start(ref, main, 'R-301', 'パターン観察');
-    patternBase = await canvasOnly(ref);
+    patternBase = await canvasOnly(ref, { stable: true });
     opened = [];
-    await Promise.race([ref.send('Page.close').catch(() => undefined), pause(1000)]);
+    await closePage(ref);
 
     // ゴーストの色: ゴースト追従で始めた直後のキャンバスと対照の違う画素の色。
     const page = await newPage();
     await start(page, main, 'R-301', 'ゴースト追従');
-    const diff = changedPixels(patternBase, await canvasOnly(page));
+    const ghostCanvas = await canvasOnly(page, { stable: true });
+    const diff = changedPixels(patternBase, ghostCanvas);
     if (diff.length === 0) throw new Error('ゴースト追従で始めても、パターン観察と違う画素がない（ゴーストが見えない）');
-    ghostColor = medianColor(await canvasOnly(page), diff);
+    ghostColor = medianColor(ghostCanvas, diff);
     // ゴーストの色は、対照のキャンバス（壁・的・背景）にない色。
     expect(pixelsOfColor(patternBase, ghostColor).length, `ゴーストの色 ${ghostColor} が対照にもある`).toBe(0);
-    await Promise.race([page.send('Page.close').catch(() => undefined), pause(1000)]);
+    opened = [];
+    await closePage(page);
   }, 300_000);
 
   afterAll(async () => {
@@ -353,15 +376,15 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
         await start(page, origin, w.name, 'ゴースト追従');
         const expected = project(ideal(w, 1));
         // 対照（パターン観察）と違う画素は、ゴーストの 1 か所だけ。
-        const diff = changedPixels(patternBase, await canvasOnly(page));
+        const diff = changedPixels(patternBase, await canvasOnly(page, { stable: true }));
         expect(diff.length, 'ゴーストが表示されていない').toBeGreaterThan(0);
         expect(spread(diff), 'ゴースト以外にも違う画素がある').toBeLessThan(20);
         const c = centroid(diff);
         expect(Math.hypot(c[0] - expected[0], c[1] - expected[1]), `ゴースト ${fmt(c)} 期待 ${fmt(expected)}`).toBeLessThanOrEqual(1.5);
         // 撃たずに時間がたっても（2 秒を超えても）同じ位置のまま。
-        await pause((IDLE_END + 0.5) * 1000);
+        await untilTime(page, await time(page), IDLE_END + 0.5);
         expect(await hash(page)).toBe('#/play');
-        const later = await ghostAt(page);
+        const later = await ghostAt(page, { stable: true });
         expect(later.center, 'ゴーストが消えた').toBeDefined();
         expect(Math.hypot(later.center![0] - expected[0], later.center![1] - expected[1]), `ゴースト ${fmt(later.center)} 期待 ${fmt(expected)}`).toBeLessThanOrEqual(1.5);
         expect(await ammo(page)).toBe(w.magSize);
@@ -382,9 +405,9 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       await page.evaluate(`window.__setR2(1)`);
       for (let i = 1; i < w.magSize; i += 1) {
         await waitAmmo(page, w.magSize - i);
-        await pause(150);
+        // 撃った直後の動きが止まってから写し、写したあとも次の発の前（残弾が変わっていない）であることを確かめる。
+        const g = await ghostAt(page, { stable: true });
         expect(await ammo(page), `${i} 発目のあと、次の発の前に写せていない`).toBe(w.magSize - i);
-        const g = await ghostAt(page);
         const expected = project(ideal(w, i + 1));
         expect(g.center, `${i} 発目のあとにゴーストがない`).toBeDefined();
         expect(Math.hypot(g.center![0] - expected[0], g.center![1] - expected[1]), `${i} 発目のあと: ゴースト ${fmt(g.center)} 期待 ${fmt(expected)}`).toBeLessThanOrEqual(2);
@@ -405,7 +428,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       // パッドが 1 回読まれる間だけ押す代わりに、1 発撃ったら離す（発射間隔 74ms より短く押す）。
       const left = await page.evaluate<number>(`(async () => {
         window.__setR2(1); const t0 = performance.now();
-        while (window.__ammo() === ${w.magSize} && performance.now() - t0 < 3000) await new Promise((r) => setTimeout(r, 1));
+        while (window.__ammo() === ${w.magSize} && performance.now() - t0 < 3000) await window.__nextFrame();
         window.__setR2(0); return window.__ammo(); })()`);
       expect(w.magSize - left).toBeGreaterThanOrEqual(1);
       // 戻りの時間（0.5 秒）がたつ前に写す。撃った数は写したあとの残弾で数える（離すのが間に合わず 2 発撃つことがある）。
@@ -428,7 +451,8 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       // ポインターロックを掛ける（この クリックでは撃たない: ロックしていない間のボタンは射撃にならない）。
       await page.click(CX, CY);
       await page.waitFor('!!document.pointerLockElement', 5000);
-      await pause(300);
+      // クリックが射撃になっていれば残弾が減るだけの時間（練習の時刻で 0.3 秒）進めてから確かめる。
+      await untilTime(page, await time(page), 0.3);
       expect(await ammo(page), 'ポインターロックのクリックで撃った').toBe(w.magSize);
 
       let cursor: Point = [CX, CY];
@@ -446,8 +470,8 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       };
       /** クロスヘア（画面の中心）とゴーストのずれ（ピクセル）。 */
       const offCenter = async (label: string) => {
-        await pause(150);
-        const g = await ghostAt(page);
+        // 照準の移動とカメラの補間が描き終わり、画面が止まってから写す。
+        const g = await ghostAt(page, { stable: true });
         expect(g.center, `${label}: ゴーストがない`).toBeDefined();
         return Math.hypot(g.center![0] - CX, g.center![1] - CY);
       };
@@ -472,7 +496,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       // 撃ち切るとリザルト画面に移る。
       await page.waitFor(`location.hash === '#/result'`, 10_000);
       await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cursor[0], y: cursor[1], button: 'left', buttons: 0, clickCount: 1 });
-      await pause(300);
+      await waitResult(page);
       const text = await resultText(page);
       // 全弾が中心に当たる: 平均ズレ 0・グルーピング半径 0（scoring.md）。
       expect(text).toContain(`${w.magSize} 発`);
@@ -489,7 +513,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       await page.evaluate(`window.__setR2(1)`);
       await page.waitFor(`location.hash === '#/result'`, 15_000);
       await page.evaluate(`window.__setR2(0)`);
-      await pause(300);
+      await waitResult(page);
       const text = await resultText(page);
       const m = text.match(/平均ズレ\s*([\d.]+)\s*°/);
       expect(m, text).not.toBeNull();
@@ -517,8 +541,9 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       await page.evaluate(`window.__setR2(0)`);
       expect(await page.evaluate<boolean>(`!document.querySelector('[data-screen="result"]').hidden && document.querySelector('[data-screen="play"]').hidden`)).toBe(true);
       // リザルト画面の後ろのキャンバスにもゴーストがない。
-      for (const wait of [0, 500]) {
-        await pause(wait);
+      // 移った直後と、そのあと描画が 30 回進んだあと。
+      for (const frames of [0, 30]) {
+        if (frames > 0) await page.frames(frames);
         const g = await ghostAt(page);
         expect(g.count, `リザルト画面でゴーストが表示されている ${fmt(g.center)}`).toBe(0);
       }
@@ -534,8 +559,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       await resetSettings(page, main);
       await start(page, main, w.name, 'ゴースト追従');
       const first = project(ideal(w, 1));
-      const left = await holdUntil(page, w.magSize - 6);
-      const released = Date.now();
+      const { ammo: left, time: released } = await holdUntil(page, w.magSize - 6);
       expect(w.magSize - left).toBeGreaterThanOrEqual(6);
       // 離した直後（戻りの時間の途中）は、次に撃つ発の位置にある（1 発目の位置から離れている）。
       // 撃った数は写したあとの残弾で数える（離すのが間に合わず 1 発多く撃つことがある）。戻りの途中はリコイルが動いているので、
@@ -546,12 +570,14 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       expect(during.center).toBeDefined();
       expect(Math.hypot(during.center![0] - next[0], during.center![1] - next[1]), `離した直後: ゴースト ${fmt(during.center)} 期待 ${fmt(next)}`).toBeLessThanOrEqual(5);
       expect(Math.hypot(during.center![0] - first[0], during.center![1] - first[1])).toBeGreaterThan(10);
-      // 戻りの時間より長く（離してから約 1.1 秒）待つ。撃たない時間（2 秒）より前なのでプレイ画面のまま。
-      await pause(Math.max(0, (RECOVERY + 0.3) * 1000 - (Date.now() - released)));
+      // 戻りの時間より長く（練習の時刻で離してから 0.8 秒以上。HUD の経過時間は 0.1 秒の切り捨てなので、実際は 0.7 秒以上）待つ。
+      // 撃たない時間（2 秒）より前なのでプレイ画面のまま。
+      await untilTime(page, released, RECOVERY + 0.3);
       expect(await hash(page)).toBe('#/play');
       const after = await ghostAt(page);
       // 写したのは撃たない時間（2 秒）がたつ前（リザルトに移る前のプレイ画面）。
-      expect(Date.now() - released, '写すのが遅れた').toBeLessThan(IDLE_END * 1000);
+      expect(await hash(page), '写す前にリザルトに移った').toBe('#/play');
+      expect((await time(page)) - released, '写すのが遅れた').toBeLessThan(IDLE_END - 0.1);
       expect(after.center).toBeDefined();
       expect(Math.hypot(after.center![0] - first[0], after.center![1] - first[1]), `戻ったあと: ゴースト ${fmt(after.center)} 期待 ${fmt(first)}`).toBeLessThanOrEqual(1.5);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
@@ -567,12 +593,12 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       await openSettings(page, main);
       expect(await page.evaluate<boolean>(`document.getElementById('setting-ghost').checked`)).toBe(true);
       await page.clickSelector('#setting-ghost');
-      await pause(100);
+      await page.waitFor(`!document.getElementById('setting-ghost').checked`);
       expect(await page.evaluate<boolean>(`document.getElementById('setting-ghost').checked`)).toBe(false);
 
       await start(page, main, w.name, 'ゴースト追従');
       // 撃つ前: パターン観察と同じ画面（ゴーストがない）。
-      const base = await canvasOnly(page);
+      const base = await canvasOnly(page, { stable: true });
       expect(changedPixels(patternBase, base).length, 'ゴースト表示 OFF なのに、パターン観察と違う画素がある').toBe(0);
       expect(pixelsOfColor(base, ghostColor).length).toBe(0);
       // 撃っている途中も、離した直後もゴーストがない。
@@ -582,7 +608,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       await page.evaluate(`window.__setR2(1)`);
       await page.waitFor(`location.hash === '#/result'`, 15_000);
       await page.evaluate(`window.__setR2(0)`);
-      await pause(300);
+      await waitResult(page);
       const text = await resultText(page);
       expect(text).toContain('ゴースト追従');
       expect(text, text).toMatch(/平均ズレ\s*[\d.]+\s*°/);
@@ -598,7 +624,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       await page.evaluate(`window.__setR2(1)`);
       await page.waitFor(`location.hash === '#/result'`, 15_000);
       await page.evaluate(`window.__setR2(0)`);
-      await pause(300);
+      await waitResult(page);
       expect(await resultText(page)).not.toMatch(/平均ズレ/);
     }, 60_000);
   });
@@ -678,7 +704,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
         expect(await page.evaluate<string>(`document.getElementById('setting-fov').value`)).toBe(String(fov));
       }
       await start(page, origin, 'R-301', 'パターン観察');
-      const img = await canvasOnly(page);
+      const img = await canvasOnly(page, { stable: true });
       // 壁の色は、的とリングより下で壁の下端より上の行（中心から 45 px 下）の、目地を避けた画素。
       // 目地は 1 m ごと（FOV 90 で約 64 px、FOV 110 で約 45 px ごと）で、中心の真下の列と中心から 38・27 px 下の行を通る。
       const row = CY + 45;
@@ -776,7 +802,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
         await page.evaluate(`window.__setR2(1)`);
         await page.waitFor(`location.hash === '#/result'`, 20_000);
         await page.evaluate(`window.__setR2(0)`);
-        await pause(200);
+        await waitResult(page);
         expect(await page.evaluate<boolean>(`!document.querySelector('[data-screen="result"]').hidden`)).toBe(true);
         const text = await resultText(page);
         expect(text).toContain(name);

@@ -10,20 +10,18 @@
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
-import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { projectAngleOffset } from '../../src/render/fov';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
 const chromium = findChromium();
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const WIDTH = 1280;
 const HEIGHT = 800;
 const CX = WIDTH / 2;
@@ -32,13 +30,14 @@ const CY = HEIGHT / 2;
 type RGB = [number, number, number];
 const distance = (a: RGB, b: RGB) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
-/** HTML の画面を見えなくし、キャンバスだけを写す。 */
+/** HTML の画面を見えなくし、画面の動きが止まってから（続けて撮った画面写しが同じになってから）キャンバスだけを写す。 */
 async function canvasOnly(page: Page): Promise<Image> {
   await page.evaluate(`document.getElementById('ui').style.visibility = 'hidden'`);
-  await pause(200);
-  const { data } = await page.send<{ data: string }>('Page.captureScreenshot', { format: 'png' });
+  // 隠した状態で描画し直されるまで待つ。
+  await page.frames(2);
+  const img = decodePng(await page.stableScreenshot());
   await page.evaluate(`document.getElementById('ui').style.visibility = ''`);
-  return decodePng(Buffer.from(data, 'base64'));
+  return img;
 }
 
 /**
@@ -119,7 +118,10 @@ const press = async (page: Page, key: 'Enter' | 'Tab') => {
   await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code });
 };
 
-/** 入力欄をクリックして中身を選び、text を打つ。commit が 'enter' なら Enter で、'blur' なら見出しをクリックして欄から離れて確定する。 */
+/**
+ * 入力欄をクリックして中身を選び、text を打つ。commit が 'enter' なら Enter で、'blur' なら見出しをクリックして欄から離れて確定する。
+ * 確定（keydown の Enter・change）の処理は入力を送った時点で終わっているので、欄から離れるときは欄からフォーカスが外れたことを待つ。
+ */
 async function typeInto(page: Page, id: string, text: string, commit: 'enter' | 'blur' | 'none' = 'enter') {
   await page.clickSelector(`#${id}`);
   await page.evaluate(`document.getElementById(${JSON.stringify(id)}).select()`);
@@ -130,11 +132,13 @@ async function typeInto(page: Page, id: string, text: string, commit: 'enter' | 
     await page.send('Input.insertText', { text });
   }
   if (commit === 'enter') await press(page, 'Enter');
-  if (commit === 'blur') await page.clickSelector('[data-screen="settings"] h2');
-  await pause(100);
+  if (commit === 'blur') {
+    await page.clickSelector('[data-screen="settings"] h2');
+    await page.waitFor(`document.activeElement !== document.getElementById(${JSON.stringify(id)})`);
+  }
 }
 
-/** ネイティブのピッカーを使う欄（色・選択肢）に値を入れ、input と change を発火させる。 */
+/** ネイティブのピッカーを使う欄（色・選択肢）に値を入れ、input と change を発火させる（処理は発火の中で終わる）。 */
 async function setNative(page: Page, id: string, value: string) {
   await page.evaluate(`(() => {
     const el = document.getElementById(${JSON.stringify(id)});
@@ -142,7 +146,6 @@ async function setNative(page: Page, id: string, value: string) {
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   })()`);
-  await pause(100);
 }
 
 describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', () => {
@@ -157,9 +160,9 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
     temps.push(out);
     const build = spawnSync(`npm run build -- --outDir "${out}" --emptyOutDir`, { cwd: ROOT, shell: true, encoding: 'utf8' });
     if (build.status !== 0) throw new Error(`ビルドが失敗した:\n${build.stdout}${build.stderr}`);
-    server = await serveStatic(out, BASE, 0);
-    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-    browser = await launchBrowser(chromium!, 0);
+    server = await serveStatic(out, BASE);
+    origin = originOf(server);
+    browser = await launchBrowser(chromium!);
   }, 300_000);
 
   afterAll(async () => {
@@ -169,16 +172,18 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
   });
 
   const settingsUrl = () => `${origin}${BASE}#/settings`;
+  /** 設定画面が表示され、保存された値が欄に入っている（cm/360 が表示されている）まで待つ。 */
   const waitSettings = (p: Page) =>
-    p.waitFor(`document.querySelector('[data-screen="settings"]') && !document.querySelector('[data-screen="settings"]').hidden && document.getElementById('setting-fov')`);
+    p.waitFor(
+      `document.querySelector('[data-screen="settings"]') && !document.querySelector('[data-screen="settings"]').hidden && document.getElementById('setting-fov') && document.getElementById('setting-cm-per-360').textContent.trim() !== ''`,
+    );
 
-  /** 設定画面を開き直す（再読み込み）。 */
+  /** 設定画面を開き直す（再読み込み）。読み込む前の文書に印を付け、印のない新しい文書になったことを待つ。 */
   async function reload(p: Page) {
+    await p.evaluate('window.__beforeReload = true');
     await p.send('Page.reload', { ignoreCache: true });
-    await pause(200);
-    await p.waitFor('document.readyState === "complete"');
+    await p.waitFor('!window.__beforeReload && document.readyState === "complete"');
     await waitSettings(p);
-    await pause(200);
   }
 
   const noExceptions = (p: Page) => expect(p.errors.filter((e) => e.startsWith('exception:')), p.errors.join('\n')).toEqual([]);
@@ -231,7 +236,7 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       await setNative(page, 'setting-crosshair-color', '#ff3366');
       await setNative(page, 'setting-crosshair-shape', 'cross');
       await page.clickSelector('#setting-ghost');
-      await pause(100);
+      await page.waitFor(`!document.getElementById('setting-ghost').checked`);
       expect((await shown(page)).ghost).toBe(false);
 
       await reload(page);
@@ -319,7 +324,6 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       const fresh = await browser!.newPage();
       await fresh.goto(settingsUrl());
       await waitSettings(fresh);
-      await pause(300);
       const s = await shown(fresh);
       expect(s).toEqual({
         inputMethod: 'auto',
@@ -361,7 +365,6 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       await typeInto(page, 'setting-sensitivity', '1.0', 'none');
       expect((await shown(page)).cmPer360, '確定の前（その場）の表示').toBe('26.0');
       await press(page, 'Enter');
-      await pause(100);
       expect((await shown(page)).cmPer360).toBe('26.0');
       await typeInto(page, 'setting-ads-multiplier', '0.5', 'enter');
       const s = await shown(page);
@@ -377,7 +380,8 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       await p.waitFor(`!document.querySelector('[data-screen="top"]').hidden && document.querySelector('#weapon').options.length > 0`);
       await p.clickSelector('#start');
       await p.waitFor(`!document.querySelector('[data-screen="play"]').hidden`);
-      await pause(800);
+      // プレイ画面の描画が始まるまで待つ（的の位置は canvasOnly が画面の動きが止まるのを待って写す）。
+      await p.frames(5);
     }
 
     /** 開始時に画面の中心に見える的（板）の色を返し、ポインターロックを掛ける。 */
@@ -410,7 +414,6 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       const target = await targetColorAndLock(page);
       // 前（movementY が負）に 1000 カウント。
       await drag(page, 0, -10, 100);
-      await pause(500);
       const center = blobCenter(await canvasOnly(page), 'column', CX, target);
       // ピッチが上がると、的は画面の中心から 高さの半分 × tan(44°) ÷ tan(縦の視野角 / 2) 下に描画される（screens.md）。
       const expected = CY + projectAngleOffset({ yaw: 0, pitch: -44 }, 110, WIDTH, HEIGHT).y;
@@ -426,7 +429,6 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       await startFromTop(page);
       const target = await targetColorAndLock(page);
       await drag(page, 10, 0, 100);
-      await pause(500);
       const center = blobCenter(await canvasOnly(page), 'row', CY, target);
       // カメラの視野角が fieldOfView(70) なら約 495 px 左、既定の FOV 90 のままなら約 346 px 左。
       const expected = CX - projectAngleOffset({ yaw: 33, pitch: 0 }, 70, WIDTH, HEIGHT).x;

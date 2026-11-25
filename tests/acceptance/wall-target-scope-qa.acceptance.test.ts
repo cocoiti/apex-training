@@ -5,7 +5,7 @@
 // マウスは DevTools プロトコルで実際の入力として送る（ポインターロック中は座標の差が movementX / movementY になる）。
 // UI-20 の「randomness が 0 で pattern がすべて 0 の武器」は、ビルドの結果の武器の JSON をそう書き換えた配信物で再現する。
 // 設定は localStorage に残るので、各タブは開いたあとに localStorage を空にしてから使う。
-// ポートは 3140〜3149 を使う。Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
+// ポートは OS に選ばせ（ARC-18）、決まった時間ではなく画面の状態を待つ（ARC-22）。Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
@@ -18,18 +18,13 @@ import { fieldOfView } from '../../src/render/fov';
 import { parseMap, type MapData } from '../../src/sim/map';
 import { replayRecording } from '../../src/sim/practice';
 import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
-const STATIC_PORT = 3140;
-const DEBUG_PORT = 3141;
-const DEV_PORT = 3142;
-const ZERO_PORT = 3143;
 const chromium = findChromium();
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const rad = (d: number) => (d * Math.PI) / 180;
 
 type RGB = [number, number, number];
@@ -52,18 +47,20 @@ function weaponFile(name: string): WeaponData {
 /** 縦 height px の画面で、照準から tan = 1 だけずれた方向が中心から何 px 離れて描かれるか（screens.md「FOV と画面への投影」）。 */
 const pxPerTan = (fov: number, width: number, height: number) => height / 2 / Math.tan(rad(fieldOfView(fov, width / height).vertical / 2));
 
+/** 画面写し。HUD の時間などが動くので、見た目を変えたあとに描画が 2 回進むのを待ってから撮る。 */
 async function screenshot(page: Page): Promise<Image> {
-  const { data } = await page.send<{ data: string }>('Page.captureScreenshot', { format: 'png' });
-  return decodePng(Buffer.from(data, 'base64'));
+  await page.frames(2);
+  return decodePng(await page.screenshot());
 }
 
-/** HTML の画面を見えなくし、キャンバスだけを写す。 */
+/** HTML の画面を見えなくし、キャンバスの描画が止まる（照準の動きや弾痕の描画が終わる）のを待ってから、キャンバスだけを写す。 */
 async function canvasOnly(page: Page): Promise<Image> {
   await page.evaluate(`document.getElementById('ui').style.visibility = 'hidden'`);
-  await pause(250);
-  const img = await screenshot(page);
+  // 隠した状態で描画し直されるまで待ち、続けて撮った画面写しが同じになったものを使う。
+  await page.frames(2);
+  const img = decodePng(await page.stableScreenshot());
   await page.evaluate(`document.getElementById('ui').style.visibility = ''`);
-  await pause(100);
+  await page.frames(2);
   return img;
 }
 
@@ -76,6 +73,9 @@ const mouseButton = (page: Page, type: 'mousePressed' | 'mouseReleased', x: numb
     buttons: type === 'mousePressed' ? (button === 'left' ? 1 : 2) : 0,
     clickCount: 1,
   });
+
+/** HUD の残弾（表示の最初の数）。まだ出ていなければ NaN。 */
+const AMMO = `Number((document.querySelector('[data-hud="ammo"]').textContent.match(/(\\d+)/) || [])[1])`;
 
 const noExceptions = (page: Page) => expect(page.errors.filter((e) => e.startsWith('exception:')), page.errors.join('\n')).toEqual([]);
 
@@ -140,9 +140,9 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
   const servers: Server[] = [];
   let dev: ViteDevServer | undefined;
   let browser: Browser | undefined;
-  const staticOrigin = `http://127.0.0.1:${STATIC_PORT}`;
-  const zeroOrigin = `http://127.0.0.1:${ZERO_PORT}`;
-  const devOrigin = `http://127.0.0.1:${DEV_PORT}`;
+  let staticOrigin = '';
+  let zeroOrigin = '';
+  let devOrigin = '';
   let zeroWeaponFiles = 0;
 
   beforeAll(async () => {
@@ -170,11 +170,16 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       writeFileSync(file, JSON.stringify(w));
       zeroWeaponFiles += 1;
     }
-    servers.push(await serveStatic(out, BASE, STATIC_PORT));
-    servers.push(await serveStatic(zero, BASE, ZERO_PORT));
-    dev = await createServer({ root: ROOT, server: { port: DEV_PORT, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
+    const staticServer = await serveStatic(out, BASE);
+    servers.push(staticServer);
+    staticOrigin = originOf(staticServer);
+    const zeroServer = await serveStatic(zero, BASE);
+    servers.push(zeroServer);
+    zeroOrigin = originOf(zeroServer);
+    dev = await createServer({ root: ROOT, server: { port: 0, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
     await dev.listen();
-    browser = await launchBrowser(chromium!, DEBUG_PORT);
+    devOrigin = originOf(dev.httpServer as Server);
+    browser = await launchBrowser(chromium!);
   }, 300_000);
 
   afterAll(async () => {
@@ -200,9 +205,9 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     await page.goto(`${origin}${BASE}`);
     await page.evaluate('localStorage.clear()');
     await page.goto(`${origin}${BASE}#/settings`);
-    await page.evaluate('location.reload()');
-    await pause(300);
-    await page.waitFor(`document.readyState === 'complete' && document.getElementById('setting-fov') && document.getElementById('setting-fov').value !== ''`);
+    // 読み込み直す前の文書に印を付け、印のない（読み込み直した）文書で設定画面の入力欄が埋まるまで待つ。
+    await page.evaluate('window.__beforeReload = true; location.reload()');
+    await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && document.getElementById('setting-fov') && document.getElementById('setting-fov').value !== ''`);
     if (options.fov !== undefined) {
       await page.clickSelector('#setting-fov');
       await page.evaluate(`document.getElementById('setting-fov').select()`);
@@ -210,21 +215,22 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       for (const type of ['keyDown', 'keyUp']) {
         await page.send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, text: type === 'keyDown' ? '\r' : undefined });
       }
-      await pause(100);
+      await page.waitFor(`document.getElementById('setting-fov').value === ${JSON.stringify(String(options.fov))}`);
       expect(await page.evaluate<string>(`document.getElementById('setting-fov').value`)).toBe(String(options.fov));
     }
     if (options.crosshair) {
       for (const [id, value] of [['setting-crosshair-color', options.crosshair.color], ['setting-crosshair-shape', options.crosshair.shape]]) {
         await page.evaluate(`(() => { const el = document.getElementById(${JSON.stringify(id)}); el.value = ${JSON.stringify(value)};
           el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+        await page.waitFor(`document.getElementById(${JSON.stringify(id)}).value === ${JSON.stringify(value)}`);
       }
-      await pause(100);
     }
     await page.evaluate(`location.hash = '#/'`);
     await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
-    await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden`);
-    await pause(1000);
+    // プレイ画面に入り、練習が始まって（残弾が出て）シーンが何度か描画されるまで待つ。
+    await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden && ${AMMO} > 0`);
+    await page.frames(5);
     return page;
   }
 
@@ -232,11 +238,11 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
   async function lock(page: Page, cx: number, cy: number) {
     await page.click(cx, cy);
     await page.waitFor('!!document.pointerLockElement', 5000);
-    await pause(300);
+    // ロックが掛かったあとの画面が描画されるまで待つ。
+    await page.frames(2);
   }
 
-  const ammo = (page: Page) =>
-    page.evaluate<number | undefined>(`(() => { const m = document.querySelector('[data-hud="ammo"]').textContent.match(/(\\d+)/); return m ? Number(m[1]) : undefined; })()`);
+  const ammo = (page: Page) => page.evaluate<number | undefined>(`(() => { const n = ${AMMO}; return Number.isNaN(n) ? undefined : n; })()`);
 
   // -------------------------------------------------------------------------
   describe('UI-18: プレイ画面の中心にリングと中心点の的、壁に 1 m ごとの目地、壁の下に床、壁の上に空が見え、赤い箱はない', () => {
@@ -432,9 +438,18 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       await lock(page, cx, cy);
       const full = await ammo(page);
       await mouseButton(page, 'mousePressed', cx, cy, 'left');
-      await pause(400);
+      // 決まった時間押し続ける代わりに、何発か撃てた（残弾が 3 減った）ところで離す。
+      await waitUntil(async () => full! - (await ammo(page))! >= 3, '押している間に何発か撃てる（残弾が減る）');
       await mouseButton(page, 'mouseReleased', cx, cy, 'left');
-      await pause(300);
+      // 離したあとに撃ち終わり、残弾が変わらなくなる（2 回描画が進んでも同じ）まで待つ。
+      let shown = await ammo(page);
+      await waitUntil(async () => {
+        await page.frames(2);
+        const now = await ammo(page);
+        const same = now === shown;
+        shown = now;
+        return same;
+      }, '離したあと残弾が変わらなくなる（撃ち終わる）');
       const left = await ammo(page);
       expect(full! - left!, `残弾 ${full} → ${left}`).toBeGreaterThanOrEqual(2);
       const after = await canvasOnly(page);
@@ -495,7 +510,8 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       expect(hipReticle.arms.some(Boolean), '腰撃ちでは十字の腕がない').toBe(false);
 
       await mouseButton(page, 'mousePressed', cx, cy, 'right');
-      await pause(300);
+      // スコープの表示に切り替わり（クロスヘアが消えてスコープが出る）、その画面が描画されるまで待つ。
+      await page.waitFor(`!${SHOWN('[data-screen="play"] .crosshair')} && ${SHOWN('[data-screen="play"] .scope')}`);
       const ads = await screenshot(page);
       expect(await page.evaluate<boolean>(SHOWN('[data-screen="play"] .crosshair')), '腰撃ちのクロスヘアが消える').toBe(false);
       // 視野の外はほぼ不透明な暗い色で覆われる（腰撃ちのときの壁・床・空の色は見えない）。
@@ -535,7 +551,8 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       expect(r, JSON.stringify(r)).toEqual({ dot: true, arms: [true, true, true, true], gap: true, diagonal: false });
 
       await mouseButton(page, 'mouseReleased', cx, cy, 'right');
-      await pause(300);
+      // 腰撃ちのクロスヘアに戻り（スコープが消える）、その画面が描画されるまで待つ。
+      await page.waitFor(`${SHOWN('[data-screen="play"] .crosshair')} && !${SHOWN('[data-screen="play"] .scope')}`);
       const back = await screenshot(page);
       expect(await page.evaluate<boolean>(SHOWN('[data-screen="play"] .crosshair')), 'クロスヘアに戻る').toBe(true);
       for (const [x, y] of outside) expect(distance(back.pixel(x, y), hip.pixel(x, y)), `(${x}, ${y})`).toBeLessThan(20);
@@ -549,7 +566,8 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       const page = await openPlay({ crosshair: { color: '#ff3030', shape: 'circle' } });
       await lock(page, cx, cy);
       await mouseButton(page, 'mousePressed', cx, cy, 'right');
-      await pause(300);
+      // スコープの表示に切り替わり（クロスヘアが消えてスコープが出る）、その画面が描画されるまで待つ。
+      await page.waitFor(`!${SHOWN('[data-screen="play"] .crosshair')} && ${SHOWN('[data-screen="play"] .scope')}`);
       const ads = await screenshot(page);
       expect(await page.evaluate<boolean>(SHOWN('[data-screen="play"] .crosshair'))).toBe(false);
       const r = reticle(ads, hex('#ff3030'));
@@ -557,7 +575,8 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       // 既定の色のレティクルではない。
       expect(reticle(ads, hex('#77ccff')).arms.some(Boolean)).toBe(false);
       await mouseButton(page, 'mouseReleased', cx, cy, 'right');
-      await pause(300);
+      // 腰撃ちのクロスヘアに戻り（スコープが消える）、その画面が描画されるまで待つ。
+      await page.waitFor(`${SHOWN('[data-screen="play"] .crosshair')} && !${SHOWN('[data-screen="play"] .scope')}`);
       expect(await page.evaluate<boolean>(SHOWN('[data-screen="play"] .crosshair'))).toBe(true);
       noExceptions(page);
     }, 90_000);
@@ -567,11 +586,13 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       await lock(page, cx, cy);
       const hip = await canvasOnly(page);
       await mouseButton(page, 'mousePressed', cx, cy, 'right');
-      await pause(400);
+      // スコープの表示に切り替わり（クロスヘアが消えてスコープが出る）、その画面が描画されるまで待つ。
+      await page.waitFor(`!${SHOWN('[data-screen="play"] .crosshair')} && ${SHOWN('[data-screen="play"] .scope')}`);
       expect(await page.evaluate<boolean>(SHOWN('[data-screen="play"] .crosshair')), 'ads が効いている').toBe(false);
       const ads = await canvasOnly(page);
       await mouseButton(page, 'mouseReleased', cx, cy, 'right');
-      await pause(400);
+      // 腰撃ちのクロスヘアに戻り（スコープが消える）、その画面が描画されるまで待つ。
+      await page.waitFor(`${SHOWN('[data-screen="play"] .crosshair')} && !${SHOWN('[data-screen="play"] .scope')}`);
       const after = await canvasOnly(page);
       let diff = 0;
       let diffAfter = 0;
