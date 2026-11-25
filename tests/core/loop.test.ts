@@ -81,3 +81,42 @@ describe('固定ステップのループ', () => {
     expect(loop.currentTime()).toBeCloseTo(0.025 + MAX_FRAME_TIME);
   });
 });
+
+describe('固定ステップのループの一時停止', () => {
+  it('止めている間は時刻もステップも進まず描画だけを行い、再開後は止めていた時間を数えない', () => {
+    const { time, loop, alphas, updates } = createLoop();
+    time.advance(0.5);
+    loop.frame();
+    expect(updates()).toBe(30);
+    time.advance(0.004);
+    loop.pause();
+    expect(loop.paused).toBe(true);
+    const frozen = loop.currentTime();
+    expect(frozen).toBeCloseTo(0.254, 9);
+    time.advance(10);
+    expect(loop.frame()).toBe(0);
+    expect(loop.currentTime()).toBe(frozen);
+    expect(updates()).toBe(30);
+    expect(alphas).toHaveLength(2);
+    loop.resume();
+    expect(loop.paused).toBe(false);
+    expect(loop.currentTime()).toBeCloseTo(frozen, 9);
+    time.advance(0.004);
+    loop.frame();
+    expect(updates()).toBe(30);
+    time.advance(0.25);
+    loop.frame();
+    expect(loop.currentTime()).toBeCloseTo(0.508, 9);
+  });
+
+  it('重ねて止めても、重ねて再開しても変わらない', () => {
+    const { time, loop } = createLoop();
+    loop.pause();
+    time.advance(1);
+    loop.pause();
+    expect(loop.currentTime()).toBe(0);
+    loop.resume();
+    loop.resume();
+    expect(loop.currentTime()).toBe(0);
+  });
+});

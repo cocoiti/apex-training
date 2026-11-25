@@ -94,11 +94,42 @@ a {
   font-size: 12px;
 }
 
-.play-exit {
+.play-actions {
   position: absolute;
   right: 16px;
   top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
   pointer-events: auto;
+}
+
+/* ポインターロックの警告と失敗の表示は HUD の下に出す。クリックはキャンバスに通す。 */
+.pointer-lock-notice {
+  max-width: calc(100vw - 32px);
+  color: #f2c14e;
+}
+
+.pointer-lock-notice[data-kind='error'] {
+  color: #ff7b72;
+}
+
+/* 一時停止の表示は画面の中央に出し、クリックはキャンバスに通して再開できるようにする。 */
+.paused {
+  position: absolute;
+  left: 50%;
+  top: 35%;
+  margin: 0;
+  padding: 12px 20px;
+  border-radius: 8px;
+  transform: translateX(-50%);
+  background: rgb(27 30 36 / 85%);
+  font-size: 18px;
+}
+
+.pointer-lock-notice[hidden],
+.paused[hidden] {
+  display: none;
 }
 
 .footer {

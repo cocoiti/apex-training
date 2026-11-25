@@ -35,6 +35,7 @@ export class FixedStepLoop {
   private lastNow: number;
   private accumulator = 0;
   private steps = 0;
+  private stopped = false;
 
   constructor(options: FixedStepLoopOptions) {
     this.step = options.step ?? DEFAULT_FIXED_STEP;
@@ -55,12 +56,41 @@ export class FixedStepLoop {
    * 入力の発生時刻はこの時計で付ける。
    */
   currentTime(): number {
+    if (this.stopped) return this.steps * this.step + this.accumulator;
     const sinceFrame = Math.min(Math.max(this.timeSource.now() - this.lastNow, 0), this.maxFrameTime);
     return this.steps * this.step + this.accumulator + sinceFrame;
   }
 
-  /** 1 回の描画。進めたステップの数を返す。 */
+  /** 止めているか。 */
+  get paused(): boolean {
+    return this.stopped;
+  }
+
+  /**
+   * ループを止める。止めるまでの経過時間（上限つき）は蓄え、止めている間は時刻が進まず、frame() は描画だけを行う。
+   * 止めている間の入力の時刻は止めた時刻になる。
+   */
+  pause(): void {
+    if (this.stopped) return;
+    const now = this.timeSource.now();
+    this.accumulator += Math.min(Math.max(now - this.lastNow, 0), this.maxFrameTime);
+    this.lastNow = now;
+    this.stopped = true;
+  }
+
+  /** 止めたループを再開する。止めていた間の時間は数えない。 */
+  resume(): void {
+    if (!this.stopped) return;
+    this.lastNow = this.timeSource.now();
+    this.stopped = false;
+  }
+
+  /** 1 回の描画。進めたステップの数を返す。止めているときは描画だけを行い 0 を返す。 */
   frame(): number {
+    if (this.stopped) {
+      this.render(Math.min(this.accumulator / this.step, 1 - Number.EPSILON));
+      return 0;
+    }
     const now = this.timeSource.now();
     const elapsed = Math.min(Math.max(now - this.lastNow, 0), this.maxFrameTime);
     this.lastNow = now;
