@@ -77,3 +77,65 @@ export function plotHtml(plot: Plot): string {
     `</figure>`
   );
 }
+
+/** 推移の図の 1 点。time は練習の開始からの秒、value は −1〜1 の値（上が正）。 */
+export interface TracePoint {
+  readonly time: number;
+  readonly value: number;
+}
+
+/** 推移の図の 1 つの系列。時刻の順に線で結ぶ。 */
+export interface TraceSeries {
+  readonly name: string;
+  readonly label: string;
+  readonly points: readonly TracePoint[];
+}
+
+/** 横軸が時刻（秒）、縦軸が −100〜100% の推移の図。 */
+export interface TracePlot {
+  readonly name: string;
+  readonly title: string;
+  readonly series: readonly TraceSeries[];
+}
+
+/** 推移の図の縦軸の半分の幅（%）。 */
+const TRACE_HALF_HEIGHT = 100;
+/** 推移の図の横軸の最小の幅（秒）。点が 1 つでも図の幅が 0 にならないようにする。 */
+const MIN_TRACE_DURATION = 0.1;
+
+/** 推移の図の横軸の幅（秒）。すべての点の時刻が入り、MIN_TRACE_DURATION より狭くならない。 */
+export function traceDuration(plot: Pick<TracePlot, 'series'>): number {
+  let max = 0;
+  for (const series of plot.series) {
+    for (const p of series.points) max = Math.max(max, p.time);
+  }
+  return Math.max(max, MIN_TRACE_DURATION);
+}
+
+/**
+ * 推移の図を SVG を含む figure の HTML にする。左端が時刻 0、縦の中心が 0% で上が正（SVG の y は下が正なので反転する）。
+ * 横と縦の縮尺は違うので、SVG は図の箱いっぱいに伸ばし、線の太さは CSS で縮尺によらず保つ。
+ */
+export function tracePlotHtml(plot: TracePlot): string {
+  const w = traceDuration(plot);
+  const h = TRACE_HALF_HEIGHT;
+  const parts: string[] = [
+    `<line class="plot-axis" x1="0" y1="0" x2="${num(w)}" y2="0" />`,
+    `<line class="plot-axis" x1="0" y1="${num(-h)}" x2="0" y2="${num(h)}" />`,
+  ];
+  for (const series of plot.series) {
+    const attrs = `class="plot-series plot-${escapeHtml(series.name)}" data-series="${escapeHtml(series.name)}" data-count="${series.points.length}"`;
+    const points = series.points.map((p) => `${num(p.time)},${num(-p.value * h)}`).join(' ');
+    parts.push(`<polyline ${attrs} points="${points}" />`);
+  }
+  const legend = plot.series
+    .map((s) => `<span class="plot-legend plot-${escapeHtml(s.name)}">${escapeHtml(s.label)}</span>`)
+    .join('');
+  return (
+    `<figure class="plot plot-trace" data-plot="${escapeHtml(plot.name)}">` +
+    `<figcaption>${escapeHtml(plot.title)}</figcaption>` +
+    `<svg viewBox="0 ${num(-h)} ${num(w)} ${num(2 * h)}" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(plot.title)}">${parts.join('')}</svg>` +
+    `<p class="plot-legends">${legend}</p>` +
+    `</figure>`
+  );
+}

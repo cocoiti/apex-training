@@ -1,9 +1,11 @@
 import type { Action, LookAction } from './actions';
-import { lookRate, type PadSettings } from './pad-curve';
+import { lookRate, type PadSettings, type StickPosition } from './pad-curve';
 
 /** Gamepad API の Gamepad のうち、読み取りに使う部分。テストでは素のオブジェクトで代用する。 */
 export interface GamepadLike {
   readonly connected: boolean;
+  /** パッドの名前（Gamepad API の id）。 */
+  readonly id?: string;
   readonly mapping: string;
   readonly axes: readonly number[];
   readonly buttons: readonly { readonly value: number; readonly pressed: boolean }[];
@@ -59,6 +61,7 @@ export class PadInput {
   private stick = { x: 0, y: 0 };
   private held = { fire: false, ads: false };
   private connected = false;
+  private padName: string | undefined;
   /** 前に読んだときに押していたボタンの番号。 */
   private pressedButtons = new Set<number>();
   /** 前に読んだときに右スティックがデッドゾーンの外にあったか。 */
@@ -76,6 +79,16 @@ export class PadInput {
     return this.connected;
   }
 
+  /** 読んでいるパッドの名前（Gamepad API の id）。読んでいないとき、名前が空のときは undefined。 */
+  get name(): string | undefined {
+    return this.connected ? this.padName : undefined;
+  }
+
+  /** 最後に読んだ右スティックの値（デッドゾーンをかける前）。右と上が正。読んでいないときは中心。 */
+  get stickValue(): StickPosition {
+    return { ...this.stick };
+  }
+
   /**
    * パッドの最新の値を読む。null（外れた）や標準配置でないパッドのときは、look を止め、fire・ads を離した状態にする。
    * 標準配置でないパッドの割り当ては docs/spec/pad.md のボタン割り当て画面の Issue で足す。
@@ -83,6 +96,7 @@ export class PadInput {
   poll(pad: GamepadLike | null): void {
     if (!pad || !pad.connected || !isStandardMapping(pad)) {
       this.connected = false;
+      this.padName = undefined;
       this.stick = { x: 0, y: 0 };
       this.pressedButtons = new Set();
       this.stickOutside = false;
@@ -91,6 +105,7 @@ export class PadInput {
       return;
     }
     this.connected = true;
+    this.padName = pad.id === undefined || pad.id === '' ? undefined : pad.id;
     // Gamepad API の上下は下が正。ピッチは上が正なので反転する（0 を -0 にしない）。
     this.stick = {
       x: pad.axes[STANDARD_LAYOUT.lookX] ?? 0,

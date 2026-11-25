@@ -169,3 +169,24 @@ describe('パッドの操作（docs/spec/input.md「入力方式の切替」）'
     expect(activities()).toBe(0);
   });
 });
+
+describe('ガイドに使う値', () => {
+  it('右スティックの値をデッドゾーンをかける前のまま、上を正にして返す。名前は Gamepad API の id', () => {
+    const { pad } = createPad({ ...DEFAULT_PAD_SETTINGS, deadzone: 10 });
+    expect(pad.stickValue).toEqual({ x: 0, y: 0 });
+    expect(pad.name).toBeUndefined();
+    pad.poll({ ...gamepad({ x: 0.05, y: 0.04 }), id: 'Xbox Wireless Controller' });
+    expect(pad.stickValue).toEqual({ x: 0.05, y: -0.04 });
+    expect(pad.name).toBe('Xbox Wireless Controller');
+  });
+
+  it('外れたら中心に戻し、名前を忘れる。id が空文字なら名前は分からない', () => {
+    const { pad } = createPad();
+    pad.poll({ ...gamepad({ x: 0.5 }), id: 'DualSense' });
+    pad.poll(null);
+    expect(pad.stickValue).toEqual({ x: 0, y: 0 });
+    expect(pad.name).toBeUndefined();
+    pad.poll({ ...gamepad(), id: '' });
+    expect(pad.name).toBeUndefined();
+  });
+});

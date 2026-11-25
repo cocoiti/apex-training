@@ -189,3 +189,30 @@ export function uncorrectedPattern(weapon: Pick<WeaponData, 'pattern'>, count: n
     return { yaw: dx, pitch: dy };
   });
 }
+
+/** 理想の補正速度を求めるときの射撃の状態。 */
+export interface IdealRateState {
+  /** fire を押しているか。 */
+  readonly fire: boolean;
+  /** 次に撃つ弾が pattern の何発目（1 始まり）か（Gun の nextPatternShot）。 */
+  readonly nextShot: number;
+  /** 残弾。0 なら撃ち切った。 */
+  readonly ammo: number;
+}
+
+/**
+ * 理想の補正速度（docs/spec/pad.md「理想の補正速度」）。理想の補正軌道を照準でなぞるための回転速度（ヨー・ピッチ、度/秒）。
+ * fire を押していて次に撃つ弾が k 発目（k ≥ 2）のとき、（k 発目 − (k − 1) 発目の理想の補正軌道）÷ 発射間隔。
+ * fire を押していない、次に撃つ弾が 1 発目、撃ち切ったときは 0。
+ */
+export function idealCorrectionRate(weapon: Pick<WeaponData, 'pattern' | 'rpm'>, state: IdealRateState): Angles {
+  const zero = { yaw: 0, pitch: 0 };
+  if (!state.fire || state.ammo <= 0 || state.nextShot < 2) return zero;
+  const ideal = idealCorrection(weapon);
+  const current = ideal[state.nextShot - 1];
+  const previous = ideal[state.nextShot - 2];
+  if (!current || !previous) return zero;
+  const interval = fireInterval(weapon);
+  // 0 + x にして、差が 0 のときに -0 にならないようにする。
+  return { yaw: 0 + (current.yaw - previous.yaw) / interval, pitch: 0 + (current.pitch - previous.pitch) / interval };
+}

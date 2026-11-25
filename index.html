@@ -88,6 +88,14 @@
           <p id="status">読み込み中</p>
           <p id="pointer-lock-notice" class="pointer-lock-notice" role="status" hidden></p>
         </div>
+        <!-- パッド向けのスティック型のガイド（docs/spec/pad.md「練習中のガイド」）。ゴースト追従でパッドのあいだだけ出す。 -->
+        <div class="pad-guide" hidden>
+          <div class="pad-guide-stick">
+            <div class="pad-guide-dot pad-guide-ideal" data-guide="ideal"></div>
+            <div class="pad-guide-dot pad-guide-current" data-guide="current"></div>
+          </div>
+          <p class="pad-guide-name"></p>
+        </div>
         <p id="paused" class="paused" role="status" hidden></p>
         <!-- 連続練習の途中の回の短いリザルト（docs/spec/modes.md「連続練習（セット）」）。 -->
         <div id="interlude" class="interlude" role="status" hidden>
@@ -117,6 +125,8 @@
             <p id="result-comments" class="result-comments"></p>
           </div>
           <div id="result-plots" class="result-plots"></div>
+          <!-- 右スティックの入力推移のグラフは練習の入力方式がパッドで採点するモードのときだけ表示する（docs/spec/pad.md）。 -->
+          <section id="result-pad" class="result-pad" hidden></section>
           <nav class="menu menu-row">
             <a href="#/play" id="retry">もう一度</a> <span class="controls-hint"><kbd>R</kbd>・<kbd>Space</kbd> / <kbd>A / ×</kbd></span>
             <a href="#/" id="change-weapon">武器変更</a> <span class="controls-hint"><kbd>B / ○</kbd></span>

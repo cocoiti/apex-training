@@ -8,7 +8,7 @@ import { InputSwitch } from './input/input-switch';
 import { attachMouse } from './input/mouse';
 import type { MouseSettings } from './input/mouse-sensitivity';
 import { firstConnectedGamepad, PadInput } from './input/pad';
-import { DEFAULT_PAD_SETTINGS } from './input/pad-curve';
+import { DEFAULT_PAD_SETTINGS, type PadSettings } from './input/pad-curve';
 import { createSeed, RecordingInput } from './input/recording';
 import { keyControl, PadButtons, type ScreenControl } from './input/screen-controls';
 import { modes } from './modes/registry';
@@ -28,6 +28,7 @@ import { bindHistoryView, initialHistorySelection, SCORED_MODES, type HistoryEle
 import { renderHud, type HudElements } from './ui/hud';
 import { fillModeSelect } from './ui/mode-choices';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
+import { padGuideState, padGuideVisible, renderPadGuide, type PadGuideElements } from './ui/pad-guide';
 import { PracticeFlow } from './ui/practice-flow';
 import { applyPracticeSettings } from './ui/practice-settings';
 import type { HistorySelection } from './ui/practice-history';
@@ -145,6 +146,15 @@ function aimDisplayElements(): AimDisplayElements | undefined {
   return crosshair && scope ? { crosshair, scope } : undefined;
 }
 
+/** パッド向けのガイドの要素。どれかが欠けていれば undefined。 */
+function padGuideElements(): PadGuideElements | undefined {
+  const root = document.querySelector<HTMLElement>('[data-screen="play"] .pad-guide');
+  const ideal = root?.querySelector<HTMLElement>('[data-guide="ideal"]');
+  const current = root?.querySelector<HTMLElement>('[data-guide="current"]');
+  const name = root?.querySelector<HTMLElement>('.pad-guide-name');
+  return root && ideal && current && name ? { root, ideal, current, name } : undefined;
+}
+
 /** 設定画面の各項目に保存された値を出し、変えたらすぐに保存する（docs/spec/screens.md「設定項目」）。 */
 function startSettingsForm(): void {
   const byId = <T extends HTMLElement>(id: string) => document.querySelector<T>(`#${id}`);
@@ -191,6 +201,8 @@ interface Running {
   readonly loop: FixedStepLoop;
   /** 積んだ入力を記録しながらシミュレーションに流す。記録（input.recording()）はリザルトの軌道の重ね描きと再生に使う。 */
   readonly input: RecordingInput;
+  /** この練習に当てたパッドの設定。ガイドとリザルトの入力推移のカーブの逆に使う。 */
+  readonly padSettings: Readonly<PadSettings>;
 }
 
 async function start(): Promise<void> {
@@ -222,6 +234,7 @@ async function start(): Promise<void> {
     comments: document.querySelector<HTMLElement>('#result-comments'),
     best: document.querySelector<HTMLElement>('#result-best'),
     plots: document.querySelector<HTMLElement>('#result-plots'),
+    padTrace: document.querySelector<HTMLElement>('#result-pad'),
   };
   const lockNotice = document.querySelector<HTMLElement>('#pointer-lock-notice');
   const pausedNotice = document.querySelector<HTMLElement>('#paused');
@@ -299,6 +312,11 @@ async function start(): Promise<void> {
   const view = new SceneRenderer(canvas, shownWorld, { fov: loadCommonSettings(appStorage).fov });
   const impacts = new ImpactMarks(view.view.layer);
   const ghost = new GhostMarker(view.view.layer);
+  // パッド向けのガイド（docs/spec/pad.md「練習中のガイド」）。表示だけで、シミュレーションと入力の記録には触れない。
+  const guide = padGuideElements();
+  const hideGuide = () => {
+    if (guide) renderPadGuide(guide, undefined);
+  };
   // ゴースト表示の設定。「開始」を押した時点の保存された値（docs/spec/screens.md）。OFF でも採点は変わらない。
   let showGhost = loadCommonSettings(appStorage).ghost;
   let running: Running | undefined;
@@ -363,7 +381,15 @@ async function start(): Promise<void> {
     // 練習ごとに種を 1 つ決め、積んだ入力を記録する（docs/spec/input.md「入力の記録と再生」）。記録はメモリの中だけで持つ。
     const input = new RecordingInput(createSeed());
     const world = createWorld(map);
-    const session = new PracticeSession({ world, weapon, mode, input, seed: input.seed, inputMethod: () => inputs.current });
+    const session = new PracticeSession({
+      world,
+      weapon,
+      mode,
+      input,
+      seed: input.seed,
+      inputMethod: () => inputs.current,
+      padName: () => pad.name,
+    });
     const loop = new FixedStepLoop({
       timeSource: performanceTimeSource,
       update: () => {
@@ -378,7 +404,8 @@ async function start(): Promise<void> {
       },
     });
     shownWorld = world;
-    running = { session, loop, input };
+    running = { session, loop, input, padSettings: DEFAULT_PAD_SETTINGS };
+    hideGuide();
     setAds(false);
     interlude.hidden = true;
     playControls.hidden = false;
@@ -404,6 +431,7 @@ async function start(): Promise<void> {
     interlude.hidden = true;
     impacts.clear();
     ghost.hide();
+    hideGuide();
   };
 
   /** 終えた回だけのセットのまとめを出す（docs/spec/screens.md「セットのまとめ」）。 */
@@ -428,11 +456,19 @@ async function start(): Promise<void> {
     if (!result || !set || set.phase !== 'playing') return;
     running = undefined;
     ghost.hide();
+    hideGuide();
     setAds(false);
     // 採点し、採点するモードなら自己ベストを保存する。連続練習でも回ごとに判定する（docs/spec/scoring.md「自己ベスト」）。
     // 保存できなくても投げず、フッターの表示は appStorage が出す。
     const view = completePractice(
-      { result, recording: current.input.recording(), world: current.session.world, input: result.inputMethod, dt: current.session.sim.dt },
+      {
+        result,
+        recording: current.input.recording(),
+        world: current.session.world,
+        input: result.inputMethod,
+        dt: current.session.sim.dt,
+        padSettings: current.padSettings,
+      },
       appStorage,
       new Date(),
     );
@@ -539,6 +575,22 @@ async function start(): Promise<void> {
         inputMethod: inputs.current,
         round: set ? { index: set.round, count: set.count } : undefined,
       });
+      // 入力方式がマウスに変わったら、同じ描画ですぐにガイドを消す。撃ち切ったとき・終わったときは session.ghost が undefined。
+      if (guide) {
+        const shown = padGuideVisible({ showGhost, ghostShown: session.ghost !== undefined, inputMethod: inputs.current });
+        renderPadGuide(
+          guide,
+          shown
+            ? padGuideState({
+                idealRate: session.idealRate,
+                ads: session.world.player.ads,
+                settings: current.padSettings,
+                stick: pad.stickValue,
+                name: pad.name,
+              })
+            : undefined,
+        );
+      }
       status.textContent = hint;
       // 最後の弾の弾痕を記録・表示したあとにリザルト画面へ移る。
       if (session.result) finish(current);
