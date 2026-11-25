@@ -1,4 +1,3 @@
-import type { TrainingMode } from '../modes/types';
 import type { InputMethod } from './personal-best';
 import {
   clearHistory,
@@ -19,15 +18,6 @@ import {
   type WeakSectionSummary,
 } from './weak-section';
 
-/**
- * 履歴の画面のモードの選択肢。採点するモード（反復練習・センター維持）を並び順に並べ、パターン観察は出さない
- * （docs/spec/screens.md「履歴の画面」）。決定の理由は docs/adr/2026-11-25-history-scored-modes-list.md。
- */
-export const SCORED_MODES: readonly Pick<TrainingMode, 'id' | 'name'>[] = [
-  { id: 'ghost', name: '反復練習' },
-  { id: 'center', name: 'センター維持' },
-];
-
 /** 入力方式の選択肢。 */
 export const INPUT_METHODS: readonly { readonly id: InputMethod; readonly name: string }[] = [
   { id: 'mouse', name: 'マウス' },
@@ -44,15 +34,17 @@ export const HISTORY_UNAVAILABLE_MESSAGE = 'この環境では履歴を保存で
 export const HISTORY_CLEAR_CONFIRM = '選んでいる武器・モード・入力方式の履歴を消します。よろしいですか？';
 
 /**
- * 開いたときに選ぶ組。このページで最後に終えた練習が採点するモードならその組、そうでなければ
- * 一覧の最初の武器・採点するモードの最初のモード・マウス。
+ * 開いたときに選ぶ組（docs/spec/screens.md「履歴の画面」）。このページで最後に終えた練習があり、その武器とモードが
+ * 選択肢にあればその組、なければ一覧の最初の武器・モードの並び順の最初のモード・マウス。
+ * モードの選択肢は登録されたモード（src/modes/registry.ts）で、決定の理由は docs/adr/2026-11-26-all-modes-scored.md。
  */
 export function initialHistorySelection(
   last: HistorySelection | null,
   weaponIds: readonly string[],
+  modeIds: readonly string[],
 ): HistorySelection {
-  if (last && SCORED_MODES.some((m) => m.id === last.modeId) && weaponIds.includes(last.weaponId)) return last;
-  return { input: 'mouse', weaponId: weaponIds[0] ?? '', modeId: SCORED_MODES[0]?.id ?? '' };
+  if (last && modeIds.includes(last.modeId) && weaponIds.includes(last.weaponId)) return last;
+  return { input: 'mouse', weaponId: weaponIds[0] ?? '', modeId: modeIds[0] ?? '' };
 }
 
 /** 推移のグラフの大きさ（SVG の座標）。 */

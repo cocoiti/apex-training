@@ -18,11 +18,12 @@ export interface ModeContext {
   readonly random: Random;
 }
 
-/** 練習モードの結果のうち、どのモードにもあるもの。 */
-export interface ModeResult {
-  /** 採点するモードか（docs/spec/modes.md）。採点の中身はリザルトの Issue で足す。 */
-  readonly scored: boolean;
-}
+/**
+ * 練習モードが結果に足すもの。どのモードも採点し（docs/spec/modes.md）、採点はモードによらない共通の処理が
+ * 練習の結果から行う（src/ui/result-view.ts）ので、今のモードが足すものはない。
+ * 決定の理由は docs/adr/2026-11-26-all-modes-scored.md。
+ */
+export type ModeResult = Readonly<Record<string, unknown>>;
 
 /**
  * 練習モードの共通の型（docs/spec/architecture.md「モードとマップの追加」）。

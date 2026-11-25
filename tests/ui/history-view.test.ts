@@ -11,7 +11,6 @@ import {
   historyPointPositions,
   initialHistorySelection,
   INPUT_METHODS,
-  SCORED_MODES,
   type HistoryElements,
 } from '../../src/ui/history-view';
 import { historyKey, loadHistory, recordHistory, type HistoryEntry } from '../../src/ui/practice-history';
@@ -79,26 +78,24 @@ const pointCount = (html: string) => Number(/data-series="history" data-count="(
 const listedMeans = (html: string) => [...html.matchAll(/data-field="meanError">([^<]*)</g)].map((m) => m[1]);
 
 describe('履歴の画面の選択肢', () => {
-  it('UI-26: モードの選択肢は反復練習とセンター維持で、パターン観察は出ない', () => {
-    expect(SCORED_MODES.map((m) => m.name)).toEqual(['反復練習', 'センター維持']);
-    expect(SCORED_MODES.map((m) => m.id)).not.toContain('pattern');
-    // 登録されたモードと id・名前が食い違わない。
-    for (const mode of modes) {
-      const scored = SCORED_MODES.find((m) => m.id === mode.id);
-      if (scored) expect(scored.name).toBe(mode.name);
-    }
+  it('UI-26: モードの選択肢にする登録されたモードは反復練習とセンター維持だけ', () => {
+    expect(modes.map((m) => m.name)).toEqual(['反復練習', 'センター維持']);
+    expect(modes.map((m) => m.id)).toEqual(['ghost', 'center']);
   });
 
   it('入力方式はマウスとパッド', () => {
     expect(INPUT_METHODS.map((m) => m.id)).toEqual(['mouse', 'pad']);
   });
 
-  it('最後に終えた練習が採点するモードならその組、なければ最初の武器・最初の採点するモード・マウス', () => {
+  it('最後に終えた練習があればその組、なければ最初の武器・最初のモード・マウス', () => {
     const weapons = ['lstar', 'car'];
-    expect(initialHistorySelection(null, weapons)).toEqual({ input: 'mouse', weaponId: 'lstar', modeId: 'ghost' });
+    const modeIds = modes.map((m) => m.id);
+    expect(initialHistorySelection(null, weapons, modeIds)).toEqual({ input: 'mouse', weaponId: 'lstar', modeId: 'ghost' });
     const last = { input: 'pad', weaponId: 'car', modeId: 'center' } as const;
-    expect(initialHistorySelection(last, weapons)).toEqual(last);
-    expect(initialHistorySelection({ ...last, modeId: 'pattern' }, weapons).modeId).toBe('ghost');
+    expect(initialHistorySelection(last, weapons, modeIds)).toEqual(last);
+    // 登録されていないモード（以前のパターン観察など）・一覧にない武器の組は選ばない。
+    expect(initialHistorySelection({ ...last, modeId: 'pattern' }, weapons, modeIds)).toEqual({ input: 'mouse', weaponId: 'lstar', modeId: 'ghost' });
+    expect(initialHistorySelection({ ...last, weaponId: 'r99' }, weapons, modeIds).weaponId).toBe('lstar');
   });
 });
 

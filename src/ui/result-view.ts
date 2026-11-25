@@ -4,7 +4,7 @@ import type { InputRecording } from '../input/recording';
 import type { PracticeResult } from '../modes/session';
 import { scoreShots, shotDeviations, targetRadius, type ScoreResult } from '../sim/scoring';
 import { aimAtShots, lookRateTrace } from '../sim/trajectory';
-import { idealCorrection, uncorrectedPattern } from '../sim/weapon';
+import { idealCorrection } from '../sim/weapon';
 import type { World } from '../sim/world';
 import { personalBestKey, recordPersonalBest, type InputMethod, type PersonalBestOutcome } from './personal-best';
 import { recordHistory } from './practice-history';
@@ -44,20 +44,18 @@ export interface MetricRow {
 /** リザルト画面に出すもの。 */
 export interface ResultView {
   readonly summary: string;
-  /** 採点するモードか。採点しないモードでは metrics・comments・best を出さない。 */
-  readonly scored: boolean;
   readonly metrics: readonly MetricRow[];
   readonly comments: readonly string[];
-  /** 自己ベストの表示。採点しないモードでは null。 */
-  readonly best: string | null;
-  /** 平均ズレ（度）。採点しないモードと「なし」のときは null。連続練習の短いリザルトとセットのまとめに使う。 */
+  /** 自己ベストの表示。 */
+  readonly best: string;
+  /** 平均ズレ（度）。「なし」のときは null。連続練習の短いリザルトとセットのまとめに使う。 */
   readonly meanDeviation: number | null;
   /** この練習で自己ベストを更新したか。 */
   readonly bestUpdated: boolean;
   readonly plots: readonly Plot[];
-  /** 右スティックの入力推移のグラフ。練習の入力方式がパッドで、採点するモードのときだけ。ほかは null。 */
+  /** 右スティックの入力推移のグラフ。練習の入力方式がパッドのときだけ。マウスのときは null。 */
   readonly padTrace: PadTraceView | null;
-  /** 苦手な区間の 1 行。採点しないモードと、苦手な区間が「なし」のときは null。 */
+  /** 苦手な区間の 1 行。苦手な区間が「なし」のときは null。 */
   readonly weakSection: string | null;
 }
 
@@ -129,7 +127,7 @@ export function padTraceView(
 }
 
 /**
- * 練習の結果を採点し、採点するモードなら自己ベストと比べて保存し、履歴に足し、リザルト画面に出すものを作る。
+ * 練習の結果を採点し、自己ベストと比べて保存し、履歴に足し、リザルト画面に出すものを作る。
  * 保存は SafeStorage を通すので、保存できない環境でも投げない。
  */
 export function completePractice(
@@ -141,28 +139,6 @@ export function completePractice(
   const summary = resultSummaryText(result);
   const deviations = shotDeviations(result.shots, world.center);
   const shotSeries = { name: 'shots', label: '弾痕', kind: 'points', points: deviations } as const;
-
-  if (!result.modeResult.scored) {
-    const pattern = uncorrectedPattern(result.weapon, result.shots.length);
-    return {
-      summary,
-      scored: false,
-      metrics: [],
-      comments: [],
-      best: null,
-      meanDeviation: null,
-      bestUpdated: false,
-      padTrace: null,
-      weakSection: null,
-      plots: [
-        {
-          name: 'pattern',
-          title: '弾痕と補正しなかった場合のパターン',
-          series: [shotSeries, { name: 'pattern', label: '補正しなかった場合', kind: 'line', points: pattern }],
-        },
-      ],
-    };
-  }
 
   const radius = targetRadius(world);
   const scored = scoreShots(result.shots, world, radius);
@@ -176,7 +152,6 @@ export function completePractice(
   const ideal = idealCorrection(result.weapon).slice(0, result.shots.length);
   return {
     summary,
-    scored: true,
     metrics: metricRows(scored),
     comments: scored.comments,
     best: personalBestText(outcome),
@@ -201,8 +176,6 @@ export function completePractice(
 /** リザルト画面の要素。index.html の #result-* の要素。 */
 export interface ResultElements {
   readonly summary: Pick<HTMLElement, 'textContent'>;
-  /** 指標・コメント・自己ベストをまとめた要素。採点しないモードでは隠す。 */
-  readonly score: Pick<HTMLElement, 'hidden'>;
   readonly metrics: Pick<HTMLElement, 'innerHTML'>;
   readonly comments: Pick<HTMLElement, 'textContent'>;
   readonly best: Pick<HTMLElement, 'textContent'>;
@@ -216,12 +189,11 @@ export interface ResultElements {
 /** リザルト画面の要素を書き換える。 */
 export function renderResult(elements: ResultElements, view: ResultView): void {
   elements.summary.textContent = view.summary;
-  elements.score.hidden = !view.scored;
   elements.metrics.innerHTML = view.metrics
     .map((row) => `<dt>${escapeHtml(row.label)}</dt><dd>${escapeHtml(row.value)}</dd>`)
     .join('');
   elements.comments.textContent = view.comments.join(' / ');
-  elements.best.textContent = view.best ?? '';
+  elements.best.textContent = view.best;
   elements.weakSection.textContent = view.weakSection ?? '';
   elements.weakSection.hidden = view.weakSection === null;
   elements.plots.innerHTML = view.plots.map(plotHtml).join('');

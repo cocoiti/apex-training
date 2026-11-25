@@ -38,20 +38,7 @@ function rangeWorld(): World {
   return createWorld(rangeMap());
 }
 
-/** センター維持と同じく採点する反復練習の代わり（反復練習のモードはまだない）。 */
-const ghostLike: TrainingMode = {
-  id: 'ghost',
-  name: '反復練習',
-  category: 'recoil',
-  order: 20,
-  setup() {},
-  step: () => true,
-  result: () => ({ scored: true }),
-  teardown() {},
-};
-
 function modeById(id: string): TrainingMode {
-  if (id === 'ghost') return ghostLike;
   const found = modes.find((m) => m.id === id);
   if (!found) throw new Error(`モード ${id} がない`);
   return found;
@@ -112,7 +99,6 @@ describe('リザルト画面に出すもの', () => {
   it('SCO-16: センター維持では指標・コメント・自己ベストと、散布図と照準の軌道の重ね描きを出す', () => {
     const p = practice('lstar', 'center');
     const view = completePractice(p, memoryStorage(), NOW);
-    expect(view.scored).toBe(true);
     expect(view.summary).toBe(`L-STAR / センター維持 — ${p.result.shots.length} 発`);
     expect(view.metrics.map((m) => m.label)).toEqual(['平均ズレ', 'グルーピング半径', '命中率', '区間ごとのズレ', '横ブレ / 縦ブレ']);
     expect(view.comments.length).toBeGreaterThan(0);
@@ -128,28 +114,11 @@ describe('リザルト画面に出すもの', () => {
     ]);
   });
 
-  it('SCO-16: 反復練習（採点するモード）でも同じものを出す', () => {
+  it('SCO-16: 反復練習でも同じものを出す', () => {
     const view = completePractice(practice('lstar', 'ghost'), memoryStorage(), NOW);
-    expect(view.scored).toBe(true);
+    expect(view.metrics.map((m) => m.label)).toEqual(['平均ズレ', 'グルーピング半径', '命中率', '区間ごとのズレ', '横ブレ / 縦ブレ']);
+    expect(view.best).toBe('自己ベスト更新');
     expect(view.plots.map((p) => p.name)).toEqual(['scatter', 'trajectory']);
-  });
-
-  it('SCO-17: パターン観察では指標・コメント・自己ベストを出さず、弾痕と補正しなかった場合のパターンを重ね、何も保存しない', () => {
-    const storage = memoryStorage();
-    const p = practice('lstar', 'pattern', 0);
-    const view = completePractice(p, storage, NOW);
-    expect(view).toMatchObject({ scored: false, metrics: [], comments: [], best: null });
-    expect(view.plots).toHaveLength(1);
-    const [plot] = view.plots;
-    expect(plot?.series.map((s) => s.name)).toEqual(['shots', 'pattern']);
-    // 補正しなかったので、弾痕は補正しなかった場合のパターンから各発のブレ（randomness）の範囲に入る。
-    const [shots, pattern] = plot?.series ?? [];
-    expect(pattern?.points).toHaveLength(p.result.shots.length);
-    shots?.points.forEach((s, i) => {
-      expect(Math.abs(s.yaw - (pattern?.points[i]?.yaw ?? NaN))).toBeLessThanOrEqual(p.result.weapon.randomness + 1e-9);
-      expect(Math.abs(s.pitch - (pattern?.points[i]?.pitch ?? NaN))).toBeLessThanOrEqual(p.result.weapon.randomness + 1e-9);
-    });
-    expect(storage.items.size).toBe(0);
   });
 
   it('SCO-18: 自己ベストがなければ「自己ベスト更新」を出し、マウス・L-STAR・センター維持のキーに平均ズレを保存する', () => {
@@ -191,13 +160,12 @@ describe('リザルト画面に出すもの', () => {
     expect(storage.items.has(personalBestKey('mouse', 'car', 'center'))).toBe(true);
   });
 
-  it('平均ズレと自己ベストを更新したかを出す。パターン観察では平均ズレがなく、更新もしない', () => {
+  it('平均ズレと自己ベストを更新したかを出す', () => {
     const storage = memoryStorage();
     const first = completePractice(practice('lstar', 'center'), storage, NOW);
     expect(first.meanDeviation).toBeCloseTo(meanOf(storage.items.get(LSTAR_CENTER)) ?? NaN, 9);
     expect(first.bestUpdated).toBe(true);
     expect(completePractice(practice('lstar', 'center'), storage, NOW).bestUpdated).toBe(false);
-    expect(completePractice(practice('lstar', 'pattern', 0), storage, NOW)).toMatchObject({ meanDeviation: null, bestUpdated: false });
   });
 
   it('MODE-23: 連続練習で回ごとに採点すると、自己ベストには回のうち平均ズレが最も小さい回の平均ズレが残る', () => {
@@ -263,12 +231,6 @@ describe('練習の履歴の保存', () => {
     });
   });
 
-  it('SCO-25: パターン観察では履歴のキーに何も保存しない', () => {
-    const storage = memoryStorage();
-    completePractice(practice('lstar', 'pattern', 0), storage, NOW);
-    expect([...storage.items.keys()].filter((k) => k.startsWith('apex-training:history:'))).toEqual([]);
-  });
-
   it('SCO-26: 別のモード・パッドの練習では、L-STAR とセンター維持のマウスの履歴を変えない', () => {
     const storage = memoryStorage();
     completePractice(practice('lstar', 'center'), storage, NOW);
@@ -282,7 +244,7 @@ describe('練習の履歴の保存', () => {
 
   it('SCO-29: 履歴のキーに JSON として読めない値があっても、その練習の 1 件だけの履歴にする', () => {
     const storage = memoryStorage({ [LSTAR_CENTER_HISTORY]: '{broken' });
-    expect(completePractice(practice('lstar', 'center'), storage, NOW).scored).toBe(true);
+    expect(completePractice(practice('lstar', 'center'), storage, NOW).meanDeviation).not.toBeNull();
     expect(parseHistory(storage.items.get(LSTAR_CENTER_HISTORY) ?? null)).toHaveLength(1);
   });
 });
@@ -319,15 +281,10 @@ describe('苦手な区間の行', () => {
     const old = Array.from({ length: 10 }, (_, i) => ({ at: NOW.toISOString(), meanError: i, hitRate: 50, groupingRadius: 1, shots: 28 }));
     const storage = memoryStorage({ [HISTORY]: JSON.stringify({ version: 1, entries: old }) });
     const view = completePractice(offAt11(), storage, NOW);
-    expect(view.scored).toBe(true);
     expect(view.weakSection).toBeNull();
     const saved = JSON.parse(storage.items.get(HISTORY) ?? '') as { entries: unknown[] };
     expect(saved.entries).toHaveLength(11);
     expect(saved.entries.slice(0, 10)).toEqual(old);
-  });
-
-  it('SCO-38: パターン観察のリザルトには苦手な区間の行が出ない', () => {
-    expect(completePractice(practice('lstar', 'pattern', 0), memoryStorage(), NOW).weakSection).toBeNull();
   });
 
   it('行があれば書いて出し、なければ空にして隠す', () => {
@@ -336,7 +293,6 @@ describe('苦手な区間の行', () => {
     const element = { textContent: '', hidden: true };
     const e = {
       summary: { textContent: '' },
-      score: { hidden: false },
       metrics: { innerHTML: '' },
       comments: { textContent: '' },
       best: { textContent: '' },
@@ -386,7 +342,6 @@ describe('指標の表示', () => {
 describe('リザルト画面の要素', () => {
   const elements = () => ({
     summary: { textContent: '' },
-    score: { hidden: false },
     metrics: { innerHTML: '' },
     comments: { textContent: '' },
     best: { textContent: '' },
@@ -395,21 +350,14 @@ describe('リザルト画面の要素', () => {
     padTrace: { innerHTML: '', hidden: true },
   });
 
-  it('採点するモードでは指標・コメント・自己ベスト・図を書き、採点しないモードでは指標の要素を隠す', () => {
+  it('指標・コメント・自己ベスト・図を書く', () => {
     const e = elements();
     renderResult(e, completePractice(practice('lstar', 'center'), memoryStorage(), NOW));
-    expect(e.score.hidden).toBe(false);
     expect(e.metrics.innerHTML).toContain('<dt>平均ズレ</dt>');
     expect(e.best.textContent).toBe('自己ベスト更新');
     expect(e.plots.innerHTML).toContain('data-plot="scatter"');
     expect(e.plots.innerHTML).toContain('data-plot="trajectory"');
-
-    renderResult(e, completePractice(practice('lstar', 'pattern', 0), memoryStorage(), NOW));
-    expect(e.score.hidden).toBe(true);
-    expect(e.metrics.innerHTML).toBe('');
-    expect(e.best.textContent).toBe('');
-    expect(e.plots.innerHTML).toContain('data-plot="pattern"');
-    expect(e.plots.innerHTML).not.toContain('data-plot="scatter"');
+    expect(e.plots.innerHTML).not.toContain('data-plot="pattern"');
     expect(e.padTrace.hidden).toBe(true);
     expect(e.padTrace.innerHTML).toBe('');
   });
@@ -487,9 +435,10 @@ describe('右スティックの入力推移のグラフ', () => {
     expect(view.padTrace?.title).toBe('右スティックの入力推移（パッド）');
   });
 
-  it('PAD-19: マウスで終えたとき、パターン観察で終えたときは出さない', () => {
-    expect(completePractice(practice('lstar', 'ghost'), memoryStorage(), NOW).padTrace).toBeNull();
-    expect(completePractice(padPractice('pattern', 'Xbox Wireless Controller'), memoryStorage(), NOW).padTrace).toBeNull();
+  it('PAD-19: マウスで終えたときは出さない', () => {
+    for (const modeId of ['ghost', 'center']) {
+      expect(completePractice(practice('lstar', modeId), memoryStorage(), NOW).padTrace).toBeNull();
+    }
   });
 
   it('PAD-20: リニアの設定で理想の位置に各ステップで倒した記録から作ると、自分の推移と理想の推移が一致する', () => {

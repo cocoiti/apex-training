@@ -7,14 +7,14 @@ describe('fillModeSelect', () => {
   it('モードを渡した順に option にし、最初のモードを選ぶ', () => {
     const { select, element } = createFakeSelect();
     fillModeSelect(select, [
-      { id: 'pattern', name: 'パターン観察' },
       { id: 'center', name: 'センター維持' },
+      { id: 'ghost', name: '反復練習' },
     ]);
     expect(element.children.map((o) => ({ tag: o.tagName, value: o.value, text: o.textContent }))).toEqual([
-      { tag: 'OPTION', value: 'pattern', text: 'パターン観察' },
       { tag: 'OPTION', value: 'center', text: 'センター維持' },
+      { tag: 'OPTION', value: 'ghost', text: '反復練習' },
     ]);
-    expect(element.value).toBe('pattern');
+    expect(element.value).toBe('center');
   });
 
   it('登録されたモードがすべて選択肢に出る', () => {
@@ -22,6 +22,13 @@ describe('fillModeSelect', () => {
     fillModeSelect(select, modes);
     expect(element.children.map((o) => o.value)).toEqual(modes.map((m) => m.id));
     expect(element.value).toBe(modes[0]?.id);
+  });
+
+  it('MODE-27: トップ画面の選択肢は「反復練習」「センター維持」だけで、「反復練習」を選ぶ', () => {
+    const { select, element } = createFakeSelect();
+    fillModeSelect(select, modes);
+    expect(element.children.map((o) => o.textContent)).toEqual(['反復練習', 'センター維持']);
+    expect(element.value).toBe('ghost');
   });
 
   it('前の選択肢を消してから入れる', () => {

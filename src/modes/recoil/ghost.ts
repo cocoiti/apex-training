@@ -22,7 +22,7 @@ export function ghostAngles(world: Readonly<Pick<World, 'center' | 'player'>>, g
  * 反復練習（docs/spec/modes.md）。補正のパネルを主な補助として必ず出し、採点する。id は表示名を変える前の `ghost` のまま
  * （履歴・自己ベストの保存のキーに使っている）。3D の中のゴーストは src/render/ghost.ts が ghost の返す向きで描き、
  * 設定のゴースト表示が OFF（既定）なら描画しない。
- * 採点の指標はリザルトの Issue で足す。ここでは採点するモードであることだけを結果に載せる。
+ * 採点はモードによらない共通の処理が行うので、結果に足すものはない。
  */
 const ghost: TrainingMode<ModeResult> = {
   id: 'ghost',
@@ -35,7 +35,7 @@ const ghost: TrainingMode<ModeResult> = {
     return true;
   },
   result() {
-    return { scored: true };
+    return {};
   },
   teardown() {},
   ghost(context) {

@@ -28,7 +28,7 @@ import { fillCountSelect } from './ui/count-choices';
 import { applyCrosshair } from './ui/crosshair';
 import { CorrectionPanel, correctionPanelShown, type CorrectionPanelElements } from './ui/correction-panel';
 import { fullscreenLabel, toggleFullscreen } from './ui/fullscreen';
-import { bindHistoryView, initialHistorySelection, SCORED_MODES, type HistoryElements } from './ui/history-view';
+import { bindHistoryView, initialHistorySelection, type HistoryElements } from './ui/history-view';
 import { renderHud, type HudElements } from './ui/hud';
 import { renderCalibration, calibrationRadii, type CalibrationElements } from './ui/pad-calibration';
 import { MappingAutoOpen, PadMappingScreen, PadMappingStore } from './ui/pad-mappings';
@@ -415,7 +415,6 @@ async function start(): Promise<void> {
   };
   const resultElements: Partial<Record<keyof ResultElements, HTMLElement | null>> = {
     summary: document.querySelector<HTMLElement>('#result-summary'),
-    score: document.querySelector<HTMLElement>('#result-score'),
     metrics: document.querySelector<HTMLElement>('#result-metrics'),
     comments: document.querySelector<HTMLElement>('#result-comments'),
     best: document.querySelector<HTMLElement>('#result-best'),
@@ -478,17 +477,19 @@ async function start(): Promise<void> {
   weaponSelect.value = weapons[0]?.id ?? '';
   fillModeSelect(modeSelect, modes);
 
-  // 履歴の画面（docs/spec/screens.md「履歴の画面」）。武器は一覧のすべて、モードは採点するモードだけを選択肢にする。
-  // このページで最後に終えた採点するモードの組を、開いたときに選ぶ。
-  let lastScored: HistorySelection | null = null;
+  // 履歴の画面（docs/spec/screens.md「履歴の画面」）。武器は一覧のすべて、モードは登録されたモードを選択肢にする。
+  // 登録されていないモードの id の保存（以前のパターン観察など）は選択肢に出さず、消さない。
+  // このページで最後に終えた練習の組を、開いたときに選ぶ。
+  let lastFinished: HistorySelection | null = null;
   const historyEls = historyElements();
   let openHistory = () => {};
   if (historyEls) {
     fillWeaponSelect(historyEls.weapon as HTMLSelectElement, weapons);
-    fillModeSelect(historyEls.mode as HTMLSelectElement, SCORED_MODES);
+    fillModeSelect(historyEls.mode as HTMLSelectElement, modes);
     const historyView = bindHistoryView(historyEls, { storage: appStorage, now: () => new Date() });
     const weaponIds = weapons.map((w) => w.id);
-    openHistory = () => historyView.open(initialHistorySelection(lastScored, weaponIds));
+    const modeIds = modes.map((m) => m.id);
+    openHistory = () => historyView.open(initialHistorySelection(lastFinished, weaponIds, modeIds));
   }
 
   // 練習していないあいだも、トップ画面などの後ろにシーンを描く。
@@ -669,7 +670,7 @@ async function start(): Promise<void> {
     hideGuide();
     panel?.hide();
     setAds(false);
-    // 採点し、採点するモードなら自己ベストを保存する。連続練習でも回ごとに判定する（docs/spec/scoring.md「自己ベスト」）。
+    // 採点し、自己ベストを保存する。連続練習でも回ごとに判定する（docs/spec/scoring.md「自己ベスト」）。
     // 保存できなくても投げず、フッターの表示は appStorage が出す。
     const view = completePractice(
       {
@@ -683,7 +684,7 @@ async function start(): Promise<void> {
       appStorage,
       new Date(),
     );
-    if (result.modeResult.scored) lastScored = { input: result.inputMethod, weaponId: result.weapon.id, modeId: result.mode.id };
+    lastFinished = { input: result.inputMethod, weaponId: result.weapon.id, modeId: result.mode.id };
     setInput = result.inputMethod;
     const phase = set.completeRound(view.meanDeviation, now());
     if (!set.isSet) {

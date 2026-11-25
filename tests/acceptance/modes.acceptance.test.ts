@@ -1,4 +1,4 @@
-// docs/spec/modes.md（MODE-2・MODE-4 のゴーストの部分・MODE-5〜MODE-11）、docs/spec/screens.md（UI-1・UI-10）と
+// docs/spec/modes.md（MODE-4 のゴーストの部分・MODE-5〜MODE-11）、docs/spec/screens.md（UI-1・UI-10）と
 // docs/spec/weapons.md（WPN-1・WPN-2・WPN-3・WPN-21 のトップ画面と履歴の画面の部分）の受け入れテスト。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、武器の JSON、モードの共通の型）だけを使い、実装の内部には依存しない。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、パッドは Gamepad API（navigator.getGamepads）の形で与える。
@@ -44,16 +44,6 @@ const WEAPON_FILES: WeaponJson[] = readdirSync(join(ROOT, 'src/data/weapons'))
 const WEAPONS = WEAPON_FILES.filter((w) => w.measured === true);
 /** 仮データの武器（measured が false）。どの選択肢にも出ない。 */
 const PLACEHOLDERS = WEAPON_FILES.filter((w) => w.measured === false);
-/** 射撃場のマップ（src/data/maps/range.json）。弾が壁に当たるかを、壁の範囲から求めるのに使う。 */
-interface MapBox {
-  kind: string;
-  center: [number, number, number];
-  size: [number, number, number];
-}
-const RANGE = JSON.parse(readFileSync(join(ROOT, 'src/data/maps/range.json'), 'utf8')) as {
-  spawn: { position: [number, number, number] };
-  boxes: MapBox[];
-};
 const byName = (name: string) => {
   const w = WEAPONS.find((x) => x.name === name);
   if (!w) throw new Error(`武器がない: ${name}`);
@@ -216,29 +206,6 @@ function patternAngles(w: WeaponJson, n: number) {
   return out;
 }
 
-/**
- * 出現位置から照準の向き（正面が -z）より (yaw, pitch) 度ずれた方向へ撃った弾が、壁の手前の面の縁から
- * margin（メートル）より内側に当たるか。壁の外に飛んだ弾には弾痕が出ない。
- */
-function hitsWallInside(yaw: number, pitch: number, margin: number): boolean {
-  const wall = RANGE.boxes.find((b) => b.kind === 'wall');
-  if (!wall) throw new Error('マップに壁がない');
-  const [ex, ey, ez] = RANGE.spawn.position;
-  const r = Math.PI / 180;
-  const dx = Math.cos(pitch * r) * Math.sin(yaw * r);
-  const dy = Math.sin(pitch * r);
-  const dz = Math.cos(pitch * r) * Math.cos(yaw * r);
-  const face = wall.center[2] + wall.size[2] / 2;
-  const t = (ez - face) / dz;
-  const x = ex + t * dx;
-  const y = ey + t * dy;
-  return (
-    Math.abs(x - wall.center[0]) <= wall.size[0] / 2 - margin && Math.abs(y - wall.center[1]) <= wall.size[1] / 2 - margin
-  );
-}
-
-const near = (pixels: [number, number][], [x, y]: [number, number], r: number) => pixels.some(([px, py]) => Math.hypot(px - x, py - y) <= r);
-
 // ---------------------------------------------------------------------------
 
 describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
@@ -335,7 +302,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       serveDist(mainDist);
       const page = await newPage();
       for (const w of WEAPONS) {
-        for (const mode of ['パターン観察', 'センター維持']) {
+        for (const mode of ['反復練習', 'センター維持']) {
           await start(page, origin, w.name, mode);
           expect(await hash(page)).toBe('#/play');
           expect(await hudText(page, 'weapon'), `${w.name} / ${mode}`).toContain(w.name);
@@ -361,7 +328,8 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
       expect(modes).toContain('受け入れの追加モード');
-      expect(modes).toContain('パターン観察');
+      expect(modes).toContain('反復練習');
+      expect(modes).not.toContain('パターン観察');
       expect(modes).toContain('センター維持');
       expect(modes[modes.length - 1]).toBe('受け入れの追加モード');
       // 足したモードで練習を始められる。
@@ -418,7 +386,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     it.each(WEAPONS.map((w) => [w.name, w] as const))('MODE-6: %s で 1 マガジンを撃ち切ると、リザルト画面に移る', async (_name, w) => {
       serveDist(mainDist);
       const page = await newPage();
-      await start(page, origin, w.name, 'パターン観察');
+      await start(page, origin, w.name, 'センター維持');
       const t0 = Date.now();
       // R2 を押し続ける。残弾 0 になってもそのまま。
       await page.evaluate(`window.__setR2(1)`);
@@ -448,7 +416,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       const page = await newPage();
       // 発射間隔が長め（600 rpm）の武器。離した描画のあいだに次の弾が出にくい。
       const w = byName('L-STAR');
-      await start(page, origin, w.name, 'パターン観察');
+      await start(page, origin, w.name, 'センター維持');
       const first = await holdUntil(page, w.magSize - 5);
       expect(first).toBeLessThan(w.magSize);
       // 離してから 1.5 秒（2 秒たつ前）。ページの時計で測る。
@@ -477,7 +445,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       serveDist(mainDist);
       const page = await newPage();
       const w = byName('L-STAR');
-      for (const mode of ['パターン観察', 'センター維持']) {
+      for (const mode of ['反復練習', 'センター維持']) {
         await start(page, origin, w.name, mode);
         // 始めてから（練習の時計で）撃たない時間 + 2 秒たつまで待つ。
         await page.waitFor(`window.__simTime() >= ${IDLE_END + 2}`, 20_000);
@@ -497,7 +465,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     it.each(WEAPONS.map((w) => [w.name, w] as const))('MODE-9: %s で始めると HUD の残弾が装弾数で、1 発撃つごとに 1 減る', async (_name, w) => {
       serveDist(mainDist);
       const page = await newPage();
-      await start(page, origin, w.name, 'パターン観察');
+      await start(page, origin, w.name, 'センター維持');
       // 画面写しを使わないので、描画を軽くして 1 回の描画の間隔（押していた時間）を短くする。マシンが混んでいても 1 発で離しやすい。
       await page.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 200, deviceScaleFactor: 1, mobile: false });
       await page.waitFor(`document.querySelector('canvas').getBoundingClientRect().width === 320`);
@@ -526,7 +494,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       serveDist(mainDist);
       const page = await newPage();
       const w = byName('L-STAR');
-      await start(page, origin, w.name, 'パターン観察');
+      await start(page, origin, w.name, 'センター維持');
       const seen = await page.evaluate<number[]>(`(async () => {
         const seen = [window.__ammo()]; window.__setR2(1); const t0 = performance.now();
         while (performance.now() - t0 < 1500) { const a = window.__ammo(); if (a !== seen[seen.length - 1]) seen.push(a); await new Promise((r) => requestAnimationFrame(r)); }
@@ -543,49 +511,11 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
 
   // -------------------------------------------------------------------------
   describe('弾痕', () => {
-    it.each(WEAPONS.map((w) => [w.name, w] as const))(
-      'MODE-2: %s のパターン観察で照準を動かさずに撃つと、弾痕が武器のパターンの形に並ぶ',
-      async (_name, w) => {
-        serveDist(mainDist);
-        const page = await newPage();
-        await start(page, origin, w.name, 'パターン観察');
-        await hideHtml(page);
-        const before = await screenshot(page);
-        // ほぼ 1 マガジン（撃ち切るとリザルトに移り写せないので、残弾 2 で離す）。
-        const left = await holdUntil(page, 2);
-        // リコイルが戻りきってから写す。
-        const after = await afterRecovery(page);
-        expect(await hash(page)).toBe('#/play');
-        const shots = w.magSize - left;
-        expect(shots).toBeGreaterThanOrEqual(w.magSize - 4);
-        const changed = changedPixels(before, after);
-        const angles = patternAngles(w, shots);
-        const expected = angles.map((a) => project(a.yaw, a.pitch));
-        // 壁に当たる各弾の位置（パターンの合計 ± ブレ）に弾痕がある。跳ねが大きく壁の外に飛んだ弾は弾痕が出ないので、
-        // 壁の縁から弾痕の大きさとブレの分（10m 先で 1m がおよそ 53 ピクセル）より内側に当たる弾だけを確かめる。
-        const tol = 3 + 8.5 * w.randomness * 1.5;
-        const margin = (MARK_RADIUS + tol) / ((HEIGHT / 2 / 0.75) / 10);
-        const onWall = expected.filter((_, i) => hitsWallInside(angles[i]!.yaw, angles[i]!.pitch, margin));
-        expect(onWall.length).toBeGreaterThanOrEqual(Math.min(shots, 10));
-        const missing = onWall.filter((p) => !near(changed, p, tol));
-        expect(missing, `弾痕のない位置 ${JSON.stringify(missing.map((p) => p.map(Math.round)))}`).toEqual([]);
-        // 弾痕は、パターンの形から外れた所には出ない（変わった画素はどれもいずれかの弾の位置の近く）。
-        const stray = changed.filter((p) => !expected.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) <= MARK_RADIUS + tol));
-        expect(stray.length, `パターンから外れた画素 ${JSON.stringify(stray.slice(0, 10))}`).toBe(0);
-        // 対照: 左右を反転した形とは一致しない（横に動くパターンの武器だけ）。
-        const mirrored = patternAngles(w, shots).map((a) => project(-a.yaw, a.pitch));
-        const spread = Math.max(...expected.map((p, i) => Math.abs(p[0] - mirrored[i]![0])));
-        if (spread > 2 * (MARK_RADIUS + tol)) expect(mirrored.filter((p) => !near(changed, p, tol)).length).toBeGreaterThan(0);
-        await page.evaluate(`window.__setR2(0)`);
-      },
-      60_000,
-    );
-
     it('MODE-10: 撃った弾の弾痕は、練習が終わるまで壁と的の上に表示され続ける', async () => {
       serveDist(mainDist);
       const page = await newPage();
       const w = byName('C.A.R. SMG');
-      await start(page, origin, w.name, 'パターン観察');
+      await start(page, origin, w.name, 'センター維持');
       await hideHtml(page);
       const base = await screenshot(page);
       const target = base.pixel(WIDTH / 2, HEIGHT / 2);
@@ -618,11 +548,11 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
 
     it('MODE-4: センター維持ではゴーストが表示されない（画面に出るのは弾痕だけ）', async () => {
       serveDist(mainDist);
-      // 対照として、ゴーストを表示しないパターン観察の、撃つ前の画面写しを撮る。
+      // 対照として、ゴースト表示が OFF（既定）の反復練習の、撃つ前の画面写しを撮る（補正のパネルは HTML なので写さない）。
       const ref = await newPage();
-      await start(ref, origin, 'C.A.R. SMG', 'パターン観察');
+      await start(ref, origin, 'C.A.R. SMG', '反復練習');
       await hideHtml(ref);
-      const patternBase = await screenshot(ref);
+      const referenceBase = await screenshot(ref);
 
       const page = await newPage();
       const w = byName('C.A.R. SMG');
@@ -631,8 +561,8 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       expect(await page.evaluate<number>(`[...document.querySelectorAll('[class*="ghost" i], [data-ghost], [id*="ghost" i]')].filter((e) => e.offsetParent !== null).length`)).toBe(0);
       await hideHtml(page);
       const base = await screenshot(page);
-      // 撃つ前: パターン観察と同じ画面（ゴーストの点がない）。
-      expect(changedPixels(patternBase, base).length).toBe(0);
+      // 撃つ前: ゴーストを出さない反復練習と同じ画面（ゴーストの点がない）。
+      expect(changedPixels(referenceBase, base).length).toBe(0);
       // 撃ったあと: 変わった画素はどれも弾痕の位置の近く（ゴーストは理想の補正軌道＝パターンの反転の位置に出るはず）。
       const left = await holdUntil(page, w.magSize - 10);
       const shots = w.magSize - left;
@@ -713,7 +643,7 @@ const mode: TrainingMode = {
     return true;
   },
   result() {
-    return { scored: false };
+    return {};
   },
   teardown() {},
 };

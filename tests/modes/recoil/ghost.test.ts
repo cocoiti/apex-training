@@ -47,22 +47,20 @@ function expected(weapon: WeaponData, n: number, world: World) {
 }
 
 describe('反復練習のモード', () => {
-  it('登録されたモードに入り、パターン観察とセンター維持のあいだに並び、採点する', () => {
+  it('登録されたモードに入り、センター維持の前に並ぶ', () => {
     const ids = modes.map((m) => m.id);
-    expect(ids.indexOf('pattern')).toBeLessThan(ids.indexOf('ghost'));
+    expect(ids.indexOf('ghost')).toBe(0);
     expect(ids.indexOf('ghost')).toBeLessThan(ids.indexOf('center'));
     expect(ghostMode.name).toBe('反復練習');
-    expect(ghostMode.result({} as Parameters<TrainingMode['result']>[0]).scored).toBe(true);
   });
 
-  it('補正のパネルは反復練習では必ず出し、センター維持では設定で出し、パターン観察では出さない（MODE-24・MODE-26）', () => {
+  it('補正のパネルは反復練習では必ず出し、センター維持では設定で出す（MODE-24）', () => {
     expect(ghostMode.correctionPanel).toBe('always');
     expect(modes.find((m) => m.id === 'center')?.correctionPanel).toBe('setting');
-    expect(modes.find((m) => m.id === 'pattern')?.correctionPanel).toBeUndefined();
   });
 
   it('ほかのモードはゴーストを持たない', () => {
-    for (const id of ['pattern', 'center']) expect(modes.find((m) => m.id === id)?.ghost).toBeUndefined();
+    expect(modes.find((m) => m.id === 'center')?.ghost).toBeUndefined();
     const s = new PracticeSession({
       world: wallWorld(),
       weapon: makeWeapon(),
@@ -127,7 +125,7 @@ describe('ゴーストの向き', () => {
     }
     expect(s.ghost).toBeUndefined();
     expect(s.ended).toBe(true);
-    expect(s.result?.modeResult.scored).toBe(true);
+    expect(s.result?.endReason).toBe('empty');
   });
 
   it('離して押し直すまでは次に撃つ発の位置にあり、戻りの時間がたつと 1 発目の位置に戻る（MODE-15）', () => {

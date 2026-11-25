@@ -436,7 +436,6 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       const second = await resultState(page);
       expect(second.summary).toContain(w.name);
       expect(second.summary).toContain('センター維持');
-      expect(second.summary).not.toContain('パターン観察');
       expect(num(metric(second, '平均ズレ'))).not.toBeNull();
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 90_000);
@@ -444,7 +443,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
     it('SCO-15: リザルト画面で「武器変更」を押したとき、トップ画面に戻る', async () => {
       serveDist(copyDist);
       const page = await openFresh();
-      for (const mode of ['センター維持', 'パターン観察']) {
+      for (const mode of ['センター維持', '反復練習']) {
         await practice(page, byId('car').name, mode);
         await clickResultButton(page, '武器変更');
         await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
@@ -555,43 +554,6 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       expect(commentsIn(r.text).length).toBeGreaterThanOrEqual(1);
       expect(seriesOf(plotWith(r, 'shots'), 'shots')).toHaveLength(w.magSize);
       expect(seriesOf(plotWith(r, 'aim', 'ideal'), 'ideal')).toHaveLength(w.magSize);
-    }, 60_000);
-  });
-
-  // -------------------------------------------------------------------------
-  describe('パターン観察のリザルト', () => {
-    it('SCO-17: 指標・コメント・自己ベストが表示されず、弾痕と補正しなかった場合のパターンが重ねて表示され、自己ベストのキーに何も保存されない', async () => {
-      serveDist(copyDist);
-      const page = await openFresh();
-      const w = byId('lstar');
-      const r = await practice(page, w.name, 'パターン観察');
-      expect(r.visibleScreens).toEqual(['result']);
-      expect(r.summary).toContain('パターン観察');
-      // 指標・コメント・自己ベストがない。
-      expect(r.metrics).toEqual({});
-      for (const word of ['平均ズレ', 'グルーピング半径', '命中率', '区間', '横ブレ', '縦ブレ', '自己ベスト']) expect(r.text, word).not.toContain(word);
-      expect(commentsIn(r.text)).toEqual([]);
-      // 弾痕と補正しなかった場合のパターンが同じ図（同じ座標）に重なる。
-      const plot = plotWith(r, 'shots', 'pattern');
-      expect(plot, JSON.stringify(r.plots.map((p) => p.series.map((s) => s.name)))).toBeDefined();
-      const shots = seriesOf(plot, 'shots');
-      const pattern = seriesOf(plot, 'pattern');
-      expect(shots).toHaveLength(w.magSize);
-      expect(pattern).toHaveLength(w.magSize);
-      const cum = cumulative(w, w.magSize);
-      pattern.forEach((p, i) => {
-        expect(p.yaw, `${i + 1} 発目のパターンの水平`).toBeCloseTo(cum[i]!.yaw, 1);
-        expect(p.pitch, `${i + 1} 発目のパターンの垂直`).toBeCloseTo(cum[i]!.pitch, 1);
-      });
-      // 照準を動かしていないので、弾痕はパターンの位置 ± ブレ。
-      const tol = w.randomness + 0.05;
-      shots.forEach((p, i) => {
-        expect(Math.abs(p.yaw - cum[i]!.yaw), `${i + 1} 発目の水平`).toBeLessThanOrEqual(tol);
-        expect(Math.abs(p.pitch - cum[i]!.pitch), `${i + 1} 発目の垂直`).toBeLessThanOrEqual(tol);
-      });
-      // 自己ベストのキーに何も保存されない。
-      expect(await storedBests(page)).toEqual({});
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
   });
 

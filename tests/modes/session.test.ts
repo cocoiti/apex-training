@@ -38,7 +38,7 @@ function session(actions: TimedAction[], options: { weapon?: WeaponData; mode?: 
   return new PracticeSession({
     world: wallWorld(),
     weapon: options.weapon ?? makeWeapon(),
-    mode: options.mode ?? modeById('pattern'),
+    mode: options.mode ?? modeById('center'),
     input: inputFromTimedActions(actions),
     seed: 1,
   });
@@ -64,9 +64,9 @@ describe('練習', () => {
     expect(s.gun.shots.length).toBeGreaterThan(0);
   });
 
-  it('パターン観察で照準を動かさずに撃ち切ると、弾痕が武器のパターンの形に並び、撃ち切ったところで終わる（MODE-2、MODE-6）', () => {
+  it('照準を動かさずに撃ち切ると、弾痕が武器のパターンの形に並び、撃ち切ったところで終わる（MODE-6）', () => {
     const weapon = makeWeapon();
-    const s = session([press(0)], { weapon, mode: modeById('pattern') });
+    const s = session([press(0)], { weapon, mode: modeById('center') });
     advance(s, 5);
     expect(s.ended).toBe(true);
     const result = s.result!;
@@ -83,8 +83,8 @@ describe('練習', () => {
     // 20 発目は 19 × 0.1 秒の時刻のステップで撃たれ、そのステップの終わりで終わる。
     expect(result.duration).toBeCloseTo(1.9 + s.sim.dt, 9);
     expect(result.weapon).toBe(weapon);
-    expect(result.mode).toEqual({ id: 'pattern', name: 'パターン観察', category: 'recoil' });
-    expect(result.modeResult.scored).toBe(false);
+    expect(result.mode).toEqual({ id: 'center', name: 'センター維持', category: 'recoil' });
+    expect(result.modeResult).toEqual({});
   });
 
   it('終わったあとは進まず、経過時間も止まる', () => {
@@ -124,11 +124,11 @@ describe('練習', () => {
     expect(s.elapsed).toBeCloseTo(10, 9);
   });
 
-  it('センター維持でも同じ条件で終わり、採点するモードとして結果を渡す', () => {
-    const s = session([press(0)], { mode: modeById('center') });
+  it('反復練習でも同じ条件で終わる', () => {
+    const s = session([press(0)], { mode: modeById('ghost') });
     advance(s, 3);
     expect(s.result?.endReason).toBe('empty');
-    expect(s.result?.modeResult.scored).toBe(true);
+    expect(s.result?.mode.id).toBe('ghost');
   });
 
   it('モードの準備と片付けを 1 回ずつ呼び、モードが false を返すと終わる', () => {
@@ -146,7 +146,7 @@ describe('練習', () => {
       },
       result: () => {
         calls.push('result');
-        return { scored: false };
+        return {};
       },
       teardown: () => calls.push('teardown'),
     };
@@ -161,7 +161,7 @@ describe('練習', () => {
 describe('記録の再生（モードを含めた練習）', () => {
   /** setup とステップごとに乱数を取るモード。モードと Gun が同じ乱数を使っても再生が一致することを確かめる。 */
   const randomMode: TrainingMode = {
-    ...modeById('pattern'),
+    ...modeById('center'),
     setup(context) {
       context.random.next();
     },
@@ -191,7 +191,7 @@ describe('練習の入力方式（docs/spec/input.md「入力方式ごとの保�
     const s = new PracticeSession({
       world: wallWorld(),
       weapon: makeWeapon(),
-      mode: modeById('pattern'),
+      mode: modeById('center'),
       input: inputFromTimedActions([press(0)]),
       seed: 1,
       inputMethod: () => current,
@@ -208,7 +208,7 @@ describe('練習の入力方式（docs/spec/input.md「入力方式ごとの保�
     const s = new PracticeSession({
       world: wallWorld(),
       weapon: makeWeapon(),
-      mode: modeById('pattern'),
+      mode: modeById('center'),
       input: inputFromTimedActions([press(0.5)]),
       seed: 1,
       inputMethod: () => current,
@@ -248,7 +248,7 @@ describe('パッド向けのガイドと入力推移に使うもの（docs/spec/
     const s = new PracticeSession({
       world: wallWorld(),
       weapon: makeWeapon(),
-      mode: modeById('pattern'),
+      mode: modeById('center'),
       input: inputFromTimedActions([press(0)]),
       seed: 1,
       inputMethod: () => 'pad',
@@ -264,7 +264,7 @@ describe('パッド向けのガイドと入力推移に使うもの（docs/spec/
     const s = new PracticeSession({
       world: wallWorld(),
       weapon: makeWeapon(),
-      mode: modeById('pattern'),
+      mode: modeById('center'),
       input: inputFromTimedActions([press(0)]),
       seed: 1,
       inputMethod: () => 'mouse',
