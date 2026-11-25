@@ -13,6 +13,7 @@ import { Gun } from './sim/gun';
 import { viewAngles } from './sim/player';
 import { Simulation } from './sim/simulation';
 import { loadWorld } from './sim/world';
+import { applyCrosshair } from './ui/crosshair';
 import { watchScreen } from './ui/router';
 import { showScreen, showStorageNotice } from './ui/shell';
 import { appStorage } from './ui/storage';
@@ -23,6 +24,10 @@ function startShell(): void {
   const notice = document.querySelector<HTMLElement>('#storage-notice');
   if (notice) appStorage.onUnavailable(() => showStorageNotice(notice));
   appStorage.probe();
+
+  // 設定画面の Issue で保存した色と形を渡す。今は既定の色と形。
+  const crosshair = document.querySelector<HTMLElement>('.crosshair');
+  if (crosshair) applyCrosshair(crosshair);
 
   const screens = [...document.querySelectorAll<HTMLElement>('[data-screen]')];
   watchScreen(window, (screen) => {
@@ -66,6 +71,8 @@ async function start(): Promise<void> {
     world.player.recoilOffset = { yaw: 0, pitch: 0 };
     weaponSelect.blur();
   });
+
+  // FOV は設定画面の Issue で保存した値を渡す。省略すると既定の 90。
   const view = new SceneRenderer(canvas, world);
 
   // パッドの fire・ads は読んだ時刻で積み、look は固定ステップごとにそのステップの開始時刻で積む（docs/spec/pad.md）。

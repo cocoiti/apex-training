@@ -110,15 +110,49 @@ a {
   display: none;
 }
 
+/* クロスヘアはキャンバス（ウィンドウ全体）の中心に置く。中心が照準の向きと一致する。色と形は src/ui/crosshair.ts が当てる。 */
 .crosshair {
+  --crosshair-color: #77ccff;
   position: fixed;
   left: 50%;
   top: 50%;
+  width: 0;
+  height: 0;
+}
+
+.crosshair::before,
+.crosshair::after {
+  content: '';
+  position: absolute;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+}
+
+.crosshair[data-shape='dot']::before,
+.crosshair:not([data-shape])::before {
   width: 4px;
   height: 4px;
-  margin: -2px 0 0 -2px;
   border-radius: 50%;
-  background: #7cf;
+  background: var(--crosshair-color);
+}
+
+.crosshair[data-shape='cross']::before {
+  width: 14px;
+  height: 2px;
+  background: var(--crosshair-color);
+}
+
+.crosshair[data-shape='cross']::after {
+  width: 2px;
+  height: 14px;
+  background: var(--crosshair-color);
+}
+
+.crosshair[data-shape='circle']::before {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--crosshair-color);
+  border-radius: 50%;
 }
 
 .weapon-choice {
