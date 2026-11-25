@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { TimedAction } from '../../src/input/actions';
 import { inputFromTimedActions } from '../../src/input/queue';
+import { RecordingInput } from '../../src/input/recording';
 import { modes } from '../../src/modes/registry';
-import { PracticeSession } from '../../src/modes/session';
+import { PracticeSession, replayPracticeSession } from '../../src/modes/session';
 import type { TrainingMode } from '../../src/modes/types';
 import { vec3 } from '../../src/sim/vec3';
 import type { RecoilStep, WeaponData } from '../../src/sim/weapon';
@@ -153,5 +154,32 @@ describe('練習', () => {
     expect(calls).toEqual(['setup', 'result', 'teardown']);
     expect(s.result?.endReason).toBe('mode');
     expect(s.elapsed).toBeCloseTo(10 * s.sim.dt, 9);
+  });
+});
+
+describe('記録の再生（モードを含めた練習）', () => {
+  /** setup とステップごとに乱数を取るモード。モードと Gun が同じ乱数を使っても再生が一致することを確かめる。 */
+  const randomMode: TrainingMode = {
+    ...modeById('pattern'),
+    setup(context) {
+      context.random.next();
+    },
+    step(context) {
+      context.random.next();
+      return true;
+    },
+  };
+
+  it('同じ World・武器・モードで記録を再生すると、弾痕と終わった理由・時間が元の練習と一致する（INP-4）', () => {
+    const weapon = makeWeapon({ randomness: 0.2 });
+    const input = new RecordingInput(12345);
+    const original = new PracticeSession({ world: wallWorld(), weapon, mode: randomMode, input, seed: input.seed });
+    input.push(0, { type: 'fire', pressed: true });
+    input.push(0.3, { type: 'look', yaw: 0.5, pitch: -1 });
+    input.push(0.8, { type: 'fire', pressed: false });
+    while (!original.ended) original.step();
+
+    const replayed = replayPracticeSession(input.recording(), { world: wallWorld(), weapon, mode: randomMode });
+    expect(replayed.result).toEqual(original.result);
   });
 });

@@ -8,7 +8,7 @@ import { attachMouse } from './input/mouse';
 import { DEFAULT_MOUSE_SETTINGS } from './input/mouse-sensitivity';
 import { firstConnectedGamepad, PadInput } from './input/pad';
 import { DEFAULT_PAD_SETTINGS } from './input/pad-curve';
-import { InputQueue } from './input/queue';
+import { createSeed, RecordingInput } from './input/recording';
 import { modes } from './modes/registry';
 import { PracticeSession, type PracticeResult } from './modes/session';
 import { ImpactMarks } from './render/impacts';
@@ -81,11 +81,12 @@ function startShell(): void {
   });
 }
 
-/** 1 回の練習の、シミュレーションとループと入力のキュー。時刻は練習の開始を 0 とする。 */
+/** 1 回の練習の、シミュレーションとループと入力の記録。時刻は練習の開始を 0 とする。 */
 interface Running {
   readonly session: PracticeSession;
   readonly loop: FixedStepLoop;
-  readonly queue: InputQueue;
+  /** 積んだ入力を記録しながらシミュレーションに流す。記録（input.recording()）はリザルトの軌道の重ね描きと再生に使う。 */
+  readonly input: RecordingInput;
 }
 
 async function start(): Promise<void> {
@@ -142,7 +143,7 @@ async function start(): Promise<void> {
   let running: Running | undefined;
 
   // 入力はこの 1 か所で練習の入力のキューに積む。入力方式の切替（docs/spec/input.md）はここで差し替える。
-  const emit = (action: Action) => running?.queue.push(running.loop.currentTime(), action);
+  const emit = (action: Action) => running?.input.push(running.loop.currentTime(), action);
   // パッドの fire・ads は読んだ時刻で積み、look は固定ステップごとにそのステップの開始時刻で積む（docs/spec/pad.md）。
   const pad = new PadInput({ emit, settings: () => DEFAULT_PAD_SETTINGS });
 
@@ -151,20 +152,21 @@ async function start(): Promise<void> {
     const mode = modes.find((m) => m.id === modeSelect.value) ?? modes[0];
     if (!weapon || !mode) return;
     impacts.clear();
-    const queue = new InputQueue();
+    // 練習ごとに種を 1 つ決め、積んだ入力を記録する（docs/spec/input.md「入力の記録と再生」）。記録はメモリの中だけで持つ。
+    const input = new RecordingInput(createSeed());
     const world = createWorld(map);
-    const session = new PracticeSession({ world, weapon, mode, input: queue, seed: Date.now() });
+    const session = new PracticeSession({ world, weapon, mode, input, seed: input.seed });
     const loop = new FixedStepLoop({
       timeSource: performanceTimeSource,
       update: () => {
         const look = pad.step(session.sim.dt);
-        if (look) queue.push(session.sim.time, look);
+        if (look) input.push(session.sim.time, look);
         session.step();
       },
       render: (alpha) => view.render(world, interpolateAngles(session.previousViewAngles, viewAngles(world.player), alpha)),
     });
     shownWorld = world;
-    running = { session, loop, queue };
+    running = { session, loop, input };
     showPaused(pausedNotice, false);
   };
 

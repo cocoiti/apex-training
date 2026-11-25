@@ -2,7 +2,7 @@ import { DEFAULT_FIXED_STEP } from '../core/loop';
 import type { Action } from '../input/actions';
 import type { InputSource } from '../input/queue';
 import type { Angles } from './angles';
-import { applyLook, viewAngles } from './player';
+import { applyLook, viewAngles, type Player } from './player';
 import type { World } from './world';
 
 /** ステップごとの追加の処理（練習モードなど）。入力を適用したあとに呼ぶ。 */
@@ -48,7 +48,7 @@ export class Simulation {
   step(): void {
     this.previous = viewAngles(this.world.player);
     const end = (this.steps + 1) * this.dt;
-    applyActions(this.world, this.input.take(end));
+    applyActions(this.world.player, this.input.take(end));
     for (const hook of this.hooks) hook(this.world, this.dt);
     this.steps += 1;
   }
@@ -60,9 +60,11 @@ export class Simulation {
   }
 }
 
-/** 1 ステップで消費した入力を順に適用する。look は足し合わせ、fire・ads は最後の状態にする。 */
-function applyActions(world: World, actions: readonly Action[]): void {
-  const player = world.player;
+/**
+ * 1 ステップで消費した入力を順に適用する。look は足し合わせ、fire・ads は最後の状態にする。
+ * 照準の軌道（trajectory.ts）も同じ規則で look を消費するため、ここを共有する。
+ */
+export function applyActions(player: Player, actions: readonly Action[]): void {
   let yaw = 0;
   let pitch = 0;
   for (const action of actions) {

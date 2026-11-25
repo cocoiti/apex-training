@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_FIXED_STEP } from '../../src/core/loop';
-import { IDLE_END_TIME, PracticeEndRule } from '../../src/sim/practice';
+import type { TimedAction } from '../../src/input/actions';
+import { inputFromTimedActions } from '../../src/input/queue';
+import type { MapData } from '../../src/sim/map';
+import { createPractice, IDLE_END_TIME, PracticeEndRule, practiceOutcome, replayRecording } from '../../src/sim/practice';
+import { vec3 } from '../../src/sim/vec3';
+import type { WeaponData } from '../../src/sim/weapon';
 
 const dt = DEFAULT_FIXED_STEP;
 const shot = { shot: 1, time: 0, angles: { yaw: 0, pitch: 0 }, position: null, deviation: null };
@@ -44,5 +49,61 @@ describe('練習の終わりの判定', () => {
   it('押し続けているあいだは、時間がたっても終わらない', () => {
     const rule = new PracticeEndRule();
     expect(run(rule, Math.round(5 / dt), { fire: true, ammo: 10, shots: 3 })).toBeUndefined();
+  });
+});
+
+const map: MapData = {
+  id: 'test',
+  name: 'test',
+  spawn: { position: vec3(0, 1.6, 0), aim: { yaw: 0, pitch: 0 } },
+  boxes: [{ id: 'wall', kind: 'wall', center: vec3(0, 1.6, -10.1), size: vec3(200, 200, 0.2) }],
+};
+
+const weapon: WeaponData = {
+  id: 'w',
+  name: 'w',
+  category: 'AR',
+  version: 'test',
+  source: 'test',
+  rpm: 600,
+  magSize: 5,
+  pattern: Array.from({ length: 5 }, () => ({ dx: 0.1, dy: 0.3 })),
+  randomness: 0.1,
+} as WeaponData;
+
+const actions: TimedAction[] = [
+  { time: 0, action: { type: 'fire', pressed: true } },
+  { time: 0.15, action: { type: 'look', yaw: 0, pitch: -0.5 } },
+];
+
+describe('練習のシミュレーション', () => {
+  it('マップから World を作り、種で作った乱数の Gun をステップごとに進める', () => {
+    const practice = createPractice({ map, weapon, input: inputFromTimedActions(actions), seed: 3 });
+    expect(practice.seed).toBe(3);
+    expect(practice.world.player.aim).toEqual({ yaw: 0, pitch: 0 });
+    practice.sim.advance(1);
+    expect(practice.gun.shots).toHaveLength(5);
+  });
+
+  it('結果は当たった弾のズレで採点する', () => {
+    const practice = createPractice({ map, weapon, input: inputFromTimedActions(actions), seed: 3 });
+    practice.sim.advance(1);
+    const outcome = practiceOutcome(practice, 1);
+    expect(outcome.shots).toHaveLength(5);
+    expect(outcome.score.shots).toBe(5);
+  });
+
+  it('再生は撃ち切るまで進め、練習と同じ弾痕と採点結果になる', () => {
+    const practice = createPractice({ map, weapon, input: inputFromTimedActions(actions), seed: 3 });
+    practice.sim.advance(2);
+    const replayed = replayRecording({ seed: 3, actions }, { map, weapon, targetRadius: 1 });
+    expect(replayed.shots).toEqual(practice.gun.shots);
+    expect(replayed.score).toEqual(practiceOutcome(practice, 1).score);
+  });
+
+  it('アクションのない記録の再生は 1 ステップで止まり、弾は出ない', () => {
+    const replayed = replayRecording({ seed: 1, actions: [] }, { map, weapon, targetRadius: 1 });
+    expect(replayed.practice.sim.stepCount).toBe(1);
+    expect(replayed.shots).toEqual([]);
   });
 });
