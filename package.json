@@ -12,7 +12,8 @@
     "preview": "vite preview --port 3101",
     "test": "vitest run",
     "lint": "eslint . && tsc --noEmit",
-    "check:subpath": "node scripts/check-subpath.mjs"
+    "check:subpath": "node scripts/check-subpath.mjs",
+    "check:assets": "node scripts/check-assets.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

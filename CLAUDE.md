@@ -23,6 +23,7 @@ Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescrip
 | lint・型の確認 | `npm run lint` |
 | ビルド | `npm run build`（`dist/` に出る。配信先は `/apex-training/`） |
 | サブパスでの配信の確認 | `npm run build && npm run check:subpath`（ポート 3102） |
+| 配布物に画像・音声・3D モデルがないことの確認 | `npm run build && npm run check:assets` |
 
 - テストは `tests/` に `src/` と同じ構成で置く（`src/sim/` の依存の確認がテストのファイルを拾わないように）。
 - マップなどのデータの JSON は `src/data/` に置き、`?url` の資産として fetch する（ADR: data-json-as-fetched-assets）。
