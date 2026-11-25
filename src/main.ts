@@ -5,7 +5,7 @@ import { fetchMapJson } from './data/maps';
 import { loadWeapons } from './data/weapons';
 import type { Action } from './input/actions';
 import { attachMouse } from './input/mouse';
-import { DEFAULT_MOUSE_SETTINGS } from './input/mouse-sensitivity';
+import type { MouseSettings } from './input/mouse-sensitivity';
 import { firstConnectedGamepad, PadInput } from './input/pad';
 import { DEFAULT_PAD_SETTINGS } from './input/pad-curve';
 import { createSeed, RecordingInput } from './input/recording';
@@ -24,6 +24,8 @@ import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { PracticeFlow } from './ui/practice-flow';
 import { resultSummaryText } from './ui/result-summary';
 import { SCREEN_HASHES, watchScreen } from './ui/router';
+import { loadCommonSettings, loadMouseSettings } from './ui/settings';
+import { bindSettingsForm, type SettingsFormElements } from './ui/settings-form';
 import { showScreen, showStorageNotice } from './ui/shell';
 import { appStorage } from './ui/storage';
 import { fillWeaponSelect } from './ui/weapon-choices';
@@ -46,9 +48,8 @@ function startShell(): void {
   if (notice) appStorage.onUnavailable(() => showStorageNotice(notice));
   appStorage.probe();
 
-  // 設定画面の Issue で保存した色と形を渡す。今は既定の色と形。
-  const crosshair = document.querySelector<HTMLElement>('.crosshair');
-  if (crosshair) applyCrosshair(crosshair);
+  applySavedCrosshair();
+  startSettingsForm();
 
   // 「開始」を押したあとにプレイ画面に入ったときだけ練習を始める（docs/spec/screens.md）。
   document.querySelector('#start')?.addEventListener('click', () => flow.requestStart());
@@ -79,6 +80,36 @@ function startShell(): void {
       });
     }
   });
+}
+
+/** 保存されたクロスヘアの色と形をプレイ画面のクロスヘアに当てる。 */
+function applySavedCrosshair(): void {
+  const crosshair = document.querySelector<HTMLElement>('.crosshair');
+  if (!crosshair) return;
+  const common = loadCommonSettings(appStorage);
+  applyCrosshair(crosshair, { shape: common.crosshairShape, color: common.crosshairColor });
+}
+
+/** 設定画面の各項目に保存された値を出し、変えたらすぐに保存する（docs/spec/screens.md「設定項目」）。 */
+function startSettingsForm(): void {
+  const byId = <T extends HTMLElement>(id: string) => document.querySelector<T>(`#${id}`);
+  const elements = {
+    inputMethod: byId<HTMLSelectElement>('setting-input-method'),
+    fov: byId<HTMLInputElement>('setting-fov'),
+    crosshairShape: byId<HTMLSelectElement>('setting-crosshair-shape'),
+    crosshairColor: byId<HTMLInputElement>('setting-crosshair-color'),
+    ghost: byId<HTMLInputElement>('setting-ghost'),
+    sound: byId<HTMLInputElement>('setting-sound'),
+    dpi: byId<HTMLInputElement>('setting-dpi'),
+    sensitivity: byId<HTMLInputElement>('setting-sensitivity'),
+    adsMultiplier: byId<HTMLInputElement>('setting-ads-multiplier'),
+    cmPer360: byId<HTMLOutputElement>('setting-cm-per-360'),
+  };
+  // 要素が欠けていても、ほかの画面は動かす。
+  if (Object.values(elements).some((element) => !element)) return;
+  bindSettingsForm(elements as SettingsFormElements, appStorage);
+  // 入力欄で Enter を押してもフォームを送信しない（ページを読み直さない）。
+  document.querySelector('#settings-form')?.addEventListener('submit', (event) => event.preventDefault());
 }
 
 /** 1 回の練習の、シミュレーションとループと入力の記録。時刻は練習の開始を 0 とする。 */
@@ -137,10 +168,12 @@ async function start(): Promise<void> {
 
   // 練習していないあいだも、トップ画面などの後ろにシーンを描く。
   let shownWorld: World = createWorld(map);
-  // FOV は設定画面の Issue で保存した値を渡す。省略すると既定の 90。
-  const view = new SceneRenderer(canvas, shownWorld);
+  // FOV は設定画面で保存した値。練習ごとに「開始」を押した時点の値に合わせ直す（docs/spec/screens.md）。
+  const view = new SceneRenderer(canvas, shownWorld, { fov: loadCommonSettings(appStorage).fov });
   const impacts = new ImpactMarks(view.view.layer);
   let running: Running | undefined;
+  // マウスの換算に使う DPI・感度・ADS 倍率。「開始」を押した時点の保存された値（docs/spec/mouse.md）。
+  let mouseSettings: MouseSettings = loadMouseSettings(appStorage);
 
   // 入力はこの 1 か所で練習の入力のキューに積む。入力方式の切替（docs/spec/input.md）はここで差し替える。
   const emit = (action: Action) => running?.input.push(running.loop.currentTime(), action);
@@ -152,6 +185,9 @@ async function start(): Promise<void> {
     const mode = modes.find((m) => m.id === modeSelect.value) ?? modes[0];
     if (!weapon || !mode) return;
     impacts.clear();
+    view.view.setFov(loadCommonSettings(appStorage).fov);
+    applySavedCrosshair();
+    mouseSettings = loadMouseSettings(appStorage);
     // 練習ごとに種を 1 つ決め、積んだ入力を記録する（docs/spec/input.md「入力の記録と再生」）。記録はメモリの中だけで持つ。
     const input = new RecordingInput(createSeed());
     const world = createWorld(map);
@@ -182,11 +218,10 @@ async function start(): Promise<void> {
     location.hash = SCREEN_HASHES.result;
   };
 
-  // 設定画面の Issue で保存した DPI・感度・ADS 倍率を渡す。今は既定値（MOU-11）。
-  // ロックが外れたら練習を止め、ロックし直したら再開する（docs/spec/mouse.md「一時停止と再開」）。
+  // 設定していなければ既定値（MOU-11）。ロックが外れたら練習を止め、ロックし直したら再開する（docs/spec/mouse.md「一時停止と再開」）。
   attachMouse(canvas, {
     emit,
-    settings: () => DEFAULT_MOUSE_SETTINGS,
+    settings: () => mouseSettings,
     onLockResult: (result) => showPointerLockNotice(lockNotice, result),
     onLockChange: (locked) => {
       if (!running) return;
