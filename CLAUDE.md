@@ -23,7 +23,7 @@ Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescrip
 | lint・型の確認 | `npm run lint` |
 | ビルド | `npm run build`（`dist/` に出る。配信先は `/apex-training/`） |
 | サブパスでの配信の確認 | `npm run build && npm run check:subpath`（ポート 3102） |
-| 配布物に画像・音声・3D モデルがないことの確認 | `npm run build && npm run check:assets` |
+| 配布物の画像・音声・3D モデルが素材の一覧（`src/assets/assets.json`）に載っていることの確認 | `npm run build && npm run check:assets` |
 | GitHub Pages への公開（手動） | `npm run deploy`（ビルドして `gh-pages` ブランチに push する） |
 
 - テストは `tests/` に `src/` と同じ構成で置く（`src/sim/` の依存の確認がテストのファイルを拾わないように）。
@@ -31,7 +31,7 @@ Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescrip
 
 ## 守ること
 
-- EA / Respawn の画像・ロゴ・武器モデル・効果音を使わない。
+- EA / Respawn の画像・ロゴ・武器モデル・効果音を使わない。自作などの画像・音声・3D モデルを足すときは `src/assets/assets.json` に出どころを書く。
 - 補正値のエクスポートや外部デバイスとの連携など、チートに転用できる出力を作らない。
 - `src/sim/` から Three.js と DOM を参照しない。
 - GitHub Actions は費用のため止めている（2026-11-25）。ワークフローを足しても動かない。

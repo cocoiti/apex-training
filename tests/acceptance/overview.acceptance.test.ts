@@ -18,7 +18,7 @@ const DEBUG_PORT = 3105;
 const NOTICE = 'この環境では設定と記録を保存できません。練習はそのまま続けられます。';
 const UNOFFICIAL = /非公式ファンツール.*EA \/ Respawn.*無関係/;
 
-/** SPEC（overview.md「権利と表記」）に書かれた、配布物に含めない拡張子。 */
+/** SPEC（overview.md「素材の一覧」）に書かれた、素材の一覧に載っていなければ配布物に含めない拡張子。 */
 const FORBIDDEN = {
   image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico', 'svg'],
   audio: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'opus', 'weba'],
@@ -73,11 +73,12 @@ describe.skipIf(NESTED)('OVR-2: 配布物の検査（npm run check:assets）', (
   });
 
   it('引数なしの npm run check:assets は dist/ を調べ、ビルドの結果なら成功し、画像を置くと失敗する', () => {
-    // リポジトリの dist/ を書き換えないよう、package.json と scripts/ と dist/ の写しで実行する。
+    // リポジトリの dist/ を書き換えないよう、package.json と scripts/ と素材の一覧と dist/ の写しで実行する。
     const repo = mkdtempSync(join(tmpdir(), 'ovr-repo-'));
     temps.push(repo);
     cpSync(join(ROOT, 'package.json'), join(repo, 'package.json'));
     cpSync(join(ROOT, 'scripts'), join(repo, 'scripts'), { recursive: true });
+    cpSync(join(ROOT, 'src/assets/assets.json'), join(repo, 'src/assets/assets.json'));
     cpSync(dist, join(repo, 'dist'), { recursive: true });
     const ok = run('npm run --silent check:assets', repo);
     expect(ok.status, ok.output).toBe(0);
