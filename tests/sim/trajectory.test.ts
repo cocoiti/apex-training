@@ -93,6 +93,7 @@ describe('各弾の発射時の照準', () => {
       magSize,
       pattern: Array.from({ length: magSize }, (_, i) => ({ dx: (i % 3) - 1, dy: 0.4 })),
       randomness: 0,
+      measured: true,
     };
     const input = new RecordingInput(1);
     const session = new PracticeSession({ world, weapon, mode: scoredMode, input, seed: 1 });
@@ -141,6 +142,7 @@ describe('回転速度の推移', () => {
     magSize: 3,
     pattern: [{ dx: 0, dy: 1 }, { dx: 0.5, dy: 1 }, { dx: -0.5, dy: 0.5 }],
     randomness: 0,
+    measured: true,
   };
 
   it('ステップごとに 1 点で、look の角度 ÷ ステップの長さを自分の回転速度にし、最後のアクションを消費するステップまで続く', () => {

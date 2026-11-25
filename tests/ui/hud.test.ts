@@ -33,7 +33,7 @@ describe('HUD', () => {
   });
 
   it('連続練習のときは今の回の番号と回数を「2 / 5」と表示し、回数が 1 のときは表示しない', () => {
-    const base = { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse' } as const;
+    const base = { weaponName: 'L-STAR', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse' } as const;
     expect(hudTexts({ ...base, round: { index: 2, count: 5 } }).round).toBe('2 / 5');
     expect(hudTexts({ ...base, round: { index: 1, count: 1 } }).round).toBe('');
   });
@@ -47,16 +47,16 @@ describe('HUD', () => {
       round: { textContent: '' },
       pad: { textContent: '', hidden: true },
     };
-    renderHud(elements, { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse', round: { index: 3, count: 5 } });
+    renderHud(elements, { weaponName: 'L-STAR', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse', round: { index: 3, count: 5 } });
     expect(elements).toEqual({
-      weapon: { textContent: 'R-301' },
+      weapon: { textContent: 'L-STAR' },
       ammo: { textContent: '残弾 28 / 28' },
       time: { textContent: '0.0 秒' },
       input: { textContent: 'マウス' },
       round: { textContent: '3 / 5' },
       pad: { textContent: '', hidden: true },
     });
-    renderHud(elements, { weaponName: 'R-301', ammo: 27, magSize: 28, elapsed: 0.1, inputMethod: 'pad' });
+    renderHud(elements, { weaponName: 'L-STAR', ammo: 27, magSize: 28, elapsed: 0.1, inputMethod: 'pad' });
     expect(elements.ammo.textContent).toBe('残弾 27 / 28');
     expect(elements.input.textContent).toBe('パッド');
   });
@@ -70,7 +70,7 @@ describe('HUD', () => {
       round: { textContent: '' },
       pad: { textContent: '', hidden: true },
     };
-    const state = { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse' } as const;
+    const state = { weaponName: 'L-STAR', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse' } as const;
     renderHud(elements, { ...state, padStatus: 'パッドが見つかりません。パッドのボタンを押してください' });
     expect(elements.pad).toEqual({ textContent: 'パッドが見つかりません。パッドのボタンを押してください', hidden: false });
   });
@@ -84,7 +84,7 @@ describe('HUD', () => {
       round: { textContent: '' },
       pad: { textContent: 'Xbox Controller', hidden: false },
     };
-    renderHud(elements, { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse' });
+    renderHud(elements, { weaponName: 'L-STAR', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse' });
     expect(elements.pad).toEqual({ textContent: '', hidden: true });
   });
 });

@@ -44,7 +44,7 @@ const byId = (id: string) => {
   if (!w) throw new Error(`武器がない: ${id}`);
   return w;
 };
-const R301 = byId('r301');
+const LSTAR = byId('lstar');
 
 interface Entry {
   at: string;
@@ -343,16 +343,16 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
 
   // -------------------------------------------------------------------------
   describe('履歴の保存（scoring.md）', () => {
-    it('SCO-23: 履歴がない状態で、マウスで R-301 とセンター維持を 3 回練習して終えると、3 件が古い順に保存され、各件にその練習の値が入る', async () => {
+    it('SCO-23: 履歴がない状態で、マウスで L-STAR とセンター維持を 3 回練習して終えると、3 件が古い順に保存され、各件にその練習の値が入る', async () => {
       const page = await openFresh();
       expect(await storedHistories(page)).toEqual({});
       const results: ResultState[] = [];
       const startedAt = Date.now();
       for (let i = 0; i < 3; i += 1) {
-        results.push(await practice(page, R301.name, 'センター維持'));
+        results.push(await practice(page, LSTAR.name, 'センター維持'));
       }
       const all = await storedHistories(page);
-      const key = historyKey('mouse', 'r301', 'center');
+      const key = historyKey('mouse', 'lstar', 'center');
       expect(Object.keys(all)).toEqual([key]);
       const value = JSON.parse(all[key]!) as Stored;
       expect(value.version).toBe(1);
@@ -362,7 +362,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
         expect(Math.abs(e.meanError - num(metric(r, '平均ズレ'))!), `${i + 1} 件目の平均ズレ`).toBeLessThanOrEqual(0.006);
         expect(Math.abs(e.hitRate - num(metric(r, '命中率'))!), `${i + 1} 件目の命中率`).toBeLessThanOrEqual(0.06);
         expect(Math.abs(e.groupingRadius - num(metric(r, 'グルーピング半径'))!), `${i + 1} 件目のグルーピング半径`).toBeLessThanOrEqual(0.006);
-        expect(e.shots, `${i + 1} 件目の弾数`).toBe(R301.magSize);
+        expect(e.shots, `${i + 1} 件目の弾数`).toBe(LSTAR.magSize);
         expect(e.at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
         const t = Date.parse(e.at);
         expect(t).toBeGreaterThanOrEqual(startedAt - 1000);
@@ -374,51 +374,51 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
     }, 120_000);
 
     it('SCO-24: 同じ組の履歴が 200 件ある状態で練習を終えると、200 件のままで最も古い 1 件が消え、最後の件が今の練習の結果になる', async () => {
-      const key = historyKey('mouse', 'r301', 'center');
+      const key = historyKey('mouse', 'lstar', 'center');
       // 平均ズレ 50 + i/1000 で各件を見分ける（今の練習の平均ズレとは重ならない）。
       const seedEntries = Array.from({ length: 200 }, (_, i) => entry(50 + i / 1000, new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString()));
       const page = await openFresh({ [key]: stored(seedEntries) });
-      const r = await practice(page, R301.name, 'センター維持');
+      const r = await practice(page, LSTAR.name, 'センター維持');
       const value = JSON.parse((await storedHistories(page))[key]!) as Stored;
       expect(value.entries).toHaveLength(200);
       // 最も古い 1 件（i = 0）が消え、2 件目以降がそのまま前に詰まる。
       expect(value.entries.slice(0, 199)).toEqual(seedEntries.slice(1));
       const last = value.entries[199]!;
       expect(Math.abs(last.meanError - num(metric(r, '平均ズレ'))!)).toBeLessThanOrEqual(0.006);
-      expect(last.shots).toBe(R301.magSize);
+      expect(last.shots).toBe(LSTAR.magSize);
       expect(Math.abs(Date.parse(last.at) - Date.now())).toBeLessThan(60_000);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
     it('SCO-25: パターン観察で練習を終えると、履歴のキーに何も保存されない', async () => {
       const page = await openFresh();
-      const r = await practice(page, R301.name, 'パターン観察');
+      const r = await practice(page, LSTAR.name, 'パターン観察');
       expect(r.visibleScreens).toEqual(['result']);
       expect(await storedHistories(page)).toEqual({});
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('SCO-26: R-301 とセンター維持の履歴がある状態で、R-301 とゴースト追従を練習して終えると、R-301 とセンター維持のマウスの履歴は変わらない', async (ctx) => {
-      const key = historyKey('mouse', 'r301', 'center');
+    it('SCO-26: L-STAR とセンター維持の履歴がある状態で、L-STAR とゴースト追従を練習して終えると、L-STAR とセンター維持のマウスの履歴は変わらない', async (ctx) => {
+      const key = historyKey('mouse', 'lstar', 'center');
       const old = stored([entry(3.21), entry(2.34, '2026-01-02T00:00:00.000Z')]);
       const page = await openFresh({ [key]: old });
       if (!(await modesOnTop(page)).includes('ゴースト追従')) {
         console.warn('ゴースト追従がモードの選択肢にない。この確認は飛ばす');
         ctx.skip();
       }
-      const r = await practice(page, R301.name, 'ゴースト追従');
+      const r = await practice(page, LSTAR.name, 'ゴースト追従');
       const all = await storedHistories(page);
       expect(all[key]).toBe(old);
       // ゴースト追従の履歴は別のキーに入る。
-      const ghost = JSON.parse(all[historyKey('mouse', 'r301', 'ghost')]!) as Stored;
+      const ghost = JSON.parse(all[historyKey('mouse', 'lstar', 'ghost')]!) as Stored;
       expect(ghost.entries).toHaveLength(1);
       expect(Math.abs(ghost.entries[0]!.meanError - num(metric(r, '平均ズレ'))!)).toBeLessThanOrEqual(0.006);
-      expect(Object.keys(all).sort()).toEqual([historyKey('mouse', 'r301', 'ghost'), key].sort());
+      expect(Object.keys(all).sort()).toEqual([historyKey('mouse', 'lstar', 'ghost'), key].sort());
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('SCO-26: R-301 とセンター維持のマウスの履歴がある状態で、パッドで R-301 とセンター維持を練習して終えると、マウスの履歴は変わらない', async () => {
-      const key = historyKey('mouse', 'r301', 'center');
+    it('SCO-26: L-STAR とセンター維持のマウスの履歴がある状態で、パッドで L-STAR とセンター維持を練習して終えると、マウスの履歴は変わらない', async () => {
+      const key = historyKey('mouse', 'lstar', 'center');
       const old = stored([entry(3.21), entry(2.34, '2026-01-02T00:00:00.000Z')]);
       // Gamepad API の形の標準配置のパッド（R2 はボタン 7）で撃つ。
       const page = await openFresh({ [key]: old }, PAD_INIT);
@@ -429,7 +429,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       await page.frames(2);
       await page.evaluate(`location.hash = '#/'`);
       await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden && document.querySelector('#weapon').options.length > 0`);
-      await choose(page, '#weapon', R301.name);
+      await choose(page, '#weapon', LSTAR.name);
       await choose(page, '#mode', 'センター維持');
       await page.clickSelector('[data-screen="top"] a[href="#/play"]');
       await page.waitFor(`location.hash === '#/play' && window.__ammo() > 0`);
@@ -443,17 +443,17 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(r.visibleScreens).toEqual(['result']);
       const all = await storedHistories(page);
       expect(all[key]).toBe(old);
-      const padValue = JSON.parse(all[historyKey('pad', 'r301', 'center')]!) as Stored;
+      const padValue = JSON.parse(all[historyKey('pad', 'lstar', 'center')]!) as Stored;
       expect(padValue.entries).toHaveLength(1);
       expect(Math.abs(padValue.entries[0]!.meanError - num(metric(r, '平均ズレ'))!)).toBeLessThanOrEqual(0.006);
-      expect(Object.keys(all).sort()).toEqual([historyKey('pad', 'r301', 'center'), key].sort());
+      expect(Object.keys(all).sort()).toEqual([historyKey('pad', 'lstar', 'center'), key].sort());
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
     it('SCO-29: 履歴のキーに JSON として読めない値が入っている状態で練習を終えると、エラーで止まらずにリザルト画面が表示され、履歴はその練習の 1 件だけになる', async () => {
-      const key = historyKey('mouse', 'r301', 'center');
+      const key = historyKey('mouse', 'lstar', 'center');
       const page = await openFresh({ [key]: '{not json' });
-      const r = await practice(page, R301.name, 'センター維持');
+      const r = await practice(page, LSTAR.name, 'センター維持');
       expect(r.visibleScreens).toEqual(['result']);
       const value = JSON.parse((await storedHistories(page))[key]!) as Stored;
       expect(value.version).toBe(1);
@@ -466,12 +466,12 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       const page = await openFresh({}, ALWAYS_THROW);
       const results: ResultState[] = [];
       for (let i = 0; i < 2; i += 1) {
-        const r = await practice(page, R301.name, 'センター維持');
+        const r = await practice(page, LSTAR.name, 'センター維持');
         expect(r.visibleScreens, `${i + 1} 回目`).toEqual(['result']);
         results.push(r);
       }
       await openHistory(page);
-      await selectGroup(page, R301.name, 'センター維持', 'マウス');
+      await selectGroup(page, LSTAR.name, 'センター維持', 'マウス');
       const h = await historyState(page);
       expect(h.visibleScreens).toEqual(['history']);
       expect(h.rows).toHaveLength(2);
@@ -495,10 +495,10 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
         else { out.push(new Date(midnight.getTime() + 1000).toISOString()); out.push(new Date(midnight.getTime() + 2000).toISOString()); }
         return out; })()`);
       const entries = ats.map((at, i) => entry(i + 1, at));
-      await page.evaluate(`localStorage.setItem(${JSON.stringify(historyKey('mouse', 'r301', 'center'))}, ${JSON.stringify(stored(entries))})`);
+      await page.evaluate(`localStorage.setItem(${JSON.stringify(historyKey('mouse', 'lstar', 'center'))}, ${JSON.stringify(stored(entries))})`);
       await reload(page);
       await openHistory(page);
-      await selectGroup(page, R301.name, 'センター維持', 'マウス');
+      await selectGroup(page, LSTAR.name, 'センター維持', 'マウス');
       const h = await historyState(page);
       expect(num(metric({ metrics: h.averages }, '今日'))).toBeCloseTo(11.5, 2);
       expect(num(metric({ metrics: h.averages }, '直近 10 回'))).toBeCloseTo(7.5, 2);
@@ -510,7 +510,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
     it('SCO-28: 履歴が 1 件もないとき、今日の平均・直近 10 回の平均・全体の平均がすべて「なし」になる', async () => {
       const page = await openFresh();
       await openHistory(page);
-      await selectGroup(page, R301.name, 'センター維持', 'マウス');
+      await selectGroup(page, LSTAR.name, 'センター維持', 'マウス');
       const h = await historyState(page);
       expect(metric({ metrics: h.averages }, '今日')).toBe('なし');
       expect(metric({ metrics: h.averages }, '直近 10 回')).toBe('なし');
@@ -521,13 +521,13 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
 
   // -------------------------------------------------------------------------
   describe('履歴の画面（screens.md）', () => {
-    it('UI-24: マウスで R-301 とセンター維持を 3 回練習したあと、履歴の画面で選ぶと、グラフに 3 点が回の順に、一覧に 3 回分の平均ズレがリザルトと同じ順で表示される', async () => {
+    it('UI-24: マウスで L-STAR とセンター維持を 3 回練習したあと、履歴の画面で選ぶと、グラフに 3 点が回の順に、一覧に 3 回分の平均ズレがリザルトと同じ順で表示される', async () => {
       const page = await openFresh();
       const results: ResultState[] = [];
-      for (let i = 0; i < 3; i += 1) results.push(await practice(page, R301.name, 'センター維持'));
+      for (let i = 0; i < 3; i += 1) results.push(await practice(page, LSTAR.name, 'センター維持'));
       const means = results.map((r) => num(metric(r, '平均ズレ'))!);
       await openHistory(page);
-      await selectGroup(page, R301.name, 'センター維持', 'マウス');
+      await selectGroup(page, LSTAR.name, 'センター維持', 'マウス');
       const h = await historyState(page);
       expect(h.visibleScreens).toEqual(['history']);
       // 一覧: 3 行、回 1・2・3 の順、平均ズレはリザルトの値と同じ順。
@@ -585,17 +585,30 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
+    it('WPN-21: 履歴の画面の武器の選択肢は L-STAR と C.A.R. SMG だけで、仮データの武器は履歴が保存してあっても出ず、保存は消えない', async () => {
+      const placeholderKey = historyKey('mouse', 'r301', 'center');
+      const page = await openFresh({ [placeholderKey]: stored([entry(1.5)]) });
+      await openHistory(page);
+      const h = await historyState(page);
+      const weapon = h.selects.find((s) => s.label.startsWith('武器'));
+      expect(weapon, JSON.stringify(h.selects)).toBeDefined();
+      expect([...weapon!.options].sort()).toEqual(['C.A.R. SMG', 'L-STAR']);
+      for (const name of ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア']) expect(h.text).not.toContain(name);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(placeholderKey)})`)).toBe(stored([entry(1.5)]));
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 60_000);
+
     it('UI-27: 履歴がある組で「この履歴を消す」を押して消すことを選ぶと、空になり、再読み込みしても空で、ほかの組の履歴と自己ベストは残る', async () => {
-      const target = historyKey('mouse', 'r301', 'center');
+      const target = historyKey('mouse', 'lstar', 'center');
       const others = {
-        [historyKey('mouse', 'r99', 'center')]: stored([entry(4.56)]),
-        [historyKey('pad', 'r301', 'center')]: stored([entry(5.67)]),
-        [historyKey('mouse', 'r301', 'ghost')]: stored([entry(6.78)]),
+        [historyKey('mouse', 'car', 'center')]: stored([entry(4.56)]),
+        [historyKey('pad', 'lstar', 'center')]: stored([entry(5.67)]),
+        [historyKey('mouse', 'lstar', 'ghost')]: stored([entry(6.78)]),
       };
-      const best = { [bestKey('mouse', 'r301', 'center')]: JSON.stringify({ version: 1, meanError: 1.11, groupingRadius: 0.5, hitRate: 40, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' }) };
+      const best = { [bestKey('mouse', 'lstar', 'center')]: JSON.stringify({ version: 1, meanError: 1.11, groupingRadius: 0.5, hitRate: 40, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' }) };
       const page = await openFresh({ [target]: stored([entry(1.5), entry(2.5, '2026-01-02T00:00:00.000Z')]), ...others, ...best });
       await openHistory(page);
-      await selectGroup(page, R301.name, 'センター維持', 'マウス');
+      await selectGroup(page, LSTAR.name, 'センター維持', 'マウス');
       const before = await historyState(page);
       expect(before.rows).toHaveLength(2);
       expect(before.clear).toEqual({ exists: true, disabled: false });
@@ -607,7 +620,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       // 再読み込みしても空。
       await reload(page);
       await openHistory(page);
-      await selectGroup(page, R301.name, 'センター維持', 'マウス');
+      await selectGroup(page, LSTAR.name, 'センター維持', 'マウス');
       const reloaded = await historyState(page);
       expect(reloaded.points).toHaveLength(0);
       expect(reloaded.rows).toHaveLength(0);
@@ -617,17 +630,17 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       if (target in histories) expect((JSON.parse(histories[target]!) as Stored).entries).toEqual([]);
       expect(await storedWith(page, BEST_PREFIX)).toEqual(best);
       // ほかの組は画面でも残っている。
-      await selectGroup(page, byId('r99').name, 'センター維持', 'マウス');
+      await selectGroup(page, byId('car').name, 'センター維持', 'マウス');
       expect(column(await historyState(page), '平均ズレ').map(num)).toEqual([4.56]);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
     it('UI-28: 「この履歴を消す」を押して確認で取りやめると、履歴の表示と保存してある履歴が変わらない', async () => {
-      const target = historyKey('mouse', 'r301', 'center');
+      const target = historyKey('mouse', 'lstar', 'center');
       const value = stored([entry(1.5), entry(2.5, '2026-01-02T00:00:00.000Z'), entry(0.75, '2026-01-03T00:00:00.000Z')]);
       const page = await openFresh({ [target]: value });
       await openHistory(page);
-      await selectGroup(page, R301.name, 'センター維持', 'マウス');
+      await selectGroup(page, LSTAR.name, 'センター維持', 'マウス');
       const before = await historyState(page);
       expect(before.rows).toHaveLength(3);
       await clearWithAnswer(page, false);
@@ -657,9 +670,9 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
     }, 60_000);
 
     it('UI-30: 履歴の画面に、履歴をファイルに書き出す操作や外部へ送る操作がない', async () => {
-      const page = await openFresh({ [historyKey('mouse', 'r301', 'center')]: stored([entry(1.5)]) });
+      const page = await openFresh({ [historyKey('mouse', 'lstar', 'center')]: stored([entry(1.5)]) });
       await openHistory(page);
-      await selectGroup(page, R301.name, 'センター維持', 'マウス');
+      await selectGroup(page, LSTAR.name, 'センター維持', 'マウス');
       const h = await historyState(page);
       expect(h.rows).toHaveLength(1);
       const forbidden = /書き出|エクスポート|出力|保存する|ダウンロード|送信|送る|共有|コピー|export|download|share|send|copy|upload/i;

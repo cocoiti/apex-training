@@ -47,18 +47,23 @@ interface WeaponJson {
   magSize: number;
   randomness: number;
   pattern: { dx: number; dy: number }[];
+  measured?: boolean;
 }
 
 const WEAPONS: WeaponJson[] = readdirSync(join(ROOT, 'src/data/weapons'))
   .filter((f) => f.endsWith('.json'))
   .sort()
-  .map((f) => JSON.parse(readFileSync(join(ROOT, 'src/data/weapons', f), 'utf8')) as WeaponJson);
+  .map((f) => JSON.parse(readFileSync(join(ROOT, 'src/data/weapons', f), 'utf8')) as WeaponJson)
+  .filter((w) => w.measured === true);
 const byName = (name: string) => {
   const w = WEAPONS.find((x) => x.name === name);
   if (!w) throw new Error(`武器がない: ${name}`);
   return w;
 };
-const MVP_WEAPONS = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR', 'C.A.R. SMG'];
+/** 武器の一覧の武器（weapons.md。計測した武器データの L-STAR と C.A.R. SMG）。 */
+const LISTED_WEAPONS = ['L-STAR', 'C.A.R. SMG'];
+/** 仮データの武器。トップ画面の選択肢に出ない。 */
+const PLACEHOLDER_WEAPONS = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア'];
 
 const RANGE = JSON.parse(readFileSync(join(ROOT, 'src/data/maps/range.json'), 'utf8')) as {
   spawn: { position: [number, number, number]; yaw: number; pitch: number };
@@ -82,6 +87,7 @@ const ZERO_WEAPON: WeaponJson & { version: string; source: string } = {
   rpm: 30,
   magSize: ZERO_COUNTS.length,
   randomness: 0,
+  measured: true,
   pattern: ZERO_COUNTS.map(([x, y]) => ({ dx: x * DEG_PER_COUNT, dy: y * DEG_PER_COUNT })),
 };
 
@@ -341,14 +347,14 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
     // 対照: パターン観察（ゴーストを表示しない）で始めた直後のキャンバス。
     const ref = await newPage();
     await resetSettings(ref, main);
-    await start(ref, main, 'R-301', 'パターン観察');
+    await start(ref, main, 'L-STAR', 'パターン観察');
     patternBase = await canvasOnly(ref, { stable: true });
     opened = [];
     await closePage(ref);
 
     // ゴーストの色: ゴースト追従で始めた直後のキャンバスと対照の違う画素の色。
     const page = await newPage();
-    await start(page, main, 'R-301', 'ゴースト追従');
+    await start(page, main, 'L-STAR', 'ゴースト追従');
     const ghostCanvas = await canvasOnly(page, { stable: true });
     const diff = changedPixels(patternBase, ghostCanvas);
     if (diff.length === 0) throw new Error('ゴースト追従で始めても、パターン観察と違う画素がない（ゴーストが見えない）');
@@ -367,7 +373,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
 
   // -------------------------------------------------------------------------
   describe('MODE-12: 1 発も撃っていないとき、ゴーストは開始時の照準 + 1 発目の理想の補正軌道の向きに表示される', () => {
-    it.each([...MVP_WEAPONS.map((n) => [n, byName(n), 'main'] as const), [ZERO_WEAPON.name, ZERO_WEAPON, 'copy'] as const])(
+    it.each([...LISTED_WEAPONS.map((n) => [n, byName(n), 'main'] as const), [ZERO_WEAPON.name, ZERO_WEAPON, 'copy'] as const])(
       '%s',
       async (_name, w, site) => {
         const origin = site === 'main' ? main : copy;
@@ -419,13 +425,13 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('R-301 で 1 発だけ撃つと、ゴーストが 1 発目の位置から 2 発目の位置へ進む', async () => {
-      const w = byName('R-301');
+    it('L-STAR で 1 発だけ撃つと、ゴーストが 1 発目の位置から 2 発目の位置へ進む', async () => {
+      const w = byName('L-STAR');
       const page = await newPage();
       await resetSettings(page, main);
       await start(page, main, w.name, 'ゴースト追従');
       const before = await ghostAt(page);
-      // パッドが 1 回読まれる間だけ押す代わりに、1 発撃ったら離す（発射間隔 74ms より短く押す）。
+      // パッドが 1 回読まれる間だけ押す代わりに、1 発撃ったら離す（発射間隔 100ms より短く押す）。
       const left = await page.evaluate<number>(`(async () => {
         window.__setR2(1); const t0 = performance.now();
         while (window.__ammo() === ${w.magSize} && performance.now() - t0 < 3000) await window.__nextFrame();
@@ -525,7 +531,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
   describe('MODE-14: 1 マガジンを撃ち切ると、ゴーストが表示から消えてリザルト画面に移る', () => {
     it.each([
       [ZERO_WEAPON.name, ZERO_WEAPON, 'copy'] as const,
-      ['R-301', byName('R-301'), 'main'] as const,
+      ['L-STAR', byName('L-STAR'), 'main'] as const,
     ])('%s', async (_name, w, site) => {
       const origin = site === 'main' ? main : copy;
       const page = await newPage();
@@ -553,7 +559,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
 
   // -------------------------------------------------------------------------
   describe('MODE-15: 数発撃って fire を離し、戻りの時間（0.5 秒）より長く待つと、ゴーストが 1 発目の位置に戻る', () => {
-    it.each([['R-301'], ['フラットライン']])('%s', async (name) => {
+    it.each([['L-STAR'], ['C.A.R. SMG']])('%s', async (name) => {
       const w = byName(name);
       const page = await newPage();
       await resetSettings(page, main);
@@ -586,8 +592,8 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
 
   // -------------------------------------------------------------------------
   describe('UI-4: 設定画面でゴースト表示を OFF にしてゴースト追従を始めると、ゴーストが表示されず、撃ち切るとリザルトに採点結果が表示される', () => {
-    it('R-301', async () => {
-      const w = byName('R-301');
+    it('L-STAR', async () => {
+      const w = byName('L-STAR');
       const page = await newPage();
       await resetSettings(page, main);
       await openSettings(page, main);
@@ -620,7 +626,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
     it('対照: パターン観察で撃ち切ったリザルトには採点結果が出ない', async () => {
       const page = await newPage();
       await resetSettings(page, main);
-      await start(page, main, 'R-301', 'パターン観察');
+      await start(page, main, 'L-STAR', 'パターン観察');
       await page.evaluate(`window.__setR2(1)`);
       await page.waitFor(`location.hash === '#/result'`, 15_000);
       await page.evaluate(`window.__setR2(0)`);
@@ -643,7 +649,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       const page = await newPage();
       await resetSettings(page, main);
       // 対照: 既定（点・#77ccff）で始めたときは、中心に赤い画素がない。
-      await start(page, main, 'R-301', 'パターン観察');
+      await start(page, main, 'L-STAR', 'パターン観察');
       expect(near(await screenshot(page), RED).length).toBe(0);
       const dot = near(await screenshot(page), [0x77, 0xcc, 0xff]);
       expect(dot.length, '既定のクロスヘア（#77ccff の点）が見えない').toBeGreaterThan(0);
@@ -651,7 +657,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       await openSettings(page, main);
       await setNative(page, 'setting-crosshair-color', '#ff0000');
       await setNative(page, 'setting-crosshair-shape', 'cross');
-      await start(page, main, 'R-301', 'パターン観察');
+      await start(page, main, 'L-STAR', 'パターン観察');
       const img = await screenshot(page);
       const red = near(img, RED);
       expect(red.length, 'クロスヘアが #ff0000 で表示されていない').toBeGreaterThan(0);
@@ -703,7 +709,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
         await typeFov(page, String(fov));
         expect(await page.evaluate<string>(`document.getElementById('setting-fov').value`)).toBe(String(fov));
       }
-      await start(page, origin, 'R-301', 'パターン観察');
+      await start(page, origin, 'L-STAR', 'パターン観察');
       const img = await canvasOnly(page, { stable: true });
       // 壁の色は、的とリングより下で壁の下端より上の行（中心から 45 px 下）の、目地を避けた画素。
       // 目地は 1 m ごと（FOV 90 で約 64 px、FOV 110 で約 45 px ごと）で、中心の真下の列と中心から 38・27 px 下の行を通る。
@@ -782,14 +788,15 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-1: MVP の 7 つの武器それぞれで、3 つのモードを最後まで練習でき、リザルト画面が表示される', () => {
-    it('トップ画面の選択肢に 7 つの武器と 3 つのモードがある', async () => {
+  describe('MODE-1: 武器の一覧の武器（L-STAR と C.A.R. SMG）それぞれで、3 つのモードを最後まで練習でき、リザルト画面が表示される', () => {
+    it('トップ画面の選択肢に L-STAR と C.A.R. SMG の 2 つだけの武器と 3 つのモードがある', async () => {
       const page = await newPage();
       await page.goto(`${main}${BASE}#/`);
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
       const weapons = await page.evaluate<string[]>(`[...document.querySelector('#weapon').options].map((o) => o.textContent.trim())`);
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
-      for (const n of MVP_WEAPONS) expect(weapons).toContain(n);
+      expect([...weapons].sort()).toEqual([...LISTED_WEAPONS].sort());
+      for (const n of PLACEHOLDER_WEAPONS) expect(weapons).not.toContain(n);
       expect(modes).toEqual(expect.arrayContaining(['パターン観察', 'ゴースト追従', 'センター維持']));
       // C.A.R. SMG（#49）は SMG の分類（WPN-13 の optgroup）にある。
       const group = await page.evaluate<string | null>(
@@ -806,7 +813,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     });
 
-    it.each(MVP_WEAPONS.flatMap((n) => ['パターン観察', 'ゴースト追従', 'センター維持'].map((m) => [n, m] as const)))(
+    it.each(LISTED_WEAPONS.flatMap((n) => ['パターン観察', 'ゴースト追従', 'センター維持'].map((m) => [n, m] as const)))(
       '%s / %s',
       async (name, mode) => {
         const page = await newPage();

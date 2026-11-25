@@ -327,7 +327,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
     it('入力方式の設定が「自動」の練習中の HUD', async () => {
       const page = await openFresh({ pads: [] });
       expect(await selectedLabel(page, '#setting-input-method')).toBe('自動');
-      await start(page, byId('r301'));
+      await start(page, byId('lstar'));
       await page.waitFor(`window.__text('${HUD_PAD}').includes(${JSON.stringify(NOT_FOUND)})`, 3000);
       expect(await shown(page, HUD_PAD)).toBe(true);
       noExceptions(page);
@@ -348,7 +348,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
     await assignAll(page);
 
     // 練習を始める（入力方式は既定の「自動」）。
-    const w = byId('r301');
+    const w = byId('lstar');
     await start(page, w);
     expect(await text(page, HUD_PAD)).not.toContain(NOT_STANDARD);
     await hideHtml(page);
@@ -371,7 +371,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
       const page = await openFresh({ pads: [standardPad(0, 'ok')] });
       await openSettings(page);
       expect(await page.evaluate<boolean>(`document.getElementById('setting-pad-vibration').checked`)).toBe(true);
-      const w = byId('r301');
+      const w = byId('lstar');
       await start(page, w);
       expect(await page.evaluate<number>('window.__rumble.length')).toBe(0);
       // 何発か撃って離し、その時点の要求の数が撃った弾の数と同じ。
@@ -402,7 +402,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
       await openSettings(page);
       await clickOn(page, '#setting-pad-vibration');
       await page.waitFor(`!document.getElementById('setting-pad-vibration').checked`);
-      const w = byId('r301');
+      const w = byId('lstar');
       await start(page, w);
       await button(page, 0, 7, 1);
       await page.waitFor(`location.hash === '#/result'`, 20_000);
@@ -467,7 +467,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   describe('PAD-23: 振動に対応しないパッドで撃ってもエラーにならず、撃ち切るとリザルトに移り、設定画面に案内が出る', () => {
     it('vibrationActuator がないパッドで撃ち切る', async () => {
       const page = await openFresh({ pads: [standardPad(0, 'none')] });
-      const w = byId('r301');
+      const w = byId('lstar');
       await start(page, w);
       await button(page, 0, 7, 1);
       await page.waitFor(`window.__ammo() <= ${w.magSize - 3}`, 5000);
@@ -506,7 +506,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
       it(`入力方式「${method}」の練習中の HUD と、操作しても反応しないこと`, async () => {
         const page = await openFresh({ pads: [genericPad()] });
         await setInputMethod(page, method);
-        const w = byId('r301');
+        const w = byId('lstar');
         await start(page, w);
         await page.waitFor(`window.__text('${HUD_PAD}').includes(${JSON.stringify(NOT_STANDARD)})`, 3000);
         expect(await text(page, HUD_PAD)).toContain(GENERIC_NAME);
@@ -532,7 +532,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
 
     it('番号 1 のパッドで照準と射撃ができ、HUD に番号 1 のパッドの名前が出る（番号 0 のパッドの操作は無視される）', async () => {
       const page = await openFresh({ pads });
-      const w = byId('r301');
+      const w = byId('lstar');
       await start(page, w);
       await page.waitFor(`window.__text('${HUD_PAD}').includes(${JSON.stringify(STD_NAME)})`, 3000);
       expect(await text(page, HUD_PAD)).not.toContain(NOT_STANDARD);
@@ -622,7 +622,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
     await openSettings(page);
     await page.waitFor(`window.__text('${SETTINGS_PAD}').includes(${JSON.stringify(GENERIC_NAME)})`, 3000);
     expect(await text(page, SETTINGS_PAD)).not.toContain(NOT_STANDARD);
-    const w = byId('r301');
+    const w = byId('lstar');
     await start(page, w);
     expect(await text(page, HUD_PAD)).not.toContain(NOT_STANDARD);
     await button(page, 0, 5, 1);
@@ -659,7 +659,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
       await typeInto(page, '#setting-pad-yaw', String(yaw));
       expect(await value(page, '#setting-pad-yaw')).toBe(String(yaw));
       expect(await value(page, '#setting-pad-deadzone')).toBe('0');
-      await start(page, byId('r301'));
+      await start(page, byId('lstar'));
       await page.evaluate(`document.getElementById('ui').style.visibility = 'hidden'`);
       await page.frames(5);
       // ここから、ページの時計はテストが進めたぶんだけ進む。固定ステップ（1/120 秒）の境目を HUD の経過時間の変わり目で見つけ、
@@ -768,7 +768,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   it('PAD-30: 入力方式の設定が「マウス」のとき、練習中の HUD にパッドの状態が出ない（「自動」では出る）', async () => {
     const page = await openFresh({ pads: [standardPad()] });
     await setInputMethod(page, 'マウス');
-    await start(page, byId('r301'));
+    await start(page, byId('lstar'));
     await page.frames(10);
     const hidden = !(await shown(page, HUD_PAD)) || (await text(page, HUD_PAD)) === '';
     expect(hidden, `HUD のパッドの状態: ${await text(page, HUD_PAD)}`).toBe(true);
@@ -776,7 +776,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
 
     // 対照: 「自動」では出る。
     const auto = await openFresh({ pads: [standardPad()] });
-    await start(auto, byId('r301'));
+    await start(auto, byId('lstar'));
     await auto.waitFor(`window.__shown('${HUD_PAD}') && window.__text('${HUD_PAD}').includes(${JSON.stringify(STD_NAME)})`, 3000);
     noExceptions(page);
   }, 60_000);

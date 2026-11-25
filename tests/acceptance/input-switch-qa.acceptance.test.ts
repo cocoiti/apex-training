@@ -212,7 +212,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     const page = await openFresh();
     // 前提: 入力方式の既定は「自動」。
     expect(await page.evaluate<string>(`document.querySelector('#setting-input-method').selectedOptions[0].textContent.trim()`)).toBe('自動');
-    await start(page, byId('r301'));
+    await start(page, byId('lstar'));
     expect(await shownMethod(page)).toBe(MOUSE);
     // 何も操作せずにしばらく置いても、マウスのまま（パッドは接続しているが操作していない）。
     await settle(page, 50);
@@ -223,7 +223,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
   // -------------------------------------------------------------------------
   it('INP-9: 自動で、パッドで撃ったあとにマウスを動かすと、入力方式の表示がマウスに変わる', async () => {
     const page = await openFresh();
-    const w = byId('r301');
+    const w = byId('lstar');
     await start(page, w);
     expect(await shownMethod(page)).toBe(MOUSE);
     // 練習の始めにキャンバスをクリックしてポインターロックを掛ける（mouse.md: ロックしていない間はマウスで照準が動かない）。
@@ -249,7 +249,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
   it('INP-10: パッドに固定しているとき、マウスを動かしたりクリックしたりしても照準と射撃は反応せず、表示はパッドのまま', async () => {
     const page = await openFresh();
     await setInputMethod(page, 'パッド');
-    const w = byId('r301');
+    const w = byId('lstar');
     await start(page, w);
     expect(await shownMethod(page)).toBe(PAD);
     await hideHtml(page);
@@ -309,7 +309,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
 
     it('ページを開いてから操作していない状態（マウス）で揺らしても、マウスのまま', async () => {
       const page = await openFresh();
-      await start(page, byId('r301'));
+      await start(page, byId('lstar'));
       expect(await shownMethod(page)).toBe(MOUSE);
       await wiggleInsideDeadzone(page);
       await settle(page, 12);
@@ -323,7 +323,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
 
     it('パッドからマウスに切り替えたあとに揺らしても、マウスのまま', async () => {
       const page = await openFresh();
-      await start(page, byId('r301'));
+      await start(page, byId('lstar'));
       expect(await lock(page)).toBe(true);
       // パッドのボタン（Y / △）を押して離し、パッドにする。A / × と B / ○ は練習中のやり直し・やめるの操作（docs/spec/screens.md「画面の操作」）なので使わない。
       await page.evaluate('window.__button(3, 1)');
@@ -342,8 +342,8 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
   // -------------------------------------------------------------------------
   it('INP-13: 自動で、マウスの左ボタンで撃っている間にパッドのボタンを押すと、表示がパッドに変わり、左ボタンを押したままでも射撃が止まる', async () => {
     const page = await openFresh();
-    // 撃ち切るまでの時間が長い武器（スピットファイア: 55 発・540 rpm、約 6 秒）。
-    const w = byId('spitfire');
+    // 撃ち切るまでの時間が長い武器（L-STAR: 28 発・600 rpm、約 2.8 秒）。
+    const w = byId('lstar');
     await start(page, w);
     expect(await lock(page)).toBe(true);
     const beforeFire = await ammo(page);
@@ -369,7 +369,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
 
   // -------------------------------------------------------------------------
   describe('INP-14: 自動で、マウスで 1 発目を撃ち、パッドに切り替えて撃ち終えると、自己ベストはマウスの記録として比べて保存する', () => {
-    const w = byId('r301');
+    const w = byId('lstar');
     const mouseKey = bestKey('mouse', w.id, CENTER_MODE_ID);
     const padKey = bestKey('pad', w.id, CENTER_MODE_ID);
     const unbeatable = JSON.stringify({ version: 1, meanError: 0.0001, groupingRadius: 0.0001, hitRate: 100, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });

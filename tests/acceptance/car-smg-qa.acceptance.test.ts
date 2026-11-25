@@ -16,7 +16,8 @@ import { loadWorld, type World } from '../../src/sim/world';
 
 const ROOT = resolve(__dirname, '../..');
 
-const MVP_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR', 'C.A.R. SMG'];
+/** 仮データの武器（weapons.md「MVP の武器」）。武器の一覧に出ない。 */
+const PLACEHOLDER_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア'];
 /** 計測した武器データ（weapons.md）と、その計測の記録。 */
 const MEASURED: { name: string; record: string }[] = [
   { name: 'L-STAR', record: 'docs/measurements/lstar.json' },
@@ -90,14 +91,13 @@ const usedShots = (r: MeasurementRecord) => r.shots.filter((s) => exclusionOf(s)
 
 // ---------------------------------------------------------------------------
 
-describe('WPN-3: 武器の一覧に MVP の 7 つが出て、計測した 2 つ以外は仮データ', () => {
-  it('7 つの武器が出て、L-STAR と C.A.R. SMG 以外の 5 つの source に仮データと書かれている', async () => {
+describe('WPN-3: 武器の一覧は計測した 2 つだけ', () => {
+  it('武器の一覧に L-STAR と C.A.R. SMG の 2 つだけが出て、R-301・R-99・フラットライン・ボルト・スピットファイアは出ない', async () => {
     const { weapons, logs } = await repoWeapons();
     expect(logs, '読み込みの誤りがない').toEqual([]);
-    expect(weapons.map((w) => w.name).sort()).toEqual([...MVP_NAMES].sort());
-    for (const name of MVP_NAMES.filter((n) => !MEASURED_NAMES.includes(n))) {
-      expect(weapons.find((x) => x.name === name)!.source, `${name} の source`).toMatch(/仮データ/);
-    }
+    const names = weapons.map((w) => w.name);
+    expect([...names].sort()).toEqual([...MEASURED_NAMES].sort());
+    for (const name of PLACEHOLDER_NAMES) expect(names).not.toContain(name);
   });
 });
 

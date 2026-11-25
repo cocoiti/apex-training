@@ -46,6 +46,7 @@ interface WeaponJson {
   magSize: number;
   randomness: number;
   pattern: { dx: number; dy: number }[];
+  measured?: boolean;
 }
 const WEAPONS: WeaponJson[] = readdirSync(join(ROOT, 'src/data/weapons'))
   .filter((f) => f.endsWith('.json'))
@@ -61,6 +62,7 @@ const accWeapon = (id: string, name: string, pattern: { dx: number; dy: number }
   magSize: pattern.length,
   randomness: 0,
   pattern,
+  measured: true,
 });
 const zeros = (n: number) => Array.from({ length: n }, () => ({ dx: 0, dy: 0 }));
 const ZERO = accWeapon('acc-zero', '受け入れ-跳ねなし', zeros(6));
@@ -68,7 +70,7 @@ const LONG = accWeapon('acc-long', '受け入れ-長い弾倉', zeros(30));
 // 1 発目で 2 度下がり、照準を動かさなければ全弾が中心より下に 2 度外れる（平均ズレ 2、「下げすぎ」）。
 const LOW = accWeapon('acc-low', '受け入れ-下外れ', [{ dx: 0, dy: -2 }, ...zeros(5)]);
 const EXTRA_WEAPONS = [ZERO, LONG, LOW];
-const R301 = WEAPONS.find((w) => w.id === 'r301')!;
+const LSTAR = WEAPONS.find((w) => w.id === 'lstar')!;
 
 // ---------------------------------------------------------------------------
 // ページに入れるスクリプト
@@ -601,19 +603,19 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 120_000);
 
-    /** 自己ベストがない状態から、マウスで R-301 とセンター維持の回数 count のセットを最後まで練習し、保存された自己ベストを確かめる。 */
+    /** 自己ベストがない状態から、マウスで L-STAR とセンター維持の回数 count のセットを最後まで練習し、保存された自己ベストを確かめる。 */
     async function bestOfSet(count: number) {
       const page = await openFresh();
-      const KEY = 'apex-training:best:mouse:r301:center';
+      const KEY = 'apex-training:best:mouse:lstar:center';
       expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(KEY)})`)).toBeNull();
-      await start(page, R301, 'センター維持', count);
+      await start(page, LSTAR, 'センター維持', count);
       const mouse = new Mouse(page);
       // 回ごとに補正の量を変え、平均ズレが回で違うようにする（補正なし、手前に強く引く、少しだけ引く、…）。
       const pulls = [0, 8, 3, 5, 1];
       const shown: number[] = [];
       for (let n = 1; n <= count; n += 1) {
         await mouse.lock();
-        expect(await ammo(page)).toBe(R301.magSize);
+        expect(await ammo(page)).toBe(LSTAR.magSize);
         const pull = pulls[(n - 1) % pulls.length]!;
         await mouse.fireAll(
           pull
@@ -633,7 +635,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
           expect(v.length, text).toBeGreaterThan(0);
           shown.push(v[0]!);
           await key(page, 'space');
-          await waitRoundStart(page, R301, n + 1, count, 8000);
+          await waitRoundStart(page, LSTAR, n + 1, count, 8000);
         }
       }
       const s = await waitSetResult(page);
@@ -649,7 +651,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }
 
-    it('MODE-23: 自己ベストがない状態で、マウスで R-301 とセンター維持の回数 5 のセットを最後まで練習すると、5 回のうち平均ズレが最も小さい回の平均ズレが自己ベストに保存される', async () => {
+    it('MODE-23: 自己ベストがない状態で、マウスで L-STAR とセンター維持の回数 5 のセットを最後まで練習すると、5 回のうち平均ズレが最も小さい回の平均ズレが自己ベストに保存される', async () => {
       await bestOfSet(5);
     }, 150_000);
   });
@@ -751,7 +753,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
 
     it('UI-39: リザルト画面で武器変更を選んでトップ画面に戻ったとき、直前の練習の武器・モード・回数が選ばれている', async () => {
       const page = await openFresh({ pad: true });
-      const weapon = WEAPONS.find((w) => w.id === 'volt')!;
+      const weapon = WEAPONS.find((w) => w.id === 'lstar')!;
       // 開いたときに選ばれているのと違うモード（並び順の最初でないもの）を選ぶ。
       const MODE = await page.evaluate<string>(`[...document.querySelector('#mode').options].at(-1).textContent.trim()`);
       expect(MODE).not.toBe(await selectedText(page, '#mode'));

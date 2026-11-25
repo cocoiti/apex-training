@@ -30,7 +30,7 @@ function rangeWorld(): World {
 function makeWeapon(extra: Partial<WeaponData> = {}): WeaponData {
   const magSize = extra.magSize ?? 30;
   const pattern: RecoilStep[] = Array.from({ length: magSize }, (_, i) => ({ dx: ((i % 5) - 2) * 0.1, dy: 0.3 + i * 0.01 }));
-  return { id: 'w', name: 'w', category: 'AR', version: 'S31-Cipher', source: '仮データ', rpm: 600, magSize, pattern, randomness: 0, ...extra };
+  return { id: 'w', name: 'w', category: 'AR', version: 'S31-Cipher', source: '仮データ', rpm: 600, magSize, pattern, randomness: 0, measured: true, ...extra };
 }
 
 const press = (time: number): TimedAction => ({ time, action: { type: 'fire', pressed: true } });

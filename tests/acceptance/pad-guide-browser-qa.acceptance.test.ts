@@ -225,7 +225,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
   it('PAD-17: ゴースト追従・ゴースト表示 ON・入力方式パッドで、ガイドとパッドの名前が表示され、2 発目以降の理想の位置が理想の補正速度をカーブの逆で直した位置になる', async () => {
     const page = await openFresh();
     await configure(page, { input: 'パッド', ghost: true });
-    const w = byId('spitfire');
+    const w = byId('lstar');
     await start(page, w, GHOST);
 
     // 撃つ前: ガイドとパッドの名前が出て、理想の位置は中心（fire を押していない）。
@@ -293,7 +293,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
     it('ゴースト表示が OFF のとき（ゴースト追従・パッド）', async () => {
       const page = await openFresh();
       await configure(page, { input: 'パッド', ghost: false });
-      const w = byId('spitfire');
+      const w = byId('lstar');
       await start(page, w, GHOST);
       const { seen, ammo: left } = await neverShownWhileFiring(page, w);
       expect(left, 'パッドで撃てている').toBeLessThan(w.magSize);
@@ -304,7 +304,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
     it('入力方式がマウスのとき（ゴースト追従・ゴースト表示 ON）', async () => {
       const page = await openFresh();
       await configure(page, { input: 'マウス', ghost: true });
-      const w = byId('spitfire');
+      const w = byId('lstar');
       await start(page, w, GHOST);
       const { seen } = await neverShownWhileFiring(page, w);
       // マウスで撃っているあいだも出ない。
@@ -325,7 +325,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
       it(`${mode}のとき（パッド・ゴースト表示 ON）`, async () => {
         const page = await openFresh();
         await configure(page, { input: 'パッド', ghost: true });
-        const w = byId('spitfire');
+        const w = byId('lstar');
         await start(page, w, mode);
         const { seen, ammo: left } = await neverShownWhileFiring(page, w);
         expect(left, 'パッドで撃てている').toBeLessThan(w.magSize);
@@ -337,7 +337,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
     it('入力方式が「自動」でパッドで練習中にマウスを操作したとき、ガイドが消える', async () => {
       const page = await openFresh();
       await configure(page, { input: '自動', ghost: true });
-      const w = byId('spitfire');
+      const w = byId('lstar');
       await start(page, w, GHOST);
       expect(await lock(page)).toBe(true);
       // パッドの R2 で何発か撃ち、パッドにする。ガイドが出る。
@@ -363,7 +363,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
       it(`パッドで${mode}を練習して終えたとき、左右と上下のグラフ（自分と理想）と、使ったパッドの名前が表示される`, async () => {
         const page = await openFresh();
         await configure(page, { input: 'パッド', ghost: true });
-        const w = byId('r301');
+        const w = byId('lstar');
         await start(page, w, mode);
         // 右スティックを少し倒しながら R2 で撃ち切る。
         await page.evaluate('window.__pad.axes[2] = 0.3; window.__pad.axes[3] = 0.2');
@@ -387,7 +387,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
     it('マウスで練習して終えたときは表示されない（センター維持）', async () => {
       const page = await openFresh();
       await configure(page, { input: 'マウス', ghost: true });
-      const w = byId('r301');
+      const w = byId('lstar');
       await start(page, w, CENTER);
       expect(await lock(page)).toBe(true);
       await mouseButton(page, 'mousePressed');
@@ -403,7 +403,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
     it('パターン観察で終えたときは表示されない（パッド）', async () => {
       const page = await openFresh();
       await configure(page, { input: 'パッド', ghost: true });
-      const w = byId('r301');
+      const w = byId('lstar');
       await start(page, w, PATTERN);
       await page.evaluate('window.__button(7, 1)');
       await waitResult(page);

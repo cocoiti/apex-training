@@ -50,7 +50,7 @@ class FakeBacking {
   }
 }
 
-const R301_CENTER = { input: 'mouse', weaponId: 'r301', modeId: 'center' } as const;
+const LSTAR_CENTER = { input: 'mouse', weaponId: 'lstar', modeId: 'center' } as const;
 const NOW = new Date('2026-11-25T05:00:00.000Z');
 const result = (h: number) => score(Array.from({ length: 10 }, () => ({ yaw: h, pitch: 0 })), 1);
 
@@ -93,9 +93,9 @@ describe('履歴の画面の選択肢', () => {
   });
 
   it('最後に終えた練習が採点するモードならその組、なければ最初の武器・最初の採点するモード・マウス', () => {
-    const weapons = ['r301', 'r99'];
-    expect(initialHistorySelection(null, weapons)).toEqual({ input: 'mouse', weaponId: 'r301', modeId: 'ghost' });
-    const last = { input: 'pad', weaponId: 'r99', modeId: 'center' } as const;
+    const weapons = ['lstar', 'car'];
+    expect(initialHistorySelection(null, weapons)).toEqual({ input: 'mouse', weaponId: 'lstar', modeId: 'ghost' });
+    const last = { input: 'pad', weaponId: 'car', modeId: 'center' } as const;
     expect(initialHistorySelection(last, weapons)).toEqual(last);
     expect(initialHistorySelection({ ...last, modeId: 'pattern' }, weapons).modeId).toBe('ghost');
   });
@@ -138,8 +138,8 @@ describe('履歴の画面', () => {
   it('UI-24: 3 回の履歴の組を選ぶと、3 つの点と 3 回分の平均ズレを回の順に出す', () => {
     const backing = new FakeBacking();
     const page = openPage(backing);
-    [0.5, 0.25, 0.75].forEach((h) => recordHistory(page.storage, R301_CENTER, result(h), NOW));
-    page.view.open({ input: 'mouse', weaponId: 'r301', modeId: 'ghost' });
+    [0.5, 0.25, 0.75].forEach((h) => recordHistory(page.storage, LSTAR_CENTER, result(h), NOW));
+    page.view.open({ input: 'mouse', weaponId: 'lstar', modeId: 'ghost' });
     expect(pointCount(page.elements.plot.innerHTML)).toBe(0);
     page.elements.mode.select('center');
     expect(pointCount(page.elements.plot.innerHTML)).toBe(3);
@@ -151,7 +151,7 @@ describe('履歴の画面', () => {
 
   it('履歴がない組では空で「まだ履歴がありません」と出し、消すボタンは押せない', () => {
     const page = openPage(new FakeBacking());
-    page.view.open(R301_CENTER);
+    page.view.open(LSTAR_CENTER);
     expect(page.elements.list.innerHTML).toBe('');
     expect(page.elements.empty).toEqual({ hidden: false, textContent: HISTORY_EMPTY_MESSAGE });
     expect(page.elements.clear.disabled).toBe(true);
@@ -162,12 +162,12 @@ describe('履歴の画面', () => {
 
   it('UI-27: 確認で消すと選んだ組だけが消え、再読み込みしても空で、ほかの組と自己ベストは残る', () => {
     const backing = new FakeBacking();
-    const best = 'apex-training:best:mouse:r301:center';
+    const best = 'apex-training:best:mouse:lstar:center';
     backing.items.set(best, '{"version":1,"meanError":1}');
     const page = openPage(backing);
-    recordHistory(page.storage, R301_CENTER, result(1), NOW);
-    recordHistory(page.storage, { ...R301_CENTER, modeId: 'ghost' }, result(1), NOW);
-    page.view.open(R301_CENTER);
+    recordHistory(page.storage, LSTAR_CENTER, result(1), NOW);
+    recordHistory(page.storage, { ...LSTAR_CENTER, modeId: 'ghost' }, result(1), NOW);
+    page.view.open(LSTAR_CENTER);
     page.elements.clear.fire();
     expect(page.elements.confirm.root.hidden).toBe(false);
     expect(pointCount(page.elements.plot.innerHTML)).toBe(1);
@@ -179,43 +179,43 @@ describe('履歴の画面', () => {
     expect(page.elements.empty).toEqual({ hidden: false, textContent: HISTORY_EMPTY_MESSAGE });
 
     const reloaded = openPage(backing);
-    expect(loadHistory(reloaded.storage, R301_CENTER)).toEqual([]);
-    expect(loadHistory(reloaded.storage, { ...R301_CENTER, modeId: 'ghost' })).toHaveLength(1);
+    expect(loadHistory(reloaded.storage, LSTAR_CENTER)).toEqual([]);
+    expect(loadHistory(reloaded.storage, { ...LSTAR_CENTER, modeId: 'ghost' })).toHaveLength(1);
     expect(backing.items.get(best)).toBe('{"version":1,"meanError":1}');
   });
 
   it('UI-28: 確認で取りやめると表示も保存してある履歴も変えない', () => {
     const backing = new FakeBacking();
     const page = openPage(backing);
-    recordHistory(page.storage, R301_CENTER, result(1), NOW);
-    const saved = backing.items.get(historyKey(R301_CENTER));
-    page.view.open(R301_CENTER);
+    recordHistory(page.storage, LSTAR_CENTER, result(1), NOW);
+    const saved = backing.items.get(historyKey(LSTAR_CENTER));
+    page.view.open(LSTAR_CENTER);
     const before = { ...page.elements.list };
     page.elements.clear.fire();
     page.elements.confirm.cancel.fire();
     expect(page.elements.confirm.root.hidden).toBe(true);
     expect(page.elements.body.inert).toBe(false);
     expect(page.elements.list).toEqual(before);
-    expect(backing.items.get(historyKey(R301_CENTER))).toBe(saved);
+    expect(backing.items.get(historyKey(LSTAR_CENTER))).toBe(saved);
   });
 
   it('UI-52: 「この履歴を消す」は画面の中に確認を出し、出している間は確認のほかを操作できなくする', () => {
     const page = openPage(new FakeBacking());
-    recordHistory(page.storage, R301_CENTER, result(1), NOW);
-    page.view.open(R301_CENTER);
+    recordHistory(page.storage, LSTAR_CENTER, result(1), NOW);
+    page.view.open(LSTAR_CENTER);
     page.elements.clear.fire();
     expect(page.elements.confirm.root.hidden).toBe(false);
     expect(page.elements.confirm.message.textContent).toBe(HISTORY_CLEAR_CONFIRM);
     expect(page.elements.body.inert).toBe(true);
     // 画面を開き直すと確認は閉じる。
-    page.view.open(R301_CENTER);
+    page.view.open(LSTAR_CENTER);
     expect(page.elements.confirm.root.hidden).toBe(true);
     expect(page.elements.body.inert).toBe(false);
   });
 
   it('履歴が 1 件もない組では確認を出さない', () => {
     const page = openPage(new FakeBacking());
-    page.view.open(R301_CENTER);
+    page.view.open(LSTAR_CENTER);
     page.elements.clear.fire();
     expect(page.elements.confirm.root.hidden).toBe(true);
   });
@@ -224,9 +224,9 @@ describe('履歴の画面', () => {
     const backing = new FakeBacking();
     backing.failWrites = true;
     const page = openPage(backing);
-    recordHistory(page.storage, R301_CENTER, result(1), NOW);
-    recordHistory(page.storage, R301_CENTER, result(2), NOW);
-    page.view.open(R301_CENTER);
+    recordHistory(page.storage, LSTAR_CENTER, result(1), NOW);
+    recordHistory(page.storage, LSTAR_CENTER, result(2), NOW);
+    page.view.open(LSTAR_CENTER);
     expect(page.elements.unavailable).toEqual({ hidden: false, textContent: HISTORY_UNAVAILABLE_MESSAGE });
     expect(HISTORY_UNAVAILABLE_MESSAGE).toBe('この環境では履歴を保存できません。ページを開いているあいだの練習だけが表示されます。');
     expect(listedMeans(page.elements.list.innerHTML)).toEqual(['1.00°', '2.00°']);
@@ -234,14 +234,14 @@ describe('履歴の画面', () => {
 
   it('保存できる環境では保存できない文言を出さない', () => {
     const page = openPage(new FakeBacking());
-    page.view.open(R301_CENTER);
+    page.view.open(LSTAR_CENTER);
     expect(page.elements.unavailable.hidden).toBe(true);
   });
 
   it('UI-30: 画面の HTML に書き出しや外部へ送る操作がない', () => {
     const page = openPage(new FakeBacking());
-    recordHistory(page.storage, R301_CENTER, result(1), NOW);
-    page.view.open(R301_CENTER);
+    recordHistory(page.storage, LSTAR_CENTER, result(1), NOW);
+    page.view.open(LSTAR_CENTER);
     const html = page.elements.plot.innerHTML + page.elements.list.innerHTML + page.elements.averages.innerHTML;
     expect(html).not.toMatch(/<a |<button|download|書き出|エクスポート|送信/);
   });

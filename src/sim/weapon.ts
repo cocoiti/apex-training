@@ -18,6 +18,8 @@ export interface WeaponData {
   /** 要素数は magSize。JSON で magSize を超えた分は使わないので切り詰める。 */
   readonly pattern: readonly RecoilStep[];
   readonly randomness: number;
+  /** 計測した値なら true、仮データなら false。false の武器は武器の一覧に入れない（docs/spec/weapons.md）。 */
+  readonly measured: boolean;
 }
 
 /** 読み込みの誤り。path はどの項目が誤りかを示す（例: `pattern[3].dx`）。 */
@@ -70,6 +72,13 @@ export function parseWeapon(json: unknown): WeaponParseResult {
   const rpm = readNumber('rpm', (n) => n > 0, '0 より大きい数ではない');
   const magSize = readNumber('magSize', (n) => Number.isInteger(n) && n >= 1, '1 以上の整数ではない');
   const randomness = readNumber('randomness', (n) => n >= 0, '0 以上の数ではない');
+  const readBoolean = (key: string): boolean | undefined => {
+    const value = json[key];
+    if (value === undefined) return fail(key, '必須の項目がない');
+    if (typeof value !== 'boolean') return fail(key, '真偽値ではない');
+    return value;
+  };
+  const measured = readBoolean('measured');
 
   let pattern: RecoilStep[] | undefined;
   const rawPattern = json.pattern;
@@ -106,13 +115,14 @@ export function parseWeapon(json: unknown): WeaponParseResult {
     rpm === undefined ||
     magSize === undefined ||
     randomness === undefined ||
+    measured === undefined ||
     pattern === undefined
   ) {
     return { ok: false, errors };
   }
   return {
     ok: true,
-    weapon: { id, name, category, version, source, rpm, magSize, pattern: pattern.slice(0, magSize), randomness },
+    weapon: { id, name, category, version, source, rpm, magSize, pattern: pattern.slice(0, magSize), randomness, measured },
   };
 }
 
@@ -129,17 +139,21 @@ export interface RejectedWeapon {
 }
 
 export interface WeaponList {
-  /** 読み込めた武器。並びは渡したファイルの順。 */
+  /** 武器の一覧（計測した武器データだけ）。並びは渡したファイルの順。 */
   readonly weapons: readonly WeaponData[];
+  /** 項目の確認を通った、measured が false の仮データの武器。誤りではないので出力しない。並びは渡したファイルの順。 */
+  readonly placeholders: readonly WeaponData[];
   readonly rejected: readonly RejectedWeapon[];
 }
 
 /**
  * 武器の JSON の集まりから武器の一覧を作る。誤りのある JSON は一覧から外して rejected に入れ、ほかの武器は残す。
- * 先に読み込んだ武器と id が重なる JSON も外す。
+ * 先に読み込んだ武器（仮データの武器も含む）と id が重なる JSON も外す。
+ * measured が false の武器は武器の一覧に入れず placeholders に入れる（docs/adr/2026-11-26-measured-flag-hides-placeholder-weapons.md）。
  */
 export function buildWeaponList(files: readonly WeaponFile[]): WeaponList {
   const weapons: WeaponData[] = [];
+  const placeholders: WeaponData[] = [];
   const rejected: RejectedWeapon[] = [];
   const seen = new Set<string>();
   for (const { file, json } of files) {
@@ -150,10 +164,10 @@ export function buildWeaponList(files: readonly WeaponFile[]): WeaponList {
       rejected.push({ file, errors: [{ path: 'id', message: `武器の ID "${parsed.weapon.id}" が重複している` }] });
     } else {
       seen.add(parsed.weapon.id);
-      weapons.push(parsed.weapon);
+      (parsed.weapon.measured ? weapons : placeholders).push(parsed.weapon);
     }
   }
-  return { weapons, rejected };
+  return { weapons, placeholders, rejected };
 }
 
 /** 発射間隔（秒）。60 ÷ rpm。 */

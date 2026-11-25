@@ -1,9 +1,9 @@
 // docs/spec/modes.md（MODE-2・MODE-4 のゴーストの部分・MODE-5〜MODE-11）、docs/spec/screens.md（UI-1・UI-10）と
-// docs/spec/weapons.md（WPN-1・WPN-2・WPN-3 のトップ画面の部分）の受け入れテスト。
+// docs/spec/weapons.md（WPN-1・WPN-2・WPN-3・WPN-21 のトップ画面と履歴の画面の部分）の受け入れテスト。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、武器の JSON、モードの共通の型）だけを使い、実装の内部には依存しない。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、パッドは Gamepad API（navigator.getGamepads）の形で与える。
 // 弾痕は、撃つ前と撃ったあと（リコイルが戻りきってから）の画面写しの差として読む（tests/helpers/png.ts）。
-// MODE-5・WPN-1・WPN-2 はリポジトリの写しにモードのファイルと武器の JSON を足してビルドし、その画面で確かめる。
+// MODE-5・WPN-1・WPN-2・WPN-21 はリポジトリの写しにモードのファイルと武器の JSON を足してビルドし、その画面で確かめる。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -33,12 +33,17 @@ interface WeaponJson {
   magSize: number;
   randomness: number;
   pattern: { dx: number; dy: number }[];
+  measured: boolean;
 }
 
-const WEAPONS: WeaponJson[] = readdirSync(join(ROOT, 'src/data/weapons'))
+const WEAPON_FILES: WeaponJson[] = readdirSync(join(ROOT, 'src/data/weapons'))
   .filter((f) => f.endsWith('.json'))
   .sort()
   .map((f) => JSON.parse(readFileSync(join(ROOT, 'src/data/weapons', f), 'utf8')) as WeaponJson);
+/** 武器の一覧（weapons.md）: 計測した武器データ（measured が true）だけ。 */
+const WEAPONS = WEAPON_FILES.filter((w) => w.measured === true);
+/** 仮データの武器（measured が false）。どの選択肢にも出ない。 */
+const PLACEHOLDERS = WEAPON_FILES.filter((w) => w.measured === false);
 /** 射撃場のマップ（src/data/maps/range.json）。弾が壁に当たるかを、壁の範囲から求めるのに使う。 */
 interface MapBox {
   kind: string;
@@ -275,6 +280,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     const noRpm: Record<string, unknown> = { ...NEW_WEAPON, id: 'acceptance-no-rpm', name: '受け入れ-rpmなし' };
     delete noRpm.rpm;
     writeFileSync(join(copy, 'src/data/weapons/acceptance-no-rpm.json'), JSON.stringify(noRpm, null, 2));
+    writeFileSync(join(copy, 'src/data/weapons/acceptance-placeholder.json'), JSON.stringify(PLACEHOLDER_WEAPON, null, 2));
     copyDist = join(work, 'copy-dist');
     const r = spawnSync(`npm run build -- --outDir "${copyDist}" --emptyOutDir`, {
       cwd: copy,
@@ -299,7 +305,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
 
   // -------------------------------------------------------------------------
   describe('トップ画面', () => {
-    it('UI-10 / WPN-3: 武器の選択肢が category ごとにまとめて表示され、一覧のすべての武器（MVP の 7 つ）が選択肢に出る', async () => {
+    it('UI-10 / WPN-3: 武器の選択肢が category ごとにまとめて表示され、一覧のすべての武器（L-STAR と C.A.R. SMG の 2 つだけ）が選択肢に出る', async () => {
       serveDist(mainDist);
       const page = await newPage();
       await page.goto(`${origin}${BASE}#/`);
@@ -315,10 +321,11 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       for (const g of groups) {
         expect(g.names.slice().sort(), g.label).toEqual(WEAPONS.filter((w) => w.category === g.label).map((w) => w.name).sort());
       }
-      // 一覧のすべての武器が 1 回ずつ出る。WPN-3: MVP の 7 つが出る。
+      // 一覧のすべての武器が 1 回ずつ出る。WPN-3: L-STAR と C.A.R. SMG の 2 つだけが出て、仮データの 5 つは出ない。
       const all = groups.flatMap((g) => g.names);
       expect(all.slice().sort()).toEqual(WEAPONS.map((w) => w.name).sort());
-      for (const name of ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR', 'C.A.R. SMG']) expect(all).toContain(name);
+      expect(all.slice().sort()).toEqual(['C.A.R. SMG', 'L-STAR']);
+      for (const name of ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア']) expect(all).not.toContain(name);
       // 選べる武器は 1 つ。
       expect(await page.evaluate<boolean>(`!document.querySelector('#weapon').multiple`)).toBe(true);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
@@ -358,7 +365,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       expect(modes).toContain('センター維持');
       expect(modes[modes.length - 1]).toBe('受け入れの追加モード');
       // 足したモードで練習を始められる。
-      await start(page, origin, 'R-301', '受け入れの追加モード');
+      await start(page, origin, 'L-STAR', '受け入れの追加モード');
       expect(await hash(page)).toBe('#/play');
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
@@ -380,6 +387,29 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       const log = page.errors.join('\n');
       expect(log).toContain('acceptance-no-rpm');
       expect(log).toContain('rpm');
+    }, 60_000);
+
+    it('WPN-21: measured が false の武器はトップ画面と履歴の画面の武器の選択肢に出ず、誤りも出力されない。measured が true の足した武器は両方に出る', async () => {
+      serveDist(copyDist);
+      const page = await newPage();
+      await page.goto(`${origin}${BASE}#/`);
+      await page.waitFor(`document.querySelector('#weapon').options.length > 0`);
+      // 誤りのある武器の知らせが出るまで待ってから、仮データの武器の知らせがないことを見る。
+      await waitUntil(() => page.errors.some((e) => e.includes('acceptance-no-rpm')), 'rpm が欠けた武器のファイル名がコンソールに出る');
+      const options = (selector: string) => page.evaluate<string[]>(`[...document.querySelector(${JSON.stringify(selector)}).options].map((o) => o.textContent.trim())`);
+      const top = await options('#weapon');
+      await page.goto(`${origin}${BASE}#/history`);
+      await page.waitFor(`!document.querySelector('[data-screen="history"]').hidden && document.querySelector('#history-weapon').options.length > 0`);
+      const history = await options('#history-weapon');
+      for (const names of [top, history]) {
+        expect(names, JSON.stringify(names)).not.toContain(PLACEHOLDER_WEAPON.name);
+        for (const w of PLACEHOLDERS) expect(names).not.toContain(w.name);
+        expect(names).toContain(NEW_WEAPON.name);
+        for (const w of WEAPONS) expect(names).toContain(w.name);
+      }
+      expect(page.errors.filter((e) => e.includes(PLACEHOLDER_WEAPON.id))).toEqual([]);
+      for (const w of PLACEHOLDERS) expect(page.errors.filter((e) => e.includes(`${w.id}.json`))).toEqual([]);
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
   });
 
@@ -416,7 +446,8 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     it('MODE-7: 撃って離し、2 秒たつ前に押し直すとプレイ画面のまま残弾から続けて撃て、離して 2 秒撃たないとリザルト画面に移る', async () => {
       serveDist(mainDist);
       const page = await newPage();
-      const w = byName('フラットライン');
+      // 発射間隔が長め（600 rpm）の武器。離した描画のあいだに次の弾が出にくい。
+      const w = byName('L-STAR');
       await start(page, origin, w.name, 'パターン観察');
       const first = await holdUntil(page, w.magSize - 5);
       expect(first).toBeLessThan(w.magSize);
@@ -445,7 +476,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     it('MODE-8: 練習を始めて 1 発も撃たずに 2 秒以上たっても、プレイ画面のまま', async () => {
       serveDist(mainDist);
       const page = await newPage();
-      const w = byName('R-301');
+      const w = byName('L-STAR');
       for (const mode of ['パターン観察', 'センター維持']) {
         await start(page, origin, w.name, mode);
         // 始めてから（練習の時計で）撃たない時間 + 2 秒たつまで待つ。
@@ -494,7 +525,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     it('MODE-9: 押し続けたあいだも、HUD の残弾は 1 ずつ減り、撃った数だけ減る', async () => {
       serveDist(mainDist);
       const page = await newPage();
-      const w = byName('スピットファイア');
+      const w = byName('L-STAR');
       await start(page, origin, w.name, 'パターン観察');
       const seen = await page.evaluate<number[]>(`(async () => {
         const seen = [window.__ammo()]; window.__setR2(1); const t0 = performance.now();
@@ -553,7 +584,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     it('MODE-10: 撃った弾の弾痕は、練習が終わるまで壁と的の上に表示され続ける', async () => {
       serveDist(mainDist);
       const page = await newPage();
-      const w = byName('R-301');
+      const w = byName('C.A.R. SMG');
       await start(page, origin, w.name, 'パターン観察');
       await hideHtml(page);
       const base = await screenshot(page);
@@ -589,12 +620,12 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       serveDist(mainDist);
       // 対照として、ゴーストを表示しないパターン観察の、撃つ前の画面写しを撮る。
       const ref = await newPage();
-      await start(ref, origin, 'R-99', 'パターン観察');
+      await start(ref, origin, 'C.A.R. SMG', 'パターン観察');
       await hideHtml(ref);
       const patternBase = await screenshot(ref);
 
       const page = await newPage();
-      const w = byName('R-99');
+      const w = byName('C.A.R. SMG');
       await start(page, origin, w.name, 'センター維持');
       // HTML の中にもゴーストの要素がない。
       expect(await page.evaluate<number>(`[...document.querySelectorAll('[class*="ghost" i], [data-ghost], [id*="ghost" i]')].filter((e) => e.offsetParent !== null).length`)).toBe(0);
@@ -705,4 +736,8 @@ const NEW_WEAPON = {
     { dx: 0.2, dy: 0.5 },
   ],
   randomness: 0,
+  measured: true,
 };
+
+/** WPN-21: 足す仮データの武器（項目の確認を通る、measured が false の JSON）。 */
+const PLACEHOLDER_WEAPON = { ...NEW_WEAPON, id: 'acceptance-placeholder', name: '受け入れ-仮データ', measured: false };
