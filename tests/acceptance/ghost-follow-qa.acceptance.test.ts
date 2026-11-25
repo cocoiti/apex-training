@@ -58,7 +58,7 @@ const byName = (name: string) => {
   if (!w) throw new Error(`武器がない: ${name}`);
   return w;
 };
-const MVP_WEAPONS = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR'];
+const MVP_WEAPONS = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR', 'C.A.R. SMG'];
 
 const RANGE = JSON.parse(readFileSync(join(ROOT, 'src/data/maps/range.json'), 'utf8')) as {
   spawn: { position: [number, number, number]; yaw: number; pitch: number };
@@ -782,8 +782,8 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-1: MVP の 6 つの武器それぞれで、3 つのモードを最後まで練習でき、リザルト画面が表示される', () => {
-    it('トップ画面の選択肢に 6 つの武器と 3 つのモードがある', async () => {
+  describe('MODE-1: MVP の 7 つの武器それぞれで、3 つのモードを最後まで練習でき、リザルト画面が表示される', () => {
+    it('トップ画面の選択肢に 7 つの武器と 3 つのモードがある', async () => {
       const page = await newPage();
       await page.goto(`${main}${BASE}#/`);
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
@@ -791,6 +791,19 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
       for (const n of MVP_WEAPONS) expect(weapons).toContain(n);
       expect(modes).toEqual(expect.arrayContaining(['パターン観察', 'ゴースト追従', 'センター維持']));
+      // C.A.R. SMG（#49）は SMG の分類（WPN-13 の optgroup）にある。
+      const group = await page.evaluate<string | null>(
+        `([...document.querySelector('#weapon').options].find((o) => o.textContent.trim() === 'C.A.R. SMG')?.closest('optgroup')?.label ?? null)`,
+      );
+      expect(group).toMatch(/SMG/);
+    });
+
+    it('C.A.R. SMG で練習を始めると、HUD の残弾に装弾数 30（WPN-20）が出る', async () => {
+      const page = await newPage();
+      await resetSettings(page, main);
+      await start(page, main, 'C.A.R. SMG', 'パターン観察');
+      expect(await ammo(page)).toBe(30);
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     });
 
     it.each(MVP_WEAPONS.flatMap((n) => ['パターン観察', 'ゴースト追従', 'センター維持'].map((m) => [n, m] as const)))(

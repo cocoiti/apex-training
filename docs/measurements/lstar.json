@@ -9,7 +9,7 @@
     "fovSetting": 104,
     "distanceToWallMeters": 10,
     "sight": "アイアンサイトで ADS",
-    "attachments": "なし",
+    "attachments": "すべて紫（レベル 3）",
     "aimInputWhileFiring": "なし（射撃中はスティックに触れない）",
     "firing": "撃てなくなる（過熱する）まで撃ち続ける。4 回"
   },

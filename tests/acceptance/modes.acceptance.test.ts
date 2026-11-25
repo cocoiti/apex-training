@@ -299,7 +299,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
 
   // -------------------------------------------------------------------------
   describe('トップ画面', () => {
-    it('UI-10 / WPN-3: 武器の選択肢が category ごとにまとめて表示され、一覧のすべての武器（MVP の 6 つ）が選択肢に出る', async () => {
+    it('UI-10 / WPN-3: 武器の選択肢が category ごとにまとめて表示され、一覧のすべての武器（MVP の 7 つ）が選択肢に出る', async () => {
       serveDist(mainDist);
       const page = await newPage();
       await page.goto(`${origin}${BASE}#/`);
@@ -315,10 +315,10 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       for (const g of groups) {
         expect(g.names.slice().sort(), g.label).toEqual(WEAPONS.filter((w) => w.category === g.label).map((w) => w.name).sort());
       }
-      // 一覧のすべての武器が 1 回ずつ出る。WPN-3: MVP の 6 つが出る。
+      // 一覧のすべての武器が 1 回ずつ出る。WPN-3: MVP の 7 つが出る。
       const all = groups.flatMap((g) => g.names);
       expect(all.slice().sort()).toEqual(WEAPONS.map((w) => w.name).sort());
-      for (const name of ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR']) expect(all).toContain(name);
+      for (const name of ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR', 'C.A.R. SMG']) expect(all).toContain(name);
       // 選べる武器は 1 つ。
       expect(await page.evaluate<boolean>(`!document.querySelector('#weapon').multiple`)).toBe(true);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
