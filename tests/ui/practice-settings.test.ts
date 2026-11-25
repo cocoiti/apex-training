@@ -71,16 +71,18 @@ describe('練習の始めに当てる設定', () => {
     expect(targetWidthOnScreen(wide, world)).toBeLessThan(targetWidthOnScreen(narrow, world));
   });
 
-  it('ゴースト表示・補正のパネルとマウスの設定は、保存された値を返す（UI-4、UI-46）', () => {
+  it('ゴースト表示・補正のパネル・パターンの表示とマウスの設定は、保存された値を返す（UI-4、UI-46）', () => {
     const storage = memoryStorage();
     const before = applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null });
     expect(before.ghost).toBe(false);
     expect(before.correctionPanel).toBe(true);
-    saveCommonSettings(storage, { ghost: true, correctionPanel: false });
+    expect(before.patternDisplay).toBe('detailed');
+    saveCommonSettings(storage, { ghost: true, correctionPanel: false, patternDisplay: 'simple' });
     saveMouseSettings(storage, { dpi: 1600 });
     const settings = applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null });
     expect(settings.ghost).toBe(true);
     expect(settings.correctionPanel).toBe(false);
+    expect(settings.patternDisplay).toBe('simple');
     expect(settings.mouse.dpi).toBe(1600);
   });
 

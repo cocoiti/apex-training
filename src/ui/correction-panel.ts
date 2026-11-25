@@ -1,12 +1,15 @@
 import type { CorrectionPanelUse } from '../modes/types';
 import type { Angles } from '../sim/angles';
 import { SHOT_SECTION_SIZE } from '../sim/scoring';
+import { simplePattern, type SimpleSegment } from '../sim/simple-pattern';
 import { idealCorrection, type WeaponData } from '../sim/weapon';
 import { plotExtent } from './result-plot';
+import type { PatternDisplay } from './settings';
 
 /**
  * 練習中のプレイ画面の補正のパネル（docs/spec/screens.md「補正のパネル」）。開始時の照準を原点とした度の座標で、
  * 理想の補正軌道の線・次の発の点・今の照準と向かう先の線・自分の照準の線を描く。表示だけで、シミュレーションと入力の記録には触れない。
+ * パターンの表示が簡易のときは、理想の線と次の発の点を簡易版のパターン（src/sim/simple-pattern.ts）で描き、区切りの言葉を並べる。
  */
 
 /** そのモードの練習でパネルを出すか。反復練習は設定によらず出し、センター維持は設定が ON のとき出す（docs/spec/modes.md「共通」）。 */
@@ -18,26 +21,46 @@ const ORIGIN: Angles = { yaw: 0, pitch: 0 };
 
 /** 練習のあいだ変えない、武器から決まる部分。 */
 export interface CorrectionPanelFrame {
-  /** 原点と 1 発目〜装弾数発目の理想の補正軌道。発の順。 */
+  readonly display: PatternDisplay;
+  /** 原点と 1 発目〜装弾数発目の理想の補正軌道（詳細版のパターン）。発の順。 */
   readonly ideal: readonly Angles[];
-  /** 表示の範囲の半分の幅（度）。原点を中心に縦横とも同じ。 */
+  /** 理想の線として描く点。詳細なら ideal、簡易なら簡易版の頂点。 */
+  readonly line: readonly Angles[];
+  /** i 番目は i 発目の次の発の点の位置（0 は原点）。詳細なら ideal、簡易なら簡易版での各発の位置。 */
+  readonly targets: readonly Angles[];
+  /** 区切り（発の順）。詳細のときは空。 */
+  readonly segments: readonly SimpleSegment[];
+  /** 表示の範囲の半分の幅（度）。原点を中心に縦横とも同じ。詳細版から決め、簡易でも同じ。 */
   readonly extent: number;
 }
 
-/** 武器から理想の線と表示の範囲を決める。範囲は理想の線がすべて収まる幅に余白を足したもの（result-plot と同じ求め方）。 */
-export function correctionPanelFrame(weapon: Pick<WeaponData, 'pattern' | 'magSize'>): CorrectionPanelFrame {
+/**
+ * 武器とパターンの表示から理想の線と表示の範囲を決める。範囲は詳細版の理想の線がすべて収まる幅に余白を足したもの
+ * （result-plot と同じ求め方）で、パターンの表示によらない（docs/spec/screens.md UI-72）。
+ */
+export function correctionPanelFrame(weapon: Pick<WeaponData, 'pattern' | 'magSize'>, display: PatternDisplay = 'detailed'): CorrectionPanelFrame {
   const ideal = [ORIGIN, ...idealCorrection(weapon).slice(0, weapon.magSize)];
-  return { ideal, extent: plotExtent({ series: [{ name: 'ideal', label: '', kind: 'line', points: ideal }] }) };
+  const extent = plotExtent({ series: [{ name: 'ideal', label: '', kind: 'line', points: ideal }] });
+  if (display === 'detailed') return { display, ideal, line: ideal, targets: ideal, segments: [], extent };
+  const simple = simplePattern(weapon);
+  return { display, ideal, line: simple.points, targets: simple.positions, segments: simple.segments, extent };
+}
+
+/** shot 発目（1 始まり）を受け持つ区切りの番号（0 始まり）。受け持つ区切りがないときは undefined。 */
+export function segmentOfShot(segments: readonly SimpleSegment[], shot: number | undefined): number | undefined {
+  if (shot === undefined) return undefined;
+  const index = segments.findIndex((s) => s.from < shot && shot <= s.to);
+  return index < 0 ? undefined : index;
 }
 
 /**
  * 理想の線のうち、苦手な区間の発を結ぶ部分の点。前の発の点（1 発目からの区間では原点）から、その発の区間の最後の発
- * （装弾数を超えるときは装弾数）までの点。苦手な区間がない、または 2 点に満たないときは空。
+ * （装弾数を超えるときは装弾数）までの点。簡易のときは簡易版での各発の位置。苦手な区間がない、または 2 点に満たないときは空。
  */
-export function weakIdealPoints(frame: Pick<CorrectionPanelFrame, 'ideal'>, weakStart: number | undefined): Angles[] {
+export function weakIdealPoints(frame: Pick<CorrectionPanelFrame, 'targets'>, weakStart: number | undefined): Angles[] {
   if (weakStart === undefined) return [];
-  // frame.ideal の i 番目は i 発目の点（0 番目は原点）。
-  const points = frame.ideal.slice(weakStart - 1, weakStart + SHOT_SECTION_SIZE);
+  // frame.targets の i 番目は i 発目の点（0 番目は原点）。簡易なら簡易版での位置になり、簡易版の折れ線の上に乗る。
+  const points = frame.targets.slice(weakStart - 1, weakStart + SHOT_SECTION_SIZE);
   return points.length >= 2 ? points : [];
 }
 
@@ -47,6 +70,8 @@ export interface CorrectionPanelState {
   readonly current: Angles | undefined;
   /** 今の発の点が何発目の点か（1 始まり）。点がないときは undefined。 */
   readonly currentShot: number | undefined;
+  /** 強調する区切りの言葉（今の発を受け持つ区切りの番号、0 始まり）。詳細のときと撃ち切ったときは undefined。 */
+  readonly currentSegment: number | undefined;
   /** 自分の線。撃った各弾の発射時の照準（開始時の照準からの差）。撃った順。 */
   readonly own: readonly Angles[];
   /** 今の照準（開始時の照準からの差）。 */
@@ -63,10 +88,25 @@ export interface CorrectionPanelInput {
   readonly aim: Angles;
 }
 
-/** 今の射撃の状態からパネルの点と線を決める。今の発の点は理想の線の nextShot 発目の点。 */
+/** 今の射撃の状態からパネルの点と線を決める。今の発の点は nextShot 発目の点（簡易なら簡易版での位置）。 */
 export function correctionPanelState(frame: CorrectionPanelFrame, input: CorrectionPanelInput): CorrectionPanelState {
-  const current = input.ammo > 0 && input.nextShot >= 1 ? frame.ideal[input.nextShot] : undefined;
-  return { current, currentShot: current ? input.nextShot : undefined, own: input.shotAims, aim: input.aim };
+  const current = input.ammo > 0 && input.nextShot >= 1 ? frame.targets[input.nextShot] : undefined;
+  const currentShot = current ? input.nextShot : undefined;
+  return { current, currentShot, currentSegment: segmentOfShot(frame.segments, currentShot), own: input.shotAims, aim: input.aim };
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** 区切りの言葉の一覧の中身。強調する言葉には class="current" と aria-current を付ける。 */
+export function segmentListHtml(segments: readonly SimpleSegment[], current: number | undefined): string {
+  return segments
+    .map((s, i) => {
+      const mark = i === current ? ' class="current" aria-current="step"' : '';
+      return `<li data-from="${s.from + 1}" data-to="${s.to}"${mark}>${escapeHtml(s.label)}</li>`;
+    })
+    .join('');
 }
 
 /** 範囲の外の点を枠の縁に寄せる。 */
@@ -121,6 +161,10 @@ export interface CorrectionPanelElements {
   readonly aim: PanelNode;
   /** 今の照準から次の発の点へ向かう先の線。 */
   readonly heading: PanelNode;
+  /** 理想の線の凡例。詳細は「理想」、簡易は「理想（簡易）」。 */
+  readonly idealLegend: Pick<HTMLElement, 'textContent'>;
+  /** 区切りの言葉の一覧（ol）。簡易のときだけ出す。 */
+  readonly segments: PanelNode & Pick<HTMLElement, 'hidden' | 'innerHTML'>;
 }
 
 /**
@@ -133,17 +177,20 @@ export class CorrectionPanel {
   /** 要素ごとに最後に書いた属性。 */
   private readonly written = new Map<PanelNode, Map<string, string>>();
   private dotsHtml = '';
+  private segmentsHtml = '';
 
   constructor(elements: CorrectionPanelElements) {
     this.elements = elements;
   }
 
   /**
-   * 新しい練習を始める。理想の線と範囲を置き、自分の線を消し、今の発の点を 1 発目に戻す。表示は変えない（update で出す）。
+   * 新しい練習を始める。パターンの表示に合わせて理想の線と区切りの言葉を置き、範囲を置き、自分の線を消し、
+   * 今の発の点を 1 発目に戻す。表示は変えない（update で出す）。
    * weakStart は練習の組の苦手な区間の最初の発の番号。あれば理想の線のその部分を違う色で重ね、凡例を出す。練習のあいだは変えない。
    */
-  begin(weapon: Pick<WeaponData, 'pattern' | 'magSize'>, weakStart?: number): void {
-    const frame = correctionPanelFrame(weapon);
+  begin(weapon: Pick<WeaponData, 'pattern' | 'magSize'>, options: { readonly weakStart?: number | undefined; readonly display?: PatternDisplay } = {}): void {
+    const { weakStart, display = 'detailed' } = options;
+    const frame = correctionPanelFrame(weapon, display);
     this.frame = frame;
     const e = num(frame.extent);
     const w = num(2 * frame.extent);
@@ -152,14 +199,27 @@ export class CorrectionPanel {
     this.set(this.elements.axisX, 'x2', e);
     this.set(this.elements.axisY, 'y1', `-${e}`);
     this.set(this.elements.axisY, 'y2', e);
-    this.set(this.elements.ideal, 'points', polylinePoints(frame.ideal, frame.extent));
-    this.set(this.elements.ideal, 'data-count', String(frame.ideal.length));
+    this.set(this.elements.ideal, 'points', polylinePoints(frame.line, frame.extent));
+    this.set(this.elements.ideal, 'data-count', String(frame.line.length));
+    this.set(this.elements.ideal, 'data-display', display);
     const weak = weakIdealPoints(frame, weakStart);
     this.set(this.elements.idealWeak, 'points', polylinePoints(weak, frame.extent));
     this.set(this.elements.idealWeak, 'data-start', weak.length > 0 ? String(weakStart) : '');
     this.set(this.elements.idealWeak, 'visibility', weak.length > 0 ? 'inherit' : 'hidden');
     this.elements.weakLegend.hidden = weak.length === 0;
-    this.render(frame, { current: frame.ideal[1], currentShot: frame.ideal[1] ? 1 : undefined, own: [], aim: ORIGIN });
+    const legend = display === 'simple' ? '理想（簡易）' : '理想';
+    if (this.elements.idealLegend.textContent !== legend) this.elements.idealLegend.textContent = legend;
+    const simple = display === 'simple';
+    if (this.elements.segments.hidden === simple) this.elements.segments.hidden = !simple;
+    this.set(this.elements.segments, 'data-count', String(frame.segments.length));
+    const first = frame.targets[1] ? 1 : undefined;
+    this.render(frame, {
+      current: frame.targets[1],
+      currentShot: first,
+      currentSegment: segmentOfShot(frame.segments, first),
+      own: [],
+      aim: ORIGIN,
+    });
   }
 
   /** 今の射撃の状態で置き直して表示する。begin の前は何もしない。 */
@@ -191,6 +251,12 @@ export class CorrectionPanel {
       this.dotsHtml = html;
     }
     this.set(this.elements.ownDots, 'data-count', String(state.own.length));
+    const segmentsHtml = segmentListHtml(frame.segments, state.currentSegment);
+    if (segmentsHtml !== this.segmentsHtml) {
+      this.elements.segments.innerHTML = segmentsHtml;
+      this.segmentsHtml = segmentsHtml;
+    }
+    this.set(this.elements.segments, 'data-current', state.currentSegment === undefined ? '' : String(state.currentSegment));
     const current = state.current;
     if (current) {
       const { x, y } = svgPoint(current, extent);
