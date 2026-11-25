@@ -26,3 +26,5 @@ SPEC（`docs/spec/`）はプロダクトが今どう振る舞うかを書く。A
 | [2026-11-25-fixed-timestep-deterministic-sim](2026-11-25-fixed-timestep-deterministic-sim.md) | 固定ステップで、DOM と Three.js から切り離し、入力だけで結果が決まるシミュレーションにする | 承認 | spec/architecture.md, spec/input.md, src/core/, src/sim/ |
 | [2026-11-25-input-actions-and-angles](2026-11-25-input-actions-and-angles.md) | 入力は最初からアクションと角度（度）に揃える | 承認 | spec/input.md, spec/mouse.md, spec/pad.md, src/input/ |
 | [2026-11-25-static-site-hash-routing](2026-11-25-static-site-hash-routing.md) | サーバーなしの静的サイトにし、画面はハッシュで切り替える | 承認 | spec/overview.md, spec/screens.md |
+| [2026-11-25-data-json-as-fetched-assets](2026-11-25-data-json-as-fetched-assets.md) | データの JSON は src/data/ に置き、Vite の資産として出してベースパス基準の URL で fetch する | 承認 | spec/architecture.md（ARC-11, ARC-14）, src/data/maps/, vite.config.ts, scripts/check-subpath.mjs |
+| [2026-11-25-lint-eslint-typescript-6](2026-11-25-lint-eslint-typescript-6.md) | lint は ESLint（typescript-eslint）と tsc で行い、TypeScript は 6.0 系に留める | 承認 | spec/architecture.md（ARC-1, ARC-4, ARC-13）, package.json, eslint.config.js, tests/helpers/sim-boundary.ts |

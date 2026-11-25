@@ -13,8 +13,19 @@ PR で SPEC と実装・テストを一緒に更新する。立ち上げ時点�
 
 ## 技術スタック
 
-Vite + TypeScript + Three.js、テストは Vitest。セットアップ・テスト・ビルドのコマンドは、プロジェクトを
-作る Issue で決めてここに書く。
+Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescript-eslint）と `tsc --noEmit`。Node.js 22.12 以上。
+
+| 目的 | コマンド |
+|------|---------|
+| セットアップ | `npm ci` |
+| 開発サーバー | `npm run dev`（http://localhost:3100/apex-training/） |
+| 単体テスト | `npm test` |
+| lint・型の確認 | `npm run lint` |
+| ビルド | `npm run build`（`dist/` に出る。配信先は `/apex-training/`） |
+| サブパスでの配信の確認 | `npm run build && npm run check:subpath`（ポート 3102） |
+
+- テストは `tests/` に `src/` と同じ構成で置く（`src/sim/` の依存の確認がテストのファイルを拾わないように）。
+- マップなどのデータの JSON は `src/data/` に置き、`?url` の資産として fetch する（ADR: data-json-as-fetched-assets）。
 
 ## 守ること
 
