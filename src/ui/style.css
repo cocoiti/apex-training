@@ -208,3 +208,27 @@ a {
   display: block;
   margin-bottom: 16px;
 }
+
+/* 設定画面は項目が多いので、パネルの中で縦にスクロールできるようにする。 */
+.panel:has(.settings) {
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+
+.settings fieldset {
+  margin: 0 0 16px;
+  border: 1px solid #3a3f49;
+  border-radius: 6px;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 8px;
+}
+
+#setting-cm-per-360 {
+  font-variant-numeric: tabular-nums;
+}
