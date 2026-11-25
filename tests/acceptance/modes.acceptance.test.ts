@@ -41,6 +41,16 @@ const WEAPONS: WeaponJson[] = readdirSync(join(ROOT, 'src/data/weapons'))
   .filter((f) => f.endsWith('.json'))
   .sort()
   .map((f) => JSON.parse(readFileSync(join(ROOT, 'src/data/weapons', f), 'utf8')) as WeaponJson);
+/** 射撃場のマップ（src/data/maps/range.json）。弾が壁に当たるかを、壁の範囲から求めるのに使う。 */
+interface MapBox {
+  kind: string;
+  center: [number, number, number];
+  size: [number, number, number];
+}
+const RANGE = JSON.parse(readFileSync(join(ROOT, 'src/data/maps/range.json'), 'utf8')) as {
+  spawn: { position: [number, number, number] };
+  boxes: MapBox[];
+};
 const byName = (name: string) => {
   const w = WEAPONS.find((x) => x.name === name);
   if (!w) throw new Error(`武器がない: ${name}`);
@@ -171,6 +181,27 @@ function patternAngles(w: WeaponJson, n: number) {
     out.push({ yaw, pitch });
   }
   return out;
+}
+
+/**
+ * 出現位置から照準の向き（正面が -z）より (yaw, pitch) 度ずれた方向へ撃った弾が、壁の手前の面の縁から
+ * margin（メートル）より内側に当たるか。壁の外に飛んだ弾には弾痕が出ない。
+ */
+function hitsWallInside(yaw: number, pitch: number, margin: number): boolean {
+  const wall = RANGE.boxes.find((b) => b.kind === 'wall');
+  if (!wall) throw new Error('マップに壁がない');
+  const [ex, ey, ez] = RANGE.spawn.position;
+  const r = Math.PI / 180;
+  const dx = Math.cos(pitch * r) * Math.sin(yaw * r);
+  const dy = Math.sin(pitch * r);
+  const dz = Math.cos(pitch * r) * Math.cos(yaw * r);
+  const face = wall.center[2] + wall.size[2] / 2;
+  const t = (ez - face) / dz;
+  const x = ex + t * dx;
+  const y = ey + t * dy;
+  return (
+    Math.abs(x - wall.center[0]) <= wall.size[0] / 2 - margin && Math.abs(y - wall.center[1]) <= wall.size[1] / 2 - margin
+  );
 }
 
 const near = (pixels: [number, number][], [x, y]: [number, number], r: number) => pixels.some(([px, py]) => Math.hypot(px - x, py - y) <= r);
@@ -460,10 +491,15 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
         const shots = w.magSize - left;
         expect(shots).toBeGreaterThanOrEqual(w.magSize - 4);
         const changed = changedPixels(before, after);
-        const expected = patternAngles(w, shots).map((a) => project(a.yaw, a.pitch));
-        // 各弾の位置（パターンの合計 ± ブレ）に弾痕がある。
+        const angles = patternAngles(w, shots);
+        const expected = angles.map((a) => project(a.yaw, a.pitch));
+        // 壁に当たる各弾の位置（パターンの合計 ± ブレ）に弾痕がある。跳ねが大きく壁の外に飛んだ弾は弾痕が出ないので、
+        // 壁の縁から弾痕の大きさとブレの分（10m 先で 1m がおよそ 53 ピクセル）より内側に当たる弾だけを確かめる。
         const tol = 3 + 8.5 * w.randomness * 1.5;
-        const missing = expected.filter((p) => !near(changed, p, tol));
+        const margin = (MARK_RADIUS + tol) / ((HEIGHT / 2 / 0.75) / 10);
+        const onWall = expected.filter((_, i) => hitsWallInside(angles[i]!.yaw, angles[i]!.pitch, margin));
+        expect(onWall.length).toBeGreaterThanOrEqual(Math.min(shots, 10));
+        const missing = onWall.filter((p) => !near(changed, p, tol));
         expect(missing, `弾痕のない位置 ${JSON.stringify(missing.map((p) => p.map(Math.round)))}`).toEqual([]);
         // 弾痕は、パターンの形から外れた所には出ない（変わった画素はどれもいずれかの弾の位置の近く）。
         const stray = changed.filter((p) => !expected.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) <= MARK_RADIUS + tol));
