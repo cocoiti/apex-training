@@ -90,6 +90,9 @@ export class PadMappingScreen<P extends DetectedGamepadLike & MappingSource> {
     if (id !== this.targetId) {
       this.targetId = id;
       this.capture.reset();
+      // 保存した割り当てから始める。1 項目だけ割り当て直しても 4 項目がそろい、表示と保存が一致する。
+      const saved = id === undefined ? undefined : this.store.get(id);
+      if (saved) this.capture.seed(saved);
     }
     if (this.target && this.capture.poll(this.target)) {
       const layout = this.capture.layout;
@@ -109,17 +112,17 @@ export class PadMappingScreen<P extends DetectedGamepadLike & MappingSource> {
     this.capture.reset();
   }
 
-  /** 画面を離れた。途中の割り当てと待っている操作を忘れる。 */
+  /** 画面を離れた。途中の割り当てと待っている操作を忘れる（次の frame() で保存した割り当てから始め直す）。 */
   leave(): void {
     this.capture.reset();
+    this.targetId = undefined;
   }
 
   private state(): MappingScreenState {
     const id = this.targetId;
     const saved = id === undefined ? undefined : this.store.get(id);
-    // 途中の割り当てがなければ、保存した割り当てを出す。
-    const shown: Readonly<MappingAssignment> =
-      Object.keys(this.capture.assignment).length === 0 && saved ? saved : this.capture.assignment;
+    // capture は保存した割り当てから始めているので、途中の割り当てがそのまま表示になる。
+    const shown: Readonly<MappingAssignment> = this.capture.assignment;
     const items = {} as Record<MappingItem, string>;
     for (const item of MAPPING_ITEMS) {
       items[item] = this.capture.pending === item ? MAPPING_LABELS[item].guide : assignmentText(item, shown);

@@ -342,6 +342,8 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
     await button(page, 0, 0, 1);
     await page.waitFor(`location.hash === '#/settings/pad/mapping' && ${screenVisible('settings-pad-mapping')}`, 5000);
     await button(page, 0, 0, 0);
+    // 割り当て画面の対象の名前は次の描画で出るので、出るまで待つ。
+    await page.waitFor(`window.__text('#mapping-target').includes(${JSON.stringify(GENERIC_NAME)})`, 3000);
     expect(await text(page, '#mapping-target')).toContain(GENERIC_NAME);
     await assignAll(page);
 

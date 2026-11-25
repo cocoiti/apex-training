@@ -153,6 +153,12 @@ export class MappingCapture {
     this.waiting = undefined;
   }
 
+  /** 割り当てを、保存してある配置から始める（保存済みのパッドで 1 項目だけ割り当て直せるように）。 */
+  seed(layout: PadLayout): void {
+    const { fire, ads, lookX, lookY } = layout;
+    this.assigned = { fire, ads, lookX: { ...lookX }, lookY: { ...lookY } };
+  }
+
   /** item の操作を待ち始める。今の値でしきい値以上のボタン・軸を覚える。 */
   start(item: MappingItem, pad: MappingSource): void {
     this.waiting = item;

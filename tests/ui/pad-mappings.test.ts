@@ -121,6 +121,32 @@ describe('ボタン割り当て画面', () => {
     expect(store.get('odd')).toBeUndefined();
   });
 
+  it('保存済みのパッドで 1 項目だけ割り当て直すと、その項目だけが変わって保存される', () => {
+    const storage = memory();
+    const store = new PadMappingStore(storage.page());
+    store.save('odd', { fire: 0, ads: 1, lookX: { axis: 2, invert: false }, lookY: { axis: 3, invert: false } });
+    const screen = new PadMappingScreen<FakePad>(store);
+    const pad = fakePad(0, '', 'odd');
+    screen.frame([pad]);
+    screen.start('fire');
+    press(pad, 5, true);
+    const state = screen.frame([pad]);
+    expect(state.items).toEqual({ fire: 'ボタン 5', ads: 'ボタン 1', lookX: '軸 2', lookY: '軸 3' });
+    expect(state.saved).toBe(true);
+    expect(new PadMappingStore(storage.page()).get('odd')).toEqual({
+      fire: 5,
+      ads: 1,
+      lookX: { axis: 2, invert: false },
+      lookY: { axis: 3, invert: false },
+    });
+    expect(choosePad([pad], store.get)).toMatchObject({ kind: 'using', pad });
+
+    // 4 つそろう前に離れても、保存した割り当ての表示に戻る。
+    screen.start('ads');
+    screen.leave();
+    expect(screen.frame([pad]).items).toEqual({ fire: 'ボタン 5', ads: 'ボタン 1', lookX: '軸 2', lookY: '軸 3' });
+  });
+
   it('割り当てた番号の表示', () => {
     expect(assignmentText('fire', {})).toBe('未割り当て');
     expect(assignmentText('ads', { ads: 0 })).toBe('ボタン 0');
