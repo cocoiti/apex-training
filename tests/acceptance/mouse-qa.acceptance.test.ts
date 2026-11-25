@@ -11,7 +11,7 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer, type ViteDevServer } from 'vite';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { cmPer360, countsToLook, DEFAULT_MOUSE_SETTINGS, formatCmPer360 } from '../../src/input/mouse-sensitivity';
 import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
@@ -170,6 +170,15 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
     devOrigin = originOf(dev.httpServer as Server);
     browser = await launchBrowser(chromium!);
   }, 300_000);
+
+  // テストが終わるたびに開いたタブを閉じ、裏で描画し続けるタブを残さない。
+
+  afterEach(async () => {
+
+    await browser?.closePages();
+
+  });
+
 
   afterAll(async () => {
     await browser?.close();
@@ -356,7 +365,8 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
   });
 
   // -------------------------------------------------------------------------
-  describe('MOU-4: DPI 800・感度 1.5 の cm/360 が 34.6 になる', () => {
+  // MOU-4 の画面の表示は settings-qa が確かめる（tests/acceptance/README.md）。ここでは換算の計算だけを確かめる。
+  describe('cm/360 の換算: DPI 800・感度 1.5 の cm/360 が 34.6 になる', () => {
     it('換算の計算（cmPer360）と表示の書式（formatCmPer360）', () => {
       expect(cmPer360(800, 1.5)).toBeCloseTo((360 / (800 * 1.5 * 0.022)) * 2.54, 9);
       expect(formatCmPer360(cmPer360(800, 1.5))).toBe('34.6');

@@ -10,8 +10,8 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
@@ -26,7 +26,14 @@ const chromium = findChromium();
  * ページが描画を frames 回進めるまで待つ（決まった時間の sleep で待たない。architecture.md ARC-20, ARC-22）。
  * パッドの読み取りと練習のステップは描画ごとに進むので、変わらないことを確かめるときもこれで待つ。
  */
-const settle = (page: Page, frames: number) => page.frames(frames);
+/**
+ * 60Hz の描画 frames 回分の時間を進める。clock=manual で開いたページはページの時計を進め（実時間では待たない）、
+ * そうでないページ（画面写しで照準の動きを読む INP-10）は実際の描画を待つ。
+ */
+const settle = async (page: Page, frames: number) => {
+  if (await page.evaluate<boolean>('!!window.__apexTestClock')) await page.advanceClock(frames / 60);
+  else await page.frames(frames);
+};
 
 /** SPEC の文言と値（実装の定数には依存しない）。 */
 const MOUSE = 'マウス';
@@ -174,16 +181,16 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
   let server: Server | undefined;
   let browser: Browser | undefined;
   let origin = '';
-  const pages: Page[] = [];
   const exceptions = (page: Page) => page.errors.filter((e) => e.startsWith('exception:'));
 
-  /** 新しいタブで localStorage を空にし（seed を入れ）、読み込み直したトップ画面を開く（ページを開いた直後の状態）。 */
-  async function openFresh(seed: Record<string, string> = {}): Promise<Page> {
-    for (const p of pages.splice(0)) await p.send('Page.close').catch(() => {});
+  /**
+   * 新しいタブで localStorage を空にし（seed を入れ）、読み込み直したトップ画面を開く（ページを開いた直後の状態）。
+   * 既定は 3D を描画せず（render=off）、ページの時計をテストから進める（clock=manual）。
+   */
+  async function openFresh(seed: Record<string, string> = {}, { render = false, manualClock = true } = {}): Promise<Page> {
     const page = await browser!.newPage();
-    pages.push(page);
     await page.addInitScript(PAGE_INIT);
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock }));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]); })()`);
     await page.evaluate('window.__beforeReload = true');
     await page.send('Page.reload', { ignoreCache: false });
@@ -200,6 +207,10 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     origin = originOf(server);
     browser = await launchBrowser(chromium!);
   }, 300_000);
+
+  afterEach(async () => {
+    await browser?.closePages();
+  });
 
   afterAll(async () => {
     await browser?.close();
@@ -230,7 +241,8 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     expect(await lock(page)).toBe(true);
     // パッドの R2 で撃つ。
     await page.evaluate('window.__button(7, 1)');
-    await page.waitFor(`window.__ammo() <= ${w.magSize - 2}`, 5000);
+    await page.frames(2);
+    await page.advanceClockUntil(`window.__ammo() <= ${w.magSize - 2}`);
     await waitShown(page, PAD);
     await page.evaluate('window.__button(7, 0)');
     await settle(page, 6);
@@ -248,7 +260,8 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
 
   // -------------------------------------------------------------------------
   it('INP-10: パッドに固定しているとき、マウスを動かしたりクリックしたりしても照準と射撃は反応せず、表示はパッドのまま', async () => {
-    const page = await openFresh();
+    // 画面写しの中心の色で照準の動きを読むので、描画し、実時間で進める。
+    const page = await openFresh({}, { render: true, manualClock: false });
     await setInputMethod(page, 'パッド');
     const w = byId('lstar');
     await start(page, w);
@@ -349,7 +362,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     expect(await lock(page)).toBe(true);
     const beforeFire = await ammo(page);
     await mouseButton(page, 'mousePressed');
-    await page.waitFor(`window.__ammo() <= ${beforeFire - 3}`, 5000);
+    await page.advanceClockUntil(`window.__ammo() <= ${beforeFire - 3}`);
     expect(await shownMethod(page)).toBe(MOUSE);
     // 左ボタンを押したまま、パッドのボタン（Y / △）を押す（射撃のボタンでも、やり直しなどの画面の操作のボタンでもない）。
     await page.evaluate('window.__button(3, 1)');
@@ -380,7 +393,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
       await start(page, w);
       expect(await lock(page)).toBe(true);
       await mouseButton(page, 'mousePressed');
-      await page.waitFor(`window.__ammo() <= ${w.magSize - 1}`, 5000);
+      await page.advanceClockUntil(`window.__ammo() <= ${w.magSize - 1}`);
       expect(await shownMethod(page)).toBe(MOUSE);
       // パッドのボタン（Y / △）を押してパッドに切り替え、マウスの左ボタンを離す（A / × は練習中のやり直しの操作）。
       await page.evaluate('window.__button(3, 1)');
@@ -392,6 +405,8 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
       expect(left).toBeLessThan(w.magSize);
       // パッドの R2 で撃ち切る。
       await page.evaluate('window.__button(7, 1)');
+      await page.frames(2);
+      await page.advanceClockUntil(`location.hash === '#/result'`);
       await page.waitFor(`location.hash === '#/result' && !document.querySelector('[data-screen="result"]').hidden`, 20_000);
       await page.evaluate('window.__button(7, 0)');
       await settle(page, 19);

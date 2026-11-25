@@ -13,9 +13,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { projectAngleOffset } from '../../src/render/fov';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
@@ -171,7 +171,10 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
     for (const dir of temps) rmSync(dir, { recursive: true, force: true });
   });
 
-  const settingsUrl = () => `${origin}${BASE}#/settings`;
+  /** 練習に設定が当たることを画面写しで確かめるテストの describe の名前。このテストだけが 3D を描画する。 */
+  const RENDERED = '練習は「開始」を押した時点で保存されている設定で始まる';
+  /** 設定画面の URL。描画を確かめるテストのほかは 3D を描画しない（render=off）。 */
+  const settingsUrl = () => appUrl(origin, BASE, '#/settings', { render: (expect.getState().currentTestName ?? '').includes(RENDERED) });
   /** 設定画面が表示され、保存された値が欄に入っている（cm/360 が表示されている）まで待つ。 */
   const waitSettings = (p: Page) =>
     p.waitFor(
@@ -187,6 +190,10 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
   }
 
   const noExceptions = (p: Page) => expect(p.errors.filter((e) => e.startsWith('exception:')), p.errors.join('\n')).toEqual([]);
+
+  afterEach(async () => {
+    await browser?.closePages();
+  });
 
   // 毎回、保存された設定のない状態（一度も変えていない状態）から始める。
   beforeEach(async () => {

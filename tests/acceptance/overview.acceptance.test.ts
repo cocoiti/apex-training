@@ -7,8 +7,8 @@ import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFil
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
@@ -120,13 +120,23 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
   let server: Server | undefined;
   let browser: Browser | undefined;
   let origin = '';
-  const url = (hash: string) => `${origin}${BASE}${hash}`;
+  /** 3D の描画を確かめるテストはないので、描画せずに開く（render=off）。 */
+  const url = (hash: string) => appUrl(origin, BASE, hash, { render: false });
 
   beforeAll(async () => {
     server = await serveStatic(dist, BASE);
     origin = originOf(server);
     browser = await launchBrowser(chromium!);
   }, 60_000);
+
+  // テストが終わるたびに開いたタブを閉じ、裏で描画し続けるタブを残さない。
+
+  afterEach(async () => {
+
+    await browser?.closePages();
+
+  });
+
 
   afterAll(async () => {
     await browser?.close();

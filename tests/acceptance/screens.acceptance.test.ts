@@ -9,7 +9,7 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer, type ViteDevServer } from 'vite';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
@@ -80,6 +80,15 @@ describe.skipIf(NESTED || !chromium)('画面の 3D の表示とクロスヘア',
     devOrigin = originOf(dev.httpServer as Server);
     browser = await launchBrowser(chromium!);
   }, 300_000);
+
+  // テストが終わるたびに開いたタブを閉じ、裏で描画し続けるタブを残さない。
+
+  afterEach(async () => {
+
+    await browser?.closePages();
+
+  });
+
 
   afterAll(async () => {
     await browser?.close();

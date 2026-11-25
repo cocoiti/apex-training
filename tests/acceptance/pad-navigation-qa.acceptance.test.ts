@@ -9,18 +9,19 @@
 // pad-focus のクラスが付く（document.activeElement は動かない）。枠が背景と見分けられる形で表示されているか（UI-47）は、
 // 画面写しで項目の周りの画素が、フォーカスがないときと変わるかで読む。
 // 照準の反応は、センター維持の中心の的の色が画面の中心から外れるか（画面写しの中心の画素）で読む。
-// 押し続けたときの繰り返し（UI-48）は、ページの時計（performance.now と requestAnimationFrame）をテストが進めて読む。
+// 押し続けたときの繰り返し（UI-48）は、clock=manual で開き、ページの時計をテストが進めて読む。
+// 画面写しでキャンバスの色を読むテスト（UI-46）のほかは、3D を描画せずに開く（render=off）。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Action } from '../../src/input/actions';
 import { DEFAULT_PAD_SETTINGS } from '../../src/input/pad-curve';
 import { PadInput, type GamepadLike } from '../../src/input/pad';
-import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
@@ -82,8 +83,6 @@ const genericPad = (index = 0): PadDef => ({ index, id: GENERIC_ID, mapping: '' 
 /**
  * Gamepad API の形のパッド。sessionStorage の __qaPads の定義から作り、navigator.getGamepads は長さ 4 の配列（空きは null）を返す。
  * __axis(番号, 軸, 値)・__button(番号, ボタン, 値) で操作する。
- * sessionStorage の __qaClock があるときは、ページの時計（performance.now と requestAnimationFrame）を差し替える。
- * 普段は実際の描画に合わせて進み、__clock.manual(true) のあとは __clock.step(ms) でだけ進む。
  */
 const PAGE_INIT = `
 (() => {
@@ -115,22 +114,6 @@ const PAGE_INIT = `
     return el.id || el.textContent.replace(/\\s+/g, ' ').trim();
   };
 
-  if (sessionStorage.getItem('__qaClock')) {
-    const realRaf = window.requestAnimationFrame.bind(window);
-    const realNow = performance.now.bind(performance);
-    let now = realNow();
-    let last = realNow();
-    let manual = false;
-    let nextId = 1;
-    let queue = new Map();
-    performance.now = () => now;
-    window.requestAnimationFrame = (cb) => { const id = nextId++; queue.set(id, cb); return id; };
-    window.cancelAnimationFrame = (id) => { queue.delete(id); };
-    const flush = () => { const q = queue; queue = new Map(); for (const cb of q.values()) cb(now); };
-    const pump = () => { const r = realNow(); if (!manual) { now += r - last; flush(); } last = r; realRaf(pump); };
-    realRaf(pump);
-    window.__clock = { manual(on) { manual = on; }, step(ms) { now += ms; flush(); } };
-  }
 })();
 `;
 
@@ -212,9 +195,11 @@ async function padStart(page: Page, weapon: WeaponJson, mode = CENTER_MODE) {
   await page.frames(31);
 }
 
-/** R2 / RT を押し続けて撃ち切り、リザルト画面になったら離す。 */
+/** R2 / RT を押し続け、ページの時計（clock=manual）を進めて撃ち切り、リザルト画面になったら離す。 */
 async function shootOut(page: Page) {
   await button(page, R2, 1);
+  await page.frames(2);
+  await page.advanceClockUntil(`location.hash === '#/result'`, { step: 0.05 });
   await page.waitFor(`location.hash === '#/result' && ${screenVisible('result')}`, 30_000);
   await button(page, R2, 0);
   await page.frames(3);
@@ -266,7 +251,6 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
   let server: Server | undefined;
   let browser: Browser | undefined;
   let origin = '';
-  const pages: Page[] = [];
 
   async function reload(page: Page) {
     await page.evaluate('window.__beforeReload = true');
@@ -275,21 +259,22 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     await page.frames(5);
   }
 
-  /** 新しいタブで localStorage を空にし（seed を入れ）、pads のパッドをつないだ状態で読み込み直して path を開く。 */
+  /**
+   * 新しいタブで localStorage を空にし（seed を入れ）、pads のパッドをつないだ状態で読み込み直して path を開く。
+   * render が true のときだけ 3D を描画し、clock が true のときはページの時計をテストから進める（clock=manual）。
+   */
   async function openFresh({
     pads = [standardPad()],
     seed = {},
     clock = false,
+    render = false,
     path = '#/',
-  }: { pads?: PadDef[]; seed?: Record<string, string>; clock?: boolean; path?: string } = {}): Promise<Page> {
-    for (const p of pages.splice(0)) await p.send('Page.close').catch(() => {});
+  }: { pads?: PadDef[]; seed?: Record<string, string>; clock?: boolean; render?: boolean; path?: string } = {}): Promise<Page> {
     const page = await browser!.newPage();
-    pages.push(page);
     await page.addInitScript(PAGE_INIT);
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock: clock }));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]);
       sessionStorage.setItem('__qaPads', ${JSON.stringify(JSON.stringify(pads))});
-      if (${clock}) sessionStorage.setItem('__qaClock', '1'); else sessionStorage.removeItem('__qaClock');
       location.hash = ${JSON.stringify(path)}; })()`);
     await reload(page);
     return page;
@@ -312,6 +297,10 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     browser = await launchBrowser(chromium!);
   }, 300_000);
 
+  afterEach(async () => {
+    await browser?.closePages();
+  });
+
   afterAll(async () => {
     await browser?.close();
     await new Promise((ok) => (server ? server.close(ok) : ok(undefined)));
@@ -320,7 +309,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
   // -------------------------------------------------------------------------
   it('UI-43: パッドだけで L-STAR・センター維持を選んで始め、撃ち切り、A / × でもう一度、B / ○ でトップに戻ると選択が残っている', async () => {
-    const page = await openFresh();
+    const page = await openFresh({ clock: true });
     await padStart(page, LSTAR);
     expect(await text(page, '[data-hud="weapon"]')).toContain(LSTAR.name);
 
@@ -358,7 +347,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
   // -------------------------------------------------------------------------
   describe('UI-45: 数の入力欄は範囲の端で止まり、感度は 0.1 の幅で減る', () => {
-    it('FOV が 110 のとき右を押しても 110 のまま', async () => {
+    it('UI-45: FOV が 110 のとき右を押しても 110 のまま', async () => {
       const page = await openFresh({ path: '#/settings' });
       await page.waitFor(screenVisible('settings'));
       await focusDownTo(page, 'setting-fov');
@@ -372,7 +361,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
       noExceptions(page);
     }, 90_000);
 
-    it('感度が 1.5 のとき左を押すと 1.4 で保存される', async () => {
+    it('UI-45: 感度が 1.5 のとき左を押すと 1.4 で保存される', async () => {
       const page = await openFresh({ path: '#/settings' });
       await page.waitFor(screenVisible('settings'));
       expect(Number(await value(page, '#setting-sensitivity'))).toBe(1.5);
@@ -387,7 +376,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
   // -------------------------------------------------------------------------
   it('UI-46 / PAD-32: 練習中の十字キーと左スティックはフォーカスも照準も射撃も動かさず、トップに戻ると選択はそのまま', async () => {
-    const page = await openFresh();
+    const page = await openFresh({ render: true, clock: true });
     await padStart(page, CAR);
     const startWeapon = CAR.name;
     const startCount = await value(page, '#count');
@@ -398,14 +387,16 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
     for (const b of [UP, DOWN, LEFT, RIGHT]) {
       await button(page, b, 1);
-      await page.frames(30); // 押し続けて繰り返しの時間も過ぎる
+      await page.frames(2);
+      await page.advanceClock(0.6, 0.1); // 押し続けて繰り返しの時間も過ぎる
       expect(await focused(page), `十字キー ${b} を押している間`).toBe('');
       await button(page, b, 0);
       await page.frames(3);
     }
     for (const [a, v] of [[0, -1], [0, 1], [1, -1], [1, 1]] as const) {
       await axis(page, a, v);
-      await page.frames(30);
+      await page.frames(2);
+      await page.advanceClock(0.6, 0.1);
       expect(await focused(page), `左スティック 軸 ${a} = ${v}`).toBe('');
       await axis(page, a, 0);
       await page.frames(3);
@@ -492,21 +483,22 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
   // -------------------------------------------------------------------------
   describe('UI-48: 押し続けると 0.4 秒後から 0.1 秒ごとに繰り返し、左スティックは 0.5 以上で十字キーと同じ', () => {
-    it('十字キーの下を押し続けたときの移る時刻', async () => {
+    it('UI-48: 十字キーの下を押し続けたときの移る時刻', async () => {
       const page = await openFresh({ path: '#/settings', clock: true });
       await page.waitFor(screenVisible('settings'));
       await tap(page, DOWN); // 最初の項目にフォーカスを置く
       const first = await focused(page);
       expect(first).not.toBe('');
 
-      await page.evaluate('window.__clock.manual(true)');
       const FRAME = 1000 / 60;
+      /** ページの時計を 1 描画分（1/60 秒）進める。 */
+      const step = () => page.advanceClock(FRAME / 1000, FRAME / 1000);
       const moves: number[] = [];
       let last = first;
       let t = 0;
       await button(page, DOWN, 1);
       // 押し始めの描画（時刻 0）
-      await page.evaluate(`window.__clock.step(${FRAME})`);
+      await step();
       for (let i = 0; i <= 45; i += 1) {
         const f = await focused(page);
         if (f !== last) {
@@ -514,11 +506,10 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
           last = f;
         }
         t += FRAME;
-        await page.evaluate(`window.__clock.step(${FRAME})`);
+        await step();
       }
       await button(page, DOWN, 0);
-      await page.evaluate(`window.__clock.step(${FRAME})`);
-      await page.evaluate('window.__clock.manual(false)');
+      await step();
       // 0 ms、400 ms、500 ms、600 ms、700 ms（1 描画の誤差を許す）に 1 つずつ移り、それ以外では移らない。
       expect(moves.length, `移った時刻: ${moves.join(', ')} ms`).toBe(5);
       const expected = [0, 400, 500, 600, 700];
@@ -526,7 +517,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
       noExceptions(page);
     }, 60_000);
 
-    it('左スティックを下に 0.6 倒すと移り、0.4 では移らない', async () => {
+    it('UI-48: 左スティックを下に 0.6 倒すと移り、0.4 では移らない', async () => {
       const page = await openFresh({ path: '#/settings' });
       await page.waitFor(screenVisible('settings'));
       await tap(page, DOWN);
@@ -564,7 +555,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
       ['#/settings/pad', 'settings-pad', '#/settings', 'settings'],
       ['#/settings/pad/mapping', 'settings-pad-mapping', '#/settings', 'settings'],
     ] as const) {
-      it(`${path} で B / ○ を押すと ${back} に戻る`, async () => {
+      it(`UI-49: ${path} で B / ○ を押すと ${back} に戻る`, async () => {
         const page = await openFresh({ path });
         await page.waitFor(screenVisible(screen));
         await page.frames(5);
@@ -575,7 +566,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
       }, 60_000);
     }
 
-    it('トップ画面で B / ○ を押しても画面は変わらない', async () => {
+    it('UI-49: トップ画面で B / ○ を押しても画面は変わらない', async () => {
       const page = await openFresh();
       await page.waitFor(screenVisible('top'));
       await tap(page, B);
@@ -594,7 +585,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
   // -------------------------------------------------------------------------
   describe('UI-50: ON/OFF の欄は A / × で切り替わり、色の欄は右で並びの次の色になる', () => {
-    it('ゴースト表示の欄で A / × を押すと ON で保存され、もう一度押すと OFF（既定は OFF）', async () => {
+    it('UI-50: ゴースト表示の欄で A / × を押すと ON で保存され、もう一度押すと OFF（既定は OFF）', async () => {
       const page = await openFresh({ path: '#/settings' });
       await page.waitFor(screenVisible('settings'));
       expect(await checked(page, '#setting-ghost')).toBe(false);
@@ -611,7 +602,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
       noExceptions(page);
     }, 60_000);
 
-    it('クロスヘアの色が #77ccff のとき右を押すと #ffffff で保存される', async () => {
+    it('UI-50: クロスヘアの色が #77ccff のとき右を押すと #ffffff で保存される', async () => {
       const page = await openFresh({ path: '#/settings' });
       await page.waitFor(screenVisible('settings'));
       expect((await value(page, '#setting-crosshair-color')).toLowerCase()).toBe('#77ccff');
@@ -781,23 +772,26 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
   // -------------------------------------------------------------------------
   describe('PAD-33: 右スティック・R2 / RT・L2 / LT は画面の項目の操作に使わない', () => {
+    /** 右スティック・R2・L2 を押し続け（繰り返しの時間もページの時計で過ぎる）、離す。 */
     const aimButtons = async (page: Page) => {
       for (const [a, v] of [[2, 1], [2, -1], [3, 1], [3, -1]] as const) {
         await axis(page, a, v);
-        await page.frames(30);
+        await page.frames(2);
+        await page.advanceClock(0.5);
         await axis(page, a, 0);
         await page.frames(3);
       }
       for (const b of [R2, L2]) {
         await button(page, b, 1);
-        await page.frames(30);
+        await page.frames(2);
+        await page.advanceClock(0.5);
         await button(page, b, 0);
         await page.frames(3);
       }
     };
 
-    it('トップ画面', async () => {
-      const page = await openFresh();
+    it('PAD-33: トップ画面', async () => {
+      const page = await openFresh({ clock: true });
       await page.waitFor(`${screenVisible('top')} && document.querySelector('#weapon').options.length > 0`);
       const state = () =>
         page.evaluate<unknown>(`({ weapon: document.querySelector('#weapon').value, mode: document.querySelector('#mode').value, count: document.querySelector('#count').value, focus: window.__focused(), hash: location.hash })`);
@@ -814,8 +808,8 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
       noExceptions(page);
     }, 60_000);
 
-    it('設定画面', async () => {
-      const page = await openFresh({ path: '#/settings' });
+    it('PAD-33: 設定画面', async () => {
+      const page = await openFresh({ path: '#/settings', clock: true });
       await page.waitFor(screenVisible('settings'));
       const state = () =>
         page.evaluate<unknown>(`({ fov: document.querySelector('#setting-fov').value, method: document.querySelector('#setting-input-method').value, focus: window.__focused(), hash: location.hash,
@@ -833,7 +827,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
   // -------------------------------------------------------------------------
   it('INP-15: 「自動」で今がマウスのとき、パッドのメニュー操作だけで始めると HUD はマウスのまま、R2 / RT でパッドに変わり、その練習はパッド', async () => {
-    const page = await openFresh();
+    const page = await openFresh({ clock: true });
     expect(await selectedLabel(page, '#setting-input-method')).toBe('自動');
     await padStart(page, CAR);
     await page.frames(10);
@@ -842,7 +836,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
     await button(page, R2, 1);
     await page.waitFor(`(document.querySelector('[data-hud="input"]')?.textContent ?? '').includes(${JSON.stringify(PAD_LABEL)})`, 3000);
-    await page.waitFor(`location.hash === '#/result'`, 30_000);
+    await page.advanceClockUntil(`location.hash === '#/result'`, { step: 0.05 });
     await button(page, R2, 0);
     const keys = await page.evaluate<string[]>('Object.keys(localStorage)');
     expect(keys).toContain(`${BEST_PREFIX}pad:${CAR.id}:center`);
@@ -854,7 +848,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
   // -------------------------------------------------------------------------
   it('INP-16: 「自動」で今がパッドのとき、リザルトでマウスで「もう一度」を押しても新しい練習の HUD はパッドのまま', async () => {
-    const page = await openFresh();
+    const page = await openFresh({ clock: true });
     await padStart(page, CAR);
     await shootOut(page);
     await page.frames(5);

@@ -1,34 +1,33 @@
 // Issue #50（計測した値の武器だけを武器の一覧と選択肢に出す）の受け入れテスト。
-// docs/spec/weapons.md の WPN-1・WPN-3・WPN-21・WPN-22・WPN-23、modes.md の MODE-1・MODE-23、
-// scoring.md の SCO-18・SCO-20・SCO-23・SCO-26、screens.md の UI-24 を、公開された入口だけで確かめる。
+// docs/spec/weapons.md の WPN-21・WPN-22・WPN-23、modes.md の MODE-1 を、公開された入口だけで確かめる。
+// WPN-1・WPN-3 は modes.acceptance、SCO-18・SCO-20 は result-qa、SCO-23・SCO-26・UI-24 は history-qa、MODE-23 は retry-sets-qa が
+// 確かめる（tests/acceptance/README.md）。
 // 入口は、ビルドの結果を /apex-training/ で配信した画面（ヘッドレスの Chromium、tests/helpers/browser.ts）、
 // ブラウザのコンソール、SPEC に書かれた localStorage のキーと値の形、src/data/weapons/ と docs/measurements/ の JSON。
-// WPN-1・WPN-21・WPN-22 はリポジトリの写しに武器の JSON を足してビルドし、その画面で確かめる。
-// 撃つのはマウス（ポインターロック + 左ボタン）。Chromium がなければ画面の確認を飛ばす。入れ子に実行したときも飛ばす。
+// WPN-21・WPN-22 はリポジトリの写しに武器の JSON を足してビルドし、その画面で確かめる。
+// 画面は render=off・clock=manual で開き、撃つのはパッドの R2（Gamepad API の形で与える）。時計はテストから進める。
+// Chromium がなければ画面の確認を飛ばす。入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const WEAPONS_DIR = join(ROOT, 'src/data/weapons');
 const MEASUREMENTS_DIR = join(ROOT, 'docs/measurements');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
-const CX = 640;
-const CY = 400;
 const chromium = findChromium();
+/** 3D を描画せず、ページの時計をテストから進める（docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」）。 */
+const APP = { render: false, manualClock: true };
 
 /** SPEC の名前と値（実装の定数には依存しない）。 */
 const MEASURED_NAMES = ['C.A.R. SMG', 'L-STAR'];
 const PLACEHOLDER_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア'];
 const MODES = ['反復練習', 'センター維持'];
-const BEST_UPDATED = '自己ベスト更新';
-const BEST_KEY = 'apex-training:best:mouse:lstar:center';
-const HISTORY_KEY = 'apex-training:history:mouse:lstar:center';
 
 interface WeaponJson {
   id: string;
@@ -63,7 +62,6 @@ const qaWeapon = (id: string, name: string, extra: Record<string, unknown> = {})
   measured: true,
   ...extra,
 });
-const CAR_ID = weaponFiles().find((f) => f.json.name === 'C.A.R. SMG')?.json.id ?? 'C.A.R. SMG の JSON がない';
 const NEW_WEAPON = qaWeapon('qa-new-measured', 'QA-計測済み');
 const PLACEHOLDER = qaWeapon('qa-placeholder', 'QA-仮データ', { measured: false, source: '仮データ（QA）' });
 /** WPN-22: measured が欠けたもの、真偽値でないもの（文字列・数・null）。 */
@@ -109,13 +107,19 @@ describe('WPN-23: src/data/weapons/ の JSON と計測の記録', () => {
 // 画面の読み取りと操作
 // ---------------------------------------------------------------------------
 
+/** 標準配置のパッド 1 台（R2 はボタン 7）。 */
+const FAKE_PAD = `
+  window.__pad = { axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ value: 0, pressed: false, touched: false })) };
+  navigator.getGamepads = () => [{ id: 'acceptance pad (STANDARD GAMEPAD)', index: 0, connected: true, mapping: 'standard',
+    timestamp: 0, axes: window.__pad.axes.slice(), buttons: window.__pad.buttons.map((b) => ({ ...b })), vibrationActuator: null }];
+  window.__btn = (i, on) => { window.__pad.buttons[i] = { value: on ? 1 : 0, pressed: on, touched: on }; };
+`;
+
 const PAGE_INIT = `
   window.__num = (sel) => { const m = (document.querySelector(sel)?.textContent ?? '').match(/-?\\d+(?:\\.\\d+)?/); return m ? Number(m[0]) : NaN; };
   window.__ammo = () => window.__num('[data-hud="ammo"]');
   window.__vis = (sel) => { const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
     return !!el && !el.closest('[hidden]') && el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && el.getClientRects().length > 0; };
-  window.__round = () => { const el = document.querySelector('[data-hud="round"]'); return el && window.__vis(el) ? el.textContent.trim() : ''; };
-  window.__interlude = () => window.__vis('#interlude');
 `;
 
 const optionsOf = (page: Page, selector: string) =>
@@ -138,18 +142,6 @@ async function choose(page: Page, selector: string, label: string | number) {
 const historySelect = (caption: string) =>
   `[...document.querySelector('[data-screen="history"]').querySelectorAll('select')].find((x) => (x.closest('label')?.textContent ?? x.getAttribute('aria-label') ?? '').trim().startsWith(${JSON.stringify(caption)}))`;
 
-async function chooseHistory(page: Page, caption: string, label: string) {
-  const ok = await page.evaluate<boolean>(`(() => {
-    const s = ${historySelect(caption)};
-    if (!s) return false;
-    const o = [...s.options].find((x) => x.textContent.trim() === ${JSON.stringify(label)});
-    if (!o) return false;
-    s.value = o.value; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true }));
-    return true; })()`);
-  if (!ok) throw new Error(`履歴の画面の ${caption} に ${label} の選択肢がない`);
-  await page.frames(2);
-}
-
 /** 同じページのままハッシュで履歴の画面を開き、武器の選択肢の表示名を返す。 */
 async function openHistory(page: Page): Promise<string[]> {
   await page.evaluate(`location.hash = '#/history'`);
@@ -165,75 +157,32 @@ async function openTop(page: Page): Promise<string[]> {
   return optionsOf(page, '#weapon');
 }
 
-const mouseButton = (page: Page, type: 'mousePressed' | 'mouseReleased') =>
-  page.send('Input.dispatchMouseEvent', { type, x: CX, y: CY, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1 });
-
-/** ポインターロックしていなければ、画面の中央をクリックしてロックする。 */
-async function lock(page: Page) {
-  if (await page.evaluate<boolean>('!!document.pointerLockElement')) return;
-  await page.frames(3);
-  await waitUntil(() => page.lockPointerBy(() => page.click(CX, CY), 1_000), 'クリックでポインターロックが掛かる', { timeout: 15_000 });
-  await page.frames(2);
-}
-
-/** トップ画面で武器・モード・回数を選んで「開始」を押し、プレイ画面で撃てるようになるまで待つ。 */
-async function start(page: Page, weapon: string, mode: string, count = 1) {
+/** トップ画面で武器とモードを選んで「開始」を押し、プレイ画面で撃てるようになるまで待つ。 */
+async function start(page: Page, weapon: string, mode: string) {
   await openTop(page);
   await choose(page, '#weapon', weapon);
   await choose(page, '#mode', mode);
-  if (await page.evaluate<boolean>(`!!document.querySelector('#count')`)) await choose(page, '#count', count);
   await page.clickSelector('[data-screen="top"] a[href="#/play"]');
   await page.waitFor(`location.hash === '#/play' && window.__vis('[data-screen="play"]') && window.__ammo() > 0`);
-  await lock(page);
-}
-
-/** 左ボタンを押し続けて 1 マガジンを撃ち切る。pull があれば撃っているあいだにマウスを下へ動かす。 */
-async function fireAll(page: Page, pull = 0) {
-  await mouseButton(page, 'mousePressed');
-  if (pull) {
-    let y = CY;
-    for (let i = 0; i < 15; i += 1) {
-      await page.frames(3);
-      y += pull;
-      await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: CX, y, buttons: 1, button: 'left' });
-    }
-  }
-  await page.waitFor(`window.__ammo() === 0 || location.hash !== '#/play' || window.__interlude()`, 20_000);
-  await mouseButton(page, 'mouseReleased');
-}
-
-interface ResultState {
-  text: string;
-  summary: string;
-  meanError: string;
-}
-const resultState = (page: Page) =>
-  page.evaluate<ResultState>(`(() => {
-    const screen = document.querySelector('[data-screen="result"]');
-    let meanError = '';
-    for (const dt of screen.querySelectorAll('dt')) { if (window.__vis(dt) && dt.textContent.includes('平均ズレ')) { meanError = dt.nextElementSibling?.textContent.trim() ?? ''; break; } }
-    return { text: screen.innerText, summary: document.querySelector('#result-summary')?.textContent ?? screen.innerText, meanError }; })()`);
-
-/** 1 回の練習（武器とモードを選んで撃ち切り、リザルト画面が表示されるまで）。 */
-async function practice(page: Page, weapon: string, mode: string, pull = 0): Promise<ResultState> {
-  await start(page, weapon, mode);
-  await fireAll(page, pull);
-  await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
-  await page.evaluate('document.exitPointerLock()');
   await page.frames(2);
-  return resultState(page);
 }
 
-/** 「0.53°」などから数を取り出す。 */
-const num = (s: string): number => {
-  const m = s.match(/-?\d+(?:\.\d+)?/);
-  if (!m) throw new Error(`数がない: ${s}`);
-  return Number(m[0]);
-};
-
-const getItem = (page: Page, key: string) => page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(key)})`);
-const keysWith = (page: Page, prefix: string) =>
-  page.evaluate<string[]>(`Object.keys(localStorage).filter((k) => k.startsWith(${JSON.stringify(prefix)})).sort()`);
+/**
+ * 1 回の練習（武器とモードを選び、パッドの R2 を押し続けて撃ち切り、リザルト画面が表示されるまで）。
+ * ページの時計（clock=manual）を進めて撃つので、実時間では待たない。
+ */
+async function practice(page: Page, weapon: string, mode: string): Promise<string> {
+  await start(page, weapon, mode);
+  await page.evaluate('window.__btn(7, true)');
+  await page.frames(2);
+  await waitUntil(async () => {
+    await page.advanceClock(0.5);
+    return page.evaluate<boolean>(`location.hash === '#/result'`);
+  }, '撃ち切ってリザルト画面に移る');
+  await page.evaluate('window.__btn(7, false)');
+  await page.waitFor(`window.__vis('[data-screen="result"]')`);
+  return page.evaluate<string>(`document.querySelector('#result-summary')?.textContent ?? document.querySelector('[data-screen="result"]').innerText`);
+}
 
 // ---------------------------------------------------------------------------
 
@@ -257,12 +206,16 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
     symlinkSync(dir, site, 'dir');
   };
 
-  /** 新しいタブで localStorage を空にし（seed を入れ）、読み込み直したトップ画面を開く。 */
-  async function openFresh(seed: Record<string, string> = {}): Promise<Page> {
+  /**
+   * 新しいタブで localStorage を空にし、読み込み直したトップ画面を開く。3D は描画せず（render=off）、
+   * ページの時計はテストから進める（clock=manual）。標準配置のパッドをつなぐ。
+   */
+  async function openFresh(): Promise<Page> {
     const page = await browser!.newPage();
-    await page.goto(`${origin}${BASE}#/`);
-    await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]); })()`);
+    await page.goto(appUrl(origin, BASE, '#/', APP));
+    await page.evaluate('localStorage.clear()');
     await page.addInitScript(PAGE_INIT);
+    await page.addInitScript(FAKE_PAD);
     await page.evaluate('window.__beforeReload = true');
     await page.send('Page.reload', { ignoreCache: false });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="top"]')`, 15_000);
@@ -310,6 +263,10 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
     browser = await launchBrowser(chromium!);
   }, 400_000);
 
+  afterEach(async () => {
+    await browser?.closePages();
+  });
+
   afterAll(async () => {
     await browser?.close();
     await new Promise((ok) => (server ? server.close(ok) : ok(undefined)));
@@ -317,23 +274,7 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
   });
 
   // -------------------------------------------------------------------------
-  describe('WPN-3: リポジトリのままのビルド', () => {
-    it('WPN-3: トップ画面の武器の選択肢は L-STAR と C.A.R. SMG の 2 つだけで、仮データの 5 つは出ない（履歴の画面も同じ）', async () => {
-      serveDist(mainDist);
-      const page = await openFresh();
-      const top = await openTop(page);
-      expect(top.slice().sort(), JSON.stringify(top)).toEqual(MEASURED_NAMES);
-      for (const name of PLACEHOLDER_NAMES) expect(top).not.toContain(name);
-      const history = await openHistory(page);
-      expect(history.slice().sort(), JSON.stringify(history)).toEqual(MEASURED_NAMES);
-      // 仮データの武器の JSON について、開発者向けの誤りは出ない。
-      for (const { file } of weaponFiles()) expect(page.errors.filter((e) => e.includes(file))).toEqual([]);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-  });
-
-  // -------------------------------------------------------------------------
-  describe('WPN-1 / WPN-21 / WPN-22: 写しに武器の JSON を足してビルドする', () => {
+  describe('WPN-21 / WPN-22: 写しに武器の JSON を足してビルドする', () => {
     it('コードを変えずに写しのビルドが 2 回とも通る', () => {
       expect(buildA.status, buildA.output.slice(-4000)).toBe(0);
       expect(buildB.status, buildB.output.slice(-4000)).toBe(0);
@@ -351,24 +292,6 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
       const history = await openHistory(page);
       return { page, top, history };
     }
-
-    it('WPN-1: measured が true の新しい武器の JSON を足してビルドすると、トップ画面と履歴の画面の武器の選択肢に出る', async () => {
-      const { page, top, history } = await readCopy(distA);
-      for (const names of [top, history]) {
-        expect(names, JSON.stringify(names)).toContain(NEW_WEAPON.name);
-        for (const name of MEASURED_NAMES) expect(names).toContain(name);
-      }
-      // 足した武器は、その category の見出しの下に出る。
-      await openTop(page);
-      const groups = await page.evaluate<{ label: string; names: string[] }[]>(`[...document.querySelectorAll('#weapon optgroup')].map((g) => ({
-        label: g.label, names: [...g.children].map((o) => o.textContent.trim()) }))`);
-      expect(groups.find((g) => g.label === NEW_WEAPON.category)?.names, JSON.stringify(groups)).toContain(NEW_WEAPON.name);
-      expect(page.errors.filter((e) => e.includes(NEW_WEAPON.id as string))).toEqual([]);
-      // 足した武器で練習を始められる。
-      await start(page, NEW_WEAPON.name as string, 'センター維持');
-      expect(await page.evaluate<string>(`document.querySelector('[data-hud="weapon"]')?.textContent ?? ''`)).toContain(NEW_WEAPON.name);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
 
     it('WPN-21: measured が false の武器はトップ画面と履歴の画面の選択肢に出ず誤りも出ない。measured を true にしてビルドすると両方に出る', async () => {
       const a = await readCopy(distA);
@@ -408,153 +331,15 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
         serveDist(mainDist);
         const page = await openFresh();
         for (const mode of MODES) {
-          const r = await practice(page, weapon, mode);
-          expect(r.summary, `${weapon} / ${mode}`).toContain(weapon);
-          expect(r.summary, `${weapon} / ${mode}`).toContain(mode);
+          const summary = await practice(page, weapon, mode);
+          expect(summary, `${weapon} / ${mode}`).toContain(weapon);
+          expect(summary, `${weapon} / ${mode}`).toContain(mode);
+          // どちらのモードも採点する（リザルトに採点結果の指標が出る）。
+          expect(await page.evaluate<boolean>(`window.__vis('#result-metrics')`), `${weapon} / ${mode}: リザルトに指標が出る`).toBe(true);
+          expect(await page.evaluate<string>(`document.querySelector('#result-metrics').innerText`)).toMatch(/\d/);
         }
         expect(exceptions(page), page.errors.join('\n')).toEqual([]);
       }, 150_000);
     }
-  });
-
-  // -------------------------------------------------------------------------
-  describe('自己ベストと履歴（例の武器が L-STAR）', () => {
-    it('SCO-18: 自己ベストがない状態で、マウスで L-STAR とセンター維持を練習して終えると「自己ベスト更新」が表示され、apex-training:best:mouse:lstar:center にその平均ズレが保存される', async () => {
-      serveDist(mainDist);
-      const page = await openFresh();
-      expect(await getItem(page, BEST_KEY)).toBeNull();
-      const r = await practice(page, 'L-STAR', 'センター維持');
-      expect(r.text).toContain(BEST_UPDATED);
-      const raw = await getItem(page, BEST_KEY);
-      expect(raw, `${BEST_KEY} がない: ${JSON.stringify(await keysWith(page, 'apex-training:best:'))}`).not.toBeNull();
-      const best = JSON.parse(raw!) as { version: number; meanError: number };
-      expect(best.version).toBe(1);
-      expect(Math.abs(best.meanError - num(r.meanError)), `保存 ${best.meanError}、表示 ${r.meanError}`).toBeLessThanOrEqual(0.0051);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    it('SCO-20: L-STAR とセンター維持の自己ベストがある状態で、L-STAR と反復練習、C.A.R. SMG とセンター維持を初めて練習すると「自己ベスト更新」が表示され、L-STAR とセンター維持の自己ベストは変わらない', async () => {
-      serveDist(mainDist);
-      const seeded = JSON.stringify({ version: 1, meanError: 0.001, groupingRadius: 0.001, hitRate: 100, shots: 1, achievedAt: '2026-01-01T00:00:00.000Z' });
-      const page = await openFresh({ [BEST_KEY]: seeded });
-      const ghost = await practice(page, 'L-STAR', '反復練習');
-      expect(ghost.text, 'L-STAR / 反復練習').toContain(BEST_UPDATED);
-      expect(await getItem(page, BEST_KEY)).toBe(seeded);
-      const car = await practice(page, 'C.A.R. SMG', 'センター維持');
-      expect(car.text, 'C.A.R. SMG / センター維持').toContain(BEST_UPDATED);
-      expect(await getItem(page, BEST_KEY)).toBe(seeded);
-      // それぞれ別のキーに保存されている（L-STAR とセンター維持のほかに 2 つ）。
-      const keys = await keysWith(page, 'apex-training:best:mouse:');
-      expect(keys.filter((k) => k !== BEST_KEY), JSON.stringify(keys)).toHaveLength(2);
-      expect(keys.some((k) => k.startsWith('apex-training:best:mouse:lstar:') && k !== BEST_KEY), JSON.stringify(keys)).toBe(true);
-      expect(keys).toContain(`apex-training:best:mouse:${CAR_ID}:center`);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 90_000);
-
-    /** SCO-23 で 3 回練習したページとリザルトの平均ズレ（UI-24 で続けて使う）。 */
-    let threeRuns: { page: Page; shown: number[] } | undefined;
-
-    it('SCO-23: 履歴がない状態で、マウスで L-STAR とセンター維持を 3 回練習すると、apex-training:history:mouse:lstar:center に 3 件が古い順に保存され、各件にその練習の値が入る', async () => {
-      serveDist(mainDist);
-      const page = await openFresh();
-      expect(await getItem(page, HISTORY_KEY)).toBeNull();
-      const shown: number[] = [];
-      // 回ごとに補正の量を変え、平均ズレが回で違うようにする。
-      for (const pull of [0, 6, 2]) shown.push(num((await practice(page, 'L-STAR', 'センター維持', pull)).meanError));
-      const raw = await getItem(page, HISTORY_KEY);
-      expect(raw, `${HISTORY_KEY} がない: ${JSON.stringify(await keysWith(page, 'apex-training:history:'))}`).not.toBeNull();
-      const stored = JSON.parse(raw!) as { version: number; entries: { at: string; meanError: number; hitRate: number; groupingRadius: number; shots: number }[] };
-      expect(stored.version).toBe(1);
-      expect(stored.entries).toHaveLength(3);
-      const times = stored.entries.map((e) => Date.parse(e.at));
-      for (const t of times) expect(Number.isFinite(t)).toBe(true);
-      expect(times.slice().sort((a, b) => a - b)).toEqual(times);
-      stored.entries.forEach((e, i) => {
-        expect(Math.abs(e.meanError - shown[i]!), `${i + 1} 件目: 保存 ${e.meanError}、表示 ${shown[i]}`).toBeLessThanOrEqual(0.0051);
-        for (const k of ['hitRate', 'groupingRadius', 'shots'] as const) expect(Number.isFinite(e[k]), k).toBe(true);
-        expect(e.shots).toBeGreaterThan(0);
-      });
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      threeRuns = { page, shown };
-    }, 120_000);
-
-    it('UI-24: マウスで L-STAR とセンター維持を 3 回練習したあと、履歴の画面で L-STAR・センター維持・マウスを選ぶと、グラフに 3 点が回の順に、一覧に 3 回分の平均ズレがリザルトと同じ順で表示される', async () => {
-      expect(threeRuns, 'SCO-23 の 3 回の練習が終わっていない').toBeDefined();
-      const { page, shown } = threeRuns!;
-      await openHistory(page);
-      await chooseHistory(page, '武器', 'L-STAR');
-      await chooseHistory(page, 'モード', 'センター維持');
-      await chooseHistory(page, '入力方式', 'マウス');
-      const view = await page.evaluate<{ points: { x: number; y: number }[]; headers: string[]; rows: string[][] }>(`(() => {
-        const screen = document.querySelector('[data-screen="history"]');
-        const svg = [...screen.querySelectorAll('svg')].find((s) => window.__vis(s));
-        const points = svg ? [...svg.querySelectorAll('circle')].map((c) => { const p = new DOMPoint(c.cx.baseVal.value, c.cy.baseVal.value).matrixTransform(c.getScreenCTM()); return { x: p.x, y: p.y }; }) : [];
-        const table = [...screen.querySelectorAll('table')].find((t) => window.__vis(t));
-        return { points,
-          headers: table ? [...table.querySelectorAll('thead th')].map((c) => c.textContent.trim()) : [],
-          rows: table ? [...table.querySelectorAll('tbody tr')].filter((tr) => window.__vis(tr)).map((tr) => [...tr.cells].map((c) => c.textContent.trim())) : [] }; })()`);
-      expect(view.points).toHaveLength(3);
-      // 回の順に左から右へ並ぶ。
-      const xs = view.points.map((p) => p.x);
-      expect(xs.slice().sort((a, b) => a - b)).toEqual(xs);
-      expect(new Set(xs.map((x) => Math.round(x))).size).toBe(3);
-      const col = view.headers.findIndex((h) => h.includes('平均ズレ'));
-      expect(col, JSON.stringify(view.headers)).toBeGreaterThanOrEqual(0);
-      const listed = view.rows.map((r) => num(r[col]!));
-      expect(listed).toHaveLength(3);
-      // 一覧が古い順でも新しい順でも、回の順に読み直すとリザルトの値と同じ順になる。
-      const roundCol = view.headers.findIndex((h) => h === '回' || h.includes('回'));
-      const ordered = roundCol >= 0 && roundCol !== col
-        ? view.rows.map((r, i) => ({ n: num(r[roundCol]!), v: listed[i]! })).sort((a, b) => a.n - b.n).map((x) => x.v)
-        : listed;
-      ordered.forEach((v, i) => expect(Math.abs(v - shown[i]!), `${i + 1} 回目: 一覧 ${v}、リザルト ${shown[i]}`).toBeLessThanOrEqual(0.0051));
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    it('SCO-26: L-STAR とセンター維持の履歴がある状態で、L-STAR と反復練習を練習して終えると、L-STAR とセンター維持のマウスの履歴は変わらない', async () => {
-      serveDist(mainDist);
-      const seeded = JSON.stringify({ version: 1, entries: [{ at: '2026-01-01T00:00:00.000Z', meanError: 1.23, hitRate: 50, groupingRadius: 1, shots: 10 }] });
-      const page = await openFresh({ [HISTORY_KEY]: seeded });
-      await practice(page, 'L-STAR', '反復練習');
-      expect(await getItem(page, HISTORY_KEY)).toBe(seeded);
-      // 反復練習の練習は別のキーの履歴に入る。
-      const keys = await keysWith(page, 'apex-training:history:mouse:lstar:');
-      expect(keys.filter((k) => k !== HISTORY_KEY), JSON.stringify(keys)).toHaveLength(1);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    it('MODE-23: 自己ベストがない状態で、マウスで L-STAR とセンター維持の回数 5 のセットを最後まで練習すると、5 回のうち平均ズレが最も小さい回の平均ズレが apex-training:best:mouse:lstar:center に保存される', async () => {
-      serveDist(mainDist);
-      const page = await openFresh();
-      expect(await getItem(page, BEST_KEY)).toBeNull();
-      await start(page, 'L-STAR', 'センター維持', 5);
-      const pulls = [0, 8, 3, 5, 1];
-      for (let n = 1; n <= 5; n += 1) {
-        await page.waitFor(`location.hash === '#/play' && window.__vis('[data-screen="play"]') && !window.__interlude() && window.__ammo() > 0 && window.__round().includes('${n} / 5')`, 10_000);
-        await lock(page);
-        await fireAll(page, pulls[n - 1]!);
-        if (n < 5) {
-          await page.waitFor('window.__interlude()', 5_000);
-          await page.frames(2);
-          // 「次へ」（Space）で次の回を始める。
-          await page.send('Input.dispatchKeyEvent', { type: 'keyDown', key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32, text: ' ' });
-          await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 });
-        }
-      }
-      await page.waitFor(`location.hash === '#/set-result' && window.__vis('[data-screen="set-result"]')`, 10_000);
-      await page.frames(2);
-      const rounds = await page.evaluate<string[]>(`[...document.querySelectorAll('#set-rounds li')].filter((li) => window.__vis(li)).map((li) => li.innerText.trim())`);
-      expect(rounds, JSON.stringify(rounds)).toHaveLength(5);
-      const values = rounds.map((r) => {
-        const d = r.match(/\d+\.\d{2}/g);
-        if (!d) throw new Error(`平均ズレがない: ${r}`);
-        return Number(d.at(-1));
-      });
-      const raw = await getItem(page, BEST_KEY);
-      expect(raw, `${BEST_KEY} がない: ${JSON.stringify(await keysWith(page, 'apex-training:best:'))}`).not.toBeNull();
-      const best = JSON.parse(raw!) as { meanError: number };
-      expect(Math.abs(best.meanError - Math.min(...values)), `保存 ${best.meanError}、一覧 ${values.join(', ')}`).toBeLessThanOrEqual(0.0051);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 180_000);
   });
 });

@@ -1,6 +1,6 @@
 import './ui/style.css';
+import { ManualFrameClock, RealFrameClock, type FrameClock } from './core/frame-clock';
 import { FixedStepLoop } from './core/loop';
-import { performanceTimeSource } from './core/time';
 import { fetchMapJson } from './data/maps';
 import { loadWeapons } from './data/weapons';
 import type { Action } from './input/actions';
@@ -19,7 +19,7 @@ import type { TrainingMode } from './modes/types';
 import { PracticeSession } from './modes/session';
 import { GhostMarker } from './render/ghost';
 import { ImpactMarks } from './render/impacts';
-import { interpolateAngles, SceneRenderer } from './render/scene';
+import { interpolateAngles, SceneRenderer, UndrawnSceneRenderer, type ViewRenderer } from './render/scene';
 import { parseMap, type MapData } from './sim/map';
 import { viewAngles } from './sim/player';
 import type { WeaponData } from './sim/weapon';
@@ -38,6 +38,7 @@ import { PadMenu } from './ui/pad-menu';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { padGuideState, padGuideVisible, renderPadGuide, type PadGuideElements } from './ui/pad-guide';
 import { PracticeFlow } from './ui/practice-flow';
+import { parsePageOptions, TEST_CLOCK_GLOBAL, type TestClockHandle } from './ui/page-options';
 import { applyPracticeSettings } from './ui/practice-settings';
 import { loadHistory, type HistorySelection } from './ui/practice-history';
 import type { InputMethod } from './ui/personal-best';
@@ -65,16 +66,33 @@ interface App {
   control(control: ScreenControl): boolean;
 }
 
+// URL の render=off で 3D を描画せず、clock=manual でページの時計をテストから進める
+// （docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」）。付けないときは描画し、実時間で進む。
+const pageOptions = parsePageOptions(location.search);
+const scheduleFrame = (run: (time: number) => void) => requestAnimationFrame(run);
+/** ページの時計。ループの経過時間・短いリザルトの残り時間・パッドの方向の繰り返しはこの時計で決め、描画もこれで頼む。 */
+const clock: FrameClock = pageOptions.manualClock
+  ? exposeTestClock(new ManualFrameClock(scheduleFrame, performance.now() / 1000))
+  : new RealFrameClock(scheduleFrame, () => performance.now());
+
+/** テストから時計を進められるよう、window に口を置く。 */
+function exposeTestClock(manual: ManualFrameClock): ManualFrameClock {
+  const handle: TestClockHandle = { advance: (seconds, frameSeconds) => manual.advance(seconds, frameSeconds), now: () => manual.now() };
+  Object.defineProperty(window, TEST_CLOCK_GLOBAL, { value: handle, configurable: true });
+  return manual;
+}
+
 const flow = new PracticeFlow();
 /** 読み込みが終わった App。終わる前の画面の操作は捨てる（あとから古い画面の操作として効かないように）。 */
 let readyApp: App | undefined;
 // 保存したパッドのボタン割り当て。描画のたびに引くのでメモリに持つ（docs/spec/pad.md「ボタン割り当て」）。
 const padMappings = new PadMappingStore(appStorage);
-/** 描画の時刻ごとに 1 回だけ読んだパッド。パッドの画面と練習が同じ描画で同じ値を使う。 */
-let gamepadFrame: { time: number; pads: readonly (Gamepad | null)[] } | undefined;
-/** ブラウザが見つけたパッド。Gamepad API がないブラウザでは空。time は requestAnimationFrame の時刻で、同じ時刻なら読み直さない。 */
-const readGamepads = (time: number): readonly (Gamepad | null)[] => {
-  if (gamepadFrame?.time !== time) gamepadFrame = { time, pads: navigator.getGamepads?.() ?? [] };
+/** 描画ごとに 1 回だけ読んだパッド。パッドの画面と練習が同じ描画で同じ値を使う。 */
+let gamepadFrame: { frame: number; pads: readonly (Gamepad | null)[] } | undefined;
+/** ブラウザが見つけたパッド。Gamepad API がないブラウザでは空。同じ描画（clock.frameCount が同じ）なら読み直さない。 */
+const readGamepads = (): readonly (Gamepad | null)[] => {
+  const frame = clock.frameCount;
+  if (gamepadFrame?.frame !== frame) gamepadFrame = { frame, pads: navigator.getGamepads?.() ?? [] };
   return gamepadFrame.pads;
 };
 let resolveApp: (app: App) => void = () => {};
@@ -341,7 +359,7 @@ function startPadScreens(): PadScreens {
     },
   });
   const tick = (time: number) => {
-    const pads = readGamepads(time);
+    const pads = readGamepads();
     const status = choosePad(pads, padMappings.get);
     // 操作に使うのは入力に使うパッドで、標準配置のときだけ（割り当てを保存した標準配置でないパッドは使わない）。
     const navPad = status.kind === 'using' && isStandardMapping(status.pad) ? status.pad : null;
@@ -363,9 +381,9 @@ function startPadScreens(): PadScreens {
       for (const item of MAPPING_ITEMS) setText(mappingValues.get(item) ?? null, state.items[item]);
       setText(mappingSaved, state.saved ? 'このパッドの割り当てを保存しました' : '4 つの項目をすべて割り当てると保存します');
     }
-    requestAnimationFrame(tick);
+    clock.requestFrame(tick);
   };
-  requestAnimationFrame(tick);
+  clock.requestFrame(tick);
 
   return {
     enter: (screen) => {
@@ -495,7 +513,8 @@ async function start(): Promise<void> {
   // 練習していないあいだも、トップ画面などの後ろにシーンを描く。
   let shownWorld: World = createWorld(map);
   // FOV は設定画面で保存した値。練習ごとに「開始」を押した時点の値に合わせ直す（docs/spec/screens.md）。
-  const view = new SceneRenderer(canvas, shownWorld, { fov: loadCommonSettings(appStorage).fov });
+  const fov = loadCommonSettings(appStorage).fov;
+  const view: ViewRenderer = pageOptions.render ? new SceneRenderer(canvas, shownWorld, { fov }) : new UndrawnSceneRenderer(canvas, shownWorld, { fov });
   const impacts = new ImpactMarks(view.view.layer);
   const ghost = new GhostMarker(view.view.layer);
   // パッド向けのガイド（docs/spec/pad.md「練習中のガイド」）。表示だけで、シミュレーションと入力の記録には触れない。
@@ -560,7 +579,7 @@ async function start(): Promise<void> {
   // 直前に終えた回のリザルト。短いリザルトの残り秒数を描き直すのに使う。
   let lastRound: ResultView | undefined;
   // 短いリザルトの時間はシミュレーションの時刻ではなく、ページの時計で数える。
-  const now = () => performanceTimeSource.now();
+  const now = () => clock.now();
 
   /** 今のセットの今の回の練習を最初から始める。やり直しもこれで始め直す（docs/spec/modes.md「やり直し」）。 */
   const startRound = () => {
@@ -595,7 +614,7 @@ async function start(): Promise<void> {
       padName: () => pad.name,
     });
     const loop = new FixedStepLoop({
-      timeSource: performanceTimeSource,
+      timeSource: clock,
       update: () => {
         const look = pad.step(session.sim.dt);
         if (look) inputs.input('pad', look, session.sim.time);
@@ -604,7 +623,8 @@ async function start(): Promise<void> {
       render: (alpha) => {
         // 撃ち切ったときと練習が終わったときはゴーストを消す（session.ghost が undefined）。
         ghost.update(world.player.position, showGhost ? session.ghost : undefined);
-        view.render(world, interpolateAngles(session.previousViewAngles, viewAngles(world.player), alpha));
+        // テストが時計を進めている途中の描画（clock.draws が false）では 3D を描かず、次の実際の描画で最後の状態を描く。
+        if (clock.draws) view.render(world, interpolateAngles(session.previousViewAngles, viewAngles(world.player), alpha));
       },
     });
     shownWorld = world;
@@ -777,8 +797,8 @@ async function start(): Promise<void> {
   // パッドの A / × と B / ○ は、どの画面でも読み、押し始めだけを画面の操作にする（docs/spec/screens.md「画面の操作」）。
   const padButtons = new PadButtons();
 
-  const tick = (time: number) => {
-    padStatus = choosePad(readGamepads(time), padMappings.get);
+  const tick = () => {
+    padStatus = choosePad(readGamepads(), padMappings.get);
     const gamepad = padStatus.kind === 'using' ? padStatus.pad : null;
     // 一時停止中も読み、押し始めを捨てる（再開したあとに、止めていた間の押下が操作にならないように）。
     for (const pressed of padButtons.poll(gamepad)) control(pressed);
@@ -835,11 +855,11 @@ async function start(): Promise<void> {
         if (set.interludeElapsed(now())) nextRound();
         else if (lastRound) showInterlude(set, lastRound);
       }
-      view.render(shownWorld, viewAngles(shownWorld.player));
+      if (clock.draws) view.render(shownWorld, viewAngles(shownWorld.player));
     }
-    requestAnimationFrame(tick);
+    clock.requestFrame(tick);
   };
-  requestAnimationFrame(tick);
+  clock.requestFrame(tick);
 
   readyApp = { begin, abort, openHistory, control };
   resolveApp(readyApp);

@@ -4,7 +4,7 @@
 // だけを使い、実装の内部には依存しない。画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、
 // パッドは Gamepad API（navigator.getGamepads と vibrationActuator.playEffect）の形で与える。
 // 照準の反応は、センター維持の中心の的の色が画面の中心から外れるか（画面写しの中心の画素）で読む。
-// ヨーの量（PAD-28）は、ページの時計（performance.now と requestAnimationFrame）をテストが進め、
+// ヨーの量（PAD-28）は、clock=manual で開いたページの時計をテストが進め、
 // 回した結果の画面写しを、同じヨーになるはずの別の回し方（既定のヨー速度 300 で左に 0.7 秒 = −210 度 ≡ +150 度）の画面写しと比べて読む。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
@@ -12,8 +12,8 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
@@ -74,8 +74,7 @@ const genericPad = (index = 0, id = GENERIC_ID): PadDef => ({ index, id, mapping
 /**
  * Gamepad API の形のパッド。sessionStorage の __qaPads の定義から作り、navigator.getGamepads は長さ 4 の配列（空きは null）を返す。
  * __axis(番号, 軸, 値)・__button(番号, ボタン, 値) で操作する。振動の要求は __rumble に残す。
- * sessionStorage の __qaClock があるときは、ページの時計（performance.now と requestAnimationFrame）を差し替える。
- * 普段は実際の描画に合わせて進み、__clock.manual(true) のあとは __clock.step(ms) でだけ進む。
+ * __clock.step(ms) は、clock=manual で開いたページの時計を ms だけ進め、描画を 1 回行う。
  */
 const PAGE_INIT = `
 (() => {
@@ -111,22 +110,7 @@ const PAGE_INIT = `
     const s = getComputedStyle(el); return s.display !== 'none' && s.visibility !== 'hidden' && el.getClientRects().length > 0; };
   window.__text = (sel) => (document.querySelector(sel)?.textContent ?? '').replace(/\\s+/g, ' ').trim();
 
-  if (sessionStorage.getItem('__qaClock')) {
-    const realRaf = window.requestAnimationFrame.bind(window);
-    const realNow = performance.now.bind(performance);
-    let now = realNow();
-    let last = realNow();
-    let manual = false;
-    let nextId = 1;
-    let queue = new Map();
-    performance.now = () => now;
-    window.requestAnimationFrame = (cb) => { const id = nextId++; queue.set(id, cb); return id; };
-    window.cancelAnimationFrame = (id) => { queue.delete(id); };
-    const flush = () => { const q = queue; queue = new Map(); for (const cb of q.values()) cb(now); };
-    const pump = () => { const r = realNow(); if (!manual) { now += r - last; flush(); } last = r; realRaf(pump); };
-    realRaf(pump);
-    window.__clock = { manual(on) { manual = on; }, step(ms) { now += ms; flush(); } };
-  }
+  window.__clock = { step(ms) { window.__apexTestClock.advance(ms / 1000, ms / 1000); } };
 })();
 `;
 
@@ -264,21 +248,22 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   let server: Server | undefined;
   let browser: Browser | undefined;
   let origin = '';
-  const pages: Page[] = [];
 
   /**
    * 新しいタブで localStorage を空にし（seed を入れ）、pads のパッドをつないだ状態で読み込み直したトップ画面を開く。
-   * clock なら、ページの時計をテストが進められるようにする。
+   * clock なら、ページの時計をテストが進める（clock=manual）。render のときだけ 3D を描画する（画面の中心の色を読むテスト）。
    */
-  async function openFresh({ pads = [standardPad()], seed = {}, clock = false }: { pads?: PadDef[]; seed?: Record<string, string>; clock?: boolean } = {}): Promise<Page> {
-    for (const p of pages.splice(0)) await p.send('Page.close').catch(() => {});
+  async function openFresh({
+    pads = [standardPad()],
+    seed = {},
+    clock = false,
+    render = false,
+  }: { pads?: PadDef[]; seed?: Record<string, string>; clock?: boolean; render?: boolean } = {}): Promise<Page> {
     const page = await browser!.newPage();
-    pages.push(page);
     await page.addInitScript(PAGE_INIT);
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock: clock }));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]);
-      sessionStorage.setItem('__qaPads', ${JSON.stringify(JSON.stringify(pads))});
-      if (${clock}) sessionStorage.setItem('__qaClock', '1'); else sessionStorage.removeItem('__qaClock'); })()`);
+      sessionStorage.setItem('__qaPads', ${JSON.stringify(JSON.stringify(pads))}); })()`);
     await reload(page);
     await page.waitFor(screenVisible('top'), 15_000);
     return page;
@@ -308,6 +293,10 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
     browser = await launchBrowser(chromium!);
   }, 300_000);
 
+  afterEach(async () => {
+    await browser?.closePages();
+  });
+
   afterAll(async () => {
     await browser?.close();
     await new Promise((ok) => (server ? server.close(ok) : ok(undefined)));
@@ -336,7 +325,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
 
   // -------------------------------------------------------------------------
   it('PAD-3: 標準配置でないパッドだけでトップ画面でボタンを押すと割り当て画面が出て、割り当てたボタンで撃て、割り当てた軸で照準が動く', async () => {
-    const page = await openFresh({ pads: [genericPad()] });
+    const page = await openFresh({ pads: [genericPad()], render: true });
     expect(await hash(page)).toBe('#/');
     // トップ画面で、そのパッドのボタン（0）を押す。
     await button(page, 0, 0, 1);
@@ -368,7 +357,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   // -------------------------------------------------------------------------
   describe('PAD-8: 振動 OFF では振動の要求が出ず、ON では 1 発ごとに 60 ms・強 0.2・弱 0.5 の dual-rumble が 1 回出る', () => {
     it('振動 ON（既定）: 撃った弾の数と同じ回数、SPEC の値で要求が出る', async () => {
-      const page = await openFresh({ pads: [standardPad(0, 'ok')] });
+      const page = await openFresh({ pads: [standardPad(0, 'ok')], clock: true });
       await openSettings(page);
       expect(await page.evaluate<boolean>(`document.getElementById('setting-pad-vibration').checked`)).toBe(true);
       const w = byId('lstar');
@@ -376,14 +365,16 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
       expect(await page.evaluate<number>('window.__rumble.length')).toBe(0);
       // 何発か撃って離し、その時点の要求の数が撃った弾の数と同じ。
       await button(page, 0, 7, 1);
-      await page.waitFor(`window.__ammo() <= ${w.magSize - 5}`, 5000);
+      await page.frames(2);
+      await page.advanceClockUntil(`window.__ammo() <= ${w.magSize - 5}`);
       await button(page, 0, 7, 0);
       await page.frames(6);
       const mid = await page.evaluate<{ ammo: number; count: number }>(`({ ammo: window.__ammo(), count: window.__rumble.length })`);
       expect(mid.count).toBe(w.magSize - mid.ammo);
       // 撃ち切る。
       await button(page, 0, 7, 1);
-      await page.waitFor(`location.hash === '#/result'`, 20_000);
+      await page.frames(2);
+      await page.advanceClockUntil(`location.hash === '#/result'`);
       await button(page, 0, 7, 0);
       const rumble = await page.evaluate<{ index: number; type: string; params: Record<string, number> }[]>('window.__rumble');
       expect(rumble).toHaveLength(w.magSize);
@@ -398,14 +389,15 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
     }, 60_000);
 
     it('振動 OFF: 撃ち切っても要求が出ない', async () => {
-      const page = await openFresh({ pads: [standardPad(0, 'ok')] });
+      const page = await openFresh({ pads: [standardPad(0, 'ok')], clock: true });
       await openSettings(page);
       await clickOn(page, '#setting-pad-vibration');
       await page.waitFor(`!document.getElementById('setting-pad-vibration').checked`);
       const w = byId('lstar');
       await start(page, w);
       await button(page, 0, 7, 1);
-      await page.waitFor(`location.hash === '#/result'`, 20_000);
+      await page.frames(2);
+      await page.advanceClockUntil(`location.hash === '#/result'`);
       await button(page, 0, 7, 0);
       expect(await page.evaluate<number>('window.__rumble.length')).toBe(0);
       noExceptions(page);
@@ -466,12 +458,14 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   // -------------------------------------------------------------------------
   describe('PAD-23: 振動に対応しないパッドで撃ってもエラーにならず、撃ち切るとリザルトに移り、設定画面に案内が出る', () => {
     it('vibrationActuator がないパッドで撃ち切る', async () => {
-      const page = await openFresh({ pads: [standardPad(0, 'none')] });
+      const page = await openFresh({ pads: [standardPad(0, 'none')], clock: true });
       const w = byId('lstar');
       await start(page, w);
       await button(page, 0, 7, 1);
-      await page.waitFor(`window.__ammo() <= ${w.magSize - 3}`, 5000);
+      await page.frames(2);
+      await page.advanceClockUntil(`window.__ammo() <= ${w.magSize - 3}`);
       expect(await hash(page)).toBe('#/play');
+      await page.advanceClockUntil(`location.hash === '#/result'`);
       await page.waitFor(`location.hash === '#/result' && ${screenVisible('result')}`, 20_000);
       await button(page, 0, 7, 0);
       noExceptions(page);
@@ -504,7 +498,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
 
     for (const method of ['自動', 'パッド']) {
       it(`入力方式「${method}」の練習中の HUD と、操作しても反応しないこと`, async () => {
-        const page = await openFresh({ pads: [genericPad()] });
+        const page = await openFresh({ pads: [genericPad()], render: true });
         await setInputMethod(page, method);
         const w = byId('lstar');
         await start(page, w);
@@ -531,7 +525,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
     const pads = [genericPad(0), standardPad(1)];
 
     it('番号 1 のパッドで照準と射撃ができ、HUD に番号 1 のパッドの名前が出る（番号 0 のパッドの操作は無視される）', async () => {
-      const page = await openFresh({ pads });
+      const page = await openFresh({ pads, render: true });
       const w = byId('lstar');
       await start(page, w);
       await page.waitFor(`window.__text('${HUD_PAD}').includes(${JSON.stringify(STD_NAME)})`, 3000);
@@ -605,7 +599,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
 
   // -------------------------------------------------------------------------
   it('PAD-27: 割り当てを保存して再読み込みしても残っていて使えるパッドになり、「割り当てを消す」で標準配置でないパッドの扱いに戻る', async () => {
-    const page = await openFresh({ pads: [genericPad()] });
+    const page = await openFresh({ pads: [genericPad()], render: true });
     await page.evaluate(`location.hash = '#/settings/pad/mapping'`);
     await assignAll(page);
     expect(await page.evaluate<string | null>(`localStorage.getItem('apex-training:pad-mapping')`)).toContain(GENERIC_ID);
@@ -651,7 +645,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
      * 照準が止まったあとのキャンバスの画面写しを返す。
      */
     async function turn(yaw: number, x: number, seconds: number): Promise<{ image: Image; elapsed: [string, string] }> {
-      const page = await openFresh({ pads: [standardPad()], clock: true });
+      const page = await openFresh({ pads: [standardPad()], clock: true, render: true });
       await setInputMethod(page, 'パッド');
       await typeInto(page, '#setting-pad-deadzone', '0');
       await typeInto(page, '#setting-pad-outer-threshold', '0');
@@ -665,7 +659,6 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
       // ここから、ページの時計はテストが進めたぶんだけ進む。固定ステップ（1/120 秒）の境目を HUD の経過時間の変わり目で見つけ、
       // そこから半ステップほどずらして、以後の 50 ms（6 ステップ）ごとの描画がステップの境目に当たらないようにする。
       const elapsed = await page.evaluate<[string, string]>(`(() => {
-        window.__clock.manual(true);
         const first = window.__hudTime();
         for (let i = 0; i < 400 && window.__hudTime() === first; i += 1) window.__clock.step(1);
         if (window.__hudTime() === first) throw new Error('HUD の経過時間が変わらない');
@@ -680,7 +673,6 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
       const image = await screenshot(page);
       expect(await hash(page)).toBe('#/play');
       noExceptions(page);
-      await page.evaluate('window.__clock.manual(false)');
       return { image, elapsed };
     }
 

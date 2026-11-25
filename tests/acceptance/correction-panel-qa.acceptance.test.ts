@@ -1,4 +1,4 @@
-// docs/spec/screens.md「補正のパネル」と設定（UI-11・UI-13・UI-55〜UI-63）、docs/spec/modes.md の MODE-24・MODE-25・MODE-27 の QA の受け入れテスト。
+// docs/spec/screens.md「補正のパネル」と設定（UI-55〜UI-63）、docs/spec/modes.md の MODE-24・MODE-25 の QA の受け入れテスト。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（トップ・設定・プレイ・リザルト）、index.html の要素、
 // 武器とマップの JSON。画面はヘッドレスの Chromium で開く（tests/helpers/browser.ts）。
 //
@@ -15,6 +15,8 @@
 // ゴーストを出さないセンター維持の、HTML を隠したキャンバスだけの画面写しと比べて見つける（違う画素がなければゴーストは出ていない）。
 // 補正のパネルは、反復練習では設定によらず必ず、センター維持では設定の補正のパネルが ON（既定）のとき出す。
 // ゴースト表示（3D の中のゴースト）の既定は OFF。
+// 画面は clock=manual で開き、練習の時間（撃つ・離して待つ・短いリザルト）はページの時計を進めて決める。
+// 3D は、キャンバスの画面写しでゴーストを確かめるテストのほかは描画しない（render=off）。
 // サーバーと DevTools のポートは OS に選ばせる。待ちは sleep にせず、画面の状態の条件で待つ。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
@@ -23,7 +25,7 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
@@ -34,6 +36,8 @@ const HEIGHT = 800;
 const CX = WIDTH / 2;
 const CY = HEIGHT / 2;
 const chromium = findChromium();
+/** ページの時計（clock=manual）を 60Hz の描画 frames 回分進める。実時間では待たない。 */
+const settle = (page: Page, frames: number) => page.advanceClock(frames / 60);
 
 const GHOST = '反復練習';
 const CENTER = 'センター維持';
@@ -114,7 +118,6 @@ const PAGE_INIT = `
   window.__vis = (sel) => { const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
     return !!el && !el.closest('[hidden]') && el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && el.getClientRects().length > 0; };
   window.__interlude = () => window.__vis('#interlude');
-  window.__nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
   window.__pts = (s) => { const n = String(s ?? '').trim().split(/[\\s,]+/).filter(Boolean).map(Number); const out = [];
     for (let i = 0; i + 1 < n.length; i += 2) out.push([n[i], n[i + 1]]); return out; };
   window.__center = (el) => {
@@ -243,7 +246,7 @@ async function configure(page: Page, opts: { input?: '自動' | 'マウス' | '�
   if (opts.input) await choose(page, '#setting-input-method', opts.input);
   if (opts.ghost !== undefined) await setCheck(page, 'setting-ghost', opts.ghost);
   if (opts.panel !== undefined) await setCheck(page, 'setting-correction-panel', opts.panel);
-  await page.frames(3);
+  await settle(page, 3);
   await page.evaluate(`location.hash = '#/'`);
   await page.waitFor(`window.__vis('[data-screen="top"]')`);
 }
@@ -259,30 +262,35 @@ async function start(page: Page, w: WeaponJson, mode: string, count = 1) {
   await waitStarted(page, w);
 }
 
+/** 練習が始まって描かれるまで待つ。短いリザルトの表示中なら、ページの時計を進めて次の回を始める。 */
 async function waitStarted(page: Page, w: WeaponJson, timeout = 10_000) {
+  if (await page.evaluate<boolean>('window.__interlude()')) await page.advanceClockUntil('!window.__interlude()', { limit: timeout / 1000 });
   await page.waitFor(
     `location.hash === '#/play' && window.__vis('[data-screen="play"]') && !window.__interlude() && window.__ammo() === ${w.magSize} && window.__inputShown() !== ''`,
     timeout,
   );
-  await page.waitFor('window.__time() >= 0.3', 10_000);
-  await page.frames(3);
+  await page.advanceClockUntil('window.__time() >= 0.3', { limit: 10 });
+  await settle(page, 3);
 }
 
-/** パッドの R2 で n 発だけ撃つ（残弾が n 減った描画で離す）。 */
+/** パッドの R2 で n 発だけ撃つ（ページの時計を進め、残弾が n 減った描画で離す）。 */
 async function padFire(page: Page, n: number) {
-  await page.evaluate(`(async () => {
-    const goal = window.__ammo() - ${n};
-    window.__btn(7, true); const t0 = performance.now();
-    while (window.__ammo() > goal && location.hash === '#/play' && performance.now() - t0 < 15000) await window.__nextFrame();
-    window.__btn(7, false); })()`);
+  await page.evaluate(`window.__goal = window.__ammo() - ${n}; window.__btn(7, true)`);
+  await page.advanceClockUntil(`window.__ammo() <= window.__goal || location.hash !== '#/play'`, { limit: 15 });
+  await page.evaluate('window.__btn(7, false)');
 }
 
-/** パッドの R2 で撃ち切る。 */
+/** パッドの R2 で撃ち切る（ページの時計を進める）。 */
 async function padFireAll(page: Page) {
-  await page.evaluate(`(async () => {
-    window.__btn(7, true); const t0 = performance.now();
-    while (window.__ammo() > 0 && location.hash === '#/play' && !window.__interlude() && performance.now() - t0 < 20000) await window.__nextFrame();
-    window.__btn(7, false); })()`);
+  await page.evaluate('window.__btn(7, true)');
+  await page.advanceClockUntil(`window.__ammo() === 0 || location.hash !== '#/play' || window.__interlude()`, { limit: 20 });
+  await page.evaluate('window.__btn(7, false)');
+}
+
+/** ページの時計を進めてリザルト画面に移るのを待つ。 */
+async function untilResult(page: Page) {
+  await page.advanceClockUntil(`location.hash === '#/result'`, { limit: 15 });
+  await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
 }
 
 const KEY_R = { key: 'r', code: 'KeyR', vk: 82, text: 'r' };
@@ -301,7 +309,7 @@ class Mouse {
     if (await this.page.evaluate<boolean>('!!document.pointerLockElement')) return;
     await this.page.click(this.x, this.y);
     await this.page.waitFor('!!document.pointerLockElement', 5000);
-    await this.page.frames(6);
+    await settle(this.page, 6);
   }
   /** (dx, dy) カウント動かす（1 回の移動は 10 カウントまで）。 */
   async move(dx: number, dy: number) {
@@ -356,7 +364,7 @@ async function sampleWhilePractising(page: Page, input: 'mouse' | 'pad', w: Weap
       seen.push(await panelVisible(page));
       hashes.add(await hash(page));
       if ((await ammo(page)) <= stopAt) break;
-      await page.frames(2);
+      await settle(page, 2);
     }
   };
   const mouse = new Mouse(page);
@@ -364,7 +372,7 @@ async function sampleWhilePractising(page: Page, input: 'mouse' | 'pad', w: Weap
   await read(6);
   if (input === 'mouse') await mouse.press();
   else await page.evaluate('window.__btn(7, true)');
-  // 撃っている間を読む。描画が遅いときに撃ち切らないよう、装弾数の半分を撃ったらやめる。
+  // 撃っている間を読む。撃ち切らないよう、装弾数の半分を撃ったらやめる。
   await read(15, Math.floor(w.magSize / 2));
   if (input === 'mouse') await mouse.release();
   else await page.evaluate('window.__btn(7, false)');
@@ -374,7 +382,7 @@ async function sampleWhilePractising(page: Page, input: 'mouse' | 'pad', w: Weap
 
 // ---------------------------------------------------------------------------
 
-describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・UI-55〜UI-63・MODE-24〜MODE-27）', () => {
+describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
   const temps: string[] = [];
   let server: Server | undefined;
   let browser: Browser | undefined;
@@ -382,12 +390,15 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
   let opened: Page[] = [];
   const exceptions = (page: Page) => page.errors.filter((e) => e.startsWith('exception:'));
 
-  /** 新しいタブで localStorage を空にして読み込み直し、トップ画面を開く。 */
-  async function openFresh(init = ''): Promise<Page> {
+  /**
+   * 新しいタブで localStorage を空にして読み込み直し、トップ画面を開く。ページの時計はテストから進める（clock=manual）。
+   * 3D はキャンバスを写すテスト（render: true）だけが描画する。
+   */
+  async function openFresh(init = '', { render = false }: { render?: boolean } = {}): Promise<Page> {
     const page = await browser!.newPage();
     opened.push(page);
     await page.addInitScript(PAGE_INIT + init);
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock: true }));
     await page.evaluate('localStorage.clear()');
     await page.evaluate('window.__beforeReload = true');
     await page.send('Page.reload', { ignoreCache: false });
@@ -439,8 +450,8 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
   });
 
   // -------------------------------------------------------------------------
-  describe('UI-13・UI-11: 補正のパネルの設定', () => {
-    it('UI-13: 設定を一度も変えずに設定画面を開くと、ゴースト表示は OFF、補正のパネルは ON を含む既定値が表示される', async () => {
+  describe('補正のパネルの設定の保存と既定値（設定画面の受け入れ条件は settings-qa が確かめる）', () => {
+    it('設定を一度も変えずに設定画面を開くと、ゴースト表示は OFF、補正のパネルは ON を含む既定値が表示される', async () => {
       const page = await openFresh();
       await page.evaluate(`location.hash = '#/settings'`);
       await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
@@ -469,7 +480,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-11: FOV・クロスヘアの色と形・ゴースト表示・補正のパネルを既定と違う値に変えて再読み込みすると、変えた値が残る', async () => {
+    it('FOV・クロスヘアの色と形・ゴースト表示・補正のパネルを既定と違う値に変えて再読み込みすると、変えた値が残る', async () => {
       const page = await openFresh();
       await page.evaluate(`location.hash = '#/settings'`);
       await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
@@ -553,7 +564,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
           const s = await panel(page);
           if (!(s.ammo > 1) || s.hash !== '#/play') break;
           samples.push(s);
-          await page.frames(1);
+          await settle(page, 1);
         }
         await page.evaluate('window.__btn(7, false)');
         const mismatches: string[] = [];
@@ -585,8 +596,8 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         expect(dist([p0.current!.x, p0.current!.y], f.toPanel(ideal(w, 1)))).toBeLessThanOrEqual(tolOf(p0));
         await page.evaluate('window.__btn(7, true)');
         for (let i = 1; i < w.magSize; i += 1) {
-          await page.waitFor(`window.__ammo() === ${w.magSize - i}`, 10_000);
-          await page.frames(3);
+          await page.advanceClockUntil(`window.__ammo() === ${w.magSize - i}`, { limit: 10 });
+          await settle(page, 3);
           const s = await panel(page);
           expect(s.ammo, `${i} 発目のあと、次の発の前に読めていない`).toBe(w.magSize - i);
           expect(dist([s.current!.x, s.current!.y], f.toPanel(ideal(w, i + 1))), `${i} 発目のあとの次の発の点`).toBeLessThanOrEqual(tolOf(s));
@@ -605,7 +616,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
     await configure(page, { input: 'パッド' });
     await start(page, w, CENTER);
     await padFire(page, 5);
-    await page.frames(3);
+    await settle(page, 3);
     const p = await panel(page);
     expect(p.hash).toBe('#/play');
     expect(w.magSize - p.ammo, '撃った弾は 5 発').toBe(5);
@@ -635,13 +646,13 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
     expect(await ammo(page), 'ポインターロックのクリックで撃った').toBe(w.magSize);
     // 右に動かすとヨーが増え、下（movementY が正）に動かすとピッチが減る（mouse.md）。理想の補正軌道は pattern の反転。
     await mouse.move(-ZERO_COUNTS[0]![0], ZERO_COUNTS[0]![1]);
-    await page.frames(4);
+    await settle(page, 4);
     await mouse.press();
     let last: PanelDom | undefined;
     for (let i = 1; i < w.magSize; i += 1) {
-      await page.waitFor(`window.__ammo() === ${w.magSize - i}`, 10_000);
+      await page.advanceClockUntil(`window.__ammo() === ${w.magSize - i}`, { limit: 10 });
       await mouse.move(-ZERO_COUNTS[i]![0], ZERO_COUNTS[i]![1]);
-      await page.frames(4);
+      await settle(page, 4);
       last = await panel(page);
       expect(last.ammo, `${i + 1} 発目の前に読めていない`).toBe(w.magSize - i);
       const f = fitIdeal(last, w);
@@ -655,7 +666,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         expect(dist(q, last.ideal[k + 1]!), `自分の線の ${k + 1} 発目の点`).toBeLessThanOrEqual(tolOf(last));
       }
     }
-    await page.waitFor(`location.hash === '#/result'`, 10_000);
+    await untilResult(page);
     await mouse.release();
     // 対照として照準を合わせた撃ち方で全弾が中心に当たっている（照準が理想の補正軌道に合っていた）。
     await page.waitFor(`document.querySelector('[data-screen="result"]').innerText.includes('発')`);
@@ -723,7 +734,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
           for (let i = 0; i < n; i += 1) {
             seen.push(await panelVisible(page));
             inputs.push(await page.evaluate<string>('window.__inputShown()'));
-            await page.frames(2);
+            await settle(page, 2);
           }
         };
         const mouse = new Mouse(page);
@@ -732,10 +743,10 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         await mouse.press();
         await read(6);
         await mouse.release();
-        await page.waitFor(`window.__inputShown().includes('マウス')`, 3000);
+        await page.advanceClockUntil(`window.__inputShown().includes('マウス')`, { limit: 3 });
         await read(3);
         await page.evaluate('window.__btn(7, true)');
-        await page.waitFor(`window.__inputShown().includes('パッド')`, 3000);
+        await page.advanceClockUntil(`window.__inputShown().includes('パッド')`, { limit: 3 });
         await read(8);
         await page.evaluate('window.__btn(7, false)');
         await read(3);
@@ -758,10 +769,10 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         await start(page, w, mode);
         expect(await panelVisible(page)).toBe(true);
         await padFireAll(page);
-        await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
+        await untilResult(page);
         for (let i = 0; i < 6; i += 1) {
           expect(await panelVisible(page), 'リザルト画面でパネルが表示された').toBe(false);
-          await page.frames(2);
+          await settle(page, 2);
         }
         expect(exceptions(page), page.errors.join('\n')).toEqual([]);
       }, 60_000);
@@ -774,16 +785,16 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         await configure(page, { input: 'パッド', panel: true });
         await start(page, w, mode, 5);
         await padFireAll(page);
-        await page.waitFor('window.__interlude()', 5000);
+        await page.advanceClockUntil('window.__interlude()', { limit: 5 });
         const during: boolean[] = [];
         for (let i = 0; i < 8; i += 1) {
           if (!(await page.evaluate<boolean>('window.__interlude()'))) break;
           during.push(await panelVisible(page));
-          await page.frames(2);
+          await settle(page, 2);
         }
         expect(during.length).toBeGreaterThan(0);
         expect(during.some(Boolean), '短いリザルトの表示中にパネルが表示された').toBe(false);
-        // 次の回が始まる（3 秒を待つ）。
+        // 次の回が始まる（ページの時計を 3 秒進める）。
         await waitStarted(page, w, 10_000);
         const p = await panel(page);
         expect(p.visible).toBe(true);
@@ -801,19 +812,16 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         const page = await openFresh();
         await configure(page, { input: 'パッド', panel: true });
         await start(page, w, mode);
-        // 5 発撃ち、fire を押したまま（次の発の点は 6 発目）でやり直す。
-        await page.evaluate(`(async () => {
-          const goal = window.__ammo() - 5; window.__btn(7, true); const t0 = performance.now();
-          while (window.__ammo() > goal && performance.now() - t0 < 10000) await window.__nextFrame(); })()`);
-        await page.evaluate('window.__btn(7, false)');
-        await page.frames(2);
+        // 5 発撃ち（次の発の点は 6 発目）、離してからやり直す。
+        await padFire(page, 5);
+        await settle(page, 2);
         const before = await panel(page);
         const f = fitIdeal(before, w);
         expect(before.shots.length, 'やり直す前に自分の点がある').toBeGreaterThanOrEqual(5);
         expect(dist([before.current!.x, before.current!.y], f.toPanel(ideal(w, 1))), 'やり直す前は 1 発目より先').toBeGreaterThan(tolOf(before));
         await pressR(page);
-        await page.waitFor(`window.__ammo() === ${w.magSize} && location.hash === '#/play'`, 5000);
-        await page.frames(3);
+        await page.advanceClockUntil(`window.__ammo() === ${w.magSize} && location.hash === '#/play'`, { limit: 5 });
+        await settle(page, 3);
         const after = await panel(page);
         expect(after.visible).toBe(true);
         expect(after.shots, 'やり直したあとも自分の点が残っている').toEqual([]);
@@ -851,18 +859,18 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         const mouse = new Mouse(page);
         await mouse.lock();
         await mouse.move(...moves[0]!);
-        await page.frames(4);
+        await settle(page, 4);
         await mouse.press();
         for (let i = 1; i < w.magSize; i += 1) {
-          await page.waitFor(`window.__ammo() === ${w.magSize - i}`, 10_000);
+          await page.advanceClockUntil(`window.__ammo() === ${w.magSize - i}`, { limit: 10 });
           await mouse.move(...moves[i]!);
-          await page.frames(4);
+          await settle(page, 4);
           expect(await ammo(page)).toBe(w.magSize - i);
         }
-        await page.waitFor(`location.hash === '#/result'`, 10_000);
+        await untilResult(page);
         await mouse.release();
         await page.waitFor(`document.getElementById('result-metrics').innerText.trim().length > 0`);
-        await page.frames(3);
+        await settle(page, 3);
         const r = await resultOf(page);
         expect(exceptions(page), page.errors.join('\n')).toEqual([]);
         await page.send('Page.close').catch(() => undefined);
@@ -891,8 +899,9 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         await start(page, w, CENTER);
         expect(await panelVisible(page)).toBe(on);
         await padFireAll(page);
-        await page.waitFor(`location.hash === '#/result' && document.getElementById('result-metrics').innerText.trim().length > 0`, 15_000);
-        await page.frames(3);
+        await untilResult(page);
+        await page.waitFor(`document.getElementById('result-metrics').innerText.trim().length > 0`, 15_000);
+        await settle(page, 3);
         const r = await resultOf(page);
         expect(exceptions(page), page.errors.join('\n')).toEqual([]);
         await page.send('Page.close').catch(() => undefined);
@@ -911,7 +920,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
   let centerBase: Image | undefined;
   const baseline = async () => {
     if (centerBase) return centerBase;
-    const page = await openFresh();
+    const page = await openFresh('', { render: true });
     await configure(page, { input: 'マウス' });
     await start(page, byId('lstar'), CENTER);
     centerBase = await canvasOnly(page);
@@ -936,7 +945,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
     for (const on of [true, false]) {
       it(`反復練習・マウス・補正のパネル ${on ? 'ON' : 'OFF'}・ゴースト表示 ON: パネルとゴーストが同時に表示される`, async () => {
         const base = await baseline();
-        const page = await openFresh();
+        const page = await openFresh('', { render: true });
         await configure(page, { input: 'マウス', ghost: true, panel: on });
         await start(page, byId('lstar'), GHOST);
         const p = await panel(page);
@@ -951,7 +960,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
 
       it(`反復練習・パッド・補正のパネル ${on ? 'ON' : 'OFF'}・ゴースト表示 ON: パネルとゴーストとスティック型のガイドが同時に表示される`, async () => {
         const base = await baseline();
-        const page = await openFresh();
+        const page = await openFresh('', { render: true });
         await configure(page, { input: 'パッド', ghost: true, panel: on });
         await start(page, byId('lstar'), GHOST);
         await page.waitFor(`window.__vis('.pad-guide')`, 3000);
@@ -964,7 +973,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         expect((await overlaps(page)).filter((o) => o.startsWith('.pad-guide')), 'パネルとガイドが重なる').toEqual([]);
         // 撃っている間も 3 つとも表示される。
         await page.evaluate('window.__btn(7, true)');
-        await page.waitFor(`window.__ammo() <= ${byId('lstar').magSize - 3}`, 5000);
+        await page.advanceClockUntil(`window.__ammo() <= ${byId('lstar').magSize - 3}`, { limit: 5 });
         expect(await panelVisible(page)).toBe(true);
         expect(await page.evaluate<boolean>(`window.__vis('.pad-guide')`)).toBe(true);
         await page.evaluate('window.__btn(7, false)');
@@ -976,7 +985,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
   // -------------------------------------------------------------------------
   describe('MODE-25: 設定を一度も変えずに反復練習を始めると、3D の中にゴーストは表示されず、補正のパネルが表示され、パッドのときはスティック型のガイドも表示される', () => {
     it('L-STAR: 撃つ前のキャンバスがセンター維持と同じ（ゴーストがない）で、パネルが表示される', async () => {
-      const page = await openFresh();
+      const page = await openFresh('', { render: true });
       await start(page, byId('lstar'), CENTER);
       const center = await canvasOnly(page);
       await start(page, byId('lstar'), GHOST);
@@ -993,7 +1002,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         await start(page, w, mode);
         await padFire(page, 1);
         const released = await page.evaluate<number>('window.__time()');
-        await page.waitFor(`window.__time() >= ${released + 0.8}`, 5000);
+        await page.advanceClockUntil(`window.__time() >= ${released + 0.8}`, { limit: 5 });
         const state = await page.evaluate<{ hash: string; ammo: number; input: string; guide: boolean; panel: boolean }>(
           `({ hash: location.hash, ammo: window.__ammo(), input: window.__inputShown(), guide: window.__vis('.pad-guide'), panel: window.__vis('.correction-panel') })`,
         );
@@ -1002,7 +1011,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         expect(await hash(page)).toBe('#/play');
         return { state, img };
       };
-      const page = await openFresh();
+      const page = await openFresh('', { render: true });
       const center = await afterOneShot(page, CENTER);
       const ghost = await afterOneShot(page, GHOST);
       expect(ghost.state.hash).toBe('#/play');
@@ -1017,57 +1026,6 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
     }, 60_000);
   });
 
-  // -------------------------------------------------------------------------
-  describe('MODE-27: モードの表示名は「反復練習」で、セットの表示に「反復練習」の言葉が出ない', () => {
-    it('トップ画面のモードの選択肢に「反復練習」「センター維持」だけが出て、「ゴースト追従」と「パターン観察」は出ない', async () => {
-      const page = await openFresh();
-      await page.waitFor(`document.querySelector('#mode').options.length > 0`);
-      const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
-      expect(modes).toEqual([GHOST, CENTER]);
-      expect(modes.join(' ')).not.toContain('ゴースト追従');
-      expect(modes.join(' ')).not.toContain('パターン観察');
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    for (const mode of [CENTER, GHOST]) {
-      it(`回数 5 の${mode}のセット: HUD・短いリザルト・セットのまとめ`, async () => {
-        const w = byId('lstar');
-        const count = 5;
-        const page = await openFresh();
-        await configure(page, { input: 'パッド' });
-        await start(page, w, mode, count);
-        const hud = () => page.evaluate<string>(`document.querySelector('[data-screen="play"] .hud').innerText`);
-        const texts: string[] = [];
-        for (let round = 1; round <= count; round += 1) {
-          const h = await hud();
-          expect(h, h).toContain(`${round} / ${count}`);
-          texts.push(`${round} 回目の HUD: ${h}`);
-          await padFireAll(page);
-          if (round === count) break;
-          await page.waitFor('window.__interlude()', 5000);
-          texts.push(`${round} 回目の短いリザルト: ${await page.evaluate<string>(`document.getElementById('interlude').innerText`)}`);
-          // Space で次の回へ進む（3 秒を待たない）。
-          for (const type of ['keyDown', 'keyUp']) {
-            await page.send('Input.dispatchKeyEvent', { type, key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32, ...(type === 'keyDown' ? { text: ' ' } : {}) });
-          }
-          await waitStarted(page, w, 10_000);
-        }
-        await page.waitFor(`location.hash === '#/set-result' && window.__vis('[data-screen="set-result"]')`, 15_000);
-        await page.waitFor(`document.getElementById('set-rounds').children.length === ${count}`, 5000);
-        const summary = await page.evaluate<string>(`document.querySelector('[data-screen="set-result"]').innerText`);
-        expect(texts.length).toBe(2 * count - 1);
-        for (const t of texts) expect(t, t).not.toContain('反復練習');
-        // セットのまとめ: 「反復練習」はモードの名前（武器名と並ぶ練習の見出し）としてだけ出る。センター維持のセットでは出ない。
-        const lines = summary.split('\n').filter((l) => l.includes('反復練習'));
-        if (mode === CENTER) expect(lines, summary).toEqual([]);
-        else {
-          expect(lines.length, summary).toBeLessThanOrEqual(1);
-          for (const l of lines) expect(l, 'モードの名前でない「反復練習」').toContain(w.name);
-        }
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      }, 90_000);
-    }
-  });
 
   // -------------------------------------------------------------------------
   it('UI-62: 1280×800 の画面で反復練習を始めると、パネルの一辺が短い辺の 40% 以上で、HUD・画面の操作・パッドのガイドと重ならず、次の発の点がほかの点より大きく、4 つの凡例がある', async () => {
@@ -1091,7 +1049,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
     for (const label of ['理想', '自分', '次の発', '今の照準']) expect(p0.legend, p0.legend.join(',')).toContain(label);
     // 何発か撃って自分の点が出たあと、次の発の点はそのどれより大きい（今の照準の印より目立つ大きさ）。
     await padFire(page, 4);
-    await page.frames(3);
+    await settle(page, 3);
     const p = await panel(page);
     expect(p.hash).toBe('#/play');
     expect(p.shotSizes.length, '自分の点').toBeGreaterThanOrEqual(4);
@@ -1128,7 +1086,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
     const cx = Math.round(2 / DEG_PER_COUNT);
     const cy = Math.round(1 / DEG_PER_COUNT);
     await mouse.move(cx, -cy);
-    await page.frames(4);
+    await settle(page, 4);
     const p = await panel(page);
     expect(await ammo(page), '照準を動かしただけで撃った').toBe(w.magSize);
     const yaw = cx * DEG_PER_COUNT;

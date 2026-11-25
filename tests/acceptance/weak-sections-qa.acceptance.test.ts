@@ -16,6 +16,7 @@
 // - 履歴の画面の図: 「1〜5」の形の文字を棒の範囲の札とみなし、札の上にある、塗りのある要素を棒とみなす。色は SVG なら fill、HTML なら背景色。
 // - 補正のパネル: 理想の線の各区間（k−1 発目 → k 発目）を、その区間を結ぶ線（polyline・line・path）のうち、いちばん後に描かれるものの stroke の色で読む。
 //   パネルの座標は、理想の線（[data-series="ideal"]）の点を SPEC の理想の補正軌道に「原点 + s × (ヨー, −ピッチ)」で合わせて求める。
+// 画面は render=off・clock=manual で開き、練習の時間（撃ち切る・撃たない 2 秒）はページの時計を進めて決める。
 // サーバーと DevTools のポートは OS に選ばせる。待ちは sleep にせず、画面の状態の条件で待つ。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
@@ -24,7 +25,7 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
@@ -32,6 +33,10 @@ const BASE = '/apex-training/';
 const CX = 640;
 const CY = 400;
 const chromium = findChromium();
+/** 3D は描画せず（render=off）、ページの時計はテストから進める（clock=manual）。 */
+const APP = { render: false, manualClock: true };
+/** ページの時計（clock=manual）を 60Hz の描画 frames 回分進める。実時間では待たない。 */
+const settle = (page: Page, frames: number) => page.advanceClock(frames / 60);
 
 const CENTER = 'センター維持';
 const GHOST = '反復練習';
@@ -256,13 +261,13 @@ async function chooseHistory(page: Page, caption: string, label: string) {
     s.value = o.value; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true }));
     return true; })()`);
   if (!ok) throw new Error(`履歴の画面の ${caption} に ${label} の選択肢がない`);
-  await page.frames(2);
+  await settle(page, 2);
 }
 
 async function openHistory(page: Page, weapon: string, mode: string, input = 'マウス') {
   await page.evaluate(`location.hash = '#/history'`);
   await page.waitFor(`window.__vis('[data-screen="history"]') && document.querySelectorAll('[data-screen="history"] select option').length > 0`);
-  await page.frames(2);
+  await settle(page, 2);
   await chooseHistory(page, '武器', weapon);
   await chooseHistory(page, 'モード', mode);
   await chooseHistory(page, '入力方式', input);
@@ -278,20 +283,20 @@ async function startPractice(page: Page, weapon: string, mode: string) {
   await choose(page, '#mode', mode);
   await page.clickSelector('[data-screen="top"] a[href="#/play"]');
   await page.waitFor(`location.hash === '#/play' && window.__vis('[data-screen="play"]') && window.__ammo() > 0`);
-  await page.frames(5);
+  await settle(page, 5);
 }
 
-/** 練習を 1 回: 選んで始め、ポインターロックを掛け、照準を動かさずにマウスの左ボタンで撃ち切る。リザルトの文字を返す。 */
+/** 練習を 1 回: 選んで始め、ポインターロックを掛け、照準を動かさずにマウスの左ボタンで撃ち切る（ページの時計を進める）。リザルトの文字を返す。 */
 async function practice(page: Page, weapon: string, mode: string): Promise<string> {
   await startPractice(page, weapon, mode);
   await waitUntil(() => page.lockPointerBy(() => page.click(CX, CY), 1_000), 'クリックでポインターロックが掛かる', { timeout: 15_000 });
-  await page.frames(2);
+  await settle(page, 2);
   await mouseButton(page, 'mousePressed');
-  await page.waitFor(`location.hash === '#/result'`, 20_000);
+  await page.advanceClockUntil(`location.hash === '#/result'`, { limit: 20 });
   await mouseButton(page, 'mouseReleased');
   await page.evaluate('document.exitPointerLock()');
   await page.waitFor(`window.__vis('[data-screen="result"]') && document.querySelector('[data-screen="result"]').innerText.trim().length > 0`);
-  await page.frames(3);
+  await settle(page, 3);
   return page.evaluate<string>(`document.querySelector('[data-screen="result"]').innerText`);
 }
 
@@ -368,12 +373,12 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
   let opened: Page[] = [];
   const exceptions = (page: Page) => page.errors.filter((e) => e.startsWith('exception:'));
 
-  /** 新しいタブで localStorage を空にし（seed を入れ）、読み込み直したトップ画面を開く。 */
+  /** 新しいタブで localStorage を空にし（seed を入れ）、読み込み直したトップ画面を開く（render=off・clock=manual）。 */
   async function openFresh(seed: Record<string, string> = {}): Promise<Page> {
     const page = await browser!.newPage();
     opened.push(page);
     await page.addInitScript(PAGE_INIT);
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', APP));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]); window.__beforeReload = true; })()`);
     await page.send('Page.reload', { ignoreCache: false });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="top"]')`, 15_000);
@@ -623,7 +628,7 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
 
     async function readPanel(page: Page): Promise<PanelLines> {
       await page.waitFor(`window.__vis('.correction-panel')`);
-      await page.frames(3);
+      await settle(page, 3);
       const p = await page.evaluate<PanelLines | null>('window.__panelLines()');
       if (!p) throw new Error('補正のパネルの svg がない');
       return p;
@@ -634,7 +639,7 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
       await page.waitFor(`window.__vis('[data-screen="settings"]') && !!document.getElementById('setting-correction-panel')`);
       if ((await page.evaluate<boolean>(`document.getElementById('setting-correction-panel').checked`)) !== on) await page.clickSelector('#setting-correction-panel');
       await page.waitFor(`document.getElementById('setting-correction-panel').checked === ${on}`);
-      await page.frames(2);
+      await settle(page, 2);
     }
 
     const expectWeakSegments = (colors: (string | null)[]) => {
