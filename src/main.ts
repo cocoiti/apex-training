@@ -19,6 +19,7 @@ import { applyCrosshair } from './ui/crosshair';
 import { renderHud, type HudElements } from './ui/hud';
 import { fillModeSelect } from './ui/mode-choices';
 import { PracticeFlow } from './ui/practice-flow';
+import { resultSummaryText } from './ui/result-summary';
 import { SCREEN_HASHES, watchScreen } from './ui/router';
 import { showScreen, showStorageNotice } from './ui/shell';
 import { appStorage } from './ui/storage';
@@ -146,8 +147,7 @@ async function start(): Promise<void> {
 
   const finish = (result: PracticeResult) => {
     running = undefined;
-    const hits = result.shots.filter((s) => s.position !== null).length;
-    summary.textContent = `${result.weapon.name} / ${result.mode.name} — ${result.shots.length} 発（当たり ${hits} 発）`;
+    summary.textContent = resultSummaryText(result);
     flow.finish();
     location.hash = SCREEN_HASHES.result;
   };
