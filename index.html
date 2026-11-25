@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>リコイル練習（非公式）</title>
-    <script type="module" crossorigin src="/apex-training/assets/index-DGfqOdOX.js"></script>
-    <link rel="stylesheet" crossorigin href="/apex-training/assets/index-h5KWMxS7.css">
+    <script type="module" crossorigin src="/apex-training/assets/index-C0FtWTzk.js"></script>
+    <link rel="stylesheet" crossorigin href="/apex-training/assets/index-BG5bPZyA.css">
   </head>
   <body>
     <!-- 3D のキャンバスを画面いっぱいに置き、その上に各画面の HTML を重ねる（docs/spec/overview.md「公開」）。 -->
@@ -46,7 +46,14 @@
                   <option value="circle">輪</option>
                 </select>
               </label>
-              <label class="setting">ゴースト表示 <input id="setting-ghost" type="checkbox" /></label>
+              <label class="setting">ゴースト表示（反復練習の 3D） <input id="setting-ghost" type="checkbox" /></label>
+              <label class="setting">補正のパネル（センター維持） <input id="setting-correction-panel" type="checkbox" /></label>
+              <label class="setting">パターンの表示（補正のパネル）
+                <select id="setting-pattern-display">
+                  <option value="detailed">詳細</option>
+                  <option value="simple">簡易</option>
+                </select>
+              </label>
               <label class="setting">音 <input id="setting-sound" type="checkbox" /></label>
             </fieldset>
             <fieldset>
@@ -190,7 +197,7 @@
           <p id="status">読み込み中</p>
           <p id="pointer-lock-notice" class="pointer-lock-notice" role="status" hidden></p>
         </div>
-        <!-- パッド向けのスティック型のガイド（docs/spec/pad.md「練習中のガイド」）。ゴースト追従でパッドのあいだだけ出す。 -->
+        <!-- パッド向けのスティック型のガイド（docs/spec/pad.md「練習中のガイド」）。反復練習でパッドのあいだだけ出す。 -->
         <div class="pad-guide" hidden>
           <div class="pad-guide-stick">
             <div class="pad-guide-dot pad-guide-ideal" data-guide="ideal"></div>
@@ -198,6 +205,25 @@
           </div>
           <p class="pad-guide-name"></p>
         </div>
+        <!-- 補正のパネル（docs/spec/screens.md「補正のパネル」）。反復練習では必ず、センター維持では設定が ON のとき、練習中に右端に出す。 -->
+        <figure class="correction-panel" hidden>
+          <svg class="correction-panel-plot" viewBox="-1 -1 2 2" role="img" aria-label="理想の補正軌道と自分の軌道">
+            <line class="plot-axis" data-panel="axis-x" x1="-1" y1="0" x2="1" y2="0" />
+            <line class="plot-axis" data-panel="axis-y" x1="0" y1="-1" x2="0" y2="1" />
+            <polyline class="plot-series plot-ideal" data-series="ideal" points="" />
+            <polyline class="plot-series plot-weak" data-series="ideal-weak" points="" visibility="hidden" />
+            <polyline class="plot-series plot-aim" data-series="aim" points="" />
+            <g class="plot-aim correction-panel-dots" data-series="aim-shots"></g>
+            <line class="correction-panel-heading" data-panel="heading" x1="0" y1="0" x2="0" y2="0" />
+            <circle class="correction-panel-current" data-panel="current" cx="0" cy="0" r="0" />
+            <path class="correction-panel-aim" data-panel="aim" d="" />
+          </svg>
+          <p class="plot-legends">
+            <span class="plot-legend plot-ideal" data-legend="ideal">理想</span><span class="plot-legend plot-weak correction-panel-legend-weak" hidden>苦手な区間</span><span class="plot-legend plot-aim">自分</span><span class="plot-legend correction-panel-legend-current">次の発</span><span class="plot-legend correction-panel-legend-aim">今の照準</span>
+          </p>
+          <!-- 区切りの言葉の一覧。パターンの表示が簡易のときだけ出す。 -->
+          <ol class="correction-panel-segments" hidden></ol>
+        </figure>
         <p id="paused" class="paused" role="status" hidden></p>
         <!-- 連続練習の途中の回の短いリザルト（docs/spec/modes.md「連続練習（セット）」）。 -->
         <div id="interlude" class="interlude" role="status" hidden>
@@ -220,14 +246,16 @@
         <div class="panel panel-result">
           <h2>リザルト</h2>
           <p id="result-summary"></p>
-          <!-- 指標・コメント・自己ベストは採点するモードだけ表示する（docs/spec/scoring.md「リザルト画面」）。 -->
+          <!-- 指標・コメント・自己ベスト（docs/spec/scoring.md「リザルト画面」）。 -->
           <div id="result-score" class="result-score">
             <p id="result-best" class="result-best" role="status"></p>
             <dl id="result-metrics" class="result-metrics"></dl>
             <p id="result-comments" class="result-comments"></p>
+            <!-- 苦手な区間（docs/spec/scoring.md「苦手な区間」）。「なし」のときは出さない。 -->
+            <p id="result-weak" class="result-weak" hidden></p>
           </div>
           <div id="result-plots" class="result-plots"></div>
-          <!-- 右スティックの入力推移のグラフは練習の入力方式がパッドで採点するモードのときだけ表示する（docs/spec/pad.md）。 -->
+          <!-- 右スティックの入力推移のグラフは練習の入力方式がパッドのときだけ表示する（docs/spec/pad.md）。 -->
           <section id="result-pad" class="result-pad" hidden></section>
           <nav class="menu menu-row">
             <a href="#/play" id="retry">もう一度</a> <span class="controls-hint"><kbd>R</kbd>・<kbd>Space</kbd> / <kbd>A / ×</kbd></span>
@@ -256,24 +284,39 @@
           <h2>履歴</h2>
           <!-- 書き出しや外部へ送る操作は置かない（docs/spec/screens.md「履歴の画面」、UI-30）。 -->
           <p id="history-unavailable" class="history-unavailable" role="status" hidden></p>
-          <div class="history-choices">
-            <label class="choice">武器 <select id="history-weapon"></select></label>
-            <label class="choice">モード <select id="history-mode"></select></label>
-            <label class="choice">入力方式
-              <select id="history-input">
-                <option value="mouse">マウス</option>
-                <option value="pad">パッド</option>
-              </select>
-            </label>
+          <div id="history-body">
+            <div class="history-choices">
+              <label class="choice">武器 <select id="history-weapon"></select></label>
+              <label class="choice">モード <select id="history-mode"></select></label>
+              <label class="choice">入力方式
+                <select id="history-input">
+                  <option value="mouse">マウス</option>
+                  <option value="pad">パッド</option>
+                </select>
+              </label>
+            </div>
+            <dl id="history-averages" class="result-metrics"></dl>
+            <div id="history-plot" class="result-plots"></div>
+            <!-- 苦手な区間と発の区間ごとのズレの図（docs/spec/screens.md「履歴の画面」）。 -->
+            <div id="history-weak" class="history-weak"></div>
+            <p id="history-empty" class="history-empty" hidden></p>
+            <div id="history-list" class="history-list"></div>
+            <nav class="menu menu-row">
+              <button id="history-clear" type="button">この履歴を消す</button>
+              <a href="#/">トップへ戻る</a>
+            </nav>
           </div>
-          <dl id="history-averages" class="result-metrics"></dl>
-          <div id="history-plot" class="result-plots"></div>
-          <p id="history-empty" class="history-empty" hidden></p>
-          <div id="history-list" class="history-list"></div>
-          <nav class="menu menu-row">
-            <button id="history-clear" type="button">この履歴を消す</button>
-            <a href="#/">トップへ戻る</a>
-          </nav>
+          <!-- 消してよいかの確認。ブラウザの確認のダイアログは使わず、画面の中に出す（docs/spec/screens.md「履歴の画面」）。
+               出している間は #history-body を操作できなくする。パッドでは「取りやめる」にフォーカスを置き、B / ○ で取りやめる。 -->
+          <div id="history-confirm" class="history-confirm" role="alertdialog" aria-modal="true" aria-labelledby="history-confirm-message" hidden>
+            <div class="history-confirm-box">
+              <p id="history-confirm-message"></p>
+              <div class="menu menu-row">
+                <button id="history-confirm-ok" type="button">消す</button>
+                <button id="history-confirm-cancel" type="button" data-pad-default data-pad-cancel>取りやめる</button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
       <footer class="footer">

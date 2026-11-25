@@ -3,10 +3,11 @@
   "name": "L-STAR",
   "category": "LMG",
   "version": "S31-Cipher",
-  "source": "自分で撮影した射撃訓練場の動画からの計測（2026-11-25 撮影。アタッチメントなし・アイアンサイトで ADS・パッドで射撃中の照準操作なし・FOV 104。4 回の射撃の平均。計測の記録は docs/measurements/lstar.json）",
+  "source": "自分で撮影した射撃訓練場の動画からの計測（2026-11-25 撮影。アタッチメントはすべて紫（レベル 3）・アイアンサイトで ADS・パッドで射撃中の照準操作なし・FOV 104。4 回の射撃の平均。計測の記録は docs/measurements/lstar.json）",
   "rpm": 600,
   "magSize": 28,
   "randomness": 0.22,
+  "measured": true,
   "pattern": [
     { "dx": 0, "dy": 0 },
     { "dx": -0.513, "dy": 1.224 },
