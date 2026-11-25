@@ -22,7 +22,8 @@ function isTrainingMode(value: unknown): value is TrainingMode {
     CATEGORIES.includes(mode.category as ModeCategory) &&
     typeof mode.order === 'number' &&
     Number.isFinite(mode.order) &&
-    ['setup', 'step', 'result', 'teardown'].every((key) => typeof mode[key] === 'function')
+    ['setup', 'step', 'result', 'teardown'].every((key) => typeof mode[key] === 'function') &&
+    (mode.ghost === undefined || typeof mode.ghost === 'function')
   );
 }
 
