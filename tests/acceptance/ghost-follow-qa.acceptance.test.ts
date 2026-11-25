@@ -58,7 +58,7 @@ const byName = (name: string) => {
   if (!w) throw new Error(`武器がない: ${name}`);
   return w;
 };
-const MVP_WEAPONS = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR'];
+const MVP_WEAPONS = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR', 'C.A.R. SMG'];
 
 const RANGE = JSON.parse(readFileSync(join(ROOT, 'src/data/maps/range.json'), 'utf8')) as {
   spawn: { position: [number, number, number]; yaw: number; pitch: number };
@@ -782,8 +782,8 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-1: MVP の 6 つの武器それぞれで、3 つのモードを最後まで練習でき、リザルト画面が表示される', () => {
-    it('トップ画面の選択肢に 6 つの武器と 3 つのモードがある', async () => {
+  describe('MODE-1: MVP の 7 つの武器それぞれで、3 つのモードを最後まで練習でき、リザルト画面が表示される', () => {
+    it('トップ画面の選択肢に 7 つの武器と 3 つのモードがある', async () => {
       const page = await newPage();
       await page.goto(`${main}${BASE}#/`);
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);

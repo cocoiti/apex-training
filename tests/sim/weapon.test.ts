@@ -112,21 +112,29 @@ describe('武器の一覧', () => {
     expect(list.rejected.map((r) => [r.file, r.errors[0]?.path])).toEqual([['b.json', 'id']]);
   });
 
-  it('WPN-3: src/data/weapons/ の JSON から MVP の 6 つの武器が一覧に出て、L-STAR 以外の 5 つは source に仮データであることが書かれている', () => {
+  it('WPN-3: src/data/weapons/ の JSON から MVP の 7 つの武器が一覧に出て、L-STAR と C.A.R. SMG 以外の 5 つは source に仮データであることが書かれている', () => {
     const list = buildWeaponList(readWeaponFiles());
     expect(list.rejected).toEqual([]);
     expect(list.weapons.map((w) => w.name).sort()).toEqual(
-      ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR'].sort(),
+      ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR', 'C.A.R. SMG'].sort(),
     );
-    for (const weapon of list.weapons.filter((w) => w.name !== 'L-STAR')) expect(weapon.source).toMatch(/仮データ/);
+    for (const weapon of list.weapons.filter((w) => !['lstar', 'car'].includes(w.id))) expect(weapon.source).toMatch(/仮データ/);
   });
 
-  it('WPN-14: L-STAR の source は自分で撮影した射撃訓練場の動画からの計測で、仮データの旨はなく、version にシーズンがある', () => {
-    const lstar = buildWeaponList(readWeaponFiles()).weapons.find((w) => w.id === 'lstar')!;
-    expect(lstar.source).toMatch(/自分で撮影した射撃訓練場の動画からの計測/);
-    expect(lstar.source).not.toMatch(/仮/);
-    expect(lstar.version).toMatch(/^S\d+-\S+$/);
-    expect(lstar.pattern).toHaveLength(lstar.magSize);
+  it.each(['lstar', 'car'])('WPN-14 / WPN-18: %s の source は自分で撮影した射撃訓練場の動画からの計測で、仮データの旨はなく、アタッチメントはすべて紫、version にシーズンがある', (id) => {
+    const weapon = buildWeaponList(readWeaponFiles()).weapons.find((w) => w.id === id)!;
+    expect(weapon.source).toMatch(/自分で撮影した射撃訓練場の動画からの計測/);
+    expect(weapon.source).not.toMatch(/仮/);
+    expect(weapon.source).toMatch(/アタッチメントはすべて紫（レベル 3/);
+    expect(weapon.source).not.toMatch(/アタッチメントなし/);
+    expect(weapon.version).toMatch(/^S\d+-\S+$/);
+    expect(weapon.pattern).toHaveLength(weapon.magSize);
+  });
+
+  it('WPN-20: C.A.R. SMG は category が SMG で magSize が 30', () => {
+    const car = buildWeaponList(readWeaponFiles()).weapons.find((w) => w.name === 'C.A.R. SMG')!;
+    expect(car.category).toBe('SMG');
+    expect(car.magSize).toBe(30);
   });
 });
 

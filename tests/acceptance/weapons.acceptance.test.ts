@@ -1,4 +1,4 @@
-// docs/spec/weapons.md の受け入れ条件（WPN-1 〜 WPN-5、WPN-8 〜 WPN-17）と modes.md の MODE-1 の受け入れテスト。
+// docs/spec/weapons.md の受け入れ条件（WPN-1 〜 WPN-5、WPN-8 〜 WPN-20）と modes.md の MODE-1 の受け入れテスト。
 // 公開された入口（公開関数・クラス、武器とマップの JSON、ビルドのコマンド）だけを使い、実装の内部には依存しない。
 // WPN-1・WPN-2・WPN-12 はリポジトリの写しに JSON を足してビルドし、写しの中で武器の一覧を読み込んで確かめる。
 import { spawnSync } from 'node:child_process';
@@ -210,7 +210,7 @@ describe.skipIf(NESTED)('WPN-1 / WPN-2 / WPN-12: 武器の JSON を足してビ�
 });
 
 // ---------------------------------------------------------------------------
-// WPN-3 / MODE-1: MVP の 6 つの武器
+// WPN-3 / WPN-20 / MODE-1: MVP の 7 つの武器
 // ---------------------------------------------------------------------------
 
 /** リポジトリの武器の JSON を、ファイルから取得したものとして既定の一覧で読み込む。 */
@@ -224,58 +224,85 @@ async function loadRepoWeapons(log: (m: string) => void = () => {}) {
   });
 }
 
-const MVP_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR'];
+const MVP_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR', 'C.A.R. SMG'];
+/** 計測した武器データの名前と、その計測の記録のファイル（weapons.md「計測した武器データ」）。 */
+const MEASURED = [
+  { name: 'L-STAR', record: 'docs/measurements/lstar.json' },
+  { name: 'C.A.R. SMG', record: 'docs/measurements/car.json' },
+] as const;
+const MEASURED_NAMES: readonly string[] = MEASURED.map((m) => m.name);
 
 describe('WPN-3: MVP の武器', () => {
-  it('武器の一覧に 6 つの武器が出て、L-STAR 以外の 5 つは source に仮データであることが書かれている', async () => {
+  it('武器の一覧に 7 つの武器が出て、L-STAR と C.A.R. SMG 以外の 5 つは source に仮データであることが書かれている', async () => {
     const logs: string[] = [];
     const weapons = await loadRepoWeapons((m) => logs.push(m));
     expect(logs).toEqual([]);
     const names = weapons.map((w) => w.name);
     for (const name of MVP_NAMES) expect(names, names.join(', ')).toContain(name);
-    for (const name of MVP_NAMES.filter((n) => n !== 'L-STAR')) {
+    for (const name of MVP_NAMES.filter((n) => !MEASURED_NAMES.includes(n))) {
       const w = weapons.find((x) => x.name === name)!;
       expect(w.source, `${name} の source`).toMatch(/仮/);
     }
   });
 });
 
+describe('WPN-20: C.A.R. SMG の種類と装弾数', () => {
+  it('category が SMG で、magSize が 30 である', async () => {
+    const w = (await loadRepoWeapons()).find((x) => x.name === 'C.A.R. SMG');
+    expect(w).toBeDefined();
+    expect(w!.category).toBe('SMG');
+    expect(w!.magSize).toBe(30);
+  });
+});
+
 // ---------------------------------------------------------------------------
-// WPN-14 〜 WPN-17: 計測した L-STAR
+// WPN-14 〜 WPN-19: 計測した武器データ（L-STAR・C.A.R. SMG）
 // ---------------------------------------------------------------------------
+
+interface MeasurementShot {
+  angles: { dx: number; dy: number }[];
+  imageShiftPx: { x: number; y: number }[];
+  /** 平均から外した射撃の理由。書かれていない射撃が平均に使った射撃。 */
+  excludedFromAverage?: string;
+}
 
 interface MeasurementRecord {
   weapon: string;
   version: string;
-  conditions: { fovSetting: number };
+  conditions: { fovSetting: number; attachments: string };
   video: { gameArea: { width: number; height: number } };
   conversion: { region: { x0: number; y0: number } };
   tolerance: { dx: number; dy: number };
-  shots: { angles: { dx: number; dy: number }[]; imageShiftPx: { x: number; y: number }[] }[];
+  shots: MeasurementShot[];
 }
 
-const MEASUREMENT = JSON.parse(readFileSync(join(ROOT, 'docs/measurements/lstar.json'), 'utf8')) as MeasurementRecord;
+function readRecord(path: string): { text: string; record: MeasurementRecord } {
+  const text = readFileSync(join(ROOT, path), 'utf8');
+  return { text, record: JSON.parse(text) as MeasurementRecord };
+}
 
-async function repoLstar(): Promise<WeaponData> {
-  const w = (await loadRepoWeapons()).find((x) => x.name === 'L-STAR');
-  if (!w) throw new Error('武器の一覧に L-STAR がない');
+async function repoWeapon(name: string): Promise<WeaponData> {
+  const w = (await loadRepoWeapons()).find((x) => x.name === name);
+  if (!w) throw new Error(`武器の一覧に ${name} がない`);
   return w;
 }
 
-describe('WPN-14: L-STAR は計測した武器データ', () => {
-  it('source に自分で撮影した射撃訓練場の動画からの計測と書かれ、仮データの旨はなく、version に撮影したシーズンが書かれている', async () => {
-    const w = await repoLstar();
+const usedShots = (record: MeasurementRecord) => record.shots.filter((s) => s.excludedFromAverage === undefined);
+
+describe.each(MEASURED)('計測した武器データ（$name）', ({ name, record: path }) => {
+  const { text, record } = readRecord(path);
+
+  it('WPN-14: source に自分で撮影した射撃訓練場の動画からの計測と書かれ、仮データの旨はなく、version に撮影したシーズンが書かれている', async () => {
+    const w = await repoWeapon(name);
     expect(w.source).toMatch(/自分で撮影した射撃訓練場の動画からの計測/);
     expect(w.source).not.toMatch(/仮/);
     // シーズンの書き方は他の武器と同じ（例: S31-Cipher）。計測の記録の撮影したシーズンと一致する。
     expect(w.version).toMatch(/^S\d+-\S+$/);
-    expect(w.version).toBe(MEASUREMENT.version);
+    expect(w.version).toBe(record.version);
   });
-});
 
-describe('WPN-15: L-STAR を randomness 0 で撃つ', () => {
-  it('照準を動かさずに magSize 発撃つと、i 発目は 1〜i 発目の pattern の合計の位置に当たり、magSize 発で止まる', async () => {
-    const w = { ...(await repoLstar()), randomness: 0 };
+  it('WPN-15: randomness 0 で照準を動かさずに magSize 発撃つと、i 発目は 1〜i 発目の pattern の合計の位置に当たり、magSize 発で止まる', async () => {
+    const w = { ...(await repoWeapon(name)), randomness: 0 };
     const { sim, gun } = play(w, [press(0)]);
     sim.advance((w.magSize * 60) / w.rpm + 2);
     expect(gun.shots).toHaveLength(w.magSize);
@@ -286,42 +313,75 @@ describe('WPN-15: L-STAR を randomness 0 で撃つ', () => {
       expect(s.deviation!.pitch).toBeCloseTo(expected[i]!.pitch, 6);
     });
   });
-});
 
-describe('WPN-16: 計測の記録と L-STAR の pattern', () => {
-  it('計測の記録の射撃のうち 1 本は、全発で i 発目の角度と pattern の 1〜i 発目の合計との差が許容差に収まる', async () => {
-    const w = await repoLstar();
-    expect(MEASUREMENT.weapon).toBe(w.id);
+  it('WPN-16: 平均に使った射撃のうち 1 本は、全発で i 発目の角度と pattern の 1〜i 発目の合計との差が許容差に収まる', async () => {
+    const w = await repoWeapon(name);
+    expect(record.weapon).toBe(w.id);
+    expect(record.tolerance.dx).toBeGreaterThan(0);
+    expect(record.tolerance.dy).toBeGreaterThan(0);
     const expected = cumulative(w.pattern.slice(0, w.magSize));
-    const within = MEASUREMENT.shots.filter(
+    const within = usedShots(record).filter(
       (shot) =>
         shot.angles.length === w.magSize &&
         shot.angles.every(
           (a, i) =>
-            Math.abs(a.dx - expected[i]!.yaw) <= MEASUREMENT.tolerance.dx + 1e-9 &&
-            Math.abs(a.dy - expected[i]!.pitch) <= MEASUREMENT.tolerance.dy + 1e-9,
+            Math.abs(a.dx - expected[i]!.yaw) <= record.tolerance.dx + 1e-9 &&
+            Math.abs(a.dy - expected[i]!.pitch) <= record.tolerance.dy + 1e-9,
         ),
     );
     expect(within.length).toBeGreaterThanOrEqual(1);
   });
 
   it('記録の角度は、画面の動き（ピクセル）を FOV の値の Hor+ の換算（4:3 の水平視野角）で角度にしたもの', () => {
-    const { width, height } = MEASUREMENT.video.gameArea;
-    const { x0, y0 } = MEASUREMENT.conversion.region;
+    const { width, height } = record.video.gameArea;
+    const { x0, y0 } = record.conversion.region;
     const rad = (d: number) => (d * Math.PI) / 180;
     const deg = (r: number) => (r * 180) / Math.PI;
-    const halfTan = Math.tan(rad(MEASUREMENT.conditions.fovSetting / 2));
+    const halfTan = Math.tan(rad(record.conditions.fovSetting / 2));
     const tanH = halfTan * (width / height) / (4 / 3); // tan(水平視野角 / 2)
     const tanV = halfTan / (4 / 3); // tan(縦の視野角 / 2)
     const yaw = (x: number) => deg(Math.atan((x / (width / 2)) * tanH));
     const pitch = (y: number) => deg(Math.atan((y / (height / 2)) * tanV));
-    for (const shot of MEASUREMENT.shots) {
+    for (const shot of record.shots) {
       expect(shot.imageShiftPx).toHaveLength(shot.angles.length);
       shot.angles.forEach((a, i) => {
         const px = shot.imageShiftPx[i]!;
         expect(Math.abs(a.dx - (yaw(x0) - yaw(x0 + px.x)))).toBeLessThanOrEqual(0.001);
         expect(Math.abs(a.dy - (pitch(y0) - pitch(y0 - px.y)))).toBeLessThanOrEqual(0.001);
       });
+    }
+  });
+
+  it('WPN-18: source と計測の記録の両方に、計測時のアタッチメントが「すべて紫（レベル 3）」と書かれ、「アタッチメントなし」とは書かれていない', async () => {
+    const w = await repoWeapon(name);
+    expect(w.source).toMatch(/アタッチメントはすべて紫（レベル 3/);
+    expect(record.conditions.attachments).toMatch(/^すべて紫（レベル 3/);
+    for (const s of [w.source, text]) {
+      expect(s).not.toMatch(/アタッチメントなし/);
+      expect(s).not.toMatch(/"attachments": "なし"/);
+    }
+  });
+
+  it('WPN-19: 平均から外していない射撃だけで各発の角度の増分の平均を計算し直すと pattern と 0.005 度以内で一致し、外した射撃には理由が書かれている', async () => {
+    const w = await repoWeapon(name);
+    for (const shot of record.shots) {
+      if (shot.excludedFromAverage !== undefined) expect(shot.excludedFromAverage.trim(), '外した理由').not.toBe('');
+    }
+    const used = usedShots(record);
+    expect(used.length).toBeGreaterThanOrEqual(1);
+    for (const shot of used) expect(shot.angles).toHaveLength(w.magSize);
+    // i 発目の角度は 1〜(i-1) 発目の跳ねの合計なので、角度の増分 angles[i] - angles[i-1]（1 発目は angles[0]）が pattern[i] にあたる。
+    for (let i = 0; i < w.magSize; i += 1) {
+      const inc = used.map((s) => ({
+        dx: s.angles[i]!.dx - (i === 0 ? 0 : s.angles[i - 1]!.dx),
+        dy: s.angles[i]!.dy - (i === 0 ? 0 : s.angles[i - 1]!.dy),
+      }));
+      const mean = {
+        dx: inc.reduce((a, v) => a + v.dx, 0) / inc.length,
+        dy: inc.reduce((a, v) => a + v.dy, 0) / inc.length,
+      };
+      expect(Math.abs(mean.dx - w.pattern[i]!.dx), `${i + 1} 発目の水平`).toBeLessThanOrEqual(0.005);
+      expect(Math.abs(mean.dy - w.pattern[i]!.dy), `${i + 1} 発目の垂直`).toBeLessThanOrEqual(0.005);
     }
   });
 });
@@ -342,20 +402,20 @@ describe('WPN-17: 動画と画像をリポジトリに入れない', () => {
   });
 });
 
-describe('MODE-1: MVP の 6 つの武器（weapons.md）', () => {
-  it('modes.md が weapons.md の MVP の 6 つの武器を指し、weapons.md の MVP の武器が 6 つで武器の一覧と一致する', async () => {
+describe('MODE-1: MVP の 7 つの武器（weapons.md）', () => {
+  it('modes.md が weapons.md の MVP の 7 つの武器を指し、weapons.md の MVP の武器が 7 つで武器の一覧と一致する', async () => {
     const modes = readFileSync(join(ROOT, 'docs/spec/modes.md'), 'utf8');
     const weaponsMd = readFileSync(join(ROOT, 'docs/spec/weapons.md'), 'utf8');
-    expect(modes).toMatch(/\*\*MODE-1\*\*: MVP の 6 つの武器（\[weapons\.md\]\(weapons\.md\)）/);
-    expect(modes).not.toMatch(/5 つの MVP の武器/);
-    const mvpLine = weaponsMd.split('\n').find((l) => l.includes('の 6 つ。'));
+    expect(modes).toMatch(/\*\*MODE-1\*\*: MVP の 7 つの武器（\[weapons\.md\]\(weapons\.md\)）/);
+    expect(modes).not.toMatch(/MVP の 6 つの武器/);
+    const mvpLine = weaponsMd.split('\n').find((l) => l.includes('の 7 つ。'));
     expect(mvpLine).toBeDefined();
     for (const name of MVP_NAMES) expect(mvpLine).toContain(name);
     const weapons = await loadRepoWeapons();
-    expect(weapons).toHaveLength(6);
+    expect(weapons).toHaveLength(7);
   });
 
-  it.todo('MVP の 6 つの武器それぞれでパターン観察・ゴースト追従・センター維持を最後まで練習でき、リザルト画面が表示される（練習モードの Issue で満たす）');
+  it.todo('MVP の 7 つの武器それぞれでパターン観察・ゴースト追従・センター維持を最後まで練習でき、リザルト画面が表示される（練習モードの Issue で満たす）');
 });
 
 // ---------------------------------------------------------------------------
@@ -487,7 +547,7 @@ describe('WPN-11: 理想の補正軌道', () => {
 describe('WPN-13: トップ画面の武器の選択肢', () => {
   it('トップ画面を開いたとき、武器の一覧のすべての武器が category ごとに分かれて選択肢に出る', async () => {
     const weapons = await loadRepoWeapons();
-    expect(weapons).toHaveLength(6);
+    expect(weapons).toHaveLength(7);
     const { select, element } = createFakeSelect();
     fillWeaponSelect(select, weapons);
     const groups = describeSelect(element);
