@@ -7,7 +7,7 @@ import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { browserTestFiles, listTestFiles, usesChromium } from '../../vite.config';
 import { listenOnFreePort, originOf, portOf } from '../helpers/server';
-import { findFixedPorts, findFixedSleeps } from '../helpers/test-code';
+import { codeOnly, findFixedPorts, findFixedSleeps } from '../helpers/test-code';
 import { waitUntil } from '../helpers/wait';
 
 const ROOT = resolve(__dirname, '../..');
@@ -82,8 +82,9 @@ describe('ARC-21: ブラウザを使うテストとそれ以外を分けて流�
     const browser = browserTestFiles(ROOT);
     expect(browser.length).toBeGreaterThan(0);
     for (const f of all.filter((x) => x !== SELF)) {
-      const source = readFileSync(join(ROOT, f), 'utf8');
-      expect(browser.includes(f), f).toBe(/findChromium|launchBrowser/.test(source));
+      // コメントや見本の表の中の名前ではなく、Chromium を探す・起動する関数を実際に呼んでいるか。
+      const source = codeOnly(readFileSync(join(ROOT, f), 'utf8'));
+      expect(browser.includes(f), f).toBe(/\b(?:findChromium|launchBrowser)\s*\(/.test(source));
     }
   });
 
@@ -147,6 +148,16 @@ describe('ARC-22: ブラウザを使うテストは決まった時間の sleep �
     "await waitUntil(() => ready, '準備ができる');",
   ])('条件を確かめて待つ書き方は見つけない: %s', (line) => {
     expect(findFixedSleeps('x.ts', line)).toEqual([]);
+  });
+
+  it('コメントと it.each の見本の表に書いた書き方は、決まったポートや sleep と見なさない', () => {
+    const source = [
+      '// server.listen(3100) のような書き方を探す',
+      "it.each(['await sleep(1000);', 'const PORT = 3100;'])('見本: %s', () => {});",
+      'server.listen(3109);',
+    ].join('\n');
+    expect(findFixedPorts('x.ts', source)).toMatchObject([{ line: 3 }]);
+    expect(findFixedSleeps('x.ts', source)).toEqual([]);
   });
 
   it('waitUntil は条件が真になったらその値を返し、上限を過ぎたら何を待っていたかを示して失敗する', async () => {

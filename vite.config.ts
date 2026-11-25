@@ -47,6 +47,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // git やビルドを子のプロセスで動かすテストは、マシンが重いと既定の 5 秒を超える。条件を待つ上限とは別に、
+    // テスト 1 件の上限を伸ばして、負荷の中で 3 回続けて流しても落ちないようにする（docs/spec/architecture.md ARC-20）。
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
     // テストは 2 つの組に分ける（docs/spec/architecture.md「テストの実行」）。npm test は両方を流す。
     // unit（ブラウザを使わない）はファイル単位で並列に、browser（Chromium を使う）は 1 ファイルずつ流す。
     projects: [

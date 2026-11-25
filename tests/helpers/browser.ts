@@ -134,15 +134,19 @@ export class Page {
   /**
    * ページが n 回描画される（requestAnimationFrame の呼び出しが n 回進む）まで待つ。
    * 見た目を変えたあとに画面写しを撮る前や、止まっている間に描画が進んでも変わらないことを確かめるときに使う。
+   * 待ちの条件は描画が進み続けていること。マシンが重いと描画の間隔は伸びるので、n 回全体には上限を置かず、
+   * 1 回の描画が stall ms 来ない（描画が止まった）ときに、何回目で止まったかを示して失敗する（ARC-20）。
    */
-  async frames(n = 2, timeout = 10_000): Promise<void> {
-    const done = await this.evaluate<boolean>(`new Promise((resolve) => {
-      let left = ${n};
-      const timer = setTimeout(() => resolve(false), ${timeout});
-      const next = () => { left -= 1; if (left <= 0) { clearTimeout(timer); resolve(true); } else requestAnimationFrame(next); };
+  async frames(n = 2, stall = 10_000): Promise<void> {
+    const drawn = await this.evaluate<number>(`new Promise((resolve) => {
+      let count = 0;
+      let timer;
+      const arm = () => { clearTimeout(timer); timer = setTimeout(() => resolve(count), ${stall}); };
+      const next = () => { count += 1; if (count >= ${n}) { clearTimeout(timer); resolve(count); } else { arm(); requestAnimationFrame(next); } };
+      arm();
       requestAnimationFrame(next);
     })`);
-    if (!done) throw new Error(`${timeout} ms 待っても ${n} 回描画されない`);
+    if (drawn < n) throw new Error(`${n} 回の描画を待つ途中、${drawn} 回目のあと ${stall} ms 描画が進まない`);
   }
 
   /** 画面写し（PNG）。 */
@@ -230,6 +234,10 @@ export async function launchBrowser(executable: string): Promise<Browser> {
       '--use-angle=swiftshader',
       '--enable-unsafe-swiftshader',
       '--window-size=1280,800',
+      // 重いマシンでも描画やタイマーを間引かせない（画面が隠れている・裏にあると見なされて止まらないように）。
+      '--disable-background-timer-throttling',
+      '--disable-renderer-backgrounding',
+      '--disable-backgrounding-occluded-windows',
       'about:blank',
     ],
     { stdio: 'ignore' },

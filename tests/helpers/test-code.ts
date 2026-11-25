@@ -1,5 +1,7 @@
 // テストのコードを調べ、決まったポート番号での待ち受け（ARC-18）と、ブラウザを使うテストの固定の時間の sleep（ARC-22）を探す
 // （docs/spec/architecture.md「テストの実行」）。コードの文字列（ページで評価するスクリプトも含む）を行ごとに見る。
+// コメントと it.each などの見本の表（.each(...) の引数）は調べない。そこに書いた番号や sleep の書き方は、待ち受けや待ちではない。
+import ts from 'typescript';
 
 export interface TestCodeViolation {
   file: string;
@@ -35,11 +37,39 @@ const FIXED_SLEEP_PATTERNS: [RegExp, string][] = [
   [/['"](?:node:)?timers\/promises['"]/, 'timers/promises（決まった時間を待つ setTimeout）を使っている'],
 ];
 
+/**
+ * source のコメントと .each(...) の引数を空白に置き換えたもの（改行は残すので行番号は変わらない）。
+ * 調べ方の見本や説明に書いた書き方を、実際のコードと取り違えないようにする。
+ */
+export function codeOnly(source: string): string {
+  const ranges: [number, number][] = [];
+  const sf = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const visit = (node: ts.Node) => {
+    for (const r of [...(ts.getLeadingCommentRanges(source, node.getFullStart()) ?? []), ...(ts.getTrailingCommentRanges(source, node.getEnd()) ?? [])]) {
+      ranges.push([r.pos, r.end]);
+    }
+    if (ts.isCallExpression(node)) {
+      const e = node.expression;
+      if (ts.isPropertyAccessExpression(e) && e.name.text === 'each' && node.arguments.length > 0) {
+        ranges.push([node.arguments.pos, node.arguments.end]);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  const chars = source.split('');
+  for (const [from, to] of ranges) {
+    for (let i = from; i < to; i += 1) if (chars[i] !== '\n') chars[i] = ' ';
+  }
+  return chars.join('');
+}
+
 function scan(file: string, source: string, patterns: [RegExp, string][]): TestCodeViolation[] {
   const out: TestCodeViolation[] = [];
-  source.split('\n').forEach((text, i) => {
+  const original = source.split('\n');
+  codeOnly(source).split('\n').forEach((text, i) => {
     for (const [pattern, reason] of patterns) {
-      if (pattern.test(text)) out.push({ file, line: i + 1, reason, text: text.trim() });
+      if (pattern.test(text)) out.push({ file, line: i + 1, reason, text: (original[i] ?? text).trim() });
     }
   });
   return out;
