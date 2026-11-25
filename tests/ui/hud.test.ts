@@ -61,7 +61,7 @@ describe('HUD', () => {
     expect(elements.input.textContent).toBe('パッド');
   });
 
-  it('PAD-2・PAD-18: 入力方式の設定が「パッド」か「自動」のときはパッドの状態を出す', () => {
+  it('PAD-2・PAD-24: 入力方式の設定が「パッド」か「自動」のときはパッドの状態を出す', () => {
     const elements = {
       weapon: { textContent: '' },
       ammo: { textContent: '' },
@@ -75,7 +75,7 @@ describe('HUD', () => {
     expect(elements.pad).toEqual({ textContent: 'パッドが見つかりません。パッドのボタンを押してください', hidden: false });
   });
 
-  it('PAD-24: 入力方式の設定が「マウス」のとき（padStatus なし）はパッドの状態を隠す', () => {
+  it('PAD-30: 入力方式の設定が「マウス」のとき（padStatus なし）はパッドの状態を隠す', () => {
     const elements = {
       weapon: { textContent: '' },
       ammo: { textContent: '' },

@@ -41,7 +41,7 @@ describe('入力に使うパッド', () => {
     expect(PAD_MISSING_MESSAGE).toBe('パッドが見つかりません。パッドのボタンを押してください');
   });
 
-  it('PAD-18: 標準配置でない割り当てのないパッドだけなら「標準配置でない」と、そのパッドの名前', () => {
+  it('PAD-24: 標準配置でない割り当てのないパッドだけなら「標準配置でない」と、そのパッドの名前', () => {
     const odd = fakePad(0, '', 'Generic USB Joystick (Vendor: 0079 Product: 0006)');
     const status = choosePad([odd], () => undefined);
     expect(status).toEqual({ kind: 'nonstandard', pad: odd });
@@ -50,7 +50,7 @@ describe('入力に使うパッド', () => {
     expect(PAD_NONSTANDARD_MESSAGE).toBe('標準配置でないパッドです（ボタン割り当てが必要）');
   });
 
-  it('PAD-19: 番号 0 が標準配置でなく割り当てなし、番号 1 が標準配置なら、番号 1 を使う', () => {
+  it('PAD-25: 番号 0 が標準配置でなく割り当てなし、番号 1 が標準配置なら、番号 1 を使う', () => {
     const odd = fakePad(0, '');
     const xbox = fakePad(1, 'standard', 'Xbox Wireless Controller (STANDARD GAMEPAD)');
     const status = choosePad([odd, xbox], () => undefined);
@@ -58,7 +58,7 @@ describe('入力に使うパッド', () => {
     expect(padStatusText(status, true)).toBe('Xbox Wireless Controller');
   });
 
-  it('PAD-21: 割り当てを保存した標準配置でないパッドは使えるパッドになり、割り当てで読む', () => {
+  it('PAD-27: 割り当てを保存した標準配置でないパッドは使えるパッドになり、割り当てで読む', () => {
     const odd = fakePad(0, '', 'odd');
     const mappings = (id: string) => (id === 'odd' ? mapped : undefined);
     expect(choosePad([odd], mappings)).toEqual({ kind: 'using', pad: odd, layout: mapped });

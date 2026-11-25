@@ -1,10 +1,10 @@
 // docs/spec/pad.md「接続と配置」「入力に使うパッド」「パッドの一覧」「ボタン割り当て」「パッドの設定画面」「キャリブレーション」「振動」と、
-// docs/spec/screens.md のパッドの区分の QA の受け入れテスト（PAD-2・PAD-3・PAD-8・PAD-9・PAD-15〜PAD-24、UI-24〜UI-26）。
+// docs/spec/screens.md のパッドの区分の QA の受け入れテスト（PAD-2・PAD-3・PAD-8・PAD-9・PAD-21〜PAD-30、UI-40〜UI-42）。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、index.html の要素、武器の JSON、SPEC の localStorage のキー）
 // だけを使い、実装の内部には依存しない。画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、
 // パッドは Gamepad API（navigator.getGamepads と vibrationActuator.playEffect）の形で与える。
 // 照準の反応は、センター維持の中心の的の色が画面の中心から外れるか（画面写しの中心の画素）で読む。
-// ヨーの量（PAD-22）は、ページの時計（performance.now と requestAnimationFrame）をテストが進め、
+// ヨーの量（PAD-28）は、ページの時計（performance.now と requestAnimationFrame）をテストが進め、
 // 回した結果の画面写しを、同じヨーになるはずの別の回し方（既定のヨー速度 300 で左に 0.7 秒 = −210 度 ≡ +150 度）の画面写しと比べて読む。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
@@ -423,7 +423,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   });
 
   // -------------------------------------------------------------------------
-  it('PAD-15: キャリブレーション画面で、右スティックの軸を 0.6 にすると 0.60、R2 を 0.3 にすると 0.30 と表示される', async () => {
+  it('PAD-21: キャリブレーション画面で、右スティックの軸を 0.6 にすると 0.60、R2 を 0.3 にすると 0.30 と表示される', async () => {
     const page = await openFresh({ pads: [standardPad()] });
     await page.evaluate(`location.hash = '#/settings/pad'`);
     await page.waitFor(`${screenVisible('settings-pad')} && document.querySelectorAll('#calibration-axes li').length >= 4 && document.querySelectorAll('#calibration-buttons li').length >= 8`);
@@ -442,7 +442,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   });
 
   // -------------------------------------------------------------------------
-  it('PAD-16: キャリブレーション画面でデッドゾーンを 10 から 20 に変えると、デッドゾーンの円の半径が 2 倍になる', async () => {
+  it('PAD-22: キャリブレーション画面でデッドゾーンを 10 から 20 に変えると、デッドゾーンの円の半径が 2 倍になる', async () => {
     const page = await openFresh({ pads: [standardPad()] });
     await page.evaluate(`location.hash = '#/settings/pad'`);
     await page.waitFor(screenVisible('settings-pad'));
@@ -464,7 +464,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   });
 
   // -------------------------------------------------------------------------
-  describe('PAD-17: 振動に対応しないパッドで撃ってもエラーにならず、撃ち切るとリザルトに移り、設定画面に案内が出る', () => {
+  describe('PAD-23: 振動に対応しないパッドで撃ってもエラーにならず、撃ち切るとリザルトに移り、設定画面に案内が出る', () => {
     it('vibrationActuator がないパッドで撃ち切る', async () => {
       const page = await openFresh({ pads: [standardPad(0, 'none')] });
       const w = byId('r301');
@@ -493,7 +493,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   });
 
   // -------------------------------------------------------------------------
-  describe('PAD-18: 標準配置でないパッド（割り当てなし）だけのとき、HUD と設定画面に案内と名前が出て、操作しても照準と射撃は反応しない', () => {
+  describe('PAD-24: 標準配置でないパッド（割り当てなし）だけのとき、HUD と設定画面に案内と名前が出て、操作しても照準と射撃は反応しない', () => {
     it('パッドの設定画面', async () => {
       const page = await openFresh({ pads: [genericPad()] });
       await openSettings(page);
@@ -527,7 +527,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   });
 
   // -------------------------------------------------------------------------
-  describe('PAD-19: 番号 0 に標準配置でないパッド、番号 1 に標準配置のパッドがあるとき、番号 1 のパッドを使う', () => {
+  describe('PAD-25: 番号 0 に標準配置でないパッド、番号 1 に標準配置のパッドがあるとき、番号 1 のパッドを使う', () => {
     const pads = [genericPad(0), standardPad(1)];
 
     it('番号 1 のパッドで照準と射撃ができ、HUD に番号 1 のパッドの名前が出る（番号 0 のパッドの操作は無視される）', async () => {
@@ -574,7 +574,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   });
 
   // -------------------------------------------------------------------------
-  it('PAD-20: キャリブレーション画面の一覧に、番号・名前・配置・標準配置・割り当て・接続が出る', async () => {
+  it('PAD-26: キャリブレーション画面の一覧に、番号・名前・配置・標準配置・割り当て・接続が出る', async () => {
     const MAPPED_ID = 'Mapped Arcade Pad (Vendor: 1234 Product: 5678)';
     const GONE_ID = 'Unplugged Pad (Vendor: abcd Product: 0001)';
     // 割り当てのあるパッドを作る（ボタン割り当て画面で割り当てる）。
@@ -604,7 +604,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   }, 90_000);
 
   // -------------------------------------------------------------------------
-  it('PAD-21: 割り当てを保存して再読み込みしても残っていて使えるパッドになり、「割り当てを消す」で標準配置でないパッドの扱いに戻る', async () => {
+  it('PAD-27: 割り当てを保存して再読み込みしても残っていて使えるパッドになり、「割り当てを消す」で標準配置でないパッドの扱いに戻る', async () => {
     const page = await openFresh({ pads: [genericPad()] });
     await page.evaluate(`location.hash = '#/settings/pad/mapping'`);
     await assignAll(page);
@@ -644,7 +644,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   }, 120_000);
 
   // -------------------------------------------------------------------------
-  describe('PAD-22: 設定画面でヨー速度を 150 にして始め、デッドゾーン 0・外側 0・カーブ 0 で右に倒し切って 1 秒保つと、ヨーが 150 度変わる', () => {
+  describe('PAD-28: 設定画面でヨー速度を 150 にして始め、デッドゾーン 0・外側 0・カーブ 0 で右に倒し切って 1 秒保つと、ヨーが 150 度変わる', () => {
     /**
      * 設定画面で入力方式をパッドにし、デッドゾーン 0・外側しきい値 0・レスポンスカーブ 0・ヨー速度 yaw にして練習を始める。
      * ページの時計をテストが進めるようにし、右スティックを x（1 で右、−1 で左）に seconds 秒倒してから戻し、
@@ -715,7 +715,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   });
 
   // -------------------------------------------------------------------------
-  it('PAD-23: 簡易設定の間は詳細設定の欄が対応表の値を表示して変更できず、詳細設定に戻すと前の値が表示される', async () => {
+  it('PAD-29: 簡易設定の間は詳細設定の欄が対応表の値を表示して変更できず、詳細設定に戻すと前の値が表示される', async () => {
     const page = await openFresh();
     await openSettings(page);
     // 詳細設定で、既定と違う値にしておく。
@@ -765,7 +765,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   });
 
   // -------------------------------------------------------------------------
-  it('PAD-24: 入力方式の設定が「マウス」のとき、練習中の HUD にパッドの状態が出ない（「自動」では出る）', async () => {
+  it('PAD-30: 入力方式の設定が「マウス」のとき、練習中の HUD にパッドの状態が出ない（「自動」では出る）', async () => {
     const page = await openFresh({ pads: [standardPad()] });
     await setInputMethod(page, 'マウス');
     await start(page, byId('r301'));
@@ -782,7 +782,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   }, 60_000);
 
   // -------------------------------------------------------------------------
-  it('UI-24: パッドの設定を一度も変えずに開くと、詳細設定・10・2・2・300・260・90・78、振動 ON と表示される', async () => {
+  it('UI-40: パッドの設定を一度も変えずに開くと、詳細設定・10・2・2・300・260・90・78、振動 ON と表示される', async () => {
     const page = await openFresh();
     await openSettings(page);
     expect(await selectedLabel(page, '#setting-pad-mode')).toBe('詳細設定');
@@ -801,7 +801,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   });
 
   // -------------------------------------------------------------------------
-  it('UI-25: パッドの区分の値（簡易設定・視点感度 2・振動 OFF）を変えて再読み込みすると残っていて、マウスの区分の値は変わらない', async () => {
+  it('UI-41: パッドの区分の値（簡易設定・視点感度 2・振動 OFF）を変えて再読み込みすると残っていて、マウスの区分の値は変わらない', async () => {
     const page = await openFresh();
     await openSettings(page);
     const mouseFields = ['#setting-dpi', '#setting-sensitivity', '#setting-ads-multiplier'];
@@ -825,7 +825,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   });
 
   // -------------------------------------------------------------------------
-  it('UI-26: パッドの区分のリンクからキャリブレーション画面とボタン割り当て画面を開け、それぞれから設定画面に戻れる', async () => {
+  it('UI-42: パッドの区分のリンクからキャリブレーション画面とボタン割り当て画面を開け、それぞれから設定画面に戻れる', async () => {
     const page = await openFresh();
     await openSettings(page);
     for (const [link, url, screen] of [

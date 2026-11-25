@@ -88,7 +88,7 @@ describe('ボタン割り当て画面', () => {
     expect(choosePad([pad], store.get)).toMatchObject({ kind: 'using', pad });
   });
 
-  it('PAD-21: 保存した割り当ては読み直しても残り、「割り当てを消す」で標準配置でないパッドの扱いに戻る', () => {
+  it('PAD-27: 保存した割り当ては読み直しても残り、「割り当てを消す」で標準配置でないパッドの扱いに戻る', () => {
     const storage = memory();
     const pad = fakePad(0, '', 'odd');
     assignAll(new PadMappingScreen<FakePad>(new PadMappingStore(storage.page())), pad);

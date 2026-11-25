@@ -5,7 +5,7 @@
 ## 背景
 
 Issue #14 で、入力に使うパッドで弾が 1 発出るたびに `dual-rumble`（60 ミリ秒・強い側 0.2・弱い側 0.5）を 1 回要求する（PAD-8）。
-OFF のとき・今の入力方式がマウスのとき・記録の再生では振動せず、振動に対応しないパッドやブラウザでもエラーにしない（PAD-17）。
+OFF のとき・今の入力方式がマウスのとき・記録の再生では振動せず、振動に対応しないパッドやブラウザでもエラーにしない（PAD-23）。
 シミュレーション（`src/sim/`）は DOM と Gamepad API に触れず、記録の再生でも同じ結果になる必要がある（ADR: fixed-timestep-deterministic-sim）。
 
 ## 決定
@@ -25,5 +25,5 @@ OFF のとき・今の入力方式がマウスのとき・記録の再生では�
 
 ## 影響
 
-- docs/spec/pad.md（振動、PAD-8, PAD-17）
+- docs/spec/pad.md（振動、PAD-8, PAD-23）
 - src/input/pad-rumble.ts、src/main.ts、src/ui/practice-settings.ts、index.html

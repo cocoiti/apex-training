@@ -23,7 +23,7 @@ function fakePad(index: number, mapping: string, id = `pad ${index}`, connected 
 const layout = { fire: 1, ads: 0, lookX: { axis: 0, invert: true }, lookY: { axis: 1, invert: true } };
 
 describe('パッドの一覧', () => {
-  it('PAD-20: 番号・名前（省略しない）・配置・標準配置・割り当て・接続・入力を番号の順に出す', () => {
+  it('PAD-26: 番号・名前（省略しない）・配置・標準配置・割り当て・接続・入力を番号の順に出す', () => {
     const xbox = fakePad(2, 'standard', 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)');
     const odd = fakePad(0, '', 'odd');
     const mappedOdd = fakePad(1, '', 'mapped');
@@ -39,7 +39,7 @@ describe('パッドの一覧', () => {
     ]);
   });
 
-  it('PAD-19: 番号 0 が標準配置でなく、番号 1 が標準配置なら、番号 1 の行だけに「使用中」', () => {
+  it('PAD-25: 番号 0 が標準配置でなく、番号 1 が標準配置なら、番号 1 の行だけに「使用中」', () => {
     const pads = [fakePad(0, ''), fakePad(1, 'standard')];
     const rows = padListRows(pads, choosePad(pads, () => undefined), () => undefined);
     expect(rows.map((row) => row[6])).toEqual(['', '使用中']);
@@ -47,7 +47,7 @@ describe('パッドの一覧', () => {
 });
 
 describe('キャリブレーションの値', () => {
-  it('PAD-15: 軸とボタンの生の値を小数第 2 位まで出す', () => {
+  it('PAD-21: 軸とボタンの生の値を小数第 2 位まで出す', () => {
     const pad = fakePad(0, 'standard');
     pad.axes[2] = 0.6;
     pad.buttons[7] = { value: 0.3, pressed: false };
@@ -79,7 +79,7 @@ describe('キャリブレーションの値', () => {
     expect(stickPoint(pad, layout)).toEqual({ x: 0.5, y: -0.5 });
   });
 
-  it('PAD-16: デッドゾーンを 10 から 20 に変えると、デッドゾーンの円の半径が 2 倍になる', () => {
+  it('PAD-22: デッドゾーンを 10 から 20 に変えると、デッドゾーンの円の半径が 2 倍になる', () => {
     const before = calibrationRadii(10, 2);
     const after = calibrationRadii(20, 2);
     expect(before).toEqual({ deadzone: 0.1, outer: 0.98 });

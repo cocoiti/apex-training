@@ -26,7 +26,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
 const layout = { fire: 1, ads: 0, lookX: { axis: 2, invert: false }, lookY: { axis: 5, invert: true } };
 
 describe('パッドの区分の設定', () => {
-  it('UI-24: 何も保存されていなければ詳細設定の既定値と振動 ON', () => {
+  it('UI-40: 何も保存されていなければ詳細設定の既定値と振動 ON', () => {
     const { storage } = memoryStorage();
     expect(loadPadSettings(storage)).toEqual({
       mode: 'advanced',
@@ -44,7 +44,7 @@ describe('パッドの区分の設定', () => {
     });
   });
 
-  it('UI-25: パッドの区分は apex-training:settings:pad に保存し、マウスの区分は変わらない', () => {
+  it('UI-41: パッドの区分は apex-training:settings:pad に保存し、マウスの区分は変わらない', () => {
     const { items, storage, reopen } = memoryStorage();
     saveMouseSettings(storage, { dpi: 1600 });
     savePadSettings(storage, { mode: 'simple', simpleLook: 2, vibration: false });
@@ -86,7 +86,7 @@ describe('パッドの区分の設定', () => {
     expect(loadPadSettings(storage)).toEqual(DEFAULT_PAD_SECTION_SETTINGS);
   });
 
-  it('PAD-23: 簡易設定を選んでも詳細設定の値は残り、換算には対応表の値を使う', () => {
+  it('PAD-29: 簡易設定を選んでも詳細設定の値は残り、換算には対応表の値を使う', () => {
     const { storage } = memoryStorage();
     savePadSettings(storage, { yaw: 150, deadzone: 5 });
     const simple = savePadSettings(storage, { mode: 'simple' });
@@ -106,7 +106,7 @@ describe('パッドの区分の設定', () => {
 });
 
 describe('パッドのボタン割り当ての保存', () => {
-  it('PAD-21: パッドの名前ごとに apex-training:pad-mapping に保存し、読み直しても残る。消すと戻る', () => {
+  it('PAD-27: パッドの名前ごとに apex-training:pad-mapping に保存し、読み直しても残る。消すと戻る', () => {
     const { items, storage, reopen } = memoryStorage();
     expect(PAD_MAPPING_KEY).toBe('apex-training:pad-mapping');
     savePadMapping(storage, 'odd pad', layout);

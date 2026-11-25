@@ -81,7 +81,7 @@ describe('練習の始めに当てる設定', () => {
     expect(settings.mouse.dpi).toBe(1600);
   });
 
-  it('PAD-22: パッドの詳細設定で変えた値を、スティックの換算に使う値として返す', () => {
+  it('PAD-28: パッドの詳細設定で変えた値を、スティックの換算に使う値として返す', () => {
     const storage = memoryStorage();
     const before = applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null });
     expect(before.pad.yaw).toBe(300);

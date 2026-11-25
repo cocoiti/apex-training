@@ -66,7 +66,7 @@ const values = (advanced: Record<keyof PadSettings, FakeField>) =>
   Object.fromEntries(Object.entries(advanced).map(([key, field]) => [key, field.value]));
 
 describe('設定画面のパッドの区分', () => {
-  it('UI-24: 何も変えずに開くと詳細設定で、詳細設定の既定値と振動 ON が表示される', () => {
+  it('UI-40: 何も変えずに開くと詳細設定で、詳細設定の既定値と振動 ON が表示される', () => {
     const form = setup().open();
     expect(form.mode.value).toBe('advanced');
     expect(values(form.advanced)).toEqual({
@@ -85,7 +85,7 @@ describe('設定画面のパッドの区分', () => {
     expect(form.simpleCurve.value).toBe('classic');
   });
 
-  it('UI-25: 簡易設定・視点感度 2・振動 OFF にして読み直すと残っていて、マウスの区分は変わらない', () => {
+  it('UI-41: 簡易設定・視点感度 2・振動 OFF にして読み直すと残っていて、マウスの区分は変わらない', () => {
     const app = setup();
     const first = app.open();
     saveMouseSettings(first.storage, { sensitivity: 2.5 });
@@ -101,7 +101,7 @@ describe('設定画面のパッドの区分', () => {
     expect(app.items.has(SETTINGS_KEYS.pad)).toBe(true);
   });
 
-  it('PAD-22: 詳細設定のヨー速度を 150 にして確定すると保存する', () => {
+  it('PAD-28: 詳細設定のヨー速度を 150 にして確定すると保存する', () => {
     const app = setup();
     app.open().advanced.yaw.type('150');
     expect(loadPadSettings(app.page()).yaw).toBe(150);
@@ -124,7 +124,7 @@ describe('設定画面のパッドの区分', () => {
     expect(loadPadSettings(app.page())).toMatchObject({ deadzone: 30, responseCurve: 8, yaw: 300, pitch: 260, adsYaw: 120 });
   });
 
-  it('PAD-23: 簡易設定のあいだは詳細設定の欄に対応表の値を出して変更できず、詳細設定に戻すと前の値に戻る', () => {
+  it('PAD-29: 簡易設定のあいだは詳細設定の欄に対応表の値を出して変更できず、詳細設定に戻すと前の値に戻る', () => {
     const form = setup().open();
     form.advanced.yaw.type('150');
     form.advanced.deadzone.type('5');
@@ -174,7 +174,7 @@ describe('キャリブレーション画面のデッドゾーン', () => {
     return { app, storage, field, shown, binding };
   }
 
-  it('PAD-16: パッドの設定のデッドゾーンを出し、変えると保存して円の大きさに使う値を渡す', () => {
+  it('PAD-22: パッドの設定のデッドゾーンを出し、変えると保存して円の大きさに使う値を渡す', () => {
     const { app, field, shown } = calibration();
     expect(field.value).toBe('10');
     expect(shown).toEqual([10]);
@@ -222,7 +222,7 @@ describe('パッドの画面の文言とリンク（index.html）', () => {
     expect(pad).toContain('このパッドまたはブラウザは振動に対応していません');
   });
 
-  it('UI-26: パッドの区分からキャリブレーションとボタン割り当てを開け、どちらからも設定画面に戻れる', () => {
+  it('UI-42: パッドの区分からキャリブレーションとボタン割り当てを開け、どちらからも設定画面に戻れる', () => {
     expect(section('settings')).toContain('href="#/settings/pad"');
     expect(section('settings')).toContain('href="#/settings/pad/mapping"');
     expect(section('settings-pad')).toContain('href="#/settings"');

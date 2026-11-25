@@ -11,7 +11,7 @@ describe('1 発ごとの振動', () => {
     expect(SHOT_RUMBLE).toEqual({ duration: 60, strongMagnitude: 0.2, weakMagnitude: 0.5 });
   });
 
-  it('PAD-17: vibrationActuator も playEffect もないパッドでは何もせず、エラーにしない', () => {
+  it('PAD-23: vibrationActuator も playEffect もないパッドでは何もせず、エラーにしない', () => {
     expect(canRumble({})).toBe(false);
     expect(canRumble({ vibrationActuator: null })).toBe(false);
     expect(canRumble({ vibrationActuator: {} })).toBe(false);
