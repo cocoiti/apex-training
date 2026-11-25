@@ -191,6 +191,22 @@ describe('リザルト画面に出すもの', () => {
     expect(storage.items.has(personalBestKey('mouse', 'r99', 'center'))).toBe(true);
   });
 
+  it('平均ズレと自己ベストを更新したかを出す。パターン観察では平均ズレがなく、更新もしない', () => {
+    const storage = memoryStorage();
+    const first = completePractice(practice('r301', 'center'), storage, NOW);
+    expect(first.meanDeviation).toBeCloseTo(meanOf(storage.items.get(R301_CENTER)) ?? NaN, 9);
+    expect(first.bestUpdated).toBe(true);
+    expect(completePractice(practice('r301', 'center'), storage, NOW).bestUpdated).toBe(false);
+    expect(completePractice(practice('r301', 'pattern', 0), storage, NOW)).toMatchObject({ meanDeviation: null, bestUpdated: false });
+  });
+
+  it('MODE-23: 連続練習で回ごとに採点すると、自己ベストには回のうち平均ズレが最も小さい回の平均ズレが残る', () => {
+    const storage = memoryStorage();
+    const means = [0.02, 0.005, 0.03, 0.01, 0.025].map((pullDown) => completePractice(practice('r301', 'center', pullDown), storage, NOW).meanDeviation ?? NaN);
+    expect(new Set(means).size).toBe(5);
+    expect(meanOf(storage.items.get(R301_CENTER))).toBeCloseTo(Math.min(...means), 9);
+  });
+
   it('SCO-21: 自己ベストのキーに JSON として読めない値があっても、その結果を自己ベストとして保存する', () => {
     const storage = memoryStorage({ [R301_CENTER]: 'not json' });
     expect(completePractice(practice('r301', 'center'), storage, NOW).best).toBe('自己ベスト更新');

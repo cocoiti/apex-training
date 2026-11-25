@@ -14,6 +14,7 @@
           <h1>リコイル練習</h1>
           <label class="choice">武器 <select id="weapon"></select></label>
           <label class="choice">モード <select id="mode"></select></label>
+          <label class="choice">回数 <select id="count"></select></label>
           <nav class="menu">
             <a href="#/play" id="start">開始</a>
             <a href="#/settings">設定</a>
@@ -83,10 +84,23 @@
           <p class="hud-ammo" data-hud="ammo"></p>
           <p class="hud-time" data-hud="time"></p>
           <p class="hud-input" data-hud="input"></p>
+          <p class="hud-round" data-hud="round"></p>
           <p id="status">読み込み中</p>
           <p id="pointer-lock-notice" class="pointer-lock-notice" role="status" hidden></p>
         </div>
         <p id="paused" class="paused" role="status" hidden></p>
+        <!-- 連続練習の途中の回の短いリザルト（docs/spec/modes.md「連続練習（セット）」）。 -->
+        <div id="interlude" class="interlude" role="status" hidden>
+          <p id="interlude-round" class="interlude-round"></p>
+          <p id="interlude-score" class="interlude-score"></p>
+          <p id="interlude-best" class="interlude-best"></p>
+          <p id="interlude-countdown" class="interlude-countdown"></p>
+          <p class="controls-hint">次へ <kbd>R</kbd>・<kbd>Space</kbd> / <kbd>A / ×</kbd>　やめる <kbd>Q</kbd> / <kbd>B / ○</kbd></p>
+        </div>
+        <!-- 練習中の操作のキーとボタン（docs/spec/screens.md「画面の操作」）。やめるは連続練習のときだけ出す。 -->
+        <p id="play-controls" class="controls-hint play-controls">
+          やり直し <kbd>R</kbd> / <kbd>A / ×</kbd><span id="play-controls-quit" hidden>　やめる <kbd>Q</kbd> / <kbd>B / ○</kbd></span>
+        </p>
         <div class="play-actions">
           <button id="fullscreen" type="button">全画面</button>
           <a href="#/">トップへ戻る</a>
@@ -104,8 +118,24 @@
           </div>
           <div id="result-plots" class="result-plots"></div>
           <nav class="menu menu-row">
-            <a href="#/play" id="retry">もう一度</a>
-            <a href="#/" id="change-weapon">武器変更</a>
+            <a href="#/play" id="retry">もう一度</a> <span class="controls-hint"><kbd>R</kbd>・<kbd>Space</kbd> / <kbd>A / ×</kbd></span>
+            <a href="#/" id="change-weapon">武器変更</a> <span class="controls-hint"><kbd>B / ○</kbd></span>
+          </nav>
+        </div>
+      </section>
+      <section class="screen" data-screen="set-result" hidden>
+        <div class="panel panel-result">
+          <h2>セットのまとめ</h2>
+          <p id="set-summary"></p>
+          <div class="set-result">
+            <ol id="set-rounds" class="set-rounds"></ol>
+            <div id="set-plot" class="result-plots"></div>
+          </div>
+          <p id="set-average" class="set-average"></p>
+          <p id="set-best" class="set-best"></p>
+          <nav class="menu menu-row">
+            <a href="#/play" id="set-retry">もう一度</a> <span class="controls-hint"><kbd>R</kbd>・<kbd>Space</kbd> / <kbd>A / ×</kbd></span>
+            <a href="#/" id="set-change-weapon">武器変更</a> <span class="controls-hint"><kbd>B / ○</kbd></span>
           </nav>
         </div>
       </section>

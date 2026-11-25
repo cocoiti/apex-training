@@ -10,14 +10,18 @@ import type { MouseSettings } from './input/mouse-sensitivity';
 import { firstConnectedGamepad, PadInput } from './input/pad';
 import { DEFAULT_PAD_SETTINGS } from './input/pad-curve';
 import { createSeed, RecordingInput } from './input/recording';
+import { keyControl, PadButtons, type ScreenControl } from './input/screen-controls';
 import { modes } from './modes/registry';
+import type { TrainingMode } from './modes/types';
 import { PracticeSession } from './modes/session';
 import { GhostMarker } from './render/ghost';
 import { ImpactMarks } from './render/impacts';
 import { interpolateAngles, SceneRenderer } from './render/scene';
 import { parseMap, type MapData } from './sim/map';
 import { viewAngles } from './sim/player';
+import type { WeaponData } from './sim/weapon';
 import { createWorld, type World } from './sim/world';
+import { fillCountSelect } from './ui/count-choices';
 import { applyCrosshair } from './ui/crosshair';
 import { fullscreenLabel, toggleFullscreen } from './ui/fullscreen';
 import { bindHistoryView, initialHistorySelection, SCORED_MODES, type HistoryElements } from './ui/history-view';
@@ -27,9 +31,14 @@ import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { PracticeFlow } from './ui/practice-flow';
 import { applyPracticeSettings } from './ui/practice-settings';
 import type { HistorySelection } from './ui/practice-history';
-import { completePractice, renderResult, type ResultElements } from './ui/result-view';
+import type { InputMethod } from './ui/personal-best';
+import { parsePracticeCount, PracticeSet } from './ui/practice-set';
+import { completePractice, renderResult, type ResultElements, type ResultView } from './ui/result-view';
+import { renderRoundResult, roundResultTexts, type RoundResultElements } from './ui/round-result';
 import { adsAfter, applyReticleColor, showAimDisplay, type AimDisplayElements } from './ui/scope';
-import { SCREEN_HASHES, watchScreen } from './ui/router';
+import { SCREEN_HASHES, watchScreen, type ScreenId } from './ui/router';
+import { screenCommand, type PlayPhase, type ScreenCommand } from './ui/screen-commands';
+import { renderSetSummary, setSummaryHeading, summarizeSet, type SetSummaryElements } from './ui/set-summary';
 import { loadCommonSettings, loadMouseSettings } from './ui/settings';
 import { bindSettingsForm, type SettingsFormElements } from './ui/settings-form';
 import { showScreen, showStorageNotice } from './ui/shell';
@@ -42,9 +51,13 @@ interface App {
   abort(): void;
   /** 履歴の画面を開いた。 */
   openHistory(): void;
+  /** キーボードかパッドの画面の操作（docs/spec/screens.md「画面の操作」）。今の画面で操作になったら true。 */
+  control(control: ScreenControl): boolean;
 }
 
 const flow = new PracticeFlow();
+/** 読み込みが終わった App。終わる前の画面の操作は捨てる（あとから古い画面の操作として効かないように）。 */
+let readyApp: App | undefined;
 let resolveApp: (app: App) => void = () => {};
 const appReady = new Promise<App>((resolve) => {
   resolveApp = resolve;
@@ -58,11 +71,24 @@ function startShell(): void {
 
   applySavedCrosshair();
   startSettingsForm();
+  const countSelect = document.querySelector<HTMLSelectElement>('#count');
+  if (countSelect) fillCountSelect(countSelect);
 
   // 「開始」を押したあとにプレイ画面に入ったときだけ練習を始める（docs/spec/screens.md）。
   document.querySelector('#start')?.addEventListener('click', () => flow.requestStart());
-  // リザルト画面の「もう一度」は、トップ画面で選んだままの武器とモードで練習を始める（docs/spec/scoring.md「リザルト画面」）。
+  // リザルト画面とセットのまとめの「もう一度」は、トップ画面で選んだままの武器・モード・回数で練習を始める
+  // （docs/spec/scoring.md「リザルト画面」、docs/spec/screens.md「セットのまとめ」）。選択はトップ画面の select に残っている。
   document.querySelector('#retry')?.addEventListener('click', () => flow.requestStart());
+  document.querySelector('#set-retry')?.addEventListener('click', () => flow.requestStart());
+
+  // 画面の操作のキー。入力方式によらず受け付け、照準と射撃のアクションにはしない（docs/spec/screens.md「画面の操作」）。
+  document.addEventListener('keydown', (event) => {
+    if (isEditable(event.target)) return;
+    const control = keyControl(event);
+    if (!control) return;
+    // 操作になったキーは、ページのスクロールやボタンの押下にしない。
+    if (readyApp?.control(control)) event.preventDefault();
+  });
 
   // 全画面の切替ボタン（docs/spec/mouse.md「全画面」）。
   const fullscreen = document.querySelector<HTMLButtonElement>('#fullscreen');
@@ -79,6 +105,7 @@ function startShell(): void {
   const screens = [...document.querySelectorAll<HTMLElement>('[data-screen]')];
   watchScreen(window, (requested) => {
     const entry = flow.enter(requested);
+    currentScreen = entry.screen;
     // 入れない画面のハッシュはトップに置き換える。そのままだと「開始」でハッシュが変わらず練習を始められない。
     if (entry.screen !== requested) history.replaceState(null, '', SCREEN_HASHES[entry.screen]);
     showScreen(screens, entry.screen);
@@ -91,6 +118,15 @@ function startShell(): void {
       });
     }
   });
+}
+
+/** 今表示している画面。画面の操作がどの画面の操作になるかを決める。 */
+let currentScreen: ScreenId = 'top';
+
+/** 文字を入力する要素か。設定画面の入力欄で R や Q を打ったときは画面の操作にしない。 */
+function isEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
 }
 
 /** 保存されたクロスヘアの色と形をプレイ画面のクロスヘアに当て、スコープのレティクルも同じ色にする。 */
@@ -162,6 +198,23 @@ async function start(): Promise<void> {
   const status = document.querySelector<HTMLElement>('#status');
   const weaponSelect = document.querySelector<HTMLSelectElement>('#weapon');
   const modeSelect = document.querySelector<HTMLSelectElement>('#mode');
+  const countSelect = document.querySelector<HTMLSelectElement>('#count');
+  const interlude = document.querySelector<HTMLElement>('#interlude');
+  const playControls = document.querySelector<HTMLElement>('#play-controls');
+  const quitHint = document.querySelector<HTMLElement>('#play-controls-quit');
+  const roundElements: Partial<Record<keyof RoundResultElements, HTMLElement | null>> = {
+    round: document.querySelector<HTMLElement>('#interlude-round'),
+    score: document.querySelector<HTMLElement>('#interlude-score'),
+    best: document.querySelector<HTMLElement>('#interlude-best'),
+    countdown: document.querySelector<HTMLElement>('#interlude-countdown'),
+  };
+  const setElements: Partial<Record<keyof SetSummaryElements, HTMLElement | null>> = {
+    heading: document.querySelector<HTMLElement>('#set-summary'),
+    rounds: document.querySelector<HTMLElement>('#set-rounds'),
+    plot: document.querySelector<HTMLElement>('#set-plot'),
+    average: document.querySelector<HTMLElement>('#set-average'),
+    best: document.querySelector<HTMLElement>('#set-best'),
+  };
   const resultElements: Partial<Record<keyof ResultElements, HTMLElement | null>> = {
     summary: document.querySelector<HTMLElement>('#result-summary'),
     score: document.querySelector<HTMLElement>('#result-score'),
@@ -177,24 +230,34 @@ async function start(): Promise<void> {
     ammo: document.querySelector<HTMLElement>('[data-hud="ammo"]'),
     time: document.querySelector<HTMLElement>('[data-hud="time"]'),
     input: document.querySelector<HTMLElement>('[data-hud="input"]'),
+    round: document.querySelector<HTMLElement>('[data-hud="round"]'),
   };
   if (
     !canvas ||
     !status ||
     !weaponSelect ||
     !modeSelect ||
+    !countSelect ||
+    !interlude ||
+    !playControls ||
+    !quitHint ||
+    Object.values(roundElements).some((element) => !element) ||
+    Object.values(setElements).some((element) => !element) ||
     Object.values(resultElements).some((element) => !element) ||
     !lockNotice ||
     !pausedNotice ||
     !hud.weapon ||
     !hud.ammo ||
     !hud.time ||
-    !hud.input
+    !hud.input ||
+    !hud.round
   ) {
     throw new Error('画面の要素がない');
   }
   const hudElements = hud as HudElements;
   const resultView = resultElements as ResultElements;
+  const roundView = roundElements as RoundResultElements;
+  const setView = setElements as SetSummaryElements;
 
   const parsed = parseMap(await fetchMapJson('range'));
   if (!parsed.ok) {
@@ -270,10 +333,20 @@ async function start(): Promise<void> {
     onActivity: () => inputs.activity('pad'),
   });
 
-  const begin = () => {
-    const weapon = weapons.find((w) => w.id === weaponSelect.value) ?? weapons[0];
-    const mode = modes.find((m) => m.id === modeSelect.value) ?? modes[0];
-    if (!weapon || !mode) return;
+  // 今のセット（回数が 1 のときも 1 回のセットとして持つ）と、その武器とモード。回ごと・やり直しごとに同じものを使う。
+  let set: PracticeSet | undefined;
+  let setup: { readonly weapon: WeaponData; readonly mode: TrainingMode } | undefined;
+  // セットで最後に終えた回の入力方式（1 発目を撃ったときの入力方式）。セットのまとめに表示する。
+  let setInput: InputMethod = 'mouse';
+  // 直前に終えた回のリザルト。短いリザルトの残り秒数を描き直すのに使う。
+  let lastRound: ResultView | undefined;
+  // 短いリザルトの時間はシミュレーションの時刻ではなく、ページの時計で数える。
+  const now = () => performanceTimeSource.now();
+
+  /** 今のセットの今の回の練習を最初から始める。やり直しもこれで始め直す（docs/spec/modes.md「やり直し」）。 */
+  const startRound = () => {
+    if (!setup) return;
+    const { weapon, mode } = setup;
     impacts.clear();
     ghost.hide();
     const settings = applyPracticeSettings(appStorage, {
@@ -307,32 +380,124 @@ async function start(): Promise<void> {
     shownWorld = world;
     running = { session, loop, input };
     setAds(false);
+    interlude.hidden = true;
+    playControls.hidden = false;
     showPaused(pausedNotice, false);
+  };
+
+  /** トップ画面で選んだ武器・モード・回数で、新しいセットを 1 回目から始める。 */
+  const begin = () => {
+    const weapon = weapons.find((w) => w.id === weaponSelect.value) ?? weapons[0];
+    const mode = modes.find((m) => m.id === modeSelect.value) ?? modes[0];
+    if (!weapon || !mode) return;
+    setup = { weapon, mode };
+    set = new PracticeSet(parsePracticeCount(countSelect.value));
+    quitHint.hidden = !set.isSet;
+    startRound();
   };
 
   const abort = () => {
     running = undefined;
     setAds(false);
+    set = undefined;
+    setup = undefined;
+    interlude.hidden = true;
     impacts.clear();
     ghost.hide();
   };
 
+  /** 終えた回だけのセットのまとめを出す（docs/spec/screens.md「セットのまとめ」）。 */
+  const showSetSummary = (current: PracticeSet) => {
+    if (!setup) return;
+    running = undefined;
+    interlude.hidden = true;
+    const summary = summarizeSet(current.rounds, current.count);
+    renderSetSummary(setView, setSummaryHeading(setup.weapon.name, setup.mode.name, setInput, summary), summary);
+    flow.finishSet();
+    location.hash = SCREEN_HASHES['set-result'];
+  };
+
+  const showInterlude = (current: PracticeSet, round: ResultView) => {
+    renderRoundResult(roundView, roundResultTexts(current.round, current.count, round, current.interludeRemaining(now())));
+    interlude.hidden = false;
+    playControls.hidden = true;
+  };
+
   const finish = (current: Running) => {
     const result = current.session.result;
-    if (!result) return;
+    if (!result || !set || set.phase !== 'playing') return;
     running = undefined;
     ghost.hide();
     setAds(false);
-    // 採点し、採点するモードなら練習の入力方式（1 発目を撃ったときの入力方式）の自己ベストを保存する。保存できなくても投げず、フッターの表示は appStorage が出す。
+    // 採点し、採点するモードなら自己ベストを保存する。連続練習でも回ごとに判定する（docs/spec/scoring.md「自己ベスト」）。
+    // 保存できなくても投げず、フッターの表示は appStorage が出す。
     const view = completePractice(
       { result, recording: current.input.recording(), world: current.session.world, input: result.inputMethod, dt: current.session.sim.dt },
       appStorage,
       new Date(),
     );
-    renderResult(resultView, view);
     if (result.modeResult.scored) lastScored = { input: result.inputMethod, weaponId: result.weapon.id, modeId: result.mode.id };
-    flow.finish();
-    location.hash = SCREEN_HASHES.result;
+    setInput = result.inputMethod;
+    const phase = set.completeRound(view.meanDeviation, now());
+    if (!set.isSet) {
+      renderResult(resultView, view);
+      flow.finish();
+      location.hash = SCREEN_HASHES.result;
+      return;
+    }
+    if (phase === 'done') {
+      showSetSummary(set);
+      return;
+    }
+    lastRound = view;
+    showInterlude(set, view);
+  };
+
+  /** 短いリザルトを終えて次の回を始める。 */
+  const nextRound = () => {
+    if (set?.next()) startRound();
+  };
+
+  /** セットをやめる。終えた回があればセットのまとめ、なければトップ画面（docs/spec/modes.md「連続練習（セット）」）。 */
+  const quit = () => {
+    if (!set) return;
+    const current = set;
+    running = undefined;
+    if (current.quit() === 'summary') showSetSummary(current);
+    else location.hash = SCREEN_HASHES.top;
+  };
+
+  const playPhase = (): PlayPhase => {
+    if (running) return running.loop.paused ? 'paused' : 'practicing';
+    return set?.phase === 'interlude' ? 'interlude' : 'idle';
+  };
+
+  const run = (command: ScreenCommand) => {
+    switch (command) {
+      case 'restart':
+        startRound();
+        return;
+      case 'next':
+        nextRound();
+        return;
+      case 'quit':
+        quit();
+        return;
+      case 'again':
+        // 「もう一度」のリンクと同じく、選んだままの武器・モード・回数で始める。
+        flow.requestStart();
+        location.hash = SCREEN_HASHES.play;
+        return;
+      case 'change-weapon':
+        location.hash = SCREEN_HASHES.top;
+        return;
+    }
+  };
+
+  const control = (pressed: ScreenControl): boolean => {
+    const command = screenCommand({ screen: currentScreen, play: playPhase(), inSet: set?.isSet ?? false }, pressed);
+    if (command) run(command);
+    return command !== undefined;
   };
 
   // 設定していなければ既定値（MOU-11）。ロックが外れたら練習を止め、ロックし直したら再開する（docs/spec/mouse.md「一時停止と再開」）。
@@ -352,9 +517,15 @@ async function start(): Promise<void> {
   window.addEventListener('resize', () => view.resize());
   const hint = 'クリックで照準の操作を始める（パッドは右スティックと R2 / RT）';
 
+  // パッドの A / × と B / ○ は、どの画面でも読み、押し始めだけを画面の操作にする（docs/spec/screens.md「画面の操作」）。
+  const padButtons = new PadButtons();
+
   const tick = () => {
+    const gamepad = firstConnectedGamepad(navigator.getGamepads?.() ?? []);
+    // 一時停止中も読み、押し始めを捨てる（再開したあとに、止めていた間の押下が操作にならないように）。
+    for (const pressed of padButtons.poll(gamepad)) control(pressed);
     // 止めている間はパッドも読まない（再開したときに今の状態を読み直す）。
-    if (!running?.loop.paused) pad.poll(firstConnectedGamepad(navigator.getGamepads?.() ?? []));
+    if (!running?.loop.paused) pad.poll(gamepad);
     const current = running;
     if (current) {
       current.loop.frame();
@@ -366,18 +537,25 @@ async function start(): Promise<void> {
         magSize: session.weapon.magSize,
         elapsed: session.elapsed,
         inputMethod: inputs.current,
+        round: set ? { index: set.round, count: set.count } : undefined,
       });
       status.textContent = hint;
       // 最後の弾の弾痕を記録・表示したあとにリザルト画面へ移る。
       if (session.result) finish(current);
     } else {
+      // 短いリザルトの表示中は残り秒数を描き直し、時間が過ぎたら何もしなくても次の回を始める。
+      if (set?.phase === 'interlude') {
+        if (set.interludeElapsed(now())) nextRound();
+        else if (lastRound) showInterlude(set, lastRound);
+      }
       view.render(shownWorld, viewAngles(shownWorld.player));
     }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
 
-  resolveApp({ begin, abort, openHistory });
+  readyApp = { begin, abort, openHistory, control };
+  resolveApp(readyApp);
 }
 
 startShell();

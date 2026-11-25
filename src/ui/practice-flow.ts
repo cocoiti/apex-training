@@ -15,12 +15,15 @@ export interface ScreenEntry {
  * - 「開始」を押したあとにプレイ画面に入ると練習が始まる。押さずに `#/play` を開いたときはトップ画面にする。
  * - 練習中にプレイ画面から離れると、その練習は打ち切る（結果は残さない）。
  * - リザルト画面は、練習を最後まで終えて結果があるときだけ入れる。ないときはトップ画面にする（UI-3）。
+ * - セットのまとめは、連続練習を終えた（最後の回まで終えたか途中でやめた）ときだけ入れる。ないときはトップ画面にする（UI-36）。
+ * やり直しと連続練習の次の回はプレイ画面の中で始め直すので、画面には入り直さない（docs/adr/2026-11-25-practice-set-within-play-screen.md）。
  * 決定の理由は docs/adr/2026-11-25-practice-session-per-start.md。
  */
 export class PracticeFlow {
   private armed = false;
   private active = false;
   private hasResult = false;
+  private hasSetResult = false;
 
   /** 練習中か。 */
   get practicing(): boolean {
@@ -46,6 +49,7 @@ export class PracticeFlow {
     const abort = this.active;
     this.active = false;
     if (requested === 'result' && !this.hasResult) return { screen: 'top', start: false, abort };
+    if (requested === 'set-result' && !this.hasSetResult) return { screen: 'top', start: false, abort };
     return { screen: requested, start: false, abort };
   }
 
@@ -53,5 +57,11 @@ export class PracticeFlow {
   finish(): void {
     this.active = false;
     this.hasResult = true;
+  }
+
+  /** 連続練習を終えた（最後の回まで終えたか、終えた回があるうちにやめた）。このあとセットのまとめに入れる。 */
+  finishSet(): void {
+    this.active = false;
+    this.hasSetResult = true;
   }
 }

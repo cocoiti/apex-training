@@ -9,6 +9,8 @@ export interface HudState {
   readonly elapsed: number;
   /** 今の入力方式（docs/spec/input.md「入力方式の切替」）。 */
   readonly inputMethod: InputMethod;
+  /** 連続練習の今の回の番号（1 から）と回数（docs/spec/modes.md「連続練習（セット）」）。回数が 1 のときは表示しない。 */
+  readonly round?: { readonly index: number; readonly count: number } | undefined;
 }
 
 export interface HudTexts {
@@ -16,6 +18,8 @@ export interface HudTexts {
   readonly ammo: string;
   readonly time: string;
   readonly input: string;
+  /** 回の表示（例: 「2 / 5」）。連続練習でないときは空。 */
+  readonly round: string;
 }
 
 /** 経過時間を秒の小数第 1 位までにする。切り捨てるので、2 秒たつまで「2.0」にならない。 */
@@ -31,6 +35,7 @@ export function hudTexts(state: HudState): HudTexts {
     ammo: `残弾 ${state.ammo} / ${state.magSize}`,
     time: formatElapsed(state.elapsed),
     input: INPUT_METHOD_LABELS[state.inputMethod],
+    round: state.round && state.round.count >= 2 ? `${state.round.index} / ${state.round.count}` : '',
   };
 }
 

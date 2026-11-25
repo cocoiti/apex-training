@@ -53,4 +53,34 @@ describe('練習の始まりと終わりの画面', () => {
     expect(flow.enter('settings-pad').screen).toBe('settings-pad');
     expect(flow.enter('top').screen).toBe('top');
   });
+
+  it('UI-36: 終えたセットがないときにセットのまとめを開くと、トップ画面になる', () => {
+    const flow = new PracticeFlow();
+    expect(flow.enter('set-result')).toEqual({ screen: 'top', start: false, abort: false });
+    // 回数が 1 の練習を終えても、セットのまとめには入れない。
+    flow.requestStart();
+    flow.enter('play');
+    flow.finish();
+    expect(flow.enter('set-result').screen).toBe('top');
+  });
+
+  it('連続練習を終えるとセットのまとめに入れ、練習は打ち切らない', () => {
+    const flow = new PracticeFlow();
+    flow.requestStart();
+    flow.enter('play');
+    flow.finishSet();
+    expect(flow.practicing).toBe(false);
+    expect(flow.enter('set-result')).toEqual({ screen: 'set-result', start: false, abort: false });
+    expect(flow.enter('play').screen).toBe('top');
+  });
+
+  it('UI-35: セットのまとめから「もう一度」でプレイ画面に入ると、新しい練習が始まる', () => {
+    const flow = new PracticeFlow();
+    flow.requestStart();
+    flow.enter('play');
+    flow.finishSet();
+    flow.enter('set-result');
+    flow.requestStart();
+    expect(flow.enter('play')).toEqual({ screen: 'play', start: true, abort: false });
+  });
 });

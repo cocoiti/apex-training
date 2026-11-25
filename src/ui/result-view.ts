@@ -37,6 +37,10 @@ export interface ResultView {
   readonly comments: readonly string[];
   /** 自己ベストの表示。採点しないモードでは null。 */
   readonly best: string | null;
+  /** 平均ズレ（度）。採点しないモードと「なし」のときは null。連続練習の短いリザルトとセットのまとめに使う。 */
+  readonly meanDeviation: number | null;
+  /** この練習で自己ベストを更新したか。 */
+  readonly bestUpdated: boolean;
   readonly plots: readonly Plot[];
 }
 
@@ -98,6 +102,8 @@ export function completePractice(
       metrics: [],
       comments: [],
       best: null,
+      meanDeviation: null,
+      bestUpdated: false,
       plots: [
         {
           name: 'pattern',
@@ -122,6 +128,8 @@ export function completePractice(
     metrics: metricRows(scored),
     comments: scored.comments,
     best: personalBestText(outcome),
+    meanDeviation: scored.meanDeviation,
+    bestUpdated: outcome.updated,
     plots: [
       { name: 'scatter', title: '弾痕の散布図', series: [shotSeries], circle: radius },
       {

@@ -325,10 +325,10 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
       const page = await openFresh();
       await start(page, byId('r301'));
       expect(await lock(page)).toBe(true);
-      // パッドのボタン（× / A）を押して離し、パッドにする。
-      await page.evaluate('window.__button(0, 1)');
+      // パッドのボタン（Y / △）を押して離し、パッドにする。A / × と B / ○ は練習中のやり直し・やめるの操作（docs/spec/screens.md「画面の操作」）なので使わない。
+      await page.evaluate('window.__button(3, 1)');
       await waitShown(page, PAD);
-      await page.evaluate('window.__button(0, 0)');
+      await page.evaluate('window.__button(3, 0)');
       // マウスを動かしてマウスにする。
       await moveMouse(page, 100);
       await waitShown(page, MOUSE, 1000);
@@ -350,10 +350,10 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     await mouseButton(page, 'mousePressed');
     await page.waitFor(`window.__ammo() <= ${beforeFire - 3}`, 5000);
     expect(await shownMethod(page)).toBe(MOUSE);
-    // 左ボタンを押したまま、パッドのボタン（× / A）を押す（射撃のボタンではない）。
-    await page.evaluate('window.__button(0, 1)');
+    // 左ボタンを押したまま、パッドのボタン（Y / △）を押す（射撃のボタンでも、やり直しなどの画面の操作のボタンでもない）。
+    await page.evaluate('window.__button(3, 1)');
     await waitShown(page, PAD, 1000);
-    await page.evaluate('window.__button(0, 0)');
+    await page.evaluate('window.__button(3, 0)');
     await settle(page, 12);
     const stoppedAt = await ammo(page);
     // 左ボタンは押したまま 0.8 秒待つ（発射間隔は約 0.11 秒。撃ち続けていれば 7 発ほど減る）。
@@ -381,10 +381,10 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
       await mouseButton(page, 'mousePressed');
       await page.waitFor(`window.__ammo() <= ${w.magSize - 1}`, 5000);
       expect(await shownMethod(page)).toBe(MOUSE);
-      // パッドのボタン（× / A）を押してパッドに切り替え、マウスの左ボタンを離す。
-      await page.evaluate('window.__button(0, 1)');
+      // パッドのボタン（Y / △）を押してパッドに切り替え、マウスの左ボタンを離す（A / × は練習中のやり直しの操作）。
+      await page.evaluate('window.__button(3, 1)');
       await waitShown(page, PAD, 1000);
-      await page.evaluate('window.__button(0, 0)');
+      await page.evaluate('window.__button(3, 0)');
       await mouseButton(page, 'mouseReleased');
       const left = await ammo(page);
       expect(left, 'パッドに切り替えた時点ではまだ撃ち切っていない').toBeGreaterThan(0);
