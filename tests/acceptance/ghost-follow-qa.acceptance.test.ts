@@ -791,6 +791,19 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
       for (const n of MVP_WEAPONS) expect(weapons).toContain(n);
       expect(modes).toEqual(expect.arrayContaining(['パターン観察', 'ゴースト追従', 'センター維持']));
+      // C.A.R. SMG（#49）は SMG の分類（WPN-13 の optgroup）にある。
+      const group = await page.evaluate<string | null>(
+        `([...document.querySelector('#weapon').options].find((o) => o.textContent.trim() === 'C.A.R. SMG')?.closest('optgroup')?.label ?? null)`,
+      );
+      expect(group).toMatch(/SMG/);
+    });
+
+    it('C.A.R. SMG で練習を始めると、HUD の残弾に装弾数 30（WPN-20）が出る', async () => {
+      const page = await newPage();
+      await resetSettings(page, main);
+      await start(page, main, 'C.A.R. SMG', 'パターン観察');
+      expect(await ammo(page)).toBe(30);
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     });
 
     it.each(MVP_WEAPONS.flatMap((n) => ['パターン観察', 'ゴースト追従', 'センター維持'].map((m) => [n, m] as const)))(
