@@ -11,7 +11,7 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
@@ -278,12 +278,14 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
 
     // 対照: パッドの右スティックでは照準が動き、R2 では撃てる（画面の中心の色の変化で照準の動きを読める）。
     // ポインターロックは外さない（外すと一時停止になる。mouse.md「一時停止と再開」）。
+    // 中心の色が的の色から外れるまで、スティックを倒したまま待つ（描画の速さによって 1 回の倒しで動く量が変わるため）。
     await page.evaluate('window.__pad.axes[2] = 0.4');
-    await settle(page, 9);
+    await waitUntil(
+      async () => distance((await screenshot(page)).pixel(CX, CY), target) > 30,
+      'パッドの右スティックで照準が動き、画面の中心の色が的の色から外れる',
+      { timeout: 5000 },
+    );
     await page.evaluate('window.__pad.axes[2] = 0');
-    await settle(page, 19);
-    const afterPad = await screenshot(page);
-    expect(distance(afterPad.pixel(CX, CY), target), 'パッドでは照準が動く').toBeGreaterThan(30);
     await page.evaluate('window.__button(7, 1)');
     await page.waitFor(`window.__ammo() < ${w.magSize}`, 3000);
     await page.evaluate('window.__button(7, 0)');
