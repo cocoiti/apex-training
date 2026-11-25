@@ -66,7 +66,7 @@ const byId = (id: string) => {
   return w;
 };
 const LSTAR = byId('lstar');
-const R301 = byId('r301');
+const CAR = byId('car');
 
 type RGB = [number, number, number];
 const distance = (a: RGB, b: RGB) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -388,8 +388,8 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
   // -------------------------------------------------------------------------
   it('UI-46 / PAD-32: 練習中の十字キーと左スティックはフォーカスも照準も射撃も動かさず、トップに戻ると選択はそのまま', async () => {
     const page = await openFresh();
-    await padStart(page, R301);
-    const startWeapon = R301.name;
+    await padStart(page, CAR);
+    const startWeapon = CAR.name;
     const startCount = await value(page, '#count');
     expect(await focused(page)).toBe('');
     await hideHtml(page);
@@ -835,7 +835,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
   it('INP-15: 「自動」で今がマウスのとき、パッドのメニュー操作だけで始めると HUD はマウスのまま、R2 / RT でパッドに変わり、その練習はパッド', async () => {
     const page = await openFresh();
     expect(await selectedLabel(page, '#setting-input-method')).toBe('自動');
-    await padStart(page, R301);
+    await padStart(page, CAR);
     await page.frames(10);
     expect(await hudInput(page)).toContain(MOUSE_LABEL);
     expect(await hudInput(page)).not.toContain(PAD_LABEL);
@@ -845,23 +845,23 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     await page.waitFor(`location.hash === '#/result'`, 30_000);
     await button(page, R2, 0);
     const keys = await page.evaluate<string[]>('Object.keys(localStorage)');
-    expect(keys).toContain(`${BEST_PREFIX}pad:${R301.id}:center`);
-    expect(keys).not.toContain(`${BEST_PREFIX}mouse:${R301.id}:center`);
-    expect(keys).toContain(`${HISTORY_PREFIX}pad:${R301.id}:center`);
-    expect(keys).not.toContain(`${HISTORY_PREFIX}mouse:${R301.id}:center`);
+    expect(keys).toContain(`${BEST_PREFIX}pad:${CAR.id}:center`);
+    expect(keys).not.toContain(`${BEST_PREFIX}mouse:${CAR.id}:center`);
+    expect(keys).toContain(`${HISTORY_PREFIX}pad:${CAR.id}:center`);
+    expect(keys).not.toContain(`${HISTORY_PREFIX}mouse:${CAR.id}:center`);
     noExceptions(page);
   }, 90_000);
 
   // -------------------------------------------------------------------------
   it('INP-16: 「自動」で今がパッドのとき、リザルトでマウスで「もう一度」を押しても新しい練習の HUD はパッドのまま', async () => {
     const page = await openFresh();
-    await padStart(page, R301);
+    await padStart(page, CAR);
     await shootOut(page);
     await page.frames(5);
     await page.evaluate(`document.querySelector('#retry').scrollIntoView({ block: 'center' })`);
     await page.frames(2);
     await page.clickSelector('#retry');
-    await page.waitFor(`location.hash === '#/play' && ${screenVisible('play')} && window.__ammo() === ${R301.magSize}`, 10_000);
+    await page.waitFor(`location.hash === '#/play' && ${screenVisible('play')} && window.__ammo() === ${CAR.magSize}`, 10_000);
     await page.frames(20);
     expect(await hudInput(page)).toContain(PAD_LABEL);
     expect(await hudInput(page)).not.toContain(MOUSE_LABEL);
