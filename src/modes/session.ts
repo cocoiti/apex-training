@@ -83,6 +83,15 @@ export class PracticeSession {
     return this.sim.previousViewAngles;
   }
 
+  /**
+   * 今のゴーストの向き。ゴーストを表示しないモード、表示しない状態（撃ち切ったなど）、練習が終わったあとは undefined。
+   * 設定のゴースト表示の ON/OFF はここでは見ない（描画の側で見る）。
+   */
+  get ghost(): Angles | undefined {
+    if (this.finished) return undefined;
+    return this.mode.ghost?.(this.context);
+  }
+
   /** 1 固定ステップ進める。終わったあとは何もしない。 */
   step(): void {
     if (this.finished) return;

@@ -11,6 +11,7 @@ import { DEFAULT_PAD_SETTINGS } from './input/pad-curve';
 import { createSeed, RecordingInput } from './input/recording';
 import { modes } from './modes/registry';
 import { PracticeSession } from './modes/session';
+import { GhostMarker } from './render/ghost';
 import { ImpactMarks } from './render/impacts';
 import { interpolateAngles, SceneRenderer } from './render/scene';
 import { parseMap, type MapData } from './sim/map';
@@ -23,6 +24,7 @@ import { fillModeSelect } from './ui/mode-choices';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { PracticeFlow } from './ui/practice-flow';
 import type { InputMethod } from './ui/personal-best';
+import { applyPracticeSettings } from './ui/practice-settings';
 import { completePractice, renderResult, type ResultElements } from './ui/result-view';
 import { SCREEN_HASHES, watchScreen } from './ui/router';
 import { loadCommonSettings, loadMouseSettings } from './ui/settings';
@@ -184,6 +186,9 @@ async function start(): Promise<void> {
   // FOV は設定画面で保存した値。練習ごとに「開始」を押した時点の値に合わせ直す（docs/spec/screens.md）。
   const view = new SceneRenderer(canvas, shownWorld, { fov: loadCommonSettings(appStorage).fov });
   const impacts = new ImpactMarks(view.view.layer);
+  const ghost = new GhostMarker(view.view.layer);
+  // ゴースト表示の設定。「開始」を押した時点の保存された値（docs/spec/screens.md）。OFF でも採点は変わらない。
+  let showGhost = loadCommonSettings(appStorage).ghost;
   let running: Running | undefined;
   // マウスの換算に使う DPI・感度・ADS 倍率。「開始」を押した時点の保存された値（docs/spec/mouse.md）。
   let mouseSettings: MouseSettings = loadMouseSettings(appStorage);
@@ -198,9 +203,13 @@ async function start(): Promise<void> {
     const mode = modes.find((m) => m.id === modeSelect.value) ?? modes[0];
     if (!weapon || !mode) return;
     impacts.clear();
-    view.view.setFov(loadCommonSettings(appStorage).fov);
-    applySavedCrosshair();
-    mouseSettings = loadMouseSettings(appStorage);
+    ghost.hide();
+    const settings = applyPracticeSettings(appStorage, {
+      view: view.view,
+      crosshair: document.querySelector<HTMLElement>('.crosshair'),
+    });
+    showGhost = settings.ghost;
+    mouseSettings = settings.mouse;
     // 練習ごとに種を 1 つ決め、積んだ入力を記録する（docs/spec/input.md「入力の記録と再生」）。記録はメモリの中だけで持つ。
     const input = new RecordingInput(createSeed());
     const world = createWorld(map);
@@ -212,7 +221,11 @@ async function start(): Promise<void> {
         if (look) input.push(session.sim.time, look);
         session.step();
       },
-      render: (alpha) => view.render(world, interpolateAngles(session.previousViewAngles, viewAngles(world.player), alpha)),
+      render: (alpha) => {
+        // 撃ち切ったときと練習が終わったときはゴーストを消す（session.ghost が undefined）。
+        ghost.update(world.player.position, showGhost ? session.ghost : undefined);
+        view.render(world, interpolateAngles(session.previousViewAngles, viewAngles(world.player), alpha));
+      },
     });
     shownWorld = world;
     running = { session, loop, input };
@@ -222,12 +235,14 @@ async function start(): Promise<void> {
   const abort = () => {
     running = undefined;
     impacts.clear();
+    ghost.hide();
   };
 
   const finish = (current: Running) => {
     const result = current.session.result;
     if (!result) return;
     running = undefined;
+    ghost.hide();
     // 採点し、採点するモードなら自己ベストを保存する。保存できなくても投げず、フッターの表示は appStorage が出す。
     const view = completePractice(
       { result, recording: current.input.recording(), world: current.session.world, input: inputMethod, dt: current.session.sim.dt },

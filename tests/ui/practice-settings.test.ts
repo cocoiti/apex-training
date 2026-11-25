@@ -1,0 +1,83 @@
+import * as THREE from 'three';
+import { describe, expect, it } from 'vitest';
+import range from '../../src/data/maps/range.json';
+import { fieldOfView } from '../../src/render/fov';
+import { ViewScene } from '../../src/render/scene';
+import { viewAngles } from '../../src/sim/player';
+import { loadWorld, type World } from '../../src/sim/world';
+import type { CrosshairElement } from '../../src/ui/crosshair';
+import { applyPracticeSettings } from '../../src/ui/practice-settings';
+import { saveCommonSettings, saveMouseSettings } from '../../src/ui/settings';
+import { SafeStorage } from '../../src/ui/storage';
+
+function memoryStorage(): SafeStorage {
+  const items = new Map<string, string>();
+  const backing = {
+    getItem: (key: string) => items.get(key) ?? null,
+    setItem: (key: string, value: string) => void items.set(key, value),
+    removeItem: (key: string) => void items.delete(key),
+  } as Storage;
+  return new SafeStorage(() => backing);
+}
+
+function fakeCrosshair() {
+  const props = new Map<string, string>();
+  const element: CrosshairElement = {
+    dataset: {},
+    style: { setProperty: (name: string, value: string | null) => void props.set(name, value ?? '') },
+  };
+  return { element, props };
+}
+
+function rangeWorld(): World {
+  const result = loadWorld(range);
+  if (!result.ok) throw new Error(JSON.stringify(result.errors));
+  return result.world;
+}
+
+/** 的の箱の画面上の幅（正規化デバイス座標）。開始時の照準で見たとき。 */
+function targetWidthOnScreen(view: ViewScene, world: World): number {
+  view.update(world, viewAngles(world.player));
+  const target = world.boxes.find((b) => b.kind === 'target');
+  if (!target) throw new Error('的がない');
+  const front = target.center.z + target.size.z / 2;
+  const left = new THREE.Vector3(target.center.x - target.size.x / 2, target.center.y, front).project(view.camera);
+  const right = new THREE.Vector3(target.center.x + target.size.x / 2, target.center.y, front).project(view.camera);
+  return right.x - left.x;
+}
+
+describe('練習の始めに当てる設定', () => {
+  it('設定画面で変えたクロスヘアの色と形が、プレイ画面のクロスヘアに当たる（UI-16）', () => {
+    const storage = memoryStorage();
+    saveCommonSettings(storage, { crosshairColor: '#ff0000', crosshairShape: 'cross' });
+    const { element, props } = fakeCrosshair();
+    applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: element });
+    expect(element.dataset.shape).toBe('cross');
+    expect(props.get('--crosshair-color')).toBe('#ff0000');
+  });
+
+  it('FOV 110 で始めると、カメラの視野角は FOV 110 から求めた値になり、的が FOV 90 より小さく見える（UI-17）', () => {
+    const world = rangeWorld();
+    const narrow = new ViewScene(world);
+    narrow.setAspect(16 / 9);
+    applyPracticeSettings(memoryStorage(), { view: narrow, crosshair: null });
+    const wideStorage = memoryStorage();
+    saveCommonSettings(wideStorage, { fov: 110 });
+    const wide = new ViewScene(world);
+    wide.setAspect(16 / 9);
+    applyPracticeSettings(wideStorage, { view: wide, crosshair: null });
+    expect(narrow.camera.fov).toBeCloseTo(fieldOfView(90, 16 / 9).vertical, 9);
+    expect(wide.camera.fov).toBeCloseTo(fieldOfView(110, 16 / 9).vertical, 9);
+    expect(targetWidthOnScreen(wide, world)).toBeLessThan(targetWidthOnScreen(narrow, world));
+  });
+
+  it('ゴースト表示とマウスの設定は、保存された値を返す（UI-4）', () => {
+    const storage = memoryStorage();
+    expect(applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null }).ghost).toBe(true);
+    saveCommonSettings(storage, { ghost: false });
+    saveMouseSettings(storage, { dpi: 1600 });
+    const settings = applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null });
+    expect(settings.ghost).toBe(false);
+    expect(settings.mouse.dpi).toBe(1600);
+  });
+});

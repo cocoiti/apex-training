@@ -1,4 +1,5 @@
 import type { Random } from '../core/random';
+import type { Angles } from '../sim/angles';
 import type { Gun } from '../sim/gun';
 import type { World } from '../sim/world';
 
@@ -40,4 +41,9 @@ export interface TrainingMode<TResult extends ModeResult = ModeResult> {
   result(context: ModeContext): TResult;
   /** 練習の終わりに 1 回呼ぶ。 */
   teardown(context: ModeContext): void;
+  /**
+   * ゴーストを表示するモードだけが持つ。今のステップの状態からゴーストの向き（ヨー・ピッチ、度）を返し、
+   * 表示しないときは undefined を返す。描画のたびに呼ぶので、シミュレーションの状態を変えない（docs/spec/modes.md「ゴースト追従」）。
+   */
+  ghost?(context: ModeContext): Angles | undefined;
 }

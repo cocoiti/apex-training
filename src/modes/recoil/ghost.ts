@@ -1,0 +1,44 @@
+import { addAngles, type Angles } from '../../sim/angles';
+import type { Gun } from '../../sim/gun';
+import { idealCorrection } from '../../sim/weapon';
+import type { World } from '../../sim/world';
+import type { ModeResult, TrainingMode } from '../types';
+
+/**
+ * ゴーストの向き（docs/spec/modes.md「ゴースト追従」）。
+ * 「マップの開始時の照準 + 次の弾の理想の補正軌道 + 今のリコイルの累積」（ヨー・ピッチ、度）。
+ * 次の弾は Gun が次に使うパターンの発で、撃つ前と戻りきったあとは 1 発目。撃ち切った（残弾 0）ときは undefined（表示しない）。
+ * World と Gun は読むだけで、書き換えない。
+ */
+export function ghostAngles(world: Readonly<Pick<World, 'center' | 'player'>>, gun: Readonly<Pick<Gun, 'ammo' | 'nextPatternShot' | 'weapon'>>): Angles | undefined {
+  if (gun.ammo === 0) return undefined;
+  const ideal = idealCorrection(gun.weapon)[gun.nextPatternShot - 1];
+  if (!ideal) return undefined;
+  const { recoilOffset } = world.player;
+  return addAngles(world.center, { yaw: ideal.yaw + recoilOffset.yaw, pitch: ideal.pitch + recoilOffset.pitch });
+}
+
+/**
+ * ゴースト追従（docs/spec/modes.md）。次の弾で照準を合わせるべき位置にゴーストを表示し、採点する。
+ * ゴーストの描画は src/render/ghost.ts が ghost の返す向きで行い、設定のゴースト表示が OFF なら描画しない。
+ * 採点の指標はリザルトの Issue で足す。ここでは採点するモードであることだけを結果に載せる。
+ */
+const ghost: TrainingMode<ModeResult> = {
+  id: 'ghost',
+  name: 'ゴースト追従',
+  category: 'recoil',
+  order: 20,
+  setup() {},
+  step() {
+    return true;
+  },
+  result() {
+    return { scored: true };
+  },
+  teardown() {},
+  ghost(context) {
+    return ghostAngles(context.world, context.gun);
+  },
+};
+
+export default ghost;
