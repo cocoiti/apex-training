@@ -5,6 +5,7 @@ import { fetchMapJson } from './data/maps';
 import { loadWeapons } from './data/weapons';
 import type { Action } from './input/actions';
 import { attachMouse } from './input/mouse';
+import { DEFAULT_MOUSE_SETTINGS } from './input/mouse-sensitivity';
 import { firstConnectedGamepad, PadInput } from './input/pad';
 import { DEFAULT_PAD_SETTINGS } from './input/pad-curve';
 import { InputQueue } from './input/queue';
@@ -16,8 +17,10 @@ import { parseMap, type MapData } from './sim/map';
 import { viewAngles } from './sim/player';
 import { createWorld, type World } from './sim/world';
 import { applyCrosshair } from './ui/crosshair';
+import { fullscreenLabel, toggleFullscreen } from './ui/fullscreen';
 import { renderHud, type HudElements } from './ui/hud';
 import { fillModeSelect } from './ui/mode-choices';
+import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { PracticeFlow } from './ui/practice-flow';
 import { resultSummaryText } from './ui/result-summary';
 import { SCREEN_HASHES, watchScreen } from './ui/router';
@@ -50,6 +53,18 @@ function startShell(): void {
   // 「開始」を押したあとにプレイ画面に入ったときだけ練習を始める（docs/spec/screens.md）。
   document.querySelector('#start')?.addEventListener('click', () => flow.requestStart());
 
+  // 全画面の切替ボタン（docs/spec/mouse.md「全画面」）。
+  const fullscreen = document.querySelector<HTMLButtonElement>('#fullscreen');
+  if (fullscreen) {
+    fullscreen.addEventListener('click', () => {
+      void toggleFullscreen(document, document.documentElement);
+      fullscreen.blur();
+    });
+    document.addEventListener('fullscreenchange', () => {
+      fullscreen.textContent = fullscreenLabel(document);
+    });
+  }
+
   const screens = [...document.querySelectorAll<HTMLElement>('[data-screen]')];
   watchScreen(window, (requested) => {
     const entry = flow.enter(requested);
@@ -79,12 +94,25 @@ async function start(): Promise<void> {
   const weaponSelect = document.querySelector<HTMLSelectElement>('#weapon');
   const modeSelect = document.querySelector<HTMLSelectElement>('#mode');
   const summary = document.querySelector<HTMLElement>('#result-summary');
+  const lockNotice = document.querySelector<HTMLElement>('#pointer-lock-notice');
+  const pausedNotice = document.querySelector<HTMLElement>('#paused');
   const hud: Partial<Record<keyof HudElements, HTMLElement | null>> = {
     weapon: document.querySelector<HTMLElement>('[data-hud="weapon"]'),
     ammo: document.querySelector<HTMLElement>('[data-hud="ammo"]'),
     time: document.querySelector<HTMLElement>('[data-hud="time"]'),
   };
-  if (!canvas || !status || !weaponSelect || !modeSelect || !summary || !hud.weapon || !hud.ammo || !hud.time) {
+  if (
+    !canvas ||
+    !status ||
+    !weaponSelect ||
+    !modeSelect ||
+    !summary ||
+    !lockNotice ||
+    !pausedNotice ||
+    !hud.weapon ||
+    !hud.ammo ||
+    !hud.time
+  ) {
     throw new Error('画面の要素がない');
   }
   const hudElements = hud as HudElements;
@@ -117,7 +145,6 @@ async function start(): Promise<void> {
   const emit = (action: Action) => running?.queue.push(running.loop.currentTime(), action);
   // パッドの fire・ads は読んだ時刻で積み、look は固定ステップごとにそのステップの開始時刻で積む（docs/spec/pad.md）。
   const pad = new PadInput({ emit, settings: () => DEFAULT_PAD_SETTINGS });
-  attachMouse(canvas, { emit, sensitivity: () => 2 });
 
   const begin = () => {
     const weapon = weapons.find((w) => w.id === weaponSelect.value) ?? weapons[0];
@@ -138,6 +165,7 @@ async function start(): Promise<void> {
     });
     shownWorld = world;
     running = { session, loop, queue };
+    showPaused(pausedNotice, false);
   };
 
   const abort = () => {
@@ -152,11 +180,26 @@ async function start(): Promise<void> {
     location.hash = SCREEN_HASHES.result;
   };
 
+  // 設定画面の Issue で保存した DPI・感度・ADS 倍率を渡す。今は既定値（MOU-11）。
+  // ロックが外れたら練習を止め、ロックし直したら再開する（docs/spec/mouse.md「一時停止と再開」）。
+  attachMouse(canvas, {
+    emit,
+    settings: () => DEFAULT_MOUSE_SETTINGS,
+    onLockResult: (result) => showPointerLockNotice(lockNotice, result),
+    onLockChange: (locked) => {
+      if (!running) return;
+      if (locked) running.loop.resume();
+      else running.loop.pause();
+      showPaused(pausedNotice, !locked);
+    },
+  });
+
   window.addEventListener('resize', () => view.resize());
   const hint = 'クリックで照準の操作を始める（パッドは右スティックと R2 / RT）';
 
   const tick = () => {
-    pad.poll(firstConnectedGamepad(navigator.getGamepads?.() ?? []));
+    // 止めている間はパッドも読まない（再開したときに今の状態を読み直す）。
+    if (!running?.loop.paused) pad.poll(firstConnectedGamepad(navigator.getGamepads?.() ?? []));
     const current = running;
     if (current) {
       current.loop.frame();
