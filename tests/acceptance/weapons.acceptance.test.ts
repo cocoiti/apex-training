@@ -17,6 +17,8 @@ import { Gun } from '../../src/sim/gun';
 import { Simulation } from '../../src/sim/simulation';
 import { idealCorrection, type WeaponData } from '../../src/sim/weapon';
 import { loadWorld, type World } from '../../src/sim/world';
+import { fillWeaponSelect } from '../../src/ui/weapon-choices';
+import { createFakeSelect, describeSelect } from '../ui/fake-select';
 
 const ROOT = resolve(__dirname, '../..');
 const WEAPONS_DIR = join(ROOT, 'src/data/weapons');
@@ -381,5 +383,23 @@ describe('WPN-11: 理想の補正軌道', () => {
 // ---------------------------------------------------------------------------
 
 describe('WPN-13: トップ画面の武器の選択肢', () => {
-  it.todo('トップ画面を開いたとき、武器の一覧のすべての武器が category ごとに分かれて選択肢に出る（練習モードの Issue で満たす）');
+  it('トップ画面を開いたとき、武器の一覧のすべての武器が category ごとに分かれて選択肢に出る', async () => {
+    const weapons = await loadRepoWeapons();
+    expect(weapons).toHaveLength(6);
+    const { select, element } = createFakeSelect();
+    fillWeaponSelect(select, weapons);
+    const groups = describeSelect(element);
+    // 分類ごとに 1 つの optgroup があり、label は category
+    const categories = [...new Set(weapons.map((w) => w.category))];
+    expect(groups.map((g) => g.tag)).toEqual(categories.map(() => 'OPTGROUP'));
+    expect(groups.map((g) => g.label).sort()).toEqual([...categories].sort());
+    // すべての武器が、自分の category の optgroup に 1 度だけ出る
+    const options = groups.flatMap((g) => g.options.map((o) => ({ ...o, category: g.label })));
+    expect(options).toHaveLength(weapons.length);
+    for (const w of weapons) {
+      const found = options.filter((o) => o.value === w.id);
+      expect(found, w.id).toHaveLength(1);
+      expect(found[0]).toMatchObject({ tag: 'OPTION', text: w.name, category: w.category });
+    }
+  });
 });
