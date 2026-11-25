@@ -331,7 +331,7 @@ async function start(): Promise<void> {
       new Date(),
     );
     renderResult(resultView, view);
-    if (result.modeResult.scored) lastScored = { input: inputMethod, weaponId: result.weapon.id, modeId: result.mode.id };
+    if (result.modeResult.scored) lastScored = { input: result.inputMethod, weaponId: result.weapon.id, modeId: result.mode.id };
     flow.finish();
     location.hash = SCREEN_HASHES.result;
   };
