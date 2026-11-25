@@ -1,6 +1,6 @@
 // docs/spec/mouse.md の受け入れ条件（MOU-2〜MOU-4、MOU-7〜MOU-11）の QA の受け入れテスト。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（キャンバス・#pointer-lock-notice・#paused・
-// #status の残弾・#fullscreen）と、開発サーバーから読み込む公開関数（attachMouse・countsToLook・cmPer360 など）。
+// HUD の残弾・#fullscreen）と、開発サーバーから読み込む公開関数（attachMouse・countsToLook・cmPer360 など）。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、マウスとキーは DevTools プロトコルで実際の入力として送る。
 // ポインターロック中の DevTools の mouseMoved は、座標の差がそのまま movementX / movementY（カウント）になる。
 // 加速を外したポインターロックの拒否は、ページのスクリプトより先に requestPointerLock を差し替えて再現する。
@@ -97,7 +97,7 @@ const playState = (page: Page) =>
   page.evaluate<PlayState>(`(() => {
     const vis = (el) => ({ hidden: !el || el.hidden || getComputedStyle(el).display === 'none', text: el ? el.textContent.trim() : '' });
     const status = document.querySelector('#status').textContent;
-    const m = status.match(/残弾\\s*(\\d+)/);
+    const m = document.querySelector('[data-hud="ammo"]').textContent.match(/残弾\\s*(\\d+)/);
     return {
       locked: !!document.pointerLockElement,
       notice: vis(document.querySelector('#pointer-lock-notice')),
