@@ -243,6 +243,23 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
       expect(state.scroll.h).toBeLessThanOrEqual(state.vh);
     }, 30_000);
 
+    it.each(['#/', '#/settings'])('%s で、フッターの中心をヒットテストするとキャンバスに当たらず、クリックしてもポインターロックがかからない', async (hash) => {
+      const page = await browser!.newPage();
+      await page.goto(url(hash));
+      await pause(500);
+      const state = await page.evaluate<{ tag: string | null; inFooter: boolean; x: number; y: number }>(`(() => {
+        const footer = document.querySelector('footer');
+        const r = footer.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2;
+        const el = document.elementFromPoint(x, y);
+        return { tag: el ? el.tagName : null, inFooter: !!el && footer.contains(el), x, y };
+      })()`);
+      expect(state.tag, JSON.stringify(state)).not.toBe('CANVAS');
+      expect(state.inFooter, JSON.stringify(state)).toBe(true);
+      await page.click(state.x, state.y);
+      await pause(500);
+      expect(await page.evaluate<boolean>('document.pointerLockElement === null')).toBe(true);
+    }, 30_000);
+
     it('ウィンドウの大きさを変えると、キャンバスも画面いっぱいに追従する', async () => {
       const page = await browser!.newPage();
       await page.goto(url('#/'));
