@@ -7,8 +7,10 @@ import type { Action } from './input/actions';
 import { InputSwitch } from './input/input-switch';
 import { attachMouse } from './input/mouse';
 import type { MouseSettings } from './input/mouse-sensitivity';
-import { firstConnectedGamepad, PadInput } from './input/pad';
+import { PadInput } from './input/pad';
 import { DEFAULT_PAD_SETTINGS, type PadSettings } from './input/pad-curve';
+import { choosePad, MAPPING_ITEMS, padDisplayName, padStatusText, type MappingItem, type PadStatus } from './input/pad-layout';
+import { canRumble, rumbleShot } from './input/pad-rumble';
 import { createSeed, RecordingInput } from './input/recording';
 import { keyControl, PadButtons, type ScreenControl } from './input/screen-controls';
 import { modes } from './modes/registry';
@@ -26,6 +28,9 @@ import { applyCrosshair } from './ui/crosshair';
 import { fullscreenLabel, toggleFullscreen } from './ui/fullscreen';
 import { bindHistoryView, initialHistorySelection, SCORED_MODES, type HistoryElements } from './ui/history-view';
 import { renderHud, type HudElements } from './ui/hud';
+import { renderCalibration, calibrationRadii, type CalibrationElements } from './ui/pad-calibration';
+import { MappingAutoOpen, PadMappingScreen, PadMappingStore } from './ui/pad-mappings';
+import { bindCalibrationDeadzone, bindPadSettingsForm, type PadFormBinding, type PadSettingsFormElements } from './ui/pad-settings-form';
 import { fillModeSelect } from './ui/mode-choices';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { padGuideState, padGuideVisible, renderPadGuide, type PadGuideElements } from './ui/pad-guide';
@@ -40,7 +45,7 @@ import { adsAfter, applyReticleColor, showAimDisplay, type AimDisplayElements } 
 import { SCREEN_HASHES, watchScreen, type ScreenId } from './ui/router';
 import { screenCommand, type PlayPhase, type ScreenCommand } from './ui/screen-commands';
 import { renderSetSummary, setSummaryHeading, summarizeSet, type SetSummaryElements } from './ui/set-summary';
-import { loadCommonSettings, loadMouseSettings } from './ui/settings';
+import { effectivePadSettings, loadCommonSettings, loadMouseSettings, loadPadSettings } from './ui/settings';
 import { bindSettingsForm, type SettingsFormElements } from './ui/settings-form';
 import { showScreen, showStorageNotice } from './ui/shell';
 import { appStorage } from './ui/storage';
@@ -59,6 +64,15 @@ interface App {
 const flow = new PracticeFlow();
 /** 読み込みが終わった App。終わる前の画面の操作は捨てる（あとから古い画面の操作として効かないように）。 */
 let readyApp: App | undefined;
+// 保存したパッドのボタン割り当て。描画のたびに引くのでメモリに持つ（docs/spec/pad.md「ボタン割り当て」）。
+const padMappings = new PadMappingStore(appStorage);
+/** 描画の時刻ごとに 1 回だけ読んだパッド。パッドの画面と練習が同じ描画で同じ値を使う。 */
+let gamepadFrame: { time: number; pads: readonly (Gamepad | null)[] } | undefined;
+/** ブラウザが見つけたパッド。Gamepad API がないブラウザでは空。time は requestAnimationFrame の時刻で、同じ時刻なら読み直さない。 */
+const readGamepads = (time: number): readonly (Gamepad | null)[] => {
+  if (gamepadFrame?.time !== time) gamepadFrame = { time, pads: navigator.getGamepads?.() ?? [] };
+  return gamepadFrame.pads;
+};
 let resolveApp: (app: App) => void = () => {};
 const appReady = new Promise<App>((resolve) => {
   resolveApp = resolve;
@@ -74,6 +88,7 @@ function startShell(): void {
   startSettingsForm();
   const countSelect = document.querySelector<HTMLSelectElement>('#count');
   if (countSelect) fillCountSelect(countSelect);
+  const padScreens = startPadScreens();
 
   // 「開始」を押したあとにプレイ画面に入ったときだけ練習を始める（docs/spec/screens.md）。
   document.querySelector('#start')?.addEventListener('click', () => flow.requestStart());
@@ -110,6 +125,7 @@ function startShell(): void {
     // 入れない画面のハッシュはトップに置き換える。そのままだと「開始」でハッシュが変わらず練習を始められない。
     if (entry.screen !== requested) history.replaceState(null, '', SCREEN_HASHES[entry.screen]);
     showScreen(screens, entry.screen);
+    padScreens.enter(entry.screen);
     if (entry.screen !== 'play' && document.pointerLockElement) document.exitPointerLock();
     if (entry.abort) void appReady.then((app) => app.abort());
     if (entry.screen === 'history') void appReady.then((app) => app.openHistory());
@@ -195,6 +211,121 @@ function historyElements(): HistoryElements | null {
   return elements as HistoryElements;
 }
 
+/** 画面に入ったときに、パッドの画面の表示を保存された値に揃える。 */
+interface PadScreens {
+  enter(screen: ScreenId): void;
+}
+
+/**
+ * 設定画面のパッドの区分・キャリブレーション画面・ボタン割り当て画面（docs/spec/pad.md）。練習の読み込みに失敗しても動くよう、
+ * 練習とは別に描画のたびにパッドを読む。トップ画面と設定画面では、標準配置でないパッドのボタンでボタン割り当て画面を開く。
+ */
+function startPadScreens(): PadScreens {
+  const byId = <T extends Element>(id: string) => document.querySelector<T>(`#${id}`);
+  const forms: PadFormBinding[] = [];
+
+  const advanced = {
+    deadzone: byId<HTMLInputElement>('setting-pad-deadzone'),
+    outerThreshold: byId<HTMLInputElement>('setting-pad-outer-threshold'),
+    responseCurve: byId<HTMLInputElement>('setting-pad-response-curve'),
+    yaw: byId<HTMLInputElement>('setting-pad-yaw'),
+    pitch: byId<HTMLInputElement>('setting-pad-pitch'),
+    adsYaw: byId<HTMLInputElement>('setting-pad-ads-yaw'),
+    adsPitch: byId<HTMLInputElement>('setting-pad-ads-pitch'),
+  };
+  const padForm = {
+    mode: byId<HTMLSelectElement>('setting-pad-mode'),
+    simpleLook: byId<HTMLSelectElement>('setting-pad-simple-look'),
+    simpleAds: byId<HTMLSelectElement>('setting-pad-simple-ads'),
+    simpleCurve: byId<HTMLSelectElement>('setting-pad-simple-curve'),
+    vibration: byId<HTMLInputElement>('setting-pad-vibration'),
+  };
+  if (![...Object.values(advanced), ...Object.values(padForm)].some((element) => !element)) {
+    forms.push(bindPadSettingsForm({ ...padForm, advanced } as PadSettingsFormElements, appStorage));
+  }
+  const settingsStatus = byId<HTMLElement>('settings-pad-status');
+  const vibrationNotice = byId<HTMLElement>('settings-pad-vibration-notice');
+
+  // キャリブレーション画面。デッドゾーンの欄を変えると、すぐに円の大きさを変える。
+  const calibration = {
+    list: byId<HTMLElement>('calibration-list'),
+    empty: byId<HTMLElement>('calibration-empty'),
+    table: byId<HTMLElement>('calibration-table'),
+    status: byId<HTMLElement>('calibration-status'),
+    axes: byId<HTMLElement>('calibration-axes'),
+    buttons: byId<HTMLElement>('calibration-buttons'),
+    stick: byId<Element>('calibration-dot'),
+    deadzoneCircle: byId<Element>('calibration-deadzone'),
+    outerCircle: byId<Element>('calibration-outer'),
+  };
+  const calibrationElements = Object.values(calibration).some((element) => !element)
+    ? undefined
+    : (calibration as CalibrationElements);
+  let shownDeadzone = effectivePadSettings(loadPadSettings(appStorage)).deadzone;
+  const deadzoneField = byId<HTMLInputElement>('calibration-deadzone-input');
+  if (deadzoneField) {
+    forms.push(
+      bindCalibrationDeadzone(deadzoneField, appStorage, (deadzone) => {
+        shownDeadzone = deadzone;
+      }),
+    );
+  }
+
+  // ボタン割り当て画面。
+  const mappingScreen = new PadMappingScreen<Gamepad>(padMappings);
+  const mappingEmpty = byId<HTMLElement>('mapping-empty');
+  const mappingBody = byId<HTMLElement>('mapping-body');
+  const mappingTarget = byId<HTMLElement>('mapping-target');
+  const mappingSaved = byId<HTMLElement>('mapping-saved');
+  const mappingValues = new Map(MAPPING_ITEMS.map((item) => [item, byId<HTMLElement>(`mapping-${item}`)]));
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-assign]')) {
+    button.addEventListener('click', () => {
+      mappingScreen.start(button.dataset.assign as MappingItem);
+      button.blur();
+    });
+  }
+  byId<HTMLButtonElement>('mapping-clear')?.addEventListener('click', () => mappingScreen.clear());
+  const setText = (element: HTMLElement | null, text: string) => {
+    if (element && element.textContent !== text) element.textContent = text;
+  };
+  const setHidden = (element: HTMLElement | null, hidden: boolean) => {
+    if (element && element.hidden !== hidden) element.hidden = hidden;
+  };
+
+  /** 前に enter() で入った画面。ボタン割り当て画面を出たことを知るのに使う。 */
+  let shownScreen: ScreenId = 'top';
+  const autoOpen = new MappingAutoOpen();
+  const tick = (time: number) => {
+    const pads = readGamepads(time);
+    const status = choosePad(pads, padMappings.get);
+    if (autoOpen.check(currentScreen, pads, status.kind === 'using')) location.hash = SCREEN_HASHES['settings-pad-mapping'];
+    if (currentScreen === 'settings') {
+      setText(settingsStatus, padStatusText(status));
+      setHidden(vibrationNotice, status.kind !== 'using' || canRumble(status.pad));
+    } else if (currentScreen === 'settings-pad' && calibrationElements) {
+      const outer = effectivePadSettings(loadPadSettings(appStorage)).outerThreshold;
+      renderCalibration(calibrationElements, pads, status, padMappings.get, calibrationRadii(shownDeadzone, outer), padStatusText(status));
+    } else if (currentScreen === 'settings-pad-mapping') {
+      const state = mappingScreen.frame(pads);
+      setHidden(mappingEmpty, state.target !== undefined);
+      setHidden(mappingBody, state.target === undefined);
+      setText(mappingTarget, state.target === undefined ? '' : padDisplayName(state.target));
+      for (const item of MAPPING_ITEMS) setText(mappingValues.get(item) ?? null, state.items[item]);
+      setText(mappingSaved, state.saved ? 'このパッドの割り当てを保存しました' : '4 つの項目をすべて割り当てると保存します');
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+
+  return {
+    enter: (screen) => {
+      if (shownScreen === 'settings-pad-mapping' && screen !== shownScreen) mappingScreen.leave();
+      shownScreen = screen;
+      if (screen === 'settings' || screen === 'settings-pad') for (const form of forms) form.refresh();
+    },
+  };
+}
+
 /** 1 回の練習の、シミュレーションとループと入力の記録。時刻は練習の開始を 0 とする。 */
 interface Running {
   readonly session: PracticeSession;
@@ -203,6 +334,8 @@ interface Running {
   readonly input: RecordingInput;
   /** この練習に当てたパッドの設定。ガイドとリザルトの入力推移のカーブの逆に使う。 */
   readonly padSettings: Readonly<PadSettings>;
+  /** 振動を出し終えた弾の数。 */
+  rumbledShots: number;
 }
 
 async function start(): Promise<void> {
@@ -244,6 +377,7 @@ async function start(): Promise<void> {
     time: document.querySelector<HTMLElement>('[data-hud="time"]'),
     input: document.querySelector<HTMLElement>('[data-hud="input"]'),
     round: document.querySelector<HTMLElement>('[data-hud="round"]'),
+    pad: document.querySelector<HTMLElement>('[data-hud="pad"]'),
   };
   if (
     !canvas ||
@@ -263,7 +397,8 @@ async function start(): Promise<void> {
     !hud.ammo ||
     !hud.time ||
     !hud.input ||
-    !hud.round
+    !hud.round ||
+    !hud.pad
   ) {
     throw new Error('画面の要素がない');
   }
@@ -322,6 +457,11 @@ async function start(): Promise<void> {
   let running: Running | undefined;
   // マウスの換算に使う DPI・感度・ADS 倍率。「開始」を押した時点の保存された値（docs/spec/mouse.md）。
   let mouseSettings: MouseSettings = loadMouseSettings(appStorage);
+  // スティックの換算に使う値と振動の ON/OFF。「開始」を押した時点の保存された値（docs/spec/pad.md「パッドの設定画面」）。
+  let padSettings: PadSettings = DEFAULT_PAD_SETTINGS;
+  let vibration = true;
+  // 入力に使うパッドの状態。描画のたびに選び直す（docs/spec/pad.md「入力に使うパッド」）。
+  let padStatus: PadStatus<Gamepad> = { kind: 'missing' };
 
   // ads を押している間はスコープの表示にする（docs/spec/screens.md「ADS 中の照準」）。シミュレーションの状態ではなく、
   // 積んだ入力から決める。一時停止でステップが進まなくても、ロックが外れて ads を離した時点で腰撃ちの表示に戻すため。
@@ -347,7 +487,7 @@ async function start(): Promise<void> {
   // パッドの fire・ads は読んだ時刻で積み、look は固定ステップごとにそのステップの開始時刻で積む（docs/spec/pad.md）。
   const pad = new PadInput({
     emit: (action) => inputs.input('pad', action),
-    settings: () => DEFAULT_PAD_SETTINGS,
+    settings: () => padSettings,
     onActivity: () => inputs.activity('pad'),
   });
 
@@ -376,6 +516,8 @@ async function start(): Promise<void> {
     if (scope) applyReticleColor(scope, loadCommonSettings(appStorage).crosshairColor);
     showGhost = settings.ghost;
     mouseSettings = settings.mouse;
+    padSettings = settings.pad;
+    vibration = settings.vibration;
     inputPreference = loadCommonSettings(appStorage).inputMethod;
     inputs.resetHeld();
     // 練習ごとに種を 1 つ決め、積んだ入力を記録する（docs/spec/input.md「入力の記録と再生」）。記録はメモリの中だけで持つ。
@@ -404,7 +546,7 @@ async function start(): Promise<void> {
       },
     });
     shownWorld = world;
-    running = { session, loop, input, padSettings: DEFAULT_PAD_SETTINGS };
+    running = { session, loop, input, padSettings: DEFAULT_PAD_SETTINGS, rumbledShots: 0 };
     hideGuide();
     setAds(false);
     interlude.hidden = true;
@@ -550,22 +692,35 @@ async function start(): Promise<void> {
     },
   });
 
+  // 入力に使うパッドで弾が 1 発出るたびに 1 回振動させる。マウスのとき・OFF のとき・対応しないときは出さない（docs/spec/pad.md「振動」）。
+  const rumbleNewShots = (current: Running) => {
+    const shots = current.session.gun.shots.length;
+    for (; current.rumbledShots < shots; current.rumbledShots += 1) {
+      if (vibration && inputs.current === 'pad' && padStatus.kind === 'using') rumbleShot(padStatus.pad);
+    }
+  };
+
   window.addEventListener('resize', () => view.resize());
   const hint = 'クリックで照準の操作を始める（パッドは右スティックと R2 / RT）';
 
   // パッドの A / × と B / ○ は、どの画面でも読み、押し始めだけを画面の操作にする（docs/spec/screens.md「画面の操作」）。
   const padButtons = new PadButtons();
 
-  const tick = () => {
-    const gamepad = firstConnectedGamepad(navigator.getGamepads?.() ?? []);
+  const tick = (time: number) => {
+    padStatus = choosePad(readGamepads(time), padMappings.get);
+    const gamepad = padStatus.kind === 'using' ? padStatus.pad : null;
     // 一時停止中も読み、押し始めを捨てる（再開したあとに、止めていた間の押下が操作にならないように）。
     for (const pressed of padButtons.poll(gamepad)) control(pressed);
-    // 止めている間はパッドも読まない（再開したときに今の状態を読み直す）。
-    if (!running?.loop.paused) pad.poll(gamepad);
+    // 止めている間はパッドも読まない（再開したときに今の状態を読み直す）。使えるパッドがなければ入力はないものとする。
+    if (!running?.loop.paused) {
+      if (padStatus.kind === 'using') pad.poll(padStatus.pad, padStatus.layout);
+      else pad.poll(null);
+    }
     const current = running;
     if (current) {
       current.loop.frame();
       const { session } = current;
+      rumbleNewShots(current);
       impacts.sync(session.gun.shots, session.world.player.position);
       renderHud(hudElements, {
         weaponName: session.weapon.name,
@@ -574,6 +729,7 @@ async function start(): Promise<void> {
         elapsed: session.elapsed,
         inputMethod: inputs.current,
         round: set ? { index: set.round, count: set.count } : undefined,
+        padStatus: inputPreference === 'mouse' ? undefined : padStatusText(padStatus, true),
       });
       // 入力方式がマウスに変わったら、同じ描画ですぐにガイドを消す。撃ち切ったとき・終わったときは session.ghost が undefined。
       if (guide) {

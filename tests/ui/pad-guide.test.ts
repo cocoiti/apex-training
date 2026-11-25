@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PAD_SETTINGS, stickPosition, type PadSettings } from '../../src/input/pad-curve';
-import { padGuideState, padGuideVisible, renderPadGuide, UNKNOWN_PAD_NAME } from '../../src/ui/pad-guide';
+import { UNKNOWN_PAD_NAME } from '../../src/input/pad-layout';
+import { padGuideState, padGuideVisible, renderPadGuide } from '../../src/ui/pad-guide';
 
 const classic: PadSettings = { ...DEFAULT_PAD_SETTINGS, deadzone: 10, outerThreshold: 2, responseCurve: 8 };
 

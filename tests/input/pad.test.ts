@@ -190,3 +190,44 @@ describe('ガイドに使う値', () => {
     expect(pad.name).toBeUndefined();
   });
 });
+
+describe('ボタン割り当てで読む（docs/spec/pad.md「ボタン割り当て」）', () => {
+  const layout = { fire: 1, ads: 2, lookX: { axis: 0, invert: true }, lookY: { axis: 1, invert: true } };
+
+  /** 標準配置でないパッド。ボタン 1 を fire、2 を ads、軸 0・1 を反転した右スティックとして割り当てる。 */
+  function odd(options: { fire?: number; ads?: number; x?: number; y?: number } = {}): GamepadLike {
+    const buttons = Array.from({ length: 12 }, () => ({ value: 0, pressed: false }));
+    buttons[1] = { value: options.fire ?? 0, pressed: false };
+    buttons[2] = { value: options.ads ?? 0, pressed: false };
+    return { connected: true, mapping: '', axes: [options.x ?? 0, options.y ?? 0, 0, 0], buttons };
+  }
+
+  it('PAD-3: 割り当てたボタンがしきい値以上で fire・ads、割り当てた軸で look', () => {
+    const { pad, actions, activities } = createPad();
+    pad.poll(odd({ fire: 0.4 }), layout);
+    expect(actions).toEqual([]);
+    pad.poll(odd({ fire: 0.6, ads: 1 }), layout);
+    expect(actions).toEqual([
+      { type: 'fire', pressed: true },
+      { type: 'ads', pressed: true },
+    ]);
+    expect(activities()).toBe(1);
+    expect(pad.active).toBe(true);
+  });
+
+  it('反転した軸は向きを変えて読む（左右は負が右、上下は正が上）', () => {
+    const { pad } = createPad();
+    pad.poll(odd({ x: -1 }), layout);
+    expect(pad.step(1)?.yaw).toBeCloseTo(300, 9);
+    pad.poll(odd({ y: 1 }), layout);
+    const look = pad.step(1);
+    expect(look?.pitch).toBeCloseTo(260, 9);
+  });
+
+  it('割り当てがなければ標準配置でないパッドは読まない', () => {
+    const { pad, actions } = createPad();
+    pad.poll(odd({ fire: 1, x: -1 }));
+    expect(actions).toEqual([]);
+    expect(pad.step(1)).toBeUndefined();
+  });
+});

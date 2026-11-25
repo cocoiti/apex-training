@@ -1,5 +1,8 @@
 import type { Action, LookAction } from './actions';
 import { lookRate, type PadSettings, type StickPosition } from './pad-curve';
+import { isStandardMapping, padName, STANDARD_PAD_LAYOUT, type PadLayout } from './pad-layout';
+
+export { isStandardMapping } from './pad-layout';
 
 /** Gamepad API の Gamepad のうち、読み取りに使う部分。テストでは素のオブジェクトで代用する。 */
 export interface GamepadLike {
@@ -11,12 +14,8 @@ export interface GamepadLike {
   readonly buttons: readonly { readonly value: number; readonly pressed: boolean }[];
 }
 
-/** 標準配置の番号（docs/spec/pad.md）。 */
+/** 標準配置の、画面の操作に使うボタンの番号（docs/spec/pad.md）。fire・ads・右スティックは STANDARD_PAD_LAYOUT。 */
 export const STANDARD_LAYOUT = {
-  lookX: 2,
-  lookY: 3,
-  fire: 7,
-  ads: 6,
   /** A / ×。画面の操作（やり直す・次へ・もう一度）に使い、アクションにはしない（src/input/screen-controls.ts）。 */
   confirm: 0,
   /** B / ○。画面の操作（やめる・武器変更）に使い、アクションにはしない。 */
@@ -25,11 +24,6 @@ export const STANDARD_LAYOUT = {
 
 /** R2 / RT と L2 / LT を押している状態とみなすアナログ値の既定のしきい値。 */
 export const DEFAULT_TRIGGER_THRESHOLD = 0.5;
-
-/** ブラウザが報告する配置が標準配置か。 */
-export function isStandardMapping(pad: Pick<GamepadLike, 'mapping'>): boolean {
-  return pad.mapping === 'standard';
-}
 
 /** つながっているパッドのうち最初のものを返す。navigator.getGamepads() の結果を渡す。 */
 export function firstConnectedGamepad(pads: readonly (GamepadLike | null)[]): GamepadLike | null {
@@ -62,6 +56,8 @@ export class PadInput {
   private held = { fire: false, ads: false };
   private connected = false;
   private padName: string | undefined;
+  /** 読んでいるパッドの配置。 */
+  private layout: PadLayout = STANDARD_PAD_LAYOUT;
   /** 前に読んだときに押していたボタンの番号。 */
   private pressedButtons = new Set<number>();
   /** 前に読んだときに右スティックがデッドゾーンの外にあったか。 */
@@ -74,7 +70,7 @@ export class PadInput {
     this.onActivity = options.onActivity ?? (() => {});
   }
 
-  /** 標準配置のパッドを読んでいるか。 */
+  /** 入力に使うパッドを読んでいるか。 */
   get active(): boolean {
     return this.connected;
   }
@@ -90,11 +86,12 @@ export class PadInput {
   }
 
   /**
-   * パッドの最新の値を読む。null（外れた）や標準配置でないパッドのときは、look を止め、fire・ads を離した状態にする。
-   * 標準配置でないパッドの割り当ては docs/spec/pad.md のボタン割り当て画面の Issue で足す。
+   * パッドの最新の値を読む。layout はそのパッドの配置（標準配置か保存したボタン割り当て）で、省くと標準配置のパッドだけを読む。
+   * null（外れた・使えるパッドがない）や、配置のない標準配置でないパッドのときは、look を止め、fire・ads を離した状態にする。
    */
-  poll(pad: GamepadLike | null): void {
-    if (!pad || !pad.connected || !isStandardMapping(pad)) {
+  poll(pad: GamepadLike | null, layout?: PadLayout): void {
+    const use = layout ?? (pad && isStandardMapping(pad) ? STANDARD_PAD_LAYOUT : undefined);
+    if (!pad || !pad.connected || !use) {
       this.connected = false;
       this.padName = undefined;
       this.stick = { x: 0, y: 0 };
@@ -105,15 +102,12 @@ export class PadInput {
       return;
     }
     this.connected = true;
-    this.padName = pad.id === undefined || pad.id === '' ? undefined : pad.id;
-    // Gamepad API の上下は下が正。ピッチは上が正なので反転する（0 を -0 にしない）。
-    this.stick = {
-      x: pad.axes[STANDARD_LAYOUT.lookX] ?? 0,
-      y: 0 - (pad.axes[STANDARD_LAYOUT.lookY] ?? 0),
-    };
+    this.padName = padName(pad.id);
+    this.layout = use;
+    this.stick = { x: readAxis(pad, use.lookX), y: readUp(pad, use.lookY) };
     if (this.detectActivity(pad)) this.onActivity();
-    this.setHeld('fire', this.triggerPressed(pad, STANDARD_LAYOUT.fire));
-    this.setHeld('ads', this.triggerPressed(pad, STANDARD_LAYOUT.ads));
+    this.setHeld('fire', this.triggerPressed(pad, use.fire));
+    this.setHeld('ads', this.triggerPressed(pad, use.ads));
   }
 
   /** 1 固定ステップ分の look。動かないときは undefined。ADS 中はパッドの L2 / LT の状態で判断する。 */
@@ -137,9 +131,9 @@ export class PadInput {
     return newlyPressed || stickMoved;
   }
 
-  /** トリガー（R2 / RT と L2 / LT）はしきい値以上、ほかのボタンは pressed で押しているとみなす。 */
+  /** fire・ads のボタン（R2 / RT と L2 / LT、割り当てたボタン）はしきい値以上、ほかのボタンは pressed で押しているとみなす。 */
   private buttonPressed(pad: GamepadLike, index: number, button: GamepadLike['buttons'][number]): boolean {
-    if (index === STANDARD_LAYOUT.fire || index === STANDARD_LAYOUT.ads) return this.triggerPressed(pad, index);
+    if (index === this.layout.fire || index === this.layout.ads) return this.triggerPressed(pad, index);
     return button.pressed;
   }
 
@@ -153,4 +147,17 @@ export class PadInput {
     this.held[type] = pressed;
     this.emit({ type, pressed });
   }
+}
+
+/** 右スティックの左右の値。右が正。 */
+function readAxis(pad: GamepadLike, binding: PadLayout['lookX']): number {
+  const value = pad.axes[binding.axis] ?? 0;
+  // 0 を -0 にしない。
+  return binding.invert ? 0 - value : value;
+}
+
+/** 右スティックの上下の値。上が正（Gamepad API の上下は下が正なので、反転しないときに符号を変える）。 */
+function readUp(pad: GamepadLike, binding: PadLayout['lookY']): number {
+  const value = pad.axes[binding.axis] ?? 0;
+  return binding.invert ? value : 0 - value;
 }
