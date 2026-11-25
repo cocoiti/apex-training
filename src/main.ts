@@ -231,6 +231,9 @@ async function start(): Promise<void> {
       view: view.view,
       crosshair: document.querySelector<HTMLElement>('.crosshair'),
     });
+    // スコープのレティクルも、開始時のクロスヘアの色にする。
+    const scope = document.querySelector<HTMLElement>('.scope');
+    if (scope) applyReticleColor(scope, loadCommonSettings(appStorage).crosshairColor);
     showGhost = settings.ghost;
     mouseSettings = settings.mouse;
     // 練習ごとに種を 1 つ決め、積んだ入力を記録する（docs/spec/input.md「入力の記録と再生」）。記録はメモリの中だけで持つ。

@@ -652,15 +652,22 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
 
   // -------------------------------------------------------------------------
   describe('UI-17: FOV を 110 にしてから練習を始めると、FOV 90 より壁と的が小さく表示され、視野角は FOV 110 から求めた値になる', () => {
-    /** 色 c が続く区間（中心の点 (x, y) から左右・上下へ）。 */
-    function extent(img: Image, x: number, y: number, axis: 'x' | 'y', c: RGB): [number, number] {
+    /**
+     * 点 (x, y) から左右・上下へ、stop(色) が run 画素続く手前までの区間。
+     * 壁の目地（1〜2 px）や的のリングの線（1〜2 px）は細いので、run 画素続けて当てはまった所を縁とする。
+     */
+    function extent(img: Image, x: number, y: number, axis: 'x' | 'y', stop: (c: RGB) => boolean, run: number): [number, number] {
       const at = (i: number) => (axis === 'x' ? img.pixel(i, y) : img.pixel(x, i));
       const limit = axis === 'x' ? WIDTH : HEIGHT;
-      let lo = axis === 'x' ? x : y;
-      let hi = lo;
-      while (lo - 1 >= 0 && distance(at(lo - 1), c) < 30) lo -= 1;
-      while (hi + 1 < limit && distance(at(hi + 1), c) < 30) hi += 1;
-      return [lo, hi + 1];
+      const from = axis === 'x' ? x : y;
+      const edge = (step: number) => {
+        for (let i = from; ; i += step) {
+          const next = Array.from({ length: run }, (_, k) => i + step * (k + 1));
+          if (next.some((j) => j < 0 || j >= limit)) return i;
+          if (next.every((j) => stop(at(j)))) return i;
+        }
+      };
+      return [edge(-1), edge(1) + 1];
     }
 
     async function measure(page: Page, origin: string, fov: number | undefined) {
@@ -672,15 +679,38 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       }
       await start(page, origin, 'R-301', 'パターン観察');
       const img = await canvasOnly(page);
-      const target = img.pixel(CX, CY);
-      // 壁の色は、的の下で壁の下端より上（FOV 110 で壁の下端は中心から約 60 ピクセル下）の画素。
-      const wall = img.pixel(CX, CY + 30);
+      // 壁の色は、的とリングより下で壁の下端より上の行（中心から 45 px 下）の、目地を避けた画素。
+      // 目地は 1 m ごと（FOV 90 で約 64 px、FOV 110 で約 45 px ごと）で、中心の真下の列と中心から 38・27 px 下の行を通る。
+      const row = CY + 45;
+      const wall = img.pixel(CX + 20, row);
+      // 的（板）の色は、中心の近くで壁と違う色のうち、いちばん多い色（リングの線の間に見える板の色）。
+      const counts = new Map<string, [RGB, number]>();
+      for (let dy = -12; dy <= 12; dy += 1) {
+        for (let dx = -12; dx <= 12; dx += 1) {
+          const c = img.pixel(CX + dx, CY + dy);
+          if (distance(c, wall) <= 40) continue;
+          const key = c.join(',');
+          counts.set(key, [c, (counts.get(key)?.[1] ?? 0) + 1]);
+        }
+      }
+      const [[target] = [img.pixel(CX, CY)]] = [...counts.values()].sort((a, b) => b[1] - a[1]);
       expect(distance(target, wall), '中心に的が見えない').toBeGreaterThan(40);
+      const isWall = (c: RGB) => distance(c, wall) < 30;
+      /** 的の縁: 中心を通る行・列で、板の色の画素のいちばん外側（リングの線は板の上にも壁の上にも描かれるので、色が続く所では測らない）。 */
+      const board = (axis: 'x' | 'y'): [number, number] => {
+        const hits: number[] = [];
+        for (let d = -60; d <= 60; d += 1) {
+          const c = axis === 'x' ? img.pixel(CX + d, CY) : img.pixel(CX, CY + d);
+          if (distance(c, target) < 30) hits.push((axis === 'x' ? CX : CY) + d);
+        }
+        return [Math.min(...hits), Math.max(...hits) + 1];
+      };
       return {
-        targetX: extent(img, CX, CY, 'x', target),
-        targetY: extent(img, CX, CY, 'y', target),
-        wallX: extent(img, CX, CY + 30, 'x', wall),
-        wallY: extent(img, CX + 100, CY, 'y', wall),
+        targetX: board('x'),
+        targetY: board('y'),
+        // 壁の縁は、壁と違う色（空・床）が 3 画素続く所。
+        wallX: extent(img, CX + 20, row, 'x', (c) => !isWall(c), 3),
+        wallY: extent(img, CX + 100, row, 'y', (c) => !isWall(c), 3),
       };
     }
 
