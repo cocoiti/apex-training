@@ -675,6 +675,8 @@ polyline.plot-history {
 .history-table th {
   color: #a4a9b2;
   font-weight: normal;
+}
+
 .hud-round {
   font-size: 18px;
   font-variant-numeric: tabular-nums;
