@@ -29,3 +29,4 @@ SPEC（`docs/spec/`）はプロダクトが今どう振る舞うかを書く。A
 | [2026-11-25-data-json-as-fetched-assets](2026-11-25-data-json-as-fetched-assets.md) | データの JSON は src/data/ に置き、Vite の資産として出してベースパス基準の URL で fetch する | 承認 | spec/architecture.md（ARC-11, ARC-14）, src/data/maps/, vite.config.ts, scripts/check-subpath.mjs |
 | [2026-11-25-lint-eslint-typescript-6](2026-11-25-lint-eslint-typescript-6.md) | lint は ESLint（typescript-eslint）と tsc で行い、TypeScript は 6.0 系に留める | 承認 | spec/architecture.md（ARC-1, ARC-4, ARC-13）, package.json, eslint.config.js, tests/helpers/sim-boundary.ts |
 | [2026-11-25-safe-storage-wrapper](2026-11-25-safe-storage-wrapper.md) | localStorage は例外を投げない SafeStorage を通し、失敗後もページを開いている間はメモリで値を持つ | 承認 | spec/overview.md（OVR-4）, src/ui/storage.ts, src/main.ts |
+| [2026-11-25-fire-schedule-from-press](2026-11-25-fire-schedule-from-press.md) | 発射の時刻は押し始めのステップを起点に「発数 × 発射間隔」で決め、押し直しでは発射間隔を待たない | 承認 | spec/weapons.md（発射、WPN-4, WPN-5）, src/sim/gun.ts |
