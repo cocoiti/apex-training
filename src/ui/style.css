@@ -675,6 +675,8 @@ polyline.plot-history {
 .history-table th {
   color: #a4a9b2;
   font-weight: normal;
+}
+
 .hud-round {
   font-size: 18px;
   font-variant-numeric: tabular-nums;
@@ -803,4 +805,37 @@ polyline.plot-trend {
 .plot-label {
   fill: #a4a9b2;
   font-size: 10px;
+}
+
+/*
+ * パッドでフォーカスしている項目の枠（docs/spec/screens.md「パッドでの項目の移動と変更」）。
+ * DOM のフォーカスとは別に、src/ui/pad-menu.ts がクラスを付ける。パネルの背景と見分けられる色にする。
+ */
+.pad-focus {
+  outline: 3px solid #f2c14e;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* 履歴を消してよいかの確認。画面の上に重ね、確認のほかの項目をクリックできないようにする。 */
+.history-confirm {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(27 30 36 / 70%);
+  pointer-events: auto;
+}
+
+.history-confirm[hidden] {
+  display: none;
+}
+
+.history-confirm-box {
+  max-width: min(480px, calc(100vw - 32px));
+  padding: 24px 32px;
+  border-radius: 8px;
+  background: #262a32;
+  box-shadow: 0 4px 24px rgb(0 0 0 / 50%);
 }

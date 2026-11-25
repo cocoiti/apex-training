@@ -172,14 +172,28 @@ export interface HistoryElements {
   readonly plot: Pick<HTMLElement, 'innerHTML'>;
   readonly list: Pick<HTMLElement, 'innerHTML'>;
   readonly empty: Pick<HTMLElement, 'hidden' | 'textContent'>;
-  readonly clear: Pick<HTMLButtonElement, 'disabled'> & { addEventListener(type: 'click', listener: () => void): void };
+  readonly clear: Pick<HTMLButtonElement, 'disabled'> & Clickable;
   readonly unavailable: Pick<HTMLElement, 'hidden' | 'textContent'>;
+  /** 確認のほかの項目を入れたもの。確認を出している間は操作できなくする（inert）。 */
+  readonly body: Pick<HTMLElement, 'inert'>;
+  /** 画面の中に出す、消してよいかの確認。 */
+  readonly confirm: {
+    readonly root: Pick<HTMLElement, 'hidden'>;
+    readonly message: Pick<HTMLElement, 'textContent'>;
+    /** 「消す」。 */
+    readonly ok: Clickable;
+    /** 「取りやめる」。 */
+    readonly cancel: Clickable;
+  };
+}
+
+/** click を登録できる要素。 */
+export interface Clickable {
+  addEventListener(type: 'click', listener: () => void): void;
 }
 
 export interface HistoryViewOptions {
   readonly storage: Pick<SafeStorage, 'get' | 'remove' | 'onUnavailable'>;
-  /** 消してよいかの確認。消すなら true。ブラウザでは window.confirm。 */
-  readonly confirm: (message: string) => boolean;
   readonly now: () => Date;
 }
 
@@ -193,7 +207,8 @@ const INPUT_IDS: readonly string[] = INPUT_METHODS.map((m) => m.id);
 
 /**
  * 履歴の画面を動かす（docs/spec/screens.md「履歴の画面」）。選び直すとその組の表示に変え、
- * 「この履歴を消す」は確認で消すことを選んだときだけ選んでいる組の履歴を消す。書き出しや外部への送信はしない。
+ * 「この履歴を消す」は画面の中に確認を出し、「消す」を選んだときだけ選んでいる組の履歴を消す（ブラウザの確認のダイアログは使わない）。
+ * 書き出しや外部への送信はしない。
  */
 export function bindHistoryView(elements: HistoryElements, options: HistoryViewOptions): HistoryView {
   const selection = (): HistorySelection => ({
@@ -212,13 +227,23 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
     elements.clear.disabled = entries.length === 0;
   };
 
+  const showConfirm = (shown: boolean) => {
+    elements.confirm.message.textContent = HISTORY_CLEAR_CONFIRM;
+    elements.confirm.root.hidden = !shown;
+    elements.body.inert = shown;
+  };
+
   for (const choice of [elements.weapon, elements.mode, elements.input]) choice.addEventListener('change', render);
   elements.clear.addEventListener('click', () => {
     if (loadHistory(options.storage, selection()).length === 0) return;
-    if (!options.confirm(HISTORY_CLEAR_CONFIRM)) return;
+    showConfirm(true);
+  });
+  elements.confirm.ok.addEventListener('click', () => {
+    showConfirm(false);
     clearHistory(options.storage, selection());
     render();
   });
+  elements.confirm.cancel.addEventListener('click', () => showConfirm(false));
   options.storage.onUnavailable(() => {
     elements.unavailable.textContent = HISTORY_UNAVAILABLE_MESSAGE;
     elements.unavailable.hidden = false;
@@ -229,6 +254,7 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
       elements.weapon.value = next.weaponId;
       elements.mode.value = next.modeId;
       elements.input.value = next.input;
+      showConfirm(false);
       render();
     },
   };

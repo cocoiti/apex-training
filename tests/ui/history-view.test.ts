@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { modes } from '../../src/modes/registry';
 import { score } from '../../src/sim/scoring';
 import {
   bindHistoryView,
+  HISTORY_CLEAR_CONFIRM,
   HISTORY_EMPTY_MESSAGE,
   HISTORY_UNAVAILABLE_MESSAGE,
   historyListHtml,
@@ -53,7 +54,7 @@ const R301_CENTER = { input: 'mouse', weaponId: 'r301', modeId: 'center' } as co
 const NOW = new Date('2026-11-25T05:00:00.000Z');
 const result = (h: number) => score(Array.from({ length: 10 }, () => ({ yaw: h, pitch: 0 })), 1);
 
-function openPage(backing: FakeBacking, confirm: (message: string) => boolean = () => true) {
+function openPage(backing: FakeBacking) {
   const storage = new SafeStorage(() => backing as unknown as Storage);
   storage.probe();
   const elements = {
@@ -66,8 +67,10 @@ function openPage(backing: FakeBacking, confirm: (message: string) => boolean = 
     empty: { hidden: true, textContent: '' },
     clear: new FakeControl(),
     unavailable: { hidden: true, textContent: '' },
+    body: { inert: false },
+    confirm: { root: { hidden: true }, message: { textContent: '' }, ok: new FakeControl(), cancel: new FakeControl() },
   };
-  const view = bindHistoryView(elements satisfies HistoryElements, { storage, confirm, now: () => NOW });
+  const view = bindHistoryView(elements satisfies HistoryElements, { storage, now: () => NOW });
   return { storage, elements, view };
 }
 
@@ -161,13 +164,16 @@ describe('履歴の画面', () => {
     const backing = new FakeBacking();
     const best = 'apex-training:best:mouse:r301:center';
     backing.items.set(best, '{"version":1,"meanError":1}');
-    const confirm = vi.fn(() => true);
-    const page = openPage(backing, confirm);
+    const page = openPage(backing);
     recordHistory(page.storage, R301_CENTER, result(1), NOW);
     recordHistory(page.storage, { ...R301_CENTER, modeId: 'ghost' }, result(1), NOW);
     page.view.open(R301_CENTER);
     page.elements.clear.fire();
-    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(page.elements.confirm.root.hidden).toBe(false);
+    expect(pointCount(page.elements.plot.innerHTML)).toBe(1);
+    page.elements.confirm.ok.fire();
+    expect(page.elements.confirm.root.hidden).toBe(true);
+    expect(page.elements.body.inert).toBe(false);
     expect(pointCount(page.elements.plot.innerHTML)).toBe(0);
     expect(page.elements.list.innerHTML).toBe('');
     expect(page.elements.empty).toEqual({ hidden: false, textContent: HISTORY_EMPTY_MESSAGE });
@@ -180,14 +186,38 @@ describe('履歴の画面', () => {
 
   it('UI-28: 確認で取りやめると表示も保存してある履歴も変えない', () => {
     const backing = new FakeBacking();
-    const page = openPage(backing, () => false);
+    const page = openPage(backing);
     recordHistory(page.storage, R301_CENTER, result(1), NOW);
     const saved = backing.items.get(historyKey(R301_CENTER));
     page.view.open(R301_CENTER);
     const before = { ...page.elements.list };
     page.elements.clear.fire();
+    page.elements.confirm.cancel.fire();
+    expect(page.elements.confirm.root.hidden).toBe(true);
+    expect(page.elements.body.inert).toBe(false);
     expect(page.elements.list).toEqual(before);
     expect(backing.items.get(historyKey(R301_CENTER))).toBe(saved);
+  });
+
+  it('UI-52: 「この履歴を消す」は画面の中に確認を出し、出している間は確認のほかを操作できなくする', () => {
+    const page = openPage(new FakeBacking());
+    recordHistory(page.storage, R301_CENTER, result(1), NOW);
+    page.view.open(R301_CENTER);
+    page.elements.clear.fire();
+    expect(page.elements.confirm.root.hidden).toBe(false);
+    expect(page.elements.confirm.message.textContent).toBe(HISTORY_CLEAR_CONFIRM);
+    expect(page.elements.body.inert).toBe(true);
+    // 画面を開き直すと確認は閉じる。
+    page.view.open(R301_CENTER);
+    expect(page.elements.confirm.root.hidden).toBe(true);
+    expect(page.elements.body.inert).toBe(false);
+  });
+
+  it('履歴が 1 件もない組では確認を出さない', () => {
+    const page = openPage(new FakeBacking());
+    page.view.open(R301_CENTER);
+    page.elements.clear.fire();
+    expect(page.elements.confirm.root.hidden).toBe(true);
   });
 
   it('UI-29・SCO-30: 書き込みが例外になる環境でも止まらず、保存できない文言とこのページの練習を出す', () => {
