@@ -8,6 +8,7 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, join, normalize, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { listenOnFreePort, originOf } from '../helpers/server';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
@@ -55,7 +56,6 @@ describe.skipIf(NESTED)('ARC-13: 新しく clone した作業ツリーで CLAUDE
 
 describe.skipIf(NESTED)('ARC-14: ビルドの結果を /apex-training/ のサブパスで配信すると 404 にならない', () => {
   const BASE = '/apex-training/';
-  const PORT = 3103;
   let server: Server | undefined;
   afterAll(() => server?.close());
 
@@ -76,8 +76,9 @@ describe.skipIf(NESTED)('ARC-14: ビルドの結果を /apex-training/ のサブ
       const types: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
       res.writeHead(200, { 'content-type': types[extname(file)] ?? 'application/octet-stream' }).end(readFileSync(file));
     });
-    await new Promise<void>((ok) => server!.listen(PORT, '127.0.0.1', ok));
-    const origin = `http://127.0.0.1:${PORT}`;
+    // ポートは OS に選ばせる（ARC-18）。
+    await listenOnFreePort(server);
+    const origin = originOf(server);
 
     const statuses: Record<string, number> = {};
     const get = async (url: URL) => {

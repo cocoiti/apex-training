@@ -11,14 +11,12 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
-/** 配信のポート。DevTools のポートは Chromium に選ばせる（0）。 */
-const STATIC_PORT = 3109;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const chromium = findChromium();
@@ -59,7 +57,6 @@ const byName = (name: string) => {
 
 type RGB = [number, number, number];
 const distance = (a: RGB, b: RGB) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------------------
 // 画面の操作
@@ -76,17 +73,45 @@ const FAKE_PAD = `
     if (window.__pulse === 1) { buttons[7] = { value: 1, pressed: true, touched: true }; window.__pulse = 2; window.__pulseAt = [performance.now()]; }
     else if (window.__pulse === 2) { window.__pulse = 0; window.__pulseAt.push(performance.now()); }
     return [{ id: 'acceptance pad (STANDARD GAMEPAD)', index: 0, connected: true, mapping: 'standard',
-      timestamp: performance.now(), axes: window.__pad.axes.slice(), buttons, vibrationActuator: null }];
+      timestamp: performance.now(), axes: window.__pad.axes.map((v, i) => (i === 2 && performance.now() < window.__stickUntil ? window.__stickX : v)), buttons, vibrationActuator: null }];
   };
+  // __tiltRight(x, ms): 右スティックを右へ x だけ、ページの時計で ms ミリ秒のあいだ倒す（そのあとは戻した値を返す）。
+  window.__stickUntil = 0; window.__stickX = 0;
+  window.__tiltRight = (x, ms) => { window.__stickX = x; window.__stickUntil = performance.now() + ms; };
   window.__setR2 = (v) => { window.__pad.buttons[7] = { value: v, pressed: v >= 0.5, touched: v > 0 }; };
-  addEventListener('hashchange', () => { if (location.hash === '#/result') window.__resultAt = performance.now(); });
+  addEventListener('hashchange', () => {
+    if (location.hash === '#/result') window.__resultAt = performance.now();
+  });
+  window.__releasedAt = undefined;
+  // __simTime(): HUD の経過時間（練習の時計、秒）。撃たない時間やリコイルの戻りは練習の時計で進むので、待つ条件はこれで決める。
+  window.__simTime = () => { const m = (document.querySelector('[data-hud="time"]')?.textContent ?? '').match(/[\\d.]+/); return m ? Number(m[0]) : NaN; };
+  window.__releasedSim = undefined;
   window.__ammo = () => { const m = (document.querySelector('[data-hud="ammo"]')?.textContent ?? '').match(/\\d+/); return m ? Number(m[0]) : NaN; };
 `;
 
 async function screenshot(page: Page): Promise<Image> {
-  const { data } = await page.send<{ data: string }>('Page.captureScreenshot', { format: 'png' });
-  return decodePng(Buffer.from(data, 'base64'));
+  return decodePng(await page.screenshot());
 }
+
+/**
+ * 離してから（ページの時計で）リコイルの戻りの時間が過ぎ、そのあと描画されてからの画面写し。
+ * 撃たない時間（2 秒）でリザルトに移る前に写すため、画面写しを何枚も撮って止まるのを待つことはしない。
+ */
+async function afterRecovery(page: Page): Promise<Image> {
+  await sinceRelease(page, (RECOVERY + 0.2) * 1000);
+  await page.frames(2);
+  return screenshot(page);
+}
+
+/**
+ * 練習の時計（HUD の経過時間）で、離してから ms ミリ秒たつまで待つ。練習が終わると練習の時計は止まるので、
+ * プレイ画面から移ったときも待つのをやめる（続く画面の確認で失敗する）。
+ */
+const sinceRelease = (page: Page, ms: number) =>
+  page.waitFor(
+    `location.hash !== '#/play' || (window.__releasedSim !== undefined && window.__simTime() - window.__releasedSim >= ${ms / 1000})`,
+    ms + 10_000,
+  );
 
 const hash = (page: Page) => page.evaluate<string>('location.hash');
 const ammo = (page: Page) => page.evaluate<number>('window.__ammo()');
@@ -111,13 +136,15 @@ async function start(page: Page, origin: string, weapon: string, mode: string) {
   await choose(page, '#mode', mode);
   await page.clickSelector('[data-screen="top"] a[href="#/play"]');
   await page.waitFor(`location.hash === '#/play' && !document.querySelector('[data-screen="play"]').hidden && window.__ammo() > 0`);
-  await pause(500);
+  // 練習のシーンが何度か描画されるまで待つ。
+  await page.frames(5);
 }
 
 /** HTML の画面を見えなくし、キャンバスだけを写す（HUD の文字は textContent で読める）。 */
 async function hideHtml(page: Page) {
   await page.evaluate(`for (const el of document.body.children) if (el.tagName !== 'CANVAS') el.style.visibility = 'hidden'`);
-  await pause(300);
+  // 隠した状態で描画し直されるまで待つ。
+  await page.frames(2);
 }
 
 /**
@@ -127,10 +154,11 @@ async function hideHtml(page: Page) {
 async function tap(page: Page): Promise<{ before: number; after: number; held: number }> {
   const r = await page.evaluate<{ before: number; held: number }>(`(async () => {
     const before = window.__ammo(); window.__pulse = 1; const t0 = performance.now();
-    while (window.__pulse !== 0 && performance.now() - t0 < 3000) await new Promise((r) => setTimeout(r, 1));
-    window.__releasedAt = performance.now();
+    while (window.__pulse !== 0 && performance.now() - t0 < 3000) await new Promise((r) => requestAnimationFrame(r));
+    window.__releasedAt = performance.now(); window.__releasedSim = window.__simTime();
     return { before, held: (window.__pulseAt[1] - window.__pulseAt[0]) / 1000 }; })()`);
-  await pause(300);
+  // 撃った弾が HUD の残弾に出るまで待つ（離したことを読んだ描画で HUD も書き換わっている）。
+  await page.waitFor(`window.__ammo() < ${r.before} || location.hash !== '#/play'`);
   return { ...r, after: await ammo(page) };
 }
 
@@ -141,8 +169,8 @@ const singleShot = (w: WeaponJson, held: number) => held < 60 / w.rpm - 0.02;
 async function holdUntil(page: Page, left: number): Promise<number> {
   return page.evaluate<number>(`(async () => {
     window.__setR2(1); const t0 = performance.now();
-    while (!(window.__ammo() <= ${left}) && location.hash === '#/play' && performance.now() - t0 < 15000) await new Promise((r) => setTimeout(r, 1));
-    window.__setR2(0); return window.__ammo(); })()`);
+    while (!(window.__ammo() <= ${left}) && location.hash === '#/play' && performance.now() - t0 < 15000) await new Promise((r) => requestAnimationFrame(r));
+    window.__setR2(0); window.__releasedAt = performance.now(); window.__releasedSim = window.__simTime(); return window.__ammo(); })()`);
 }
 
 // ---------------------------------------------------------------------------
@@ -216,7 +244,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
   let copyBuild = { status: null as number | null, output: '' };
   let server: Server | undefined;
   let browser: Browser | undefined;
-  const origin = `http://127.0.0.1:${STATIC_PORT}`;
+  let origin = '';
   /** 配信する中身を切り替える（site はビルドの結果へのシンボリックリンク）。 */
   const serveDist = (dir: string) => {
     if (existsSync(site)) unlinkSync(site);
@@ -258,8 +286,9 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
 
     site = join(work, 'site');
     serveDist(mainDist);
-    server = await serveStatic(site, BASE, STATIC_PORT);
-    browser = await launchBrowser(chromium!, 0);
+    server = await serveStatic(site, BASE);
+    origin = originOf(server);
+    browser = await launchBrowser(chromium!);
   }, 300_000);
 
   afterAll(async () => {
@@ -339,7 +368,8 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       const page = await newPage();
       await page.goto(`${origin}${BASE}#/`);
       await page.waitFor(`document.querySelector('#weapon').options.length > 0`);
-      await pause(300);
+      // rpm が欠けた武器の知らせがコンソールに出るまで待つ。
+      await waitUntil(() => page.errors.some((e) => e.includes('acceptance-no-rpm')), 'rpm が欠けた武器のファイル名がコンソールに出る');
       const groups = await page.evaluate<{ label: string; names: string[] }[]>(`[...document.querySelectorAll('#weapon optgroup')].map((g) => ({
         label: g.label, names: [...g.children].map((o) => o.textContent.trim()) }))`);
       const accGroup = groups.find((g) => g.label === NEW_WEAPON.category);
@@ -390,8 +420,8 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       await start(page, origin, w.name, 'パターン観察');
       const first = await holdUntil(page, w.magSize - 5);
       expect(first).toBeLessThan(w.magSize);
-      // 離してから 1.5 秒（2 秒たつ前）。
-      await pause(1500);
+      // 離してから 1.5 秒（2 秒たつ前）。ページの時計で測る。
+      await sinceRelease(page, 1500);
       expect(await hash(page)).toBe('#/play');
       expect(await ammo(page)).toBe(first);
       // 押し直すと残弾から続けて撃つ（装弾数に戻らない）。
@@ -401,7 +431,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       if (singleShot(w, again.held)) expect(again.after).toBe(first - 1);
       const second = again.after;
       // もう一度 1.5 秒待っても（最初に離してからは 3 秒以上）プレイ画面のまま。
-      await pause(1500);
+      await sinceRelease(page, 1500);
       expect(await hash(page)).toBe('#/play');
       expect(await ammo(page)).toBe(second);
       // 離してから 2 秒撃たないと、リザルト画面に移る。
@@ -418,7 +448,8 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       const w = byName('R-301');
       for (const mode of ['パターン観察', 'センター維持']) {
         await start(page, origin, w.name, mode);
-        await pause((IDLE_END + 2) * 1000);
+        // 始めてから（練習の時計で）撃たない時間 + 2 秒たつまで待つ。
+        await page.waitFor(`window.__simTime() >= ${IDLE_END + 2}`, 20_000);
         expect(await hash(page), mode).toBe('#/play');
         expect(await page.evaluate<boolean>(`!document.querySelector('[data-screen="play"]').hidden`)).toBe(true);
         expect(await ammo(page)).toBe(w.magSize);
@@ -436,12 +467,18 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       serveDist(mainDist);
       const page = await newPage();
       await start(page, origin, w.name, 'パターン観察');
+      // 画面写しを使わないので、描画を軽くして 1 回の描画の間隔（押していた時間）を短くする。マシンが混んでいても 1 発で離しやすい。
+      await page.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 200, deviceScaleFactor: 1, mobile: false });
+      await page.waitFor(`document.querySelector('canvas').getBoundingClientRect().width === 320`);
+      await page.frames(2);
       expect(await ammo(page)).toBe(w.magSize);
       expect(await hudText(page, 'ammo')).toContain(String(w.magSize));
       // 1 発ずつ撃つ。描画が遅く 1 発で離せなかった回（押していた時間が発射間隔を超えた回）は数えない。
       let expected = w.magSize;
       let verified = 0;
-      for (let i = 0; i < 12 && verified < 4; i += 1) {
+      for (let i = 0; i < 20 && verified < 4 && expected > 2; i += 1) {
+        // 押し直しは、離してから（練習の時計で）発射間隔より長くたってから（間隔の内に押し直しても次の弾は出ない）。
+        if (i > 0) await sinceRelease(page, 60_000 / w.rpm + 100);
         const t = await tap(page);
         expect(t.before).toBe(expected);
         expect(t.after, `${i + 1} 回目`).toBeLessThan(expected);
@@ -485,9 +522,9 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
         const before = await screenshot(page);
         // ほぼ 1 マガジン（撃ち切るとリザルトに移り写せないので、残弾 2 で離す）。
         const left = await holdUntil(page, 2);
-        await pause((RECOVERY + 0.5) * 1000);
+        // リコイルが戻りきってから写す。
+        const after = await afterRecovery(page);
         expect(await hash(page)).toBe('#/play');
-        const after = await screenshot(page);
         const shots = w.magSize - left;
         expect(shots).toBeGreaterThanOrEqual(w.magSize - 4);
         const changed = changedPixels(before, after);
@@ -527,8 +564,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
 
       // 1 回目: 少し撃って離す（1 発目は的に、続く弾は的の上の壁に当たる）。
       await holdUntil(page, w.magSize - 8);
-      await pause((RECOVERY + 0.5) * 1000);
-      const shot1 = changedPixels(base, await screenshot(page));
+      const shot1 = changedPixels(base, await afterRecovery(page));
       expect(shot1.length).toBeGreaterThan(0);
       expect(shot1.some(onTarget), '的の上の弾痕').toBe(true);
       expect(shot1.some((p) => !onTarget(p) && distance(base.pixel(p[0], p[1]), wall) < 30), '壁の上の弾痕').toBe(true);
@@ -538,9 +574,8 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       let previous = shot1;
       for (let round = 0; round < 3; round += 1) {
         await tap(page);
-        await pause((RECOVERY + 0.7) * 1000);
+        const now = changedPixels(base, await afterRecovery(page));
         expect(await hash(page)).toBe('#/play');
-        const now = changedPixels(base, await screenshot(page));
         const set = new Set(now.map(([x, y]) => y * WIDTH + x));
         const lost = previous.filter(([x, y]) => !set.has(y * WIDTH + x));
         // 新しい弾痕が重なって色が変わることはあるが、前の弾痕の画素が元の壁・的の色に戻ることはない。
@@ -570,9 +605,8 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       // 撃ったあと: 変わった画素はどれも弾痕の位置の近く（ゴーストは理想の補正軌道＝パターンの反転の位置に出るはず）。
       const left = await holdUntil(page, w.magSize - 10);
       const shots = w.magSize - left;
-      await pause((RECOVERY + 0.5) * 1000);
+      const changed = changedPixels(base, await afterRecovery(page));
       expect(await hash(page)).toBe('#/play');
-      const changed = changedPixels(base, await screenshot(page));
       expect(changed.length).toBeGreaterThan(0);
       const expected = patternAngles(w, shots).map((a) => project(a.yaw, a.pitch));
       const tol = 3 + 8.5 * w.randomness * 1.5;
@@ -598,11 +632,10 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       }
       const target = [...counts.values()].sort((a, b) => b[1] - a[1])[0]![0];
       // 右スティックを右に少し倒して照準を動かす。中心から的が外れ、壁の上を向く。
-      await page.evaluate(`window.__pad.axes[2] = 0.4`);
-      await pause(150);
-      await page.evaluate(`window.__pad.axes[2] = 0`);
-      await pause(300);
-      const moved = await screenshot(page);
+      // 倒す時間はページの時計で決め（パッドがそのあいだだけ倒した値を返す）、戻したあと画面が止まるまで待つ。
+      await page.evaluate(`window.__tiltRight(0.4, 150)`);
+      await page.waitFor(`performance.now() >= window.__stickUntil`);
+      const moved = decodePng(await page.stableScreenshot());
       expect(distance(moved.pixel(WIDTH / 2, HEIGHT / 2), target), '照準が動いた').toBeGreaterThan(30);
       expect(distance(moved.pixel(WIDTH / 2, HEIGHT / 2), wall), '照準は壁の上').toBeLessThan(20);
       // R2 を押し続ける。途中で、撃った弾の弾痕が壁に残っているかを見る（照準はそのまま）。

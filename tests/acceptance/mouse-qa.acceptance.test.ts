@@ -13,37 +13,44 @@ import { join, resolve } from 'node:path';
 import { createServer, type ViteDevServer } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cmPer360, countsToLook, DEFAULT_MOUSE_SETTINGS, formatCmPer360 } from '../../src/input/mouse-sensitivity';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
-const STATIC_PORT = 3110;
-const DEBUG_PORT = 3111;
-const DEV_PORT = 3112;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const CX = WIDTH / 2;
 const CY = HEIGHT / 2;
 const chromium = findChromium();
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type RGB = [number, number, number];
 const distance = (a: RGB, b: RGB) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
 async function screenshot(page: Page): Promise<Image> {
-  const { data } = await page.send<{ data: string }>('Page.captureScreenshot', { format: 'png' });
-  return decodePng(Buffer.from(data, 'base64'));
+  return decodePng(await page.screenshot());
 }
 
-/** HTML の画面を見えなくし、キャンバスだけを写す。 */
-async function canvasOnly(page: Page): Promise<Image> {
+/** HTML の画面を見えなくし、キャンバスだけを写す。stable なら、画面の動きが止まってから写す。 */
+async function canvasOnly(page: Page, { stable = false } = {}): Promise<Image> {
   await page.evaluate(`for (const el of document.body.children) if (el.tagName !== 'CANVAS') el.style.visibility = 'hidden'`);
-  await pause(200);
-  const img = await screenshot(page);
+  // 隠した状態で描画し直されるまで待つ。
+  await page.frames(2);
+  const img = stable ? decodePng(await page.stableScreenshot()) : await screenshot(page);
   await page.evaluate(`for (const el of document.body.children) if (el.tagName !== 'CANVAS') el.style.visibility = ''`);
   return img;
+}
+
+/** HUD の残弾。 */
+const AMMO = `Number((document.querySelector('[data-hud="ammo"]').textContent.match(/残弾\\s*(\\d+)/) || [])[1])`;
+
+/**
+ * クリックしてポインターロックを要求し、掛かるまで繰り返す。Chromium は Esc でロックを外した直後の要求を拒否するので、
+ * 決まった時間を待つ代わりに、掛かるまでクリックし直す。
+ */
+async function clickUntilLocked(page: Page, x: number, y: number) {
+  await waitUntil(() => page.lockPointerBy(() => page.click(x, y), 1_000), 'クリックでポインターロックが掛かる', { timeout: 15_000 });
 }
 
 /** 2 枚の画面写しで、色が大きく違う画素の数（4 画素おきに数える）。 */
@@ -147,18 +154,21 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
   let server: Server | undefined;
   let dev: ViteDevServer | undefined;
   let browser: Browser | undefined;
-  const staticOrigin = `http://127.0.0.1:${STATIC_PORT}`;
-  const devOrigin = `http://127.0.0.1:${DEV_PORT}`;
+  let staticOrigin = '';
+  let devOrigin = '';
 
   beforeAll(async () => {
     const out = mkdtempSync(join(tmpdir(), 'mouse-qa-dist-'));
     temps.push(out);
     const build = spawnSync(`npm run build -- --outDir "${out}" --emptyOutDir`, { cwd: ROOT, shell: true, encoding: 'utf8' });
     if (build.status !== 0) throw new Error(`ビルドが失敗した:\n${build.stdout}${build.stderr}`);
-    server = await serveStatic(out, BASE, STATIC_PORT);
-    dev = await createServer({ root: ROOT, server: { port: DEV_PORT, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
+    server = await serveStatic(out, BASE);
+    staticOrigin = originOf(server);
+    // 開発サーバーもポート 0 で待ち受け、OS が選んだポートを読む（ARC-18）。
+    dev = await createServer({ root: ROOT, server: { port: 0, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
     await dev.listen();
-    browser = await launchBrowser(chromium!, DEBUG_PORT);
+    devOrigin = originOf(dev.httpServer as Server);
+    browser = await launchBrowser(chromium!);
   }, 300_000);
 
   afterAll(async () => {
@@ -175,8 +185,9 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
     await page.goto(`${staticOrigin}${BASE}`);
     await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
-    await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden`);
-    await pause(800);
+    await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden && ${AMMO} > 0`);
+    // 練習のシーンが何度か描画されるまで待つ。
+    await page.frames(5);
     return page;
   }
 
@@ -255,7 +266,8 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
       expect((await playState(page)).notice.hidden).toBe(true);
       await page.click(CX, CY);
       await page.waitFor('!!document.pointerLockElement', 5000);
-      await pause(300);
+      // 加速の警告が出るまで待つ。
+      await page.waitFor(`!document.querySelector('#pointer-lock-notice').hidden`, 5000);
       const requests = await page.evaluate<({ unadjustedMovement?: boolean } | null)[]>('window.__lockRequests');
       expect(requests.length).toBeGreaterThanOrEqual(2);
       expect(requests[0]?.unadjustedMovement).toBe(true);
@@ -280,11 +292,11 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
 
       // 数発撃って離し、リコイルの戻り（0.5 秒）の途中で Esc を押す。
       await mouseButton(page, 'mousePressed', CX, CY);
-      await pause(350);
+      await page.waitFor(`${AMMO} <= 27`, 5000);
       await mouseButton(page, 'mouseReleased', CX, CY);
       await keyEscape(page);
       await page.waitFor('!document.pointerLockElement', 5000);
-      await pause(100);
+      await page.waitFor(`!document.querySelector('#paused').hidden`, 5000);
       let state = await playState(page);
       expect(state.locked).toBe(false);
       expect(state.paused.hidden).toBe(false);
@@ -294,25 +306,24 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
 
       // 止まっている間は描画が変わらない（リコイルの戻りが進まない）。
       const frozenA = await canvasOnly(page);
-      await pause(800);
+      // 止まっている間に何度描画されても（およそ 0.8 秒ぶん）変わらない。
+      await page.frames(48);
       const frozenB = await canvasOnly(page);
       expect(differingPixels(frozenA, frozenB)).toBe(0);
       expect((await playState(page)).ammo).toBe(state.ammo);
 
       // もう一度クリックすると、ロックし直して一時停止の表示が消え、止まっていた戻りが進む。
-      await page.click(CX, CY);
-      await page.waitFor('!!document.pointerLockElement', 5000);
-      await pause(800);
+      await clickUntilLocked(page, CX, CY);
+      await page.waitFor(`document.querySelector('#paused').hidden`, 5000);
       state = await playState(page);
       expect(state.paused.hidden).toBe(true);
-      const resumed = await canvasOnly(page);
-      expect(differingPixels(frozenB, resumed)).toBeGreaterThan(0);
+      // 止まっていた戻りが進み、描画が変わるまで待つ。
+      await waitUntil(async () => differingPixels(frozenB, await canvasOnly(page)) > 0, '再開してリコイルの戻りが描画に出る');
       // 再開後は撃てる（練習が動いている）。
       const before = state.ammo!;
       await mouseButton(page, 'mousePressed', CX, CY);
-      await pause(300);
+      await page.waitFor(`${AMMO} < ${before}`, 5000);
       await mouseButton(page, 'mouseReleased', CX, CY);
-      await pause(100);
       expect((await playState(page)).ammo!).toBeLessThan(before);
       noExceptions(page);
     }, 60_000);
@@ -332,10 +343,9 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
       expect(s.paused).toBe(true);
       const steps = s.steps;
       await tick(page, 1, 10);
-      // Chromium は Esc でロックを外した直後のロックの要求を拒否するので、少し待ってからクリックする。
-      await pause(1500);
       expect((await harness(page)).steps).toBe(steps);
-      await page.click(CX, CY);
+      // Chromium は Esc でロックを外した直後のロックの要求を拒否するので、掛かるまでクリックし直す。
+      await clickUntilLocked(page, CX, CY);
       await harnessLock(page, true);
       await tick(page, 0.1);
       s = await harness(page);
@@ -359,7 +369,7 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
       const page = await openPlay(stubPointerLock('reject-all'));
       await page.click(CX, CY);
       await page.waitFor(`!document.querySelector('#pointer-lock-notice').hidden`, 5000);
-      await pause(300);
+      await page.frames(2);
       const state = await playState(page);
       expect(state.locked).toBe(false);
       expect(state.notice.hidden).toBe(false);
@@ -368,7 +378,7 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
       const first = (await page.evaluate<unknown[]>('window.__lockRequests')).length;
       expect(first).toBeGreaterThanOrEqual(1);
       await page.click(CX, CY);
-      await pause(300);
+      await page.waitFor(`window.__lockRequests.length > ${first}`, 5000);
       expect((await page.evaluate<unknown[]>('window.__lockRequests')).length).toBeGreaterThan(first);
       noExceptions(page);
     }, 60_000);
@@ -380,17 +390,18 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
       const page = await openPlay();
       await page.click(CX, CY);
       await page.waitFor('!!document.pointerLockElement', 5000);
-      await pause(200);
+      await page.frames(2);
       await keyEscape(page);
       await page.waitFor('!document.pointerLockElement', 5000);
-      await pause(700);
-      const before = await canvasOnly(page);
+      await page.waitFor(`!document.querySelector('#paused').hidden`, 5000);
+      const before = await canvasOnly(page, { stable: true });
       const ammo = (await playState(page)).ammo;
       expect(ammo).toBe(30);
 
       await mouseButton(page, 'mousePressed', 300, 300);
       await drag(page, 300, 300, 10, -5, 60, 1);
-      await pause(800);
+      // 動かしたあとも何度か描画されるまで待つ（照準が動くなら描画に出る）。
+      await page.frames(30);
       const state = await playState(page);
       const after = await canvasOnly(page);
       await mouseButton(page, 'mouseReleased', 900, 0);
@@ -482,8 +493,8 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
       await page.waitFor('!!document.pointerLockElement', 5000);
       // クリックした位置（中心）から動かし始める（最初の移動の差もカウントになる）。
       await drag(page, CX, CY, 10, 0, 100);
-      await pause(500);
-      const moved = await canvasOnly(page);
+      // 照準の動きが描画し終わり、画面が止まるまで待つ。
+      const moved = await canvasOnly(page, { stable: true });
       const center = blobCenterOnRow(moved, CY, target);
       // 照準から水平に θ ずれた方向は、中心から 幅の半分 × tan(θ) ÷ tan(水平視野角 / 2) 離れて描画される（screens.md）。
       // FOV 90・縦横比 1280:800 では tan(水平視野角 / 2) = tan(45°) × 1.6 ÷ (4/3) = 1.2。

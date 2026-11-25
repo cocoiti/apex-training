@@ -16,15 +16,13 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const LIVE = process.env.APEX_ACCEPTANCE_LIVE === '1';
 const LIVE_URL = 'https://cocoiti.github.io/apex-training/';
 const BASE = '/apex-training/';
-const SERVER_PORT = 3120;
-const DEBUG_PORT = 3121;
 
 const temps: string[] = [];
 
@@ -278,8 +276,11 @@ const chromium = findChromium();
 async function expectSettingsWithWeapons(page: Page, url: string) {
   await page.goto(url);
   await page.waitFor(`document.querySelector('[data-screen="settings"]') && !document.querySelector('[data-screen="settings"]').hidden`, 20_000);
-  // 読み込みが落ち着くのを待つ。
-  await new Promise((r) => setTimeout(r, 1500));
+  // 武器データ（JSON）の読み込みが終わって選択肢に出るまで待つ。
+  await page.waitFor(
+    `document.querySelector('#weapon') && document.querySelector('#weapon').options.length > 0 && performance.getEntriesByType('resource').some((e) => new URL(e.name).pathname.endsWith('.json'))`,
+    20_000,
+  );
   const visible = await page.evaluate<string[]>(`[...document.querySelectorAll('[data-screen]')].filter((el) => {
     const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
     return !el.hidden && s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0;
@@ -301,7 +302,7 @@ describe.skipIf(NESTED || !chromium)('OVR-8: 公開した #/settings を直接�
   let browser: Browser | undefined;
 
   beforeAll(async () => {
-    browser = await launchBrowser(chromium!, DEBUG_PORT);
+    browser = await launchBrowser(chromium!);
   }, 60_000);
 
   afterAll(async () => {
@@ -312,7 +313,7 @@ describe.skipIf(NESTED || !chromium)('OVR-8: 公開した #/settings を直接�
     let server: Server | undefined;
 
     beforeAll(async () => {
-      if (published) server = await serveStatic(published, BASE, SERVER_PORT);
+      if (published) server = await serveStatic(published, BASE);
     });
 
     afterAll(async () => {
@@ -322,7 +323,7 @@ describe.skipIf(NESTED || !chromium)('OVR-8: 公開した #/settings を直接�
     it('#/settings で設定画面が表示され、武器データの読み込みが 404 にならない', async () => {
       expect(published, 'gh-pages ブランチがない').not.toBe('');
       const page = await browser!.newPage();
-      await expectSettingsWithWeapons(page, `http://127.0.0.1:${SERVER_PORT}${BASE}#/settings`);
+      await expectSettingsWithWeapons(page, `${originOf(server!)}${BASE}#/settings`);
     }, 60_000);
   });
 

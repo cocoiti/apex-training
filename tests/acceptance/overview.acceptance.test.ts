@@ -8,13 +8,11 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
-const SERVER_PORT = 3104;
-const DEBUG_PORT = 3105;
 const NOTICE = 'この環境では設定と記録を保存できません。練習はそのまま続けられます。';
 const UNOFFICIAL = /非公式ファンツール.*EA \/ Respawn.*無関係/;
 
@@ -121,12 +119,13 @@ const chromium = findChromium();
 describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-training/ で配信してブラウザで開く）', () => {
   let server: Server | undefined;
   let browser: Browser | undefined;
-  const origin = `http://127.0.0.1:${SERVER_PORT}`;
+  let origin = '';
   const url = (hash: string) => `${origin}${BASE}${hash}`;
 
   beforeAll(async () => {
-    server = await serveStatic(dist, BASE, SERVER_PORT);
-    browser = await launchBrowser(chromium!, DEBUG_PORT);
+    server = await serveStatic(dist, BASE);
+    origin = originOf(server);
+    browser = await launchBrowser(chromium!);
   }, 60_000);
 
   afterAll(async () => {
@@ -175,7 +174,11 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
       };
     })()`);
 
-  const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  /** アプリの起動（武器とモードの選択肢の読み込み）が終わり、何度か描画されるまで待つ。 */
+  const settled = async (page: Page) => {
+    await page.waitFor(`document.querySelector('#weapon').options.length > 0 && document.querySelector('#mode').options.length > 0`);
+    await page.frames(2);
+  };
 
   describe('OVR-6: どの画面にも当たらないハッシュやハッシュなしで開くとトップ画面が表示される', () => {
     it.each(['', '#', '#/', '#/unknown', '#/settings/unknown', '#settings', '#/unknown/deep?x=1', '#/%E3%81%82'])(
@@ -184,7 +187,7 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
         const page = await browser!.newPage();
         await page.goto(url(hash));
         await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
-        await pause(200);
+        await settled(page);
         expect(await visibleScreens(page)).toEqual(['top']);
         const text = await visibleText(page);
         expect(text).toContain('開始');
@@ -200,7 +203,7 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
       expect(await visibleScreens(page)).toEqual(['settings']);
       await page.evaluate(`location.hash = '#/unknown'`);
       await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
-      await pause(200);
+      await settled(page);
       expect(await visibleScreens(page)).toEqual(['top']);
       expect(page.errors).toEqual([]);
     }, 30_000);
@@ -217,7 +220,7 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
     it.each(['#/', '#/settings', '#/play'])('%s で、キャンバスが画面いっぱいで、画面の HTML がキャンバスより手前にある', async (hash) => {
       const page = await browser!.newPage();
       await page.goto(url(hash));
-      await pause(500);
+      await settled(page);
       const state = await page.evaluate<{
         canvases: { x: number; y: number; w: number; h: number }[];
         vw: number;
@@ -247,7 +250,7 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
     it.each(['#/', '#/settings'])('%s で、フッターの中心をヒットテストするとキャンバスに当たらず、クリックしてもポインターロックがかからない', async (hash) => {
       const page = await browser!.newPage();
       await page.goto(url(hash));
-      await pause(500);
+      await settled(page);
       const state = await page.evaluate<{ tag: string | null; inFooter: boolean; x: number; y: number }>(`(() => {
         const footer = document.querySelector('footer');
         const r = footer.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2;
@@ -256,8 +259,9 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
       })()`);
       expect(state.tag, JSON.stringify(state)).not.toBe('CANVAS');
       expect(state.inFooter, JSON.stringify(state)).toBe(true);
+      // クリックしてから何度か描画されても（要求していればその間に掛かる）ロックされていない。
       await page.click(state.x, state.y);
-      await pause(500);
+      await page.frames(30);
       expect(await page.evaluate<boolean>('document.pointerLockElement === null')).toBe(true);
     }, 30_000);
 
@@ -265,7 +269,7 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
       const page = await browser!.newPage();
       await page.goto(url('#/'));
       await page.send('Emulation.setDeviceMetricsOverride', { width: 900, height: 600, deviceScaleFactor: 1, mobile: false });
-      await pause(500);
+      await page.waitFor(`(() => { const r = document.querySelector('canvas').getBoundingClientRect(); return r.width === 900 && r.height === 600; })()`);
       const r = await page.evaluate<{ w: number; h: number }>(`(() => { const r = document.querySelector('canvas').getBoundingClientRect(); return { w: r.width, h: r.height }; })()`);
       expect(r).toEqual({ w: 900, h: 600 });
     }, 30_000);
@@ -284,7 +288,7 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
         await page.addInitScript(init);
         await page.goto(url(''));
         await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
-        await pause(300);
+        await settled(page);
 
         // トップ画面が表示され、表示が非公式の表記のすぐ上に出ている。
         expect(await visibleScreens(page)).toEqual(['top']);
@@ -300,13 +304,13 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
         // 練習を始める（「開始」を押す）と、プレイ画面になって照準の操作を始められる。
         await page.clickSelector('[data-screen="top"] a[href="#/play"]');
         await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden`);
-        await pause(500);
+        await page.frames(5);
         expect(await visibleScreens(page)).toEqual(['play']);
         await page.click(640, 400);
         await page.waitFor('document.pointerLockElement !== null', 5_000);
         expect(await page.evaluate<string>('document.pointerLockElement.tagName')).toBe('CANVAS');
         for (let i = 0; i < 10; i += 1) await page.moveMouse(640 + i * 5, 400 + i * 2);
-        await pause(300);
+        await page.frames(5);
 
         const play = await footerState(page);
         expect(play.notice?.visible).toBe(true);
@@ -317,12 +321,15 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
         await page.evaluate(`document.exitPointerLock()`);
         for (const hash of ['#/settings', '#/settings/pad', '#/', '#/result']) {
           await page.evaluate(`location.hash = ${JSON.stringify(hash)}`);
-          await pause(300);
+          // 画面の切替（hashchange）が終わり、描画されるまで待つ。
+          await page.waitFor(`[...document.querySelectorAll('[data-screen]')].filter((el) => !el.hidden).length === 1`);
+          await page.frames(3);
           const state = await footerState(page);
           expect(state.notice?.visible, hash).toBe(true);
           expect(state.notice?.text, hash).toBe(NOTICE);
         }
-        await pause(1500);
+        // そのあと何度描画されても（およそ 1.5 秒ぶん）消えない。
+        await page.frames(90);
         expect((await footerState(page)).notice?.visible).toBe(true);
 
         // エラーで止まっていない（捕まらなかった例外がない）。
@@ -334,7 +341,7 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
       const page = await browser!.newPage();
       await page.goto(url(''));
       await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
-      await pause(300);
+      await settled(page);
       const state = await footerState(page);
       expect(state.notice).toBeNull();
       expect(await visibleText(page)).not.toContain(NOTICE);
@@ -352,7 +359,7 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
       })()`);
       await page.goto(url(''));
       await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
-      await pause(300);
+      await settled(page);
       const calls = await page.evaluate<number>('window.__setItemCalls()');
       // 起動時に localStorage へ試しに書き込んでいる。
       expect(calls).toBeGreaterThanOrEqual(1);
