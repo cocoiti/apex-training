@@ -1,6 +1,6 @@
 # 配布物の素材は src/assets/assets.json の一覧と名前で照らし、資産は大きさによらず data: URL に埋め込まない
 
-状態: 承認
+状態: 一部置き換え済み → 2026-11-25-asset-license-allowlist.md（公式の名前の判定）
 
 ## 背景
 

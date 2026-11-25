@@ -1,4 +1,4 @@
-// docs/spec/overview.md「素材の一覧」の受け入れ条件（OVR-2・OVR-10〜OVR-14）の QA の受け入れテスト。
+// docs/spec/overview.md「素材の一覧」の受け入れ条件（OVR-2・OVR-10・OVR-12〜OVR-14。OVR-11 は削除して欠番）の QA の受け入れテスト。
 // 公開された入口（npm run check:assets、npm run build、素材の一覧 src/assets/assets.json）だけを使い、
 // 期待値は SPEC の文から求める。リポジトリを書き換えないよう、一時ディレクトリの写しで実行する。
 // ARC-13 の clone の中で npm test を実行したときに入れ子で重い確認をしないよう、APEX_ACCEPTANCE_NESTED が立っていたら飛ばす。
@@ -77,7 +77,7 @@ function tinyPng(): Buffer {
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>';
 
 function entry(path: string, extra: Partial<Record<keyof Entry, unknown>> = {}): Entry {
-  return { path, author: '自作', license: 'CC0-1.0', source: 'QA の受け入れテストで作った 1 画素の画像', ...extra };
+  return { path, author: '自作', license: 'self-made', source: 'QA の受け入れテストで作った 1 画素の画像', ...extra };
 }
 
 /**
@@ -197,30 +197,6 @@ describe.skipIf(NESTED)('OVR-10: 一覧に載っていない画像がビルド�
     expect(result.status, result.output).not.toBe(0);
     expect(result.output).toContain('qa-icon-BxQ_3kLm.JPG');
     expect(result.output).toContain(NOT_LISTED);
-  });
-});
-
-describe.skipIf(NESTED)('OVR-11: author か source に Respawn が入った項目があると失敗する', () => {
-  const cases: [string, Partial<Entry>][] = [
-    ['author に Respawn', { author: 'Respawn Entertainment' }],
-    ['author に respawn', { author: 'respawn' }],
-    ['source に RESPAWN', { source: 'RESPAWN の公式サイトから入手' }],
-    ['source に Respawn（文中）', { source: 'ゲームの画面を Respawn の許可なく撮った' }],
-  ];
-  it.each(cases)('%s のとき、その項目の path と公式の名前が入っている旨を示して失敗する', (_, extra) => {
-    const path = 'src/assets/qa-official.png';
-    const repo = repoCopy({ manifest: [entry(path, extra)], files: { [path]: tinyPng() } });
-    const result = check(repo);
-    expect(result.status, result.output).not.toBe(0);
-    expect(result.output).toContain(path);
-    expect(result.output).toMatch(/公式/);
-  });
-
-  it('対照: Respawn を含まない項目なら成功する', () => {
-    const path = 'src/assets/qa-official.png';
-    const repo = repoCopy({ manifest: [entry(path, { author: '自作' })], files: { [path]: tinyPng() } });
-    const result = check(repo);
-    expect(result.status, result.output).toBe(0);
   });
 });
 

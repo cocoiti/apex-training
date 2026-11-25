@@ -1,5 +1,5 @@
 // 配布物（ビルドの結果）の画像・音声・3D モデルが、出どころを素材の一覧（src/assets/assets.json）に記録したものだけであることと、
-// 一覧の記載に欠けや公式の名前がないことを確かめる（docs/spec/overview.md「素材の一覧」、OVR-2・OVR-10〜OVR-14）。
+// 一覧の記載に欠けがなく、ライセンスが許可した値であることを確かめる（docs/spec/overview.md「素材の一覧」、OVR-2・OVR-10・OVR-12〜OVR-19）。
 // 当たったファイルのパスか一覧の項目と理由をすべて示して失敗する。調べるフォルダは引数で渡せる（既定は dist/）。
 // 先に npm run build を実行しておく。一覧の path はこのスクリプトのあるリポジトリのルートから解決する。
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -13,13 +13,13 @@ const KINDS = {
 };
 const KIND_BY_EXT = new Map(Object.entries(KINDS).flatMap(([kind, exts]) => exts.map((ext) => [ext, kind])));
 const REQUIRED = ['path', 'author', 'license', 'source'];
-// 公式を示す名前。「EA」は英字の単語として現れたときだけ当たる（「Creative」では当たらない）。
-const OFFICIAL = [
-  ['EA', /(?<![a-z])ea(?![a-z])/i],
-  ['Electronic Arts', /electronic\s+arts/i],
-  ['Respawn', /respawn/i],
-  ['Apex Legends', /apex\s+legends/i],
-];
+// 許可するライセンス（docs/spec/overview.md「許可するライセンス」と揃える）。値は前後の空白を除いて大文字・小文字も含めて比べる。
+// self-made 以外は OSS 系で、source に配布元の URL が要る。
+const SELF_MADE = 'self-made';
+const OSS_LICENSES = ['CC0-1.0', 'CC-BY-4.0', 'CC-BY-SA-4.0', 'MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'OFL-1.1'];
+const ALLOWED_LICENSES = new Set([SELF_MADE, ...OSS_LICENSES]);
+// 配布元の URL（http:// か https:// で始まる部分）。
+const SOURCE_URL = /https?:\/\/\S/;
 // ビルドが付けるハッシュ（`<名前>-<ハッシュ>.<拡張子>` の `-<ハッシュ>`）。
 const BUILD_HASH = /-[A-Za-z0-9_-]{8}$/;
 
@@ -75,10 +75,11 @@ function checkEntry(entry, index, problems) {
   const label = hasPath ? entry.path : `${MANIFEST} の ${index + 1} 番目`;
   const missing = REQUIRED.filter((key) => typeof entry[key] !== 'string' || entry[key].trim() === '');
   if (missing.length > 0) problems.push(`${label}: 必須の項目 ${missing.join('・')} がない、または空の文字列`);
-  for (const key of ['author', 'source']) {
-    if (typeof entry[key] !== 'string') continue;
-    for (const [name, pattern] of OFFICIAL) {
-      if (pattern.test(entry[key])) problems.push(`${label}: ${key} に公式の名前（${name}）が入っている`);
+  if (!missing.includes('license')) {
+    const license = entry.license.trim();
+    if (!ALLOWED_LICENSES.has(license)) problems.push(`${label}: 許可していないライセンス（license: ${JSON.stringify(entry.license)}）`);
+    else if (license !== SELF_MADE && !missing.includes('source') && !SOURCE_URL.test(entry.source)) {
+      problems.push(`${label}: license が ${license} なのに source に配布元の URL（http:// か https:// で始まる）がない`);
     }
   }
   if (!hasPath) return;
