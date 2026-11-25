@@ -204,6 +204,79 @@ a {
   border-radius: 50%;
 }
 
+/* クロスヘアは ads を押している間は隠す（スコープの表示に切り替える）。 */
+.crosshair[hidden] {
+  display: none;
+}
+
+/*
+ * ADS 中のスコープの表示。画面の中心を中心とした、直径が画面の短い辺の 80% の円形の視野。
+ * 視野の外は影（box-shadow）でほぼ不透明に覆い、縁は暗い色の太い輪にする。ズームはしない（FOV は腰撃ちと同じ）。
+ * レティクルは中心で交わる細い十字（中心の近くは空ける）と中心の点で、色は --reticle-color（クロスヘアの色）。
+ */
+.scope {
+  --reticle-color: #77ccff;
+  --reticle-gap: 10px;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  box-sizing: border-box;
+  width: 80vmin;
+  height: 80vmin;
+  border: 1.6vmin solid #050608;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 100vmax rgb(5 6 8 / 94%);
+}
+
+.scope[hidden] {
+  display: none;
+}
+
+.scope-reticle,
+.scope-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+}
+
+.scope-reticle::before,
+.scope-reticle::after {
+  content: '';
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+.scope-reticle::before {
+  width: 80vmin;
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    var(--reticle-color) calc(50% - var(--reticle-gap)),
+    transparent calc(50% - var(--reticle-gap)) calc(50% + var(--reticle-gap)),
+    var(--reticle-color) calc(50% + var(--reticle-gap))
+  );
+}
+
+.scope-reticle::after {
+  width: 2px;
+  height: 80vmin;
+  background: linear-gradient(
+    to bottom,
+    var(--reticle-color) calc(50% - var(--reticle-gap)),
+    transparent calc(50% - var(--reticle-gap)) calc(50% + var(--reticle-gap)),
+    var(--reticle-color) calc(50% + var(--reticle-gap))
+  );
+}
+
+.scope-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--reticle-color);
+}
+
 .choice {
   display: block;
   margin-bottom: 16px;

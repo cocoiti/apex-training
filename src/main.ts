@@ -26,6 +26,7 @@ import { PracticeFlow } from './ui/practice-flow';
 import type { InputMethod } from './ui/personal-best';
 import { applyPracticeSettings } from './ui/practice-settings';
 import { completePractice, renderResult, type ResultElements } from './ui/result-view';
+import { adsAfter, applyReticleColor, showAimDisplay, type AimDisplayElements } from './ui/scope';
 import { SCREEN_HASHES, watchScreen } from './ui/router';
 import { loadCommonSettings, loadMouseSettings } from './ui/settings';
 import { bindSettingsForm, type SettingsFormElements } from './ui/settings-form';
@@ -87,12 +88,20 @@ function startShell(): void {
   });
 }
 
-/** 保存されたクロスヘアの色と形をプレイ画面のクロスヘアに当てる。 */
+/** 保存されたクロスヘアの色と形をプレイ画面のクロスヘアに当て、スコープのレティクルも同じ色にする。 */
 function applySavedCrosshair(): void {
-  const crosshair = document.querySelector<HTMLElement>('.crosshair');
-  if (!crosshair) return;
   const common = loadCommonSettings(appStorage);
-  applyCrosshair(crosshair, { shape: common.crosshairShape, color: common.crosshairColor });
+  const crosshair = document.querySelector<HTMLElement>('.crosshair');
+  if (crosshair) applyCrosshair(crosshair, { shape: common.crosshairShape, color: common.crosshairColor });
+  const scope = document.querySelector<HTMLElement>('.scope');
+  if (scope) applyReticleColor(scope, common.crosshairColor);
+}
+
+/** 腰撃ちのクロスヘアとスコープの表示の要素。どちらかが欠けていれば undefined。 */
+function aimDisplayElements(): AimDisplayElements | undefined {
+  const crosshair = document.querySelector<HTMLElement>('[data-screen="play"] .crosshair');
+  const scope = document.querySelector<HTMLElement>('[data-screen="play"] .scope');
+  return crosshair && scope ? { crosshair, scope } : undefined;
 }
 
 /** 設定画面の各項目に保存された値を出し、変えたらすぐに保存する（docs/spec/screens.md「設定項目」）。 */
@@ -193,8 +202,22 @@ async function start(): Promise<void> {
   // マウスの換算に使う DPI・感度・ADS 倍率。「開始」を押した時点の保存された値（docs/spec/mouse.md）。
   let mouseSettings: MouseSettings = loadMouseSettings(appStorage);
 
+  // ads を押している間はスコープの表示にする（docs/spec/screens.md「ADS 中の照準」）。シミュレーションの状態ではなく、
+  // 積んだ入力から決める。一時停止でステップが進まなくても、ロックが外れて ads を離した時点で腰撃ちの表示に戻すため。
+  const aimDisplay = aimDisplayElements();
+  let adsHeld = false;
+  const setAds = (held: boolean) => {
+    adsHeld = held;
+    if (aimDisplay) showAimDisplay(aimDisplay, held);
+  };
+  setAds(false);
+
   // 入力はこの 1 か所で練習の入力のキューに積む。入力方式の切替（docs/spec/input.md）はここで差し替える。
-  const emit = (action: Action) => running?.input.push(running.loop.currentTime(), action);
+  const emit = (action: Action) => {
+    if (!running) return;
+    running.input.push(running.loop.currentTime(), action);
+    if (action.type === 'ads') setAds(adsAfter(adsHeld, action));
+  };
   // パッドの fire・ads は読んだ時刻で積み、look は固定ステップごとにそのステップの開始時刻で積む（docs/spec/pad.md）。
   const pad = new PadInput({ emit, settings: () => DEFAULT_PAD_SETTINGS });
 
@@ -208,6 +231,9 @@ async function start(): Promise<void> {
       view: view.view,
       crosshair: document.querySelector<HTMLElement>('.crosshair'),
     });
+    // スコープのレティクルも、開始時のクロスヘアの色にする。
+    const scope = document.querySelector<HTMLElement>('.scope');
+    if (scope) applyReticleColor(scope, loadCommonSettings(appStorage).crosshairColor);
     showGhost = settings.ghost;
     mouseSettings = settings.mouse;
     // 練習ごとに種を 1 つ決め、積んだ入力を記録する（docs/spec/input.md「入力の記録と再生」）。記録はメモリの中だけで持つ。
@@ -229,11 +255,13 @@ async function start(): Promise<void> {
     });
     shownWorld = world;
     running = { session, loop, input };
+    setAds(false);
     showPaused(pausedNotice, false);
   };
 
   const abort = () => {
     running = undefined;
+    setAds(false);
     impacts.clear();
     ghost.hide();
   };
@@ -243,6 +271,7 @@ async function start(): Promise<void> {
     if (!result) return;
     running = undefined;
     ghost.hide();
+    setAds(false);
     // 採点し、採点するモードなら自己ベストを保存する。保存できなくても投げず、フッターの表示は appStorage が出す。
     const view = completePractice(
       { result, recording: current.input.recording(), world: current.session.world, input: inputMethod, dt: current.session.sim.dt },

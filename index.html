@@ -71,6 +71,11 @@
         </div>
       </section>
       <section class="screen screen-play" data-screen="play" hidden>
+        <!-- ADS 中のスコープの表示（docs/spec/screens.md「ADS 中の照準」）。ads を押している間だけ出し、腰撃ちのクロスヘアを隠す。 -->
+        <div class="scope" hidden>
+          <div class="scope-reticle"></div>
+          <div class="scope-dot"></div>
+        </div>
         <div class="crosshair" data-shape="dot"></div>
         <div class="hud">
           <p class="hud-weapon" data-hud="weapon"></p>

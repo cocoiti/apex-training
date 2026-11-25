@@ -41,20 +41,38 @@ async function canvasOnly(page: Page): Promise<Image> {
   return decodePng(Buffer.from(data, 'base64'));
 }
 
-/** 色 c に近い画素の、いちばん長い区間の中心。axis が 'row' なら行 at を横に、'column' なら列 at を縦に見る。 */
+/**
+ * 色 c に近い画素のまとまりの中心。axis が 'row' なら行 at を横に、'column' なら列 at を縦に見る。
+ * 的はリングの暗い線で区切られるので、12 px 以内の切れ目はつなげ、画素がいちばん多いまとまりの両端の中点を返す。
+ */
 function blobCenter(img: Image, axis: 'row' | 'column', at: number, c: RGB): number | undefined {
   const length = axis === 'row' ? WIDTH : HEIGHT;
-  let best: [number, number] | undefined;
-  let start = -1;
-  for (let i = 0; i <= length; i += 1) {
-    const inside = i < length && distance(axis === 'row' ? img.pixel(i, at) : img.pixel(at, i), c) < 30;
-    if (inside && start < 0) start = i;
-    if (!inside && start >= 0) {
-      if (!best || i - start > best[1] - best[0]) best = [start, i - 1];
-      start = -1;
-    }
+  const hits: number[] = [];
+  for (let i = 0; i < length; i += 1) if (distance(axis === 'row' ? img.pixel(i, at) : img.pixel(at, i), c) < 30) hits.push(i);
+  let best: [number, number, number] | undefined;
+  let group: [number, number, number] | undefined;
+  for (const i of hits) {
+    if (group && i - group[1] <= 12) group = [group[0], i, group[2] + 1];
+    else group = [i, i, 1];
+    if (!best || group[2] > best[2]) best = group;
   }
   return best && (best[0] + best[1]) / 2;
+}
+
+/** 的の板の色。中心の近くで、壁（中心から 80 px 右）と違う色のうち、いちばん多い色（リングの線の間に見える板の色）。 */
+function boardColor(img: Image): RGB {
+  const wall = img.pixel(CX + 80, CY);
+  const counts = new Map<string, [RGB, number]>();
+  for (let dy = -12; dy <= 12; dy += 1) {
+    for (let dx = -12; dx <= 12; dx += 1) {
+      const c = img.pixel(CX + dx, CY + dy);
+      if (distance(c, wall) <= 40) continue;
+      const key = c.join(',');
+      counts.set(key, [c, (counts.get(key)?.[1] ?? 0) + 1]);
+    }
+  }
+  const [best] = [...counts.values()].sort((a, b) => b[1] - a[1]);
+  return best ? best[0] : img.pixel(CX, CY);
 }
 
 /** (CX, CY) から 10 カウントずつ (dx, dy) の向きへ steps 回動かす。 */
@@ -362,10 +380,11 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       await pause(800);
     }
 
-    /** 開始時に画面の中心に見える的の色を返し、ポインターロックを掛ける。 */
+    /** 開始時に画面の中心に見える的（板）の色を返し、ポインターロックを掛ける。 */
     async function targetColorAndLock(p: Page): Promise<RGB> {
       const start = await canvasOnly(p);
-      const target = start.pixel(CX, CY);
+      const target = boardColor(start);
+      expect(Math.abs(blobCenter(start, 'row', CY, target)! - CX), '開始時に的が中心にない').toBeLessThanOrEqual(2);
       expect(distance(target, start.pixel(CX + 150, CY)), '開始時に中心に的が見えない').toBeGreaterThan(40);
       await p.click(CX, CY);
       await p.waitFor('!!document.pointerLockElement', 5000);

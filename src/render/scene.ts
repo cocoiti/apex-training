@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import { normalizeYaw, type Angles } from '../sim/angles';
 import type { Box } from '../sim/map';
 import type { World } from '../sim/world';
+import { createEnvironment, ENVIRONMENT_COLORS } from './environment';
 import { DEFAULT_FOV, fieldOfView } from './fov';
 import { DisplayLayer } from './layer';
 
+/** 箱の地の色。壁はパネルの地の灰色、的の箱はリングを描く薄い板の色（docs/spec/screens.md「3D の表示」）。 */
 const COLORS: Record<Box['kind'], number> = {
-  wall: 0x5a6270,
-  target: 0xe0533a,
+  wall: ENVIRONMENT_COLORS.wall,
+  target: ENVIRONMENT_COLORS.board,
 };
 
 /** 2 つの照準の向きの間を補間する。ヨーは近い側を回る。 */
@@ -41,19 +43,22 @@ export class ViewScene {
     this.fov = options.fov ?? DEFAULT_FOV;
     this.camera = new THREE.PerspectiveCamera(fieldOfView(this.fov, this.aspect).vertical, this.aspect, 0.05, 200);
     this.camera.rotation.order = 'YXZ';
-    this.scene.background = new THREE.Color(0x1b1e24);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 2.5));
+    // 空の球の外（遠い面より先）を描くことはないが、球を描く前の地の色として地平の色を置く。
+    this.scene.background = new THREE.Color(ENVIRONMENT_COLORS.skyHorizon);
 
     for (const box of world.boxes) {
       const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(box.size.x, box.size.y, box.size.z),
-        new THREE.MeshLambertMaterial({ color: COLORS[box.kind] }),
+        // 光の計算をしない材質で、決めた色のまま描く（壁の面はパネルが覆い、的の箱は板の色に見える）。
+        new THREE.MeshBasicMaterial({ color: COLORS[box.kind] }),
       );
       mesh.name = box.id;
       mesh.userData.kind = box.kind;
       mesh.position.set(box.center.x, box.center.y, box.center.z);
       this.scene.add(mesh);
     }
+    // 壁の表面・的のリング・床・空。描画だけのもので、レイキャストの対象にしない。
+    this.scene.add(createEnvironment(world));
     this.scene.add(this.layer.group);
   }
 
