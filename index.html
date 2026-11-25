@@ -13,6 +13,11 @@
         <div class="panel">
           <h1>リコイル練習</h1>
           <label class="choice">武器 <select id="weapon"></select></label>
+          <!-- 選んでいる武器の簡易版のパターンを向きの音だけで流す（docs/spec/screens.md「音」の「試聴」）。 -->
+          <div class="choice sound-preview">
+            <button type="button" id="preview-sound">パターンの音を聞く</button>
+            <p class="note" id="preview-sound-note" hidden></p>
+          </div>
           <!-- 登録されたモードが 1 つのときは選択肢の欄を隠し、名前だけを出す（docs/spec/screens.md「トップ画面」）。 -->
           <label class="choice" id="mode-choice">モード <select id="mode"></select></label>
           <p class="choice" id="mode-only" hidden>モード <span id="mode-name" class="mode-name"></span></p>
@@ -54,6 +59,7 @@
                 </select>
               </label>
               <label class="setting">音 <input id="setting-sound" type="checkbox" /></label>
+              <label class="setting">音量 <input id="setting-volume" type="text" inputmode="numeric" size="5" /></label>
             </fieldset>
             <fieldset>
               <legend>マウス</legend>

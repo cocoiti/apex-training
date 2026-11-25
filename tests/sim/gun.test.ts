@@ -175,6 +175,17 @@ describe('リコイル', () => {
     sim.advance(0.36);
     expect(gun.shots).toHaveLength(4);
     expect(gun.nextPatternShot).toBe(2);
+    expect(gun.shots.map((s) => s.patternShot)).toEqual([1, 2, 3, 1]);
+  });
+
+  it('弾の記録の patternShot は使った pattern の発で、戻りきる前の押し直しでは続きの番号、戻りきったあとは 1 から', () => {
+    const weapon = makeWeapon({ magSize: 30 });
+    // 0, 0.1 の 2 発。0.15 に離して 0.25 に押し直す（戻りの前）と 0.25, 0.35 の 2 発が 3・4 発目。
+    // 0.4 に離して 1 秒に押し直す（戻りのあと）と 1, 1.1 の 2 発が 1・2 発目。
+    const { sim, gun } = setup(weapon, [press(0), release(0.15), press(0.25), release(0.4), press(1), release(1.15)]);
+    sim.advance(1.5);
+    expect(gun.shots.map((s) => s.shot)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(gun.shots.map((s) => s.patternShot)).toEqual([1, 2, 3, 4, 1, 2]);
   });
 });
 

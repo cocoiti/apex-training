@@ -5,6 +5,7 @@ import { resultSummaryText } from '../../src/ui/result-summary';
 
 const shot = (n: number, position: ShotRecord['position']): ShotRecord => ({
   shot: n,
+  patternShot: n,
   time: n * 0.1,
   angles: { yaw: 0, pitch: 0 },
   position,

@@ -85,6 +85,17 @@ describe('練習の始めに当てる設定', () => {
     expect(settings.mouse.dpi).toBe(1600);
   });
 
+  it('音と音量は「開始」を押した時点の保存された値を返す', () => {
+    const storage = memoryStorage();
+    const before = applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null });
+    expect(before.sound).toBe(true);
+    expect(before.volume).toBe(50);
+    saveCommonSettings(storage, { sound: false, volume: 20 });
+    const after = applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null });
+    expect(after.sound).toBe(false);
+    expect(after.volume).toBe(20);
+  });
+
   it('PAD-28: パッドの詳細設定で変えた値を、スティックの換算に使う値として返す', () => {
     const storage = memoryStorage();
     const before = applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null });

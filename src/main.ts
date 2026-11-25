@@ -23,10 +23,12 @@ import { interpolateAngles, SceneRenderer, UndrawnSceneRenderer, type ViewRender
 import { parseMap, type MapData } from './sim/map';
 import { viewAngles } from './sim/player';
 import type { WeaponData } from './sim/weapon';
+import { simplePattern } from './sim/simple-pattern';
 import { createWorld, type World } from './sim/world';
 import { fillCountSelect } from './ui/count-choices';
 import { applyCrosshair } from './ui/crosshair';
 import { CorrectionPanel, correctionPanelShown, type CorrectionPanelElements } from './ui/correction-panel';
+import { DirectionSound, ShotSounds, soundBlockedReason, SoundPreview } from './ui/direction-sound';
 import { fullscreenLabel, toggleFullscreen } from './ui/fullscreen';
 import { bindHistoryView, initialHistorySelection, type HistoryElements } from './ui/history-view';
 import { renderHud, type HudElements } from './ui/hud';
@@ -62,6 +64,8 @@ interface App {
   abort(): void;
   /** 履歴の画面を開いた。 */
   openHistory(): void;
+  /** 画面に入った。 */
+  enter(screen: ScreenId): void;
   /** キーボードかパッドの画面の操作（docs/spec/screens.md「画面の操作」）。今の画面で操作になったら true。 */
   control(control: ScreenControl): boolean;
 }
@@ -87,6 +91,8 @@ const flow = new PracticeFlow();
 let readyApp: App | undefined;
 // 保存したパッドのボタン割り当て。描画のたびに引くのでメモリに持つ（docs/spec/pad.md「ボタン割り当て」）。
 const padMappings = new PadMappingStore(appStorage);
+// 向きの音（docs/spec/screens.md「音」）。最初のクリック・キー・パッドのボタンの押し下げのあとで AudioContext を作る。
+const directionSound = new DirectionSound();
 /** 描画ごとに 1 回だけ読んだパッド。パッドの画面と練習が同じ描画で同じ値を使う。 */
 let gamepadFrame: { frame: number; pads: readonly (Gamepad | null)[] } | undefined;
 /** ブラウザが見つけたパッド。Gamepad API がないブラウザでは空。同じ描画（clock.frameCount が同じ）なら読み直さない。 */
@@ -105,6 +111,11 @@ function startShell(): void {
   const notice = document.querySelector<HTMLElement>('#storage-notice');
   if (notice) appStorage.onUnavailable(() => showStorageNotice(notice));
   appStorage.probe();
+
+  // ブラウザの自動再生の制限に合わせ、利用者の操作のあとで音を有効にする。ボタンの click より先に届くよう capture で受ける。
+  for (const type of ['pointerdown', 'keydown', 'click'] as const) {
+    document.addEventListener(type, () => directionSound.unlock(), { capture: true });
+  }
 
   applySavedCrosshair();
   startSettingsForm();
@@ -149,6 +160,7 @@ function startShell(): void {
     showScreen(screens, entry.screen);
     padScreens.enter(entry.screen);
     if (entry.screen !== 'play' && document.pointerLockElement) document.exitPointerLock();
+    void appReady.then((app) => app.enter(entry.screen));
     if (entry.abort) void appReady.then((app) => app.abort());
     if (entry.screen === 'history') void appReady.then((app) => app.openHistory());
     if (entry.start) {
@@ -233,6 +245,7 @@ function startSettingsForm(): void {
     ghost: byId<HTMLInputElement>('setting-ghost'),
     patternDisplay: byId<HTMLSelectElement>('setting-pattern-display'),
     sound: byId<HTMLInputElement>('setting-sound'),
+    volume: byId<HTMLInputElement>('setting-volume'),
     dpi: byId<HTMLInputElement>('setting-dpi'),
     sensitivity: byId<HTMLInputElement>('setting-sensitivity'),
     adsMultiplier: byId<HTMLInputElement>('setting-ads-multiplier'),
@@ -367,6 +380,8 @@ function startPadScreens(): PadScreens {
   });
   const tick = (time: number) => {
     const pads = readGamepads();
+    // パッドのボタンの押し下げも、音を有効にする操作とみなす。
+    if (pads.some((p) => p?.buttons.some((button) => button.pressed))) directionSound.unlock();
     const status = choosePad(pads, padMappings.get);
     // 操作に使うのは入力に使うパッドで、標準配置のときだけ（割り当てを保存した標準配置でないパッドは使わない）。
     const navPad = status.kind === 'using' && isStandardMapping(status.pad) ? status.pad : null;
@@ -414,6 +429,8 @@ interface Running {
   readonly padSettings: Readonly<PadSettings>;
   /** 振動を出し終えた弾の数。 */
   rumbledShots: number;
+  /** 撃った弾に合わせて向きの音を鳴らす。記録の再生とリザルトの計算し直しはこれを通らないので鳴らない。 */
+  readonly sounds: ShotSounds;
 }
 
 async function start(): Promise<void> {
@@ -504,6 +521,40 @@ async function start(): Promise<void> {
   const topModeChoice = modeChoiceElements('', modeSelect);
   if (topModeChoice) fillModeChoice(topModeChoice, modes);
   else fillModeSelect(modeSelect, modes);
+
+  // 「パターンの音を聞く」（docs/spec/screens.md「音」の「試聴」）。音が OFF・音量 0 のときは押せない。
+  const previewButton = document.querySelector<HTMLButtonElement>('#preview-sound');
+  const previewNote = document.querySelector<HTMLElement>('#preview-sound-note');
+  const previewLabel = previewButton?.textContent ?? '';
+  const preview = new SoundPreview({
+    timers: { set: (callback, ms) => window.setTimeout(callback, ms), clear: (handle) => window.clearTimeout(handle as number) },
+    onChange: (playing) => {
+      if (previewButton) previewButton.textContent = playing ? '止める' : previewLabel;
+    },
+  });
+  const refreshPreview = () => {
+    const reason = soundBlockedReason(loadCommonSettings(appStorage));
+    if (reason) preview.stop();
+    if (previewButton) previewButton.disabled = reason !== undefined;
+    if (previewNote) {
+      previewNote.textContent = reason ?? '';
+      previewNote.hidden = reason === undefined;
+    }
+  };
+  previewButton?.addEventListener('click', () => {
+    if (preview.playing) {
+      preview.stop();
+      return;
+    }
+    const common = loadCommonSettings(appStorage);
+    const weapon = weapons.find((w) => w.id === weaponSelect.value);
+    if (soundBlockedReason(common) || !weapon) return;
+    directionSound.unlock();
+    preview.start(weapon, (direction) => directionSound.play(direction, common.volume));
+  });
+  // 武器の選択を変えたら試聴を止める。
+  weaponSelect.addEventListener('change', () => preview.stop());
+  refreshPreview();
 
   // 履歴の画面（docs/spec/screens.md「履歴の画面」）。武器は一覧のすべて、モードは登録されたモードを選択肢にする。
   // 登録されていないモードの id の保存（以前のパターン観察・センター維持など）は選択肢に出さず、消さない。
@@ -637,7 +688,10 @@ async function start(): Promise<void> {
       },
     });
     shownWorld = world;
-    running = { session, loop, input, padSettings: DEFAULT_PAD_SETTINGS, rumbledShots: 0 };
+    // 向きの音は練習の武器の簡易版の区切りで鳴らす。パターンの表示・補正のパネル・モードによらない（docs/spec/screens.md「音」）。
+    const play = soundBlockedReason(settings) ? undefined : (direction: string) => directionSound.play(direction, settings.volume);
+    const sounds = new ShotSounds(simplePattern(weapon), play);
+    running = { session, loop, input, padSettings: DEFAULT_PAD_SETTINGS, rumbledShots: 0, sounds };
     hideGuide();
     // 新しい練習では自分の線を消し、今の発の点を 1 発目に戻す。表示は描画のたびに決める。
     // 苦手な区間は始める時点の入力方式と保存してある履歴から 1 回だけ求め、練習のあいだは変えない（docs/spec/screens.md「補正のパネル」）。
@@ -653,6 +707,7 @@ async function start(): Promise<void> {
 
   /** トップ画面で選んだ武器・モード・回数で、新しいセットを 1 回目から始める。 */
   const begin = () => {
+    preview.stop();
     const weapon = weapons.find((w) => w.id === weaponSelect.value) ?? weapons[0];
     const mode = modes.find((m) => m.id === modeSelect.value) ?? modes[0];
     if (!weapon || !mode) return;
@@ -821,6 +876,7 @@ async function start(): Promise<void> {
       current.loop.frame();
       const { session } = current;
       rumbleNewShots(current);
+      current.sounds.sync(session.gun.shots);
       impacts.sync(session.gun.shots, session.world.player.position);
       renderHud(hudElements, {
         weaponName: session.weapon.name,
@@ -870,7 +926,13 @@ async function start(): Promise<void> {
   };
   clock.requestFrame(tick);
 
-  readyApp = { begin, abort, openHistory, control };
+  // トップ画面に入るたびに、音の設定に合わせて試聴のボタンを押せるかを決め直す。ほかの画面に移ったら試聴を止める。
+  const enter = (screen: ScreenId) => {
+    if (screen === 'top') refreshPreview();
+    else preview.stop();
+  };
+
+  readyApp = { begin, abort, openHistory, control, enter };
   resolveApp(readyApp);
 }
 

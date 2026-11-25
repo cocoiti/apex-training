@@ -7,6 +7,7 @@ import {
   MOUSE_RANGES,
   parseNumberInput,
   saveCommonSettings,
+  VOLUME_RANGE,
   saveMouseSettings,
   type CommonSettings,
   type InputMethod,
@@ -36,6 +37,7 @@ export interface SettingsFormElements {
   readonly ghost: CheckElement;
   readonly patternDisplay: FieldElement;
   readonly sound: CheckElement;
+  readonly volume: FieldElement;
   readonly dpi: FieldElement;
   readonly sensitivity: FieldElement;
   readonly adsMultiplier: FieldElement;
@@ -66,6 +68,7 @@ export function bindSettingsForm(elements: SettingsFormElements, storage: Storag
     elements.ghost.checked = common.ghost;
     elements.patternDisplay.value = common.patternDisplay;
     elements.sound.checked = common.sound;
+    elements.volume.value = formatNumberValue(common.volume, VOLUME_RANGE);
   };
 
   const mouseFields: Record<keyof MouseSettings, FieldElement> = {
@@ -113,6 +116,10 @@ export function bindSettingsForm(elements: SettingsFormElements, storage: Storag
   onCommit(elements.fov, () => {
     const fov = parseNumberInput(elements.fov.value, FOV_RANGE);
     showCommon(saveCommonSettings(storage, fov === undefined ? {} : { fov }));
+  });
+  onCommit(elements.volume, () => {
+    const volume = parseNumberInput(elements.volume.value, VOLUME_RANGE);
+    showCommon(saveCommonSettings(storage, volume === undefined ? {} : { volume }));
   });
 
   for (const key of mouseKeys) {

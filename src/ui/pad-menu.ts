@@ -8,6 +8,7 @@ import {
   FOV_RANGE,
   PAD_RANGES,
   SENSITIVITY_RANGE,
+  VOLUME_RANGE,
   type NumberRange,
 } from './settings';
 
@@ -42,6 +43,7 @@ export interface NumberStep {
 
 export const NUMBER_STEPS: Readonly<Record<string, NumberStep>> = {
   'setting-fov': { step: 1, range: FOV_RANGE },
+  'setting-volume': { step: 10, range: VOLUME_RANGE },
   'setting-dpi': { step: 100, range: DPI_RANGE },
   'setting-sensitivity': { step: 0.1, range: SENSITIVITY_RANGE },
   'setting-ads-multiplier': { step: 0.1, range: ADS_MULTIPLIER_RANGE },

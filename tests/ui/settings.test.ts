@@ -38,6 +38,7 @@ describe('設定の値と範囲', () => {
       ghost: false,
       patternDisplay: 'detailed',
       sound: true,
+      volume: 50,
     });
     expect(loadMouseSettings(storage)).toEqual({ dpi: 800, sensitivity: 1.5, adsMultiplier: 1 });
   });
@@ -110,7 +111,7 @@ describe('設定の保存と読み出し', () => {
 
   it('読めない項目だけを範囲に収めた値か既定値にし、ほかの項目はそのまま使う', () => {
     const { storage } = memoryStorage({
-      [SETTINGS_KEYS.common]: JSON.stringify({ fov: 200, crosshairShape: 'star', crosshairColor: '#ABC', ghost: 'no', correctionPanel: 1, patternDisplay: 'rough', sound: false }),
+      [SETTINGS_KEYS.common]: JSON.stringify({ fov: 200, crosshairShape: 'star', crosshairColor: '#ABC', ghost: 'no', correctionPanel: 1, patternDisplay: 'rough', sound: false, volume: 120 }),
       [SETTINGS_KEYS.mouse]: JSON.stringify({ dpi: '1600', sensitivity: 3 }),
     });
     expect(loadCommonSettings(storage)).toEqual({
@@ -121,6 +122,7 @@ describe('設定の保存と読み出し', () => {
       ghost: false,
       patternDisplay: 'detailed',
       sound: false,
+      volume: 100,
     });
     expect(loadMouseSettings(storage)).toEqual({ dpi: 800, sensitivity: 3, adsMultiplier: 1 });
   });
