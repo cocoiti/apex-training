@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>リコイル練習（非公式）</title>
-    <script type="module" crossorigin src="/apex-training/assets/index-BvxncLzd.js"></script>
-    <link rel="stylesheet" crossorigin href="/apex-training/assets/index-BD1zvw8l.css">
+    <script type="module" crossorigin src="/apex-training/assets/index-DGZI58J6.js"></script>
+    <link rel="stylesheet" crossorigin href="/apex-training/assets/index-Sj2BQ4-f.css">
   </head>
   <body>
     <!-- 3D のキャンバスを画面いっぱいに置き、その上に各画面の HTML を重ねる（docs/spec/overview.md「公開」）。 -->
@@ -14,9 +14,10 @@
       <section class="screen" data-screen="top">
         <div class="panel">
           <h1>リコイル練習</h1>
-          <label class="weapon-choice">武器 <select id="weapon"></select></label>
+          <label class="choice">武器 <select id="weapon"></select></label>
+          <label class="choice">モード <select id="mode"></select></label>
           <nav class="menu">
-            <a href="#/play">開始</a>
+            <a href="#/play" id="start">開始</a>
             <a href="#/settings">設定</a>
           </nav>
         </div>
@@ -40,12 +41,18 @@
       </section>
       <section class="screen screen-play" data-screen="play" hidden>
         <div class="crosshair" data-shape="dot"></div>
-        <p id="status">読み込み中</p>
+        <div class="hud">
+          <p class="hud-weapon" data-hud="weapon"></p>
+          <p class="hud-ammo" data-hud="ammo"></p>
+          <p class="hud-time" data-hud="time"></p>
+          <p id="status">読み込み中</p>
+        </div>
         <a class="play-exit" href="#/">トップへ戻る</a>
       </section>
       <section class="screen" data-screen="result" hidden>
         <div class="panel">
           <h2>リザルト</h2>
+          <p id="result-summary"></p>
           <nav class="menu">
             <a href="#/">トップへ戻る</a>
           </nav>
