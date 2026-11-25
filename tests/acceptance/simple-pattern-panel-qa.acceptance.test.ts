@@ -1,4 +1,4 @@
-// docs/spec/screens.md「補正のパネル」のパターンの表示（詳細 / 簡易）と設定（UI-11・UI-13・UI-64〜UI-68）、
+// docs/spec/screens.md「補正のパネル」のパターンの表示（詳細 / 簡易）と設定（UI-11・UI-13・UI-69〜UI-73）、
 // docs/spec/weapons.md の WPN-29 の QA の受け入れテスト。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（トップ・設定・プレイ・リザルト）、index.html の要素、
 // 武器の JSON。画面はヘッドレスの Chromium で開く（tests/helpers/browser.ts）。
@@ -292,7 +292,7 @@ const resultOf = (page: Page) =>
 
 // ---------------------------------------------------------------------------
 
-describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの表示（UI-11・UI-13・UI-64〜UI-68・WPN-29）', () => {
+describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの表示（UI-11・UI-13・UI-69〜UI-73・WPN-29）', () => {
   const temps: string[] = [];
   let server: Server | undefined;
   let browser: Browser | undefined;
@@ -441,7 +441,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
   });
 
   // -------------------------------------------------------------------------
-  describe('UI-64: 簡易では理想の線が簡易版の頂点を結んだ折れ線で、凡例「理想（簡易）」と区切りの言葉が出る。詳細では出ない', () => {
+  describe('UI-69: 簡易では理想の線が簡易版の頂点を結んだ折れ線で、凡例「理想（簡易）」と区切りの言葉が出る。詳細では出ない', () => {
     for (const input of ['パッド', 'マウス'] as const) {
       it(`L-STAR・反復練習・${input}: 簡易`, async () => {
         const page = await openFresh();
@@ -484,7 +484,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
   });
 
   // -------------------------------------------------------------------------
-  describe('UI-65: 簡易では次の発の点が簡易版での位置にあり、次の発を受け持つ区切りの言葉が強調される', () => {
+  describe('UI-70: 簡易では次の発の点が簡易版での位置にあり、次の発を受け持つ区切りの言葉が強調される', () => {
     for (const mode of [GHOST, CENTER]) {
       it(`${ZIG.name}（rpm 60）・${mode}・パッド: 撃つ前・i 発撃つごと・撃ち切ったあと`, async () => {
         const w = ZIG;
@@ -535,7 +535,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
   });
 
   // -------------------------------------------------------------------------
-  describe('UI-66: 同じ入力を詳細と簡易で与えると、弾痕の位置・採点結果・リザルトの理想の軌道の重ね描きが一致する', () => {
+  describe('UI-71: 同じ入力を詳細と簡易で与えると、弾痕の位置・採点結果・リザルトの理想の軌道の重ね描きが一致する', () => {
     it(`${ZIG_SLOW.name}（rpm 30）・反復練習・マウス: 同じ照準の動かし方と撃ち方`, async () => {
       const w = ZIG_SLOW;
       const moves: Pt[] = [
@@ -610,7 +610,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
   });
 
   // -------------------------------------------------------------------------
-  describe('UI-67: 同じ武器で詳細と簡易のパネルの表示の範囲が同じ', () => {
+  describe('UI-72: 同じ武器で詳細と簡易のパネルの表示の範囲が同じ', () => {
     for (const w of [LSTAR, CAR, ZIG, NEW]) {
       for (const mode of [GHOST, CENTER]) {
         it(`${w.name}・${mode}`, async () => {
@@ -637,7 +637,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
   });
 
   // -------------------------------------------------------------------------
-  describe('UI-68: 簡易でゴースト表示 ON の反復練習で撃つと、ゴーストの向きとスティック型のガイドの理想の位置が詳細と同じ', () => {
+  describe('UI-73: 簡易でゴースト表示 ON の反復練習で撃つと、ゴーストの向きとスティック型のガイドの理想の位置が詳細と同じ', () => {
     it(`${ZIG.name}（randomness 0・rpm 60）・パッド: 撃つ前と各発のあとのキャンバスとガイド`, async () => {
       const w = ZIG;
       const shots = [0, 1, 2, 4, 6, 8];

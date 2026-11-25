@@ -290,7 +290,7 @@ describe('パターンの表示が簡易の補正のパネル', () => {
   const weapon = bentWeapon();
   const simple = simplePattern(weapon);
 
-  it('UI-64: 理想の線は簡易版の頂点を結んだ折れ線で、凡例は「理想（簡易）」、区切りの言葉を発の順に並べる', () => {
+  it('UI-69: 理想の線は簡易版の頂点を結んだ折れ線で、凡例は「理想（簡易）」、区切りの言葉を発の順に並べる', () => {
     const e = elements();
     new CorrectionPanel(e).begin(weapon, { display: 'simple' });
     expect(simple.segments.length).toBeGreaterThanOrEqual(2);
@@ -308,7 +308,7 @@ describe('パターンの表示が簡易の補正のパネル', () => {
     expect(labels).toEqual(simple.segments.map((s) => s.label));
   });
 
-  it('UI-64: 詳細のときは理想の線が 1〜装弾数発目の理想の補正軌道で、区切りの言葉は出さない', () => {
+  it('UI-69: 詳細のときは理想の線が 1〜装弾数発目の理想の補正軌道で、区切りの言葉は出さない', () => {
     const e = elements();
     const panel = new CorrectionPanel(e);
     panel.begin(weapon, { display: 'simple' });
@@ -320,7 +320,7 @@ describe('パターンの表示が簡易の補正のパネル', () => {
     expect(e.segments.attrs.get('data-count')).toBe('0');
   });
 
-  it('UI-65: 次の発の点は簡易版での位置に置き、i 発撃つごとに i+1 発目へ進んで、受け持つ区切りの言葉を強調する。撃ち切ると点も強調もない', () => {
+  it('UI-70: 次の発の点は簡易版での位置に置き、i 発撃つごとに i+1 発目へ進んで、受け持つ区切りの言葉を強調する。撃ち切ると点も強調もない', () => {
     const e = elements();
     const panel = new CorrectionPanel(e);
     panel.begin(weapon, { display: 'simple' });
@@ -343,7 +343,7 @@ describe('パターンの表示が簡易の補正のパネル', () => {
     expect(e.segments.innerHTML).not.toContain('current');
   });
 
-  it('UI-65: 向かう先の線は今の照準から簡易版での次の発の位置へ引く', () => {
+  it('UI-70: 向かう先の線は今の照準から簡易版での次の発の位置へ引く', () => {
     const e = elements();
     const panel = new CorrectionPanel(e);
     panel.begin(weapon, { display: 'simple' });
@@ -352,7 +352,7 @@ describe('パターンの表示が簡易の補正のパネル', () => {
     expect(Number(e.heading.attrs.get('y2'))).toBeCloseTo(-(simple.positions[2]?.pitch ?? Number.NaN), 4);
   });
 
-  it('UI-67: 表示の範囲は詳細と簡易で同じ', () => {
+  it('UI-72: 表示の範囲は詳細と簡易で同じ', () => {
     for (const w of [weapon, makeWeapon(10)]) {
       expect(correctionPanelFrame(w, 'simple').extent).toBe(correctionPanelFrame(w, 'detailed').extent);
       const detailed = elements();

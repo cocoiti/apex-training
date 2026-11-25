@@ -36,7 +36,7 @@ export interface CorrectionPanelFrame {
 
 /**
  * 武器とパターンの表示から理想の線と表示の範囲を決める。範囲は詳細版の理想の線がすべて収まる幅に余白を足したもの
- * （result-plot と同じ求め方）で、パターンの表示によらない（docs/spec/screens.md UI-67）。
+ * （result-plot と同じ求め方）で、パターンの表示によらない（docs/spec/screens.md UI-72）。
  */
 export function correctionPanelFrame(weapon: Pick<WeaponData, 'pattern' | 'magSize'>, display: PatternDisplay = 'detailed'): CorrectionPanelFrame {
   const ideal = [ORIGIN, ...idealCorrection(weapon).slice(0, weapon.magSize)];
