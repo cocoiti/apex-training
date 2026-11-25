@@ -7,7 +7,8 @@ import { modes } from '../../src/modes/registry';
 import { PracticeSession, type PracticeResult } from '../../src/modes/session';
 import type { TrainingMode } from '../../src/modes/types';
 import type { ShotRecord } from '../../src/sim/gun';
-import { parseMap } from '../../src/sim/map';
+import { parseMap, type MapData } from '../../src/sim/map';
+import { replayRecording } from '../../src/sim/practice';
 import { score } from '../../src/sim/scoring';
 import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
 import { createWorld, type World } from '../../src/sim/world';
@@ -24,10 +25,14 @@ function loadWeapon(id: string): WeaponData {
   return parsed.weapon;
 }
 
-function rangeWorld(): World {
+function rangeMap(): MapData {
   const parsed = parseMap(readJson('maps/range.json'));
   if (!parsed.ok) throw new Error('マップを読めない');
-  return createWorld(parsed.map);
+  return parsed.map;
+}
+
+function rangeWorld(): World {
+  return createWorld(rangeMap());
 }
 
 /** センター維持と同じく採点するゴースト追従の代わり（ゴースト追従のモードはまだない）。 */
@@ -63,6 +68,24 @@ function practice(weaponId: string, modeId: string, pullDown = 0.01): FinishedPr
   const result = session.result;
   if (!result) throw new Error('練習が終わらない');
   return { result, recording: input.recording(), world, input: 'mouse', dt: session.sim.dt };
+}
+
+/** practice と同じ練習の、種つきの入力の記録。 */
+function practiceWithRecording(weaponId: string, modeId: string, pullDown: number) {
+  const world = rangeWorld();
+  const weapon = loadWeapon(weaponId);
+  const input = new RecordingInput(7);
+  const session = new PracticeSession({ world, weapon, mode: modeById(modeId), input, seed: input.seed });
+  input.push(0, { type: 'fire', pressed: true } as TimedAction['action']);
+  for (let i = 0; i < 2000 && !session.ended; i += 1) {
+    input.push(session.sim.time, { type: 'look', yaw: 0, pitch: -pullDown });
+    session.step();
+  }
+  const result = session.result;
+  if (!result) throw new Error('練習が終わらない');
+  const recording = input.recording();
+  const finished: FinishedPractice = { result, recording, world, input: 'mouse', dt: session.sim.dt };
+  return { finished, recording, weapon };
 }
 
 /** Map で代用した保存先。 */
@@ -196,6 +219,25 @@ describe('リザルト画面に出すもの', () => {
     expect(view.best).toBe('自己ベスト 平均ズレ なし');
     expect(view.plots.flatMap((plot) => plot.series.map((s) => s.points.length))).toEqual([0, 0, 0]);
     expect(storage.items.size).toBe(0);
+  });
+});
+
+describe('リザルト画面と再生の採点', () => {
+  it('INP-4: 外れの弾を含む記録でも、リザルト画面の採点結果と、同じ記録を再生した採点結果が一致する', () => {
+    // 照準を毎ステップ 0.5 度ずつ上げ、途中から的にも壁にも当たらない（空に向けて撃つ）。
+    const { finished, recording, weapon } = practiceWithRecording('r301', 'center', -0.5);
+    const shots = finished.result.shots;
+    expect(shots.some((s) => s.deviation === null)).toBe(true);
+    expect(shots.some((s) => s.deviation !== null)).toBe(true);
+
+    const storage = memoryStorage();
+    const view = completePractice(finished, storage, NOW);
+    const replayed = replayRecording(recording, { map: rangeMap(), weapon });
+    expect(replayed.shots).toEqual(shots);
+    expect(view.metrics).toEqual(metricRows(replayed.score));
+    expect(view.comments).toEqual(replayed.score.comments);
+    const saved = parsePersonalBest(storage.get(personalBestKey('mouse', 'r301', 'center')));
+    expect(saved?.meanError).toBe(replayed.score.meanDeviation);
   });
 });
 

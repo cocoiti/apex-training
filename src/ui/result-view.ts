@@ -1,6 +1,6 @@
 import type { InputRecording } from '../input/recording';
 import type { PracticeResult } from '../modes/session';
-import { score, shotDeviations, targetRadius, type ScoreResult } from '../sim/scoring';
+import { scoreShots, shotDeviations, targetRadius, type ScoreResult } from '../sim/scoring';
 import { aimAtShots } from '../sim/trajectory';
 import { idealCorrection, uncorrectedPattern } from '../sim/weapon';
 import type { World } from '../sim/world';
@@ -108,7 +108,7 @@ export function completePractice(
   }
 
   const radius = targetRadius(world);
-  const scored = score(deviations, radius);
+  const scored = scoreShots(result.shots, world, radius);
   const key = personalBestKey(practice.input, result.weapon.id, result.mode.id);
   const outcome = recordPersonalBest(storage, key, scored, now);
   const aim = aimAtShots(practice.recording, result.shots, world.center, practice.dt);

@@ -131,3 +131,15 @@ export function targetRadius(world: Pick<World, 'boxes' | 'player'>): number {
   }
   return best?.radius ?? DEFAULT_TARGET_RADIUS;
 }
+
+/**
+ * 撃った弾を採点する。リザルト画面と入力の記録の再生はどちらもこの関数で採点し、同じ記録から同じ採点結果を出す（INP-4）。
+ * 外れの弾も shotDeviations で弾の向きと中心との差をズレとして入れる。radius は的の半径（度）で、既定は targetRadius(world)。
+ */
+export function scoreShots(
+  shots: readonly Pick<ShotRecord, 'angles' | 'deviation'>[],
+  world: Pick<World, 'boxes' | 'player' | 'center'>,
+  radius: number = targetRadius(world),
+): ScoreResult {
+  return score(shotDeviations(shots, world.center), radius);
+}
