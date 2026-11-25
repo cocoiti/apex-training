@@ -15,6 +15,10 @@ export const STANDARD_LAYOUT = {
   lookY: 3,
   fire: 7,
   ads: 6,
+  /** A / ×。画面の操作（やり直す・次へ・もう一度）に使い、アクションにはしない（src/input/screen-controls.ts）。 */
+  confirm: 0,
+  /** B / ○。画面の操作（やめる・武器変更）に使い、アクションにはしない。 */
+  back: 1,
 } as const;
 
 /** R2 / RT と L2 / LT を押している状態とみなすアナログ値の既定のしきい値。 */

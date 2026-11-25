@@ -474,4 +474,132 @@ polyline.plot-history {
 .history-table th {
   color: #a4a9b2;
   font-weight: normal;
+.hud-round {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-round:empty {
+  display: none;
+}
+
+/* 操作のキーとボタンの表示。プレイ画面では左下に置く。 */
+.controls-hint {
+  color: #a4a9b2;
+  font-size: 12px;
+}
+
+.controls-hint kbd {
+  padding: 0 4px;
+  border: 1px solid #4a505b;
+  border-radius: 3px;
+  font-family: inherit;
+}
+
+.play-controls {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  margin: 0;
+}
+
+.menu-row .controls-hint {
+  align-self: center;
+  margin-left: -16px;
+}
+
+/* 連続練習の短いリザルトは画面の中央に出す。クリックはキャンバスに通す。 */
+.interlude {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  min-width: 280px;
+  padding: 16px 24px;
+  border-radius: 8px;
+  transform: translateX(-50%);
+  background: rgb(27 30 36 / 85%);
+  text-align: center;
+}
+
+.interlude[hidden],
+.play-controls[hidden] {
+  display: none;
+}
+
+.interlude p {
+  margin: 0 0 8px;
+}
+
+.interlude-round {
+  color: #a4a9b2;
+}
+
+.interlude-score {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.interlude-best {
+  color: #f2c14e;
+}
+
+.interlude-best:empty {
+  display: none;
+}
+
+.interlude-countdown {
+  font-variant-numeric: tabular-nums;
+}
+
+.set-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.set-rounds {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.set-rounds li {
+  margin-bottom: 2px;
+}
+
+.set-round-number {
+  display: inline-block;
+  min-width: 4em;
+  color: #a4a9b2;
+}
+
+.set-best-mark {
+  color: #f2c14e;
+}
+
+.set-average,
+.set-best {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.plot-set svg {
+  width: 360px;
+  aspect-ratio: 16 / 9;
+}
+
+polyline.plot-trend {
+  stroke: #7cf;
+}
+
+.plot-trend {
+  fill: #7cf;
+}
+
+.plot-label {
+  fill: #a4a9b2;
+  font-size: 10px;
 }

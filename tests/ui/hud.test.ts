@@ -26,18 +26,26 @@ describe('HUD', () => {
       ammo: '残弾 23 / 24',
       time: '0.4 秒',
       input: 'マウス',
+      round: '',
     });
     expect(hudTexts({ weaponName: 'L-STAR', ammo: 23, magSize: 24, elapsed: 0.4, inputMethod: 'pad' }).input).toBe('パッド');
   });
 
+  it('連続練習のときは今の回の番号と回数を「2 / 5」と表示し、回数が 1 のときは表示しない', () => {
+    const base = { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse' } as const;
+    expect(hudTexts({ ...base, round: { index: 2, count: 5 } }).round).toBe('2 / 5');
+    expect(hudTexts({ ...base, round: { index: 1, count: 1 } }).round).toBe('');
+  });
+
   it('要素の文字を書き換える', () => {
-    const elements = { weapon: { textContent: '' }, ammo: { textContent: '' }, time: { textContent: '' }, input: { textContent: '' } };
-    renderHud(elements, { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse' });
+    const elements = { weapon: { textContent: '' }, ammo: { textContent: '' }, time: { textContent: '' }, input: { textContent: '' }, round: { textContent: '' } };
+    renderHud(elements, { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse', round: { index: 3, count: 5 } });
     expect(elements).toEqual({
       weapon: { textContent: 'R-301' },
       ammo: { textContent: '残弾 28 / 28' },
       time: { textContent: '0.0 秒' },
       input: { textContent: 'マウス' },
+      round: { textContent: '3 / 5' },
     });
     renderHud(elements, { weaponName: 'R-301', ammo: 27, magSize: 28, elapsed: 0.1, inputMethod: 'pad' });
     expect(elements.ammo.textContent).toBe('残弾 27 / 28');
