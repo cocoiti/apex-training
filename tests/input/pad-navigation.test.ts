@@ -79,6 +79,23 @@ describe('パッドでの項目の移動の繰り返し', () => {
     expect(at(1000)).toBe(8);
   });
 
+  it('UI-48: 押し続けている途中で読む間隔が 0.4 秒以上あいても、操作は 1 回しか出ず、そのあとは 0.1 秒ごとに戻る', () => {
+    const nav = ready();
+    const held = pad({ buttons: [DOWN] });
+    expect(nav.poll(held, 1000)).toEqual(['down']);
+    expect(nav.poll(held, 1000 + NAV_REPEAT_DELAY_MS)).toEqual(['down']);
+    // 描画が 5 秒止まった（タブを隠したなど）あとの最初の読み取り。
+    const resumed = 1000 + NAV_REPEAT_DELAY_MS + 5000;
+    expect(nav.poll(held, resumed)).toEqual(['down']);
+    expect(nav.poll(held, resumed + 10)).toEqual([]);
+    expect(nav.poll(held, resumed + NAV_REPEAT_INTERVAL_MS - 10)).toEqual([]);
+    expect(nav.poll(held, resumed + NAV_REPEAT_INTERVAL_MS)).toEqual(['down']);
+    // 押し始めから 0.4 秒たつ前に間隔があいても 1 回だけ。
+    const other = ready();
+    expect(other.poll(held, 100)).toEqual(['down']);
+    expect(other.poll(held, 100 + NAV_REPEAT_DELAY_MS + 3000)).toEqual(['down']);
+  });
+
   it('UI-48: 左スティックを下に 0.6 倒すと十字キーの下と同じく移り、0.4 では移らない', () => {
     const nav = ready();
     expect(nav.poll(pad({ axes: [0, 0.4, 0, 0] }), 10)).toEqual([]);

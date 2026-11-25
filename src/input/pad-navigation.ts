@@ -86,9 +86,11 @@ export class PadNavigator {
         continue;
       }
       if (!state.blocked && command !== 'confirm' && command !== 'back') {
-        while (time >= state.next) {
+        // 1 回の読み取りで繰り返すのは方向ごとに 1 回まで。描画が止まって遅れた分は取り戻さず、次の時刻を今から決め直す。
+        if (time >= state.next) {
           commands.push(command);
           state.next += NAV_REPEAT_INTERVAL_MS;
+          if (state.next <= time) state.next = time + NAV_REPEAT_INTERVAL_MS;
         }
       }
       next.set(command, state);
