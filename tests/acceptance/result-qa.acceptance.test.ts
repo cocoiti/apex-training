@@ -11,17 +11,14 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
-const STATIC_PORT = 3124;
-const DEBUG_PORT = 3125;
 const CX = 640;
 const CY = 400;
 const chromium = findChromium();
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** SPEC の文言と値（実装の定数には依存しない）。 */
 const NOTICE = 'この環境では設定と記録を保存できません。練習はそのまま続けられます。';
@@ -220,13 +217,15 @@ const ammo = (page: Page) =>
 const mouseButton = (page: Page, type: 'mousePressed' | 'mouseReleased') =>
   page.send('Input.dispatchMouseEvent', { type, x: CX, y: CY, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1 });
 
-/** プレイ画面でキャンバスをクリックしてポインターロックを掛ける。 */
+/**
+ * プレイ画面でキャンバスをクリックしてポインターロックを掛ける。練習のシーンが描画され始めるまで待ってからクリックし、
+ * Chromium がロックを外した直後の要求を拒否したときは、掛かるまでクリックし直す（決まった時間は待たない）。
+ */
 async function lock(page: Page) {
   await page.waitFor(`location.hash === '#/play' && !document.querySelector('[data-screen="play"]').hidden`);
-  await pause(500);
-  await page.click(CX, CY);
-  await page.waitFor('!!document.pointerLockElement', 5000);
-  await pause(200);
+  await page.frames(5);
+  await waitUntil(() => page.lockPointerBy(() => page.click(CX, CY), 1_000), 'クリックでポインターロックが掛かる', { timeout: 15_000 });
+  await page.frames(2);
 }
 
 /** トップ画面を開いて武器とモードを選び、「開始」を押してプレイ画面に入る。 */
@@ -242,22 +241,24 @@ async function start(page: Page, weapon: string, mode: string) {
 
 /**
  * 左ボタンを押し続けて 1 マガジンを撃ち切り、リザルト画面になるまで待つ。
- * drag を渡すと、押しているあいだマウスを 1 回 drag.dy カウントずつ drag.steps 回動かす。
+ * drag を渡すと、押しているあいだ、1 発撃つ（残弾が 1 つ減る）ごとにマウスを drag.dy カウントずつ、drag.steps 回動かす。
+ * 動かすきっかけを経過した実時間でなく撃った弾数にするので、マシンが重くても撃ち切る前に動かし終わる。
  */
-async function fireAll(page: Page, drag?: { dy: number; steps: number; every: number }) {
+async function fireAll(page: Page, drag?: { dy: number; steps: number }) {
+  const full = drag ? await ammo(page) : 0;
   await mouseButton(page, 'mousePressed');
   if (drag) {
-    await pause(drag.every);
     for (let i = 1; i <= drag.steps; i += 1) {
+      await page.waitFor(`window.__ammo() <= ${full - i} || location.hash !== '#/play'`, 20_000);
       await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: CX, y: CY + drag.dy * i, button: 'left', buttons: 1 });
-      await pause(drag.every);
     }
   }
   await page.waitFor(`location.hash === '#/result'`, 20_000);
   await mouseButton(page, 'mouseReleased');
   await page.evaluate('document.exitPointerLock()');
-  await page.waitFor(`!document.querySelector('[data-screen="result"]').hidden`);
-  await pause(300);
+  // リザルト画面が表示され、図が描かれて画面に出るまで待つ。
+  await page.waitFor(`!document.querySelector('[data-screen="result"]').hidden && !document.pointerLockElement`);
+  await page.frames(2);
 }
 
 /** 練習を 1 回（武器とモードを選んで撃ち切る）。 */
@@ -311,7 +312,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
   let copyBuild = { status: null as number | null, output: '' };
   let server: Server | undefined;
   let browser: Browser | undefined;
-  const origin = `http://127.0.0.1:${STATIC_PORT}`;
+  let origin = '';
   const serveDist = (dir: string) => {
     if (existsSync(site)) unlinkSync(site);
     symlinkSync(dir, site, 'dir');
@@ -359,8 +360,9 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
 
     site = join(work, 'site');
     serveDist(copyDist);
-    server = await serveStatic(site, BASE, STATIC_PORT);
-    browser = await launchBrowser(chromium!, DEBUG_PORT);
+    server = await serveStatic(site, BASE);
+    origin = originOf(server);
+    browser = await launchBrowser(chromium!);
   }, 300_000);
 
   afterAll(async () => {
@@ -444,7 +446,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
         await practice(page, byId('volt').name, mode);
         await clickResultButton(page, '武器変更');
         await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
-        await pause(200);
+        await page.frames(2);
         const r = await resultState(page);
         expect(r.hash === '#/' || r.hash === '', `${mode}: ${r.hash}`).toBe(true);
         expect(r.visibleScreens, mode).toEqual(['top']);
@@ -516,7 +518,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       const page = await openFresh();
       const w = byId('flatline');
       await start(page, w.name, 'センター維持');
-      await fireAll(page, { dy: 6, steps: 20, every: 100 });
+      await fireAll(page, { dy: 6, steps: 20 });
       const r = await resultState(page);
       const trajectory = plotWith(r, 'aim', 'ideal');
       const aim = seriesOf(trajectory, 'aim');
@@ -660,7 +662,10 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       expect(saved).toBeDefined();
       const savedMean = (JSON.parse(saved!) as Best).meanError;
       // 2 回目: ブレ 0・照準を動かさないので、平均ズレは 1 回目とちょうど等しい。
-      await pause(1100);
+      // 保存し直されたら達成日時が変わって見分けられるよう、ページの時計が 1 回目の達成日時から秒の桁で進んでから撃つ
+      // （達成日時が秒までしか書かれない実装でも見分けられる）。
+      const savedAt = Date.parse((JSON.parse(saved!) as Best).achievedAt);
+      await page.waitFor(`Date.now() >= ${savedAt} + 1000`, 5_000);
       const second = await practice(page, '受け入れ-下外れ', 'センター維持');
       expect(metric(second, '平均ズレ')).toBe(metric(first, '平均ズレ'));
       expect(second.text).not.toContain(UPDATED);
