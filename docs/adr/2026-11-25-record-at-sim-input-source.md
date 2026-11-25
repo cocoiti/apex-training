@@ -11,10 +11,12 @@ Issue #9 で、練習の入力を記録し、再生で同じ弾痕・採点結�
 
 - 記録は `src/input/recording.ts` の `RecordingInput` で取る。シミュレーションが入力を取り出す元（InputSource）そのものにし、
   マウス・パッドが積むアクションを、積んだ時刻（練習の開始からの秒）と一緒に積んだ順にすべて残す。記録は `{ seed, actions }` だけ。
-- 種は練習の開始ごとに `crypto.getRandomValues` で 0 以上 2³² 未満の整数を 1 つ決め、Gun の乱数はその種だけから作る。
-- 練習ごとに World・Simulation・Gun を作り直す（`src/sim/practice.ts` の `createPractice`）。武器を変えると新しい練習になり、時刻 0 と照準が開始時に戻る。
-- 再生（`replayRecording`）は記録のアクションをすべて消費し、撃ち続けていない状態になるまでステップを進める。その先は弾が出ないので、
-  元の練習の長さを記録に持たなくても結果が一致する。
+- 種は練習の開始ごとに `crypto.getRandomValues` で 0 以上 2³² 未満の整数を 1 つ決め、Gun とモードの乱数はその種だけから作る。
+- 練習は「開始」ごとに作り直す（ADR: practice-session-per-start の `PracticeSession`）。その入力の元を `RecordingInput` にする。
+- 画面の練習の再生（`src/modes/session.ts` の `replayPracticeSession`）は、元と同じ World・武器・モードで `PracticeSession` を作り、
+  練習が終わるまで進める。モードも Gun と同じ乱数を使うので、モードを含めないと一致しない。
+- モードを含めないシミュレーションだけの再生（`src/sim/practice.ts` の `replayRecording`、ARC-3）は、記録のアクションをすべて消費し、
+  撃ち続けていない状態になるまでステップを進める。その先は弾が出ないので、元の練習の長さを記録に持たなくても結果が一致する。
 - 照準の軌道（`src/sim/trajectory.ts`）は、記録を Simulation と共有の `applyActions` で別のプレイヤーに流して計算し直す。
 
 ## 却下した案
