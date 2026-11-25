@@ -120,3 +120,8 @@ a {
   border-radius: 50%;
   background: #7cf;
 }
+
+.weapon-choice {
+  display: block;
+  margin-bottom: 16px;
+}

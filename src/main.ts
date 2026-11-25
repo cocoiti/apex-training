@@ -14,6 +14,7 @@ import { loadWorld } from './sim/world';
 import { watchScreen } from './ui/router';
 import { showScreen, showStorageNotice } from './ui/shell';
 import { appStorage } from './ui/storage';
+import { fillWeaponSelect } from './ui/weapon-choices';
 
 /** 画面の切替とフッターの表示を始める。3D の読み込みに失敗しても画面は出るよう、先に同期で行う。 */
 function startShell(): void {
@@ -31,7 +32,8 @@ function startShell(): void {
 async function start(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#view');
   const status = document.querySelector<HTMLElement>('#status');
-  if (!canvas || !status) throw new Error('キャンバスがない');
+  const weaponSelect = document.querySelector<HTMLSelectElement>('#weapon');
+  if (!canvas || !status || !weaponSelect) throw new Error('キャンバスがない');
 
   const loaded = loadWorld(await fetchMapJson('range'));
   if (!loaded.ok) {
@@ -40,18 +42,28 @@ async function start(): Promise<void> {
   }
   const { world } = loaded;
 
-  // 武器の選択はトップ画面の Issue で足す。それまでは一覧の最初の武器を使う。
+  // 武器の選択肢は一覧から category ごとに分けて出す（WPN-13）。
   const weapons = await loadWeapons();
-  const weapon = weapons[0];
-  if (!weapon) {
+  const first = weapons[0];
+  if (!first) {
     status.textContent = '武器のデータを読み込めない（コンソールを見る）';
     return;
   }
 
   const input = new InputQueue();
   const sim = new Simulation(world, input);
-  const gun = new Gun(weapon, createRandom(Date.now()));
+  let gun = new Gun(first, createRandom(Date.now()));
   sim.addStepHook((w, dt) => gun.step(w, dt));
+
+  fillWeaponSelect(weaponSelect, weapons);
+  weaponSelect.value = first.id;
+  weaponSelect.addEventListener('change', () => {
+    const chosen = weapons.find((w) => w.id === weaponSelect.value);
+    if (!chosen) return;
+    gun = new Gun(chosen, createRandom(Date.now()));
+    world.player.recoilOffset = { yaw: 0, pitch: 0 };
+    weaponSelect.blur();
+  });
   const view = new SceneRenderer(canvas, world);
 
   const loop = new FixedStepLoop({
@@ -70,7 +82,7 @@ async function start(): Promise<void> {
 
   const tick = () => {
     loop.frame();
-    status.textContent = `${weapon.name} 残弾 ${gun.ammo} / ${weapon.magSize} — ${hint}`;
+    status.textContent = `${gun.weapon.name} 残弾 ${gun.ammo} / ${gun.weapon.magSize} — ${hint}`;
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
