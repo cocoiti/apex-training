@@ -1,0 +1,10 @@
+/** 3D のベクトル。座標は右手系・メートルで、Y が上（docs/spec/architecture.md）。 */
+export interface Vec3 {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
+export function vec3(x: number, y: number, z: number): Vec3 {
+  return { x, y, z };
+}
