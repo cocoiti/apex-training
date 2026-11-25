@@ -69,11 +69,29 @@ a {
   gap: 12px;
 }
 
-#status {
+/* HUD（残弾・武器名・経過時間）は左上に置く。クリックはキャンバスに通す。 */
+.hud {
   position: absolute;
   left: 16px;
   top: 16px;
-  margin: 0;
+}
+
+.hud p {
+  margin: 0 0 4px;
+}
+
+.hud-ammo {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-time {
+  font-variant-numeric: tabular-nums;
+}
+
+#status {
+  color: #a4a9b2;
+  font-size: 12px;
 }
 
 .play-exit {
@@ -155,7 +173,7 @@ a {
   border-radius: 50%;
 }
 
-.weapon-choice {
+.choice {
   display: block;
   margin-bottom: 16px;
 }
