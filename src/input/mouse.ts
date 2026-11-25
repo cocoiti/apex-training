@@ -25,13 +25,32 @@ export function attachMouse(canvas: HTMLCanvasElement, options: MouseOptions): (
     if (event.movementX === 0 && event.movementY === 0) return;
     options.emit({ type: 'look', yaw: event.movementX * k, pitch: -event.movementY * k });
   };
-  const onButton = (pressed: boolean) => (event: MouseEvent) => {
-    if (!locked()) return;
-    if (event.button === 0) options.emit({ type: 'fire', pressed });
-    if (event.button === 2) options.emit({ type: 'ads', pressed });
+  // 押している間に積んだボタン。離す側はロックの有無にかかわらず通し、押したままにならないようにする。
+  const held = { fire: false, ads: false };
+  const buttonType = (button: number): 'fire' | 'ads' | undefined =>
+    button === 0 ? 'fire' : button === 2 ? 'ads' : undefined;
+  const release = (type: 'fire' | 'ads') => {
+    if (!held[type]) return;
+    held[type] = false;
+    options.emit({ type, pressed: false });
   };
-  const onDown = onButton(true);
-  const onUp = onButton(false);
+  const onDown = (event: MouseEvent) => {
+    if (!locked()) return;
+    const type = buttonType(event.button);
+    if (!type || held[type]) return;
+    held[type] = true;
+    options.emit({ type, pressed: true });
+  };
+  const onUp = (event: MouseEvent) => {
+    const type = buttonType(event.button);
+    if (type) release(type);
+  };
+  // ロックが外れたら、押したままのボタンを離した扱いにする（ロックの外で離しても mouseup が届かないことがある）。
+  const onLockChange = () => {
+    if (locked()) return;
+    release('fire');
+    release('ads');
+  };
   const onContextMenu = (event: Event) => event.preventDefault();
 
   canvas.addEventListener('click', onClick);
@@ -39,6 +58,7 @@ export function attachMouse(canvas: HTMLCanvasElement, options: MouseOptions): (
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mousedown', onDown);
   document.addEventListener('mouseup', onUp);
+  document.addEventListener('pointerlockchange', onLockChange);
 
   return () => {
     canvas.removeEventListener('click', onClick);
@@ -46,5 +66,6 @@ export function attachMouse(canvas: HTMLCanvasElement, options: MouseOptions): (
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mousedown', onDown);
     document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('pointerlockchange', onLockChange);
   };
 }
