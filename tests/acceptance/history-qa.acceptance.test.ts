@@ -398,18 +398,18 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('SCO-26: L-STAR とセンター維持の履歴がある状態で、L-STAR とゴースト追従を練習して終えると、L-STAR とセンター維持のマウスの履歴は変わらない', async (ctx) => {
+    it('SCO-26: L-STAR とセンター維持の履歴がある状態で、L-STAR と反復練習を練習して終えると、L-STAR とセンター維持のマウスの履歴は変わらない', async (ctx) => {
       const key = historyKey('mouse', 'lstar', 'center');
       const old = stored([entry(3.21), entry(2.34, '2026-01-02T00:00:00.000Z')]);
       const page = await openFresh({ [key]: old });
-      if (!(await modesOnTop(page)).includes('ゴースト追従')) {
-        console.warn('ゴースト追従がモードの選択肢にない。この確認は飛ばす');
+      if (!(await modesOnTop(page)).includes('反復練習')) {
+        console.warn('反復練習がモードの選択肢にない。この確認は飛ばす');
         ctx.skip();
       }
-      const r = await practice(page, LSTAR.name, 'ゴースト追従');
+      const r = await practice(page, LSTAR.name, '反復練習');
       const all = await storedHistories(page);
       expect(all[key]).toBe(old);
-      // ゴースト追従の履歴は別のキーに入る。
+      // 反復練習の履歴は別のキーに入る。
       const ghost = JSON.parse(all[historyKey('mouse', 'lstar', 'ghost')]!) as Stored;
       expect(ghost.entries).toHaveLength(1);
       expect(Math.abs(ghost.entries[0]!.meanError - num(metric(r, '平均ズレ'))!)).toBeLessThanOrEqual(0.006);
@@ -572,13 +572,13 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-26: 履歴の画面のモードの選択肢に、ゴースト追従とセンター維持が出て、パターン観察が出ない', async () => {
+    it('UI-26: 履歴の画面のモードの選択肢に、反復練習とセンター維持が出て、パターン観察が出ない', async () => {
       const page = await openFresh();
       await openHistory(page);
       const h = await historyState(page);
       const mode = h.selects.find((s) => s.label.startsWith('モード'));
       expect(mode, JSON.stringify(h.selects)).toBeDefined();
-      expect(mode!.options).toContain('ゴースト追従');
+      expect(mode!.options).toContain('反復練習');
       expect(mode!.options).toContain('センター維持');
       expect(mode!.options).not.toContain('パターン観察');
       expect(h.text).not.toContain('パターン観察');

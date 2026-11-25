@@ -35,7 +35,8 @@ describe('設定の値と範囲', () => {
       fov: 90,
       crosshairShape: 'dot',
       crosshairColor: '#77ccff',
-      ghost: true,
+      ghost: false,
+      correctionPanel: true,
       sound: true,
     });
     expect(loadMouseSettings(storage)).toEqual({ dpi: 800, sensitivity: 1.5, adsMultiplier: 1 });
@@ -70,14 +71,15 @@ describe('設定の値と範囲', () => {
 describe('設定の保存と読み出し', () => {
   it('UI-2・UI-11: 保存した値を読み直しても残っている', () => {
     const { storage, reopen } = memoryStorage();
-    saveCommonSettings(storage, { fov: 104, crosshairShape: 'circle', crosshairColor: '#ff0000', ghost: false });
+    saveCommonSettings(storage, { fov: 104, crosshairShape: 'circle', crosshairColor: '#ff0000', ghost: true, correctionPanel: false });
     saveMouseSettings(storage, { sensitivity: 2.2 });
     expect(loadCommonSettings(reopen())).toEqual({
       ...DEFAULT_COMMON_SETTINGS,
       fov: 104,
       crosshairShape: 'circle',
       crosshairColor: '#ff0000',
-      ghost: false,
+      ghost: true,
+      correctionPanel: false,
     });
     expect(loadMouseSettings(reopen())).toEqual({ ...DEFAULT_MOUSE_SETTINGS, sensitivity: 2.2 });
   });
@@ -108,7 +110,7 @@ describe('設定の保存と読み出し', () => {
 
   it('読めない項目だけを範囲に収めた値か既定値にし、ほかの項目はそのまま使う', () => {
     const { storage } = memoryStorage({
-      [SETTINGS_KEYS.common]: JSON.stringify({ fov: 200, crosshairShape: 'star', crosshairColor: '#ABC', ghost: 'no', sound: false }),
+      [SETTINGS_KEYS.common]: JSON.stringify({ fov: 200, crosshairShape: 'star', crosshairColor: '#ABC', ghost: 'no', correctionPanel: 1, sound: false }),
       [SETTINGS_KEYS.mouse]: JSON.stringify({ dpi: '1600', sensitivity: 3 }),
     });
     expect(loadCommonSettings(storage)).toEqual({
@@ -116,7 +118,8 @@ describe('設定の保存と読み出し', () => {
       fov: 110,
       crosshairShape: 'dot',
       crosshairColor: '#aabbcc',
-      ghost: true,
+      ghost: false,
+      correctionPanel: true,
       sound: false,
     });
     expect(loadMouseSettings(storage)).toEqual({ dpi: 800, sensitivity: 3, adsMultiplier: 1 });

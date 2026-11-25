@@ -155,9 +155,9 @@ describe.skipIf(NESTED || !chromium)('パッドでの項目の移動と変更', 
     await focusDown(page, 'setting-ghost');
     await press(page, A);
     const common = () => page.evaluate<string>(`localStorage.getItem('apex-training:settings:common')`);
-    expect(JSON.parse(await common())).toMatchObject({ ghost: false, crosshairColor: '#ffffff' });
+    expect(JSON.parse(await common())).toMatchObject({ ghost: true, crosshairColor: '#ffffff' });
     await press(page, A);
-    expect(JSON.parse(await common())).toMatchObject({ ghost: true });
+    expect(JSON.parse(await common())).toMatchObject({ ghost: false });
     const visited = new Set<string>();
     for (let i = 0; i < 40; i += 1) {
       await press(page, DOWN);
@@ -171,7 +171,7 @@ describe.skipIf(NESTED || !chromium)('パッドでの項目の移動と変更', 
   });
 
   it('UI-52: 履歴の画面で「この履歴を消す」を A / × で押すと確認が出て「取りやめる」にフォーカスがあり、B / ○ で閉じ、「消す」で消える', async () => {
-    // 開いたときに選ばれる組（一覧の最初の武器・ゴースト追従・マウス）に履歴を入れる。
+    // 開いたときに選ばれる組（一覧の最初の武器・反復練習・マウス）に履歴を入れる。
     const entry = { at: '2026-11-25T05:00:00.000Z', meanError: 1, hitRate: 1, groupingRadius: 1 };
     const page = await open('#/');
     const key = `apex-training:history:mouse:${await page.evaluate<string>(`document.querySelector('#history-weapon').options[0].value`)}:ghost`;

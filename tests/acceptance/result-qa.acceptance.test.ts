@@ -541,16 +541,16 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('SCO-16: ゴースト追従で撃ち切ると、指標とコメント、弾痕の散布図、自分の照準と理想の軌道の重ね描きが表示される', async (ctx) => {
+    it('SCO-16: 反復練習で撃ち切ると、指標とコメント、弾痕の散布図、自分の照準と理想の軌道の重ね描きが表示される', async (ctx) => {
       serveDist(copyDist);
       const page = await openFresh();
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
-      if (!modes.includes('ゴースト追従')) {
-        console.warn(`ゴースト追従がモードの選択肢にない（${modes.join(', ')}）。この確認は飛ばす`);
+      if (!modes.includes('反復練習')) {
+        console.warn(`反復練習がモードの選択肢にない（${modes.join(', ')}）。この確認は飛ばす`);
         ctx.skip();
       }
       const w = byId('lstar');
-      const r = await practice(page, w.name, 'ゴースト追従');
+      const r = await practice(page, w.name, '反復練習');
       for (const label of ['平均ズレ', 'グルーピング半径', '命中率', '区間', '横ブレ']) expect(() => metric(r, label), label).not.toThrow();
       expect(commentsIn(r.text).length).toBeGreaterThanOrEqual(1);
       expect(seriesOf(plotWith(r, 'shots'), 'shots')).toHaveLength(w.magSize);
@@ -689,17 +689,17 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('SCO-20: L-STAR とセンター維持の自己ベストがある状態で、L-STAR とゴースト追従を初めて練習すると「自己ベスト更新」が表示され、センター維持の自己ベストは変わらない', async (ctx) => {
+    it('SCO-20: L-STAR とセンター維持の自己ベストがある状態で、L-STAR と反復練習を初めて練習すると「自己ベスト更新」が表示され、センター維持の自己ベストは変わらない', async (ctx) => {
       serveDist(copyDist);
       const key = bestKey('mouse', 'lstar', 'center');
       const old = JSON.stringify({ version: 1, meanError: 0.01, groupingRadius: 0.01, hitRate: 100, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
       const page = await openFresh({ [key]: old });
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
-      if (!modes.includes('ゴースト追従')) {
-        console.warn(`ゴースト追従がモードの選択肢にない（${modes.join(', ')}）。この確認は飛ばす`);
+      if (!modes.includes('反復練習')) {
+        console.warn(`反復練習がモードの選択肢にない（${modes.join(', ')}）。この確認は飛ばす`);
         ctx.skip();
       }
-      const r = await practice(page, byId('lstar').name, 'ゴースト追従');
+      const r = await practice(page, byId('lstar').name, '反復練習');
       expect(r.text).toContain(UPDATED);
       expect((await storedBests(page))[key]).toBe(old);
     }, 60_000);

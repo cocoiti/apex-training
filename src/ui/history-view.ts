@@ -12,11 +12,11 @@ import { formatDegrees, formatPercent } from './result-view';
 import type { SafeStorage } from './storage';
 
 /**
- * 履歴の画面のモードの選択肢。採点するモード（ゴースト追従・センター維持）を並び順に並べ、パターン観察は出さない
+ * 履歴の画面のモードの選択肢。採点するモード（反復練習・センター維持）を並び順に並べ、パターン観察は出さない
  * （docs/spec/screens.md「履歴の画面」）。決定の理由は docs/adr/2026-11-25-history-scored-modes-list.md。
  */
 export const SCORED_MODES: readonly Pick<TrainingMode, 'id' | 'name'>[] = [
-  { id: 'ghost', name: 'ゴースト追従' },
+  { id: 'ghost', name: '反復練習' },
   { id: 'center', name: 'センター維持' },
 ];
 

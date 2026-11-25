@@ -29,6 +29,8 @@ export interface CommonSettings {
   /** `#rrggbb` の色。 */
   crosshairColor: string;
   ghost: boolean;
+  /** 補正のパネル（docs/spec/screens.md「補正のパネル」）。センター維持だけが使う。反復練習では設定によらず出す。 */
+  correctionPanel: boolean;
   sound: boolean;
 }
 
@@ -37,7 +39,8 @@ export const DEFAULT_COMMON_SETTINGS: Readonly<CommonSettings> = {
   fov: DEFAULT_FOV,
   crosshairShape: DEFAULT_CROSSHAIR.shape,
   crosshairColor: DEFAULT_CROSSHAIR.color,
-  ghost: true,
+  ghost: false,
+  correctionPanel: true,
   sound: true,
 };
 
@@ -175,6 +178,7 @@ export function sanitizeCommonSettings(record: Readonly<Record<string, unknown>>
     crosshairShape: oneOf(record.crosshairShape, CROSSHAIR_SHAPES, d.crosshairShape),
     crosshairColor: color ?? d.crosshairColor,
     ghost: booleanOr(record.ghost, d.ghost),
+    correctionPanel: booleanOr(record.correctionPanel, d.correctionPanel),
     sound: booleanOr(record.sound, d.sound),
   };
 }

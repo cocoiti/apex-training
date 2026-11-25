@@ -3,11 +3,11 @@ import { stickPosition, type LookRate, type PadSettings, type StickPosition } fr
 import { padDisplayName } from '../input/pad-layout';
 
 /**
- * ガイドを表示するか（docs/spec/pad.md「練習中のガイド」）。設定のゴースト表示が ON で、ゴーストを表示している
- * （ゴースト追従で、撃ち切っておらず、練習が終わっていない）あいだ、今の入力方式がパッドなら表示する。
+ * ガイドを表示するか（docs/spec/pad.md「練習中のガイド」）。ゴーストの位置がある（反復練習で、撃ち切っておらず、
+ * 練習が終わっていない）あいだ、今の入力方式がパッドなら表示する。3D の中のゴーストを描くか（設定のゴースト表示）にはよらない。
  */
-export function padGuideVisible(state: { readonly showGhost: boolean; readonly ghostShown: boolean; readonly inputMethod: InputMethod }): boolean {
-  return state.showGhost && state.ghostShown && state.inputMethod === 'pad';
+export function padGuideVisible(state: { readonly ghostShown: boolean; readonly inputMethod: InputMethod }): boolean {
+  return state.ghostShown && state.inputMethod === 'pad';
 }
 
 /** ガイドに出すもの（docs/spec/pad.md「練習中のガイド」）。 */

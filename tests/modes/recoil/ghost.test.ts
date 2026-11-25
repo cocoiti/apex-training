@@ -46,13 +46,19 @@ function expected(weapon: WeaponData, n: number, world: World) {
   return { yaw: world.center.yaw + ideal.yaw, pitch: world.center.pitch + ideal.pitch };
 }
 
-describe('ゴースト追従のモード', () => {
+describe('反復練習のモード', () => {
   it('登録されたモードに入り、パターン観察とセンター維持のあいだに並び、採点する', () => {
     const ids = modes.map((m) => m.id);
     expect(ids.indexOf('pattern')).toBeLessThan(ids.indexOf('ghost'));
     expect(ids.indexOf('ghost')).toBeLessThan(ids.indexOf('center'));
-    expect(ghostMode.name).toBe('ゴースト追従');
+    expect(ghostMode.name).toBe('反復練習');
     expect(ghostMode.result({} as Parameters<TrainingMode['result']>[0]).scored).toBe(true);
+  });
+
+  it('補正のパネルは反復練習では必ず出し、センター維持では設定で出し、パターン観察では出さない（MODE-24・MODE-26）', () => {
+    expect(ghostMode.correctionPanel).toBe('always');
+    expect(modes.find((m) => m.id === 'center')?.correctionPanel).toBe('setting');
+    expect(modes.find((m) => m.id === 'pattern')?.correctionPanel).toBeUndefined();
   });
 
   it('ほかのモードはゴーストを持たない', () => {

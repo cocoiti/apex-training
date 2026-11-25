@@ -19,7 +19,7 @@ export const GHOST_NAME = 'ghost';
 const GHOST_RENDER_ORDER = 10;
 
 /**
- * ゴースト（docs/spec/modes.md「ゴースト追従」）を描画の層に置く。向きを受け取って表示するだけで、シミュレーションの状態は持たず、変えない。
+ * ゴースト（docs/spec/modes.md「反復練習」）を描画の層に置く。向きを受け取って表示するだけで、シミュレーションの状態は持たず、変えない。
  * 練習ごとに 1 つを使い回し、表示しないときは隠す。
  */
 export class GhostMarker {

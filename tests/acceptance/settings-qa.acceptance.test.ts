@@ -197,7 +197,7 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
   });
 
   describe('UI-13: 設定を一度も変えずに開くと既定値が表示される', () => {
-    it('入力方式は自動、FOV 90、クロスヘアは点と #77ccff、ゴースト表示と音は ON、DPI 800、感度 1.5、ADS 倍率 1.0', async () => {
+    it('入力方式は自動、FOV 90、クロスヘアは点と #77ccff、ゴースト表示は OFF、音は ON、DPI 800、感度 1.5、ADS 倍率 1.0', async () => {
       const s = await shown(page);
       expect(s.inputMethod).toBe('auto');
       expect(await page.evaluate<string>(`document.getElementById('setting-input-method').selectedOptions[0].textContent.trim()`)).toBe('自動');
@@ -205,7 +205,7 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       expect(s.crosshairShape).toBe('dot');
       expect(await page.evaluate<string>(`document.getElementById('setting-crosshair-shape').selectedOptions[0].textContent.trim()`)).toBe('点');
       expect(s.crosshairColor).toBe('#77ccff');
-      expect(s.ghost).toBe(true);
+      expect(s.ghost).toBe(false);
       expect(s.sound).toBe(true);
       expect(s.dpi).toBe('800');
       expect(Number(s.sensitivity)).toBe(1.5);
@@ -231,20 +231,20 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
   });
 
   describe('UI-11: FOV・クロスヘアの色と形・ゴースト表示を変えて再読み込みすると、変えた値が残る', () => {
-    it('FOV 100、色 #ff3366、形 十字、ゴースト OFF', async () => {
+    it('FOV 100、色 #ff3366、形 十字、ゴースト ON', async () => {
       await typeInto(page, 'setting-fov', '100', 'enter');
       await setNative(page, 'setting-crosshair-color', '#ff3366');
       await setNative(page, 'setting-crosshair-shape', 'cross');
       await page.clickSelector('#setting-ghost');
-      await page.waitFor(`!document.getElementById('setting-ghost').checked`);
-      expect((await shown(page)).ghost).toBe(false);
+      await page.waitFor(`document.getElementById('setting-ghost').checked`);
+      expect((await shown(page)).ghost).toBe(true);
 
       await reload(page);
       const s = await shown(page);
       expect(s.fov).toBe('100');
       expect(s.crosshairColor).toBe('#ff3366');
       expect(s.crosshairShape).toBe('cross');
-      expect(s.ghost).toBe(false);
+      expect(s.ghost).toBe(true);
       // 変えていない項目は既定値のまま。
       expect(s.sound).toBe(true);
       expect(s.dpi).toBe('800');
@@ -330,7 +330,7 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
         fov: '90',
         crosshairColor: '#77ccff',
         crosshairShape: 'dot',
-        ghost: true,
+        ghost: false,
         sound: true,
         dpi: '800',
         sensitivity: s.sensitivity,

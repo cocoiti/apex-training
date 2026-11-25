@@ -21,14 +21,13 @@ function elements() {
 }
 
 describe('ガイドを表示するか', () => {
-  it('PAD-17: ゴースト表示が ON でゴーストを表示していて、今の入力方式がパッドなら表示する', () => {
-    expect(padGuideVisible({ showGhost: true, ghostShown: true, inputMethod: 'pad' })).toBe(true);
+  it('PAD-17: ゴーストの位置があって（反復練習）、今の入力方式がパッドなら、ゴースト表示の設定によらず表示する', () => {
+    expect(padGuideVisible({ ghostShown: true, inputMethod: 'pad' })).toBe(true);
   });
 
-  it('PAD-18: ゴースト表示が OFF、入力方式がマウス、ゴーストを出さない（センター維持・パターン観察・撃ち切った）ときは表示しない', () => {
-    expect(padGuideVisible({ showGhost: false, ghostShown: true, inputMethod: 'pad' })).toBe(false);
-    expect(padGuideVisible({ showGhost: true, ghostShown: true, inputMethod: 'mouse' })).toBe(false);
-    expect(padGuideVisible({ showGhost: true, ghostShown: false, inputMethod: 'pad' })).toBe(false);
+  it('PAD-18: 入力方式がマウス、ゴーストの位置がない（センター維持・パターン観察・撃ち切った）ときは表示しない', () => {
+    expect(padGuideVisible({ ghostShown: true, inputMethod: 'mouse' })).toBe(false);
+    expect(padGuideVisible({ ghostShown: false, inputMethod: 'pad' })).toBe(false);
   });
 });
 
