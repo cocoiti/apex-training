@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -31,15 +31,16 @@ function git(args: string[], cwd: string): string {
   return result.stdout.trim();
 }
 
-/** ビルドに見立てたスクリプト。FAKE_DIST に書いたパスの空でないファイルを dist/ に作り直す。FAKE_FAIL が立っていたら失敗する。 */
+/** ビルドに見立てたスクリプト。FAKE_DIST に書いたパスの空でないファイルを DEPLOY_OUT_DIR に作り直す。FAKE_FAIL が立っていたら失敗する。 */
 const FAKE_BUILD = `
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 if (process.env.FAKE_FAIL === '1') process.exit(2);
-rmSync('dist', { recursive: true, force: true });
+const out = process.env.DEPLOY_OUT_DIR;
+rmSync(out, { recursive: true, force: true });
 for (const file of JSON.parse(process.env.FAKE_DIST)) {
-  mkdirSync(dirname(join('dist', file)), { recursive: true });
-  writeFileSync(join('dist', file), 'content of ' + file);
+  mkdirSync(dirname(join(out, file)), { recursive: true });
+  writeFileSync(join(out, file), 'content of ' + file);
 }
 `;
 
@@ -95,6 +96,8 @@ function localState() {
     source: readFileSync(join(repo, 'source.txt'), 'utf8'),
     branches: git(['branch', '--list'], repo),
     worktrees: git(['worktree', 'list', '--porcelain'], repo),
+    dist: existsSync(join(repo, 'dist')) ? readdirSync(join(repo, 'dist'), { recursive: true }).map(String).sort() : null,
+    stale: existsSync(join(repo, 'dist', 'stale.html')) ? readFileSync(join(repo, 'dist', 'stale.html'), 'utf8') : null,
   };
 }
 
@@ -126,6 +129,18 @@ describe('公開のコマンド（OVR-7）', () => {
     const result = deploy(['index.html']);
     expect(result.status, result.output).toBe(0);
     expect(git(['rev-parse', 'gh-pages'], remote)).toBe(first);
+  });
+
+  it('作業ツリーの dist/ を作らず、あっても上書きしない（ビルドは作業ツリーの外に出す）', () => {
+    expect(deploy(['index.html']).status).toBe(0);
+    expect(existsSync(join(repo, 'dist'))).toBe(false);
+    mkdirSync(join(repo, 'dist'));
+    writeFileSync(join(repo, 'dist', 'stale.html'), 'local');
+    const before = localState();
+    const result = deploy(['index.html', 'assets/new.js']);
+    expect(result.status, result.output).toBe(0);
+    expect(localState()).toEqual(before);
+    expect(publishedFiles()).toEqual(['.nojekyll', 'assets/new.js', 'index.html']);
   });
 
   it('ビルドが失敗したら、その旨を示して 0 以外で終わり、gh-pages を作らない', () => {

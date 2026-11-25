@@ -2,7 +2,9 @@
 // GitHub Actions を止めているため手動で実行する（npm run deploy）。
 // 作業は一時的な作業ツリー（git worktree）で行い、実行したときの作業ツリー・今のブランチ・既定ブランチには触れない。
 // ローカルのブランチも作らず、作ったコミットを <remote> の gh-pages へ直接 push する。
-// 環境変数 DEPLOY_REMOTE（既定 origin）と DEPLOY_BUILD_COMMAND（既定 npm run build）は、テストで差し替えるためのもの。
+// ビルドの出力先も作業ツリーの外の一時ディレクトリにし、作業ツリーの dist/ を作ったり上書きしたりしない。
+// 環境変数 DEPLOY_REMOTE（既定 origin）と DEPLOY_BUILD_COMMAND（既定 npm run build に出力先を渡したもの）は、テストで差し替えるためのもの。
+// 差し替えたビルドのコマンドは、環境変数 DEPLOY_OUT_DIR の場所にビルドの結果を出す。
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,7 +12,6 @@ import { join } from 'node:path';
 
 const BRANCH = 'gh-pages';
 const REMOTE = process.env.DEPLOY_REMOTE || 'origin';
-const BUILD_COMMAND = process.env.DEPLOY_BUILD_COMMAND || 'npm run build';
 
 class DeployError extends Error {}
 
@@ -26,20 +27,21 @@ function git(args, cwd, { allowFailure = false } = {}) {
 function deploy() {
   const root = git(['rev-parse', '--show-toplevel'], process.cwd()).stdout;
 
-  console.log(`ビルドする: ${BUILD_COMMAND}`);
-  const build = spawnSync(BUILD_COMMAND, { cwd: root, shell: true, stdio: 'inherit' });
-  if (build.status !== 0) throw new DeployError('ビルドが失敗した。公開しない。');
-  const dist = join(root, 'dist');
-  if (!existsSync(join(dist, 'index.html'))) throw new DeployError('dist/index.html がない。公開しない。');
-
-  // 前回の公開があれば、その上にコミットを積む（push を早送りにする）。
-  const remoteHead = git(['ls-remote', '--heads', REMOTE, `refs/heads/${BRANCH}`], root).stdout.split(/\s+/)[0] || '';
-  if (remoteHead) git(['fetch', '--quiet', REMOTE, `refs/heads/${BRANCH}`], root);
-
   const temp = mkdtempSync(join(tmpdir(), 'apex-deploy-'));
+  const dist = join(temp, 'dist');
   const site = join(temp, 'site');
   let added = false;
   try {
+    const command = process.env.DEPLOY_BUILD_COMMAND || `npm run build -- --outDir "${dist}" --emptyOutDir`;
+    console.log(`ビルドする: ${command}`);
+    const build = spawnSync(command, { cwd: root, shell: true, stdio: 'inherit', env: { ...process.env, DEPLOY_OUT_DIR: dist } });
+    if (build.status !== 0) throw new DeployError('ビルドが失敗した。公開しない。');
+    if (!existsSync(join(dist, 'index.html'))) throw new DeployError('ビルドの結果（dist/index.html）がない。公開しない。');
+
+    // 前回の公開があれば、その上にコミットを積む（push を早送りにする）。
+    const remoteHead = git(['ls-remote', '--heads', REMOTE, `refs/heads/${BRANCH}`], root).stdout.split(/\s+/)[0] || '';
+    if (remoteHead) git(['fetch', '--quiet', REMOTE, `refs/heads/${BRANCH}`], root);
+
     // チェックアウトせずに作るので、作業ツリーは空。ここにビルドの結果だけを置いて、そのままツリーにする。
     git(['worktree', 'add', '--quiet', '--detach', '--no-checkout', site, remoteHead || 'HEAD'], root);
     added = true;
