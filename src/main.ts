@@ -5,6 +5,8 @@ import { performanceTimeSource } from './core/time';
 import { fetchMapJson } from './data/maps';
 import { loadWeapons } from './data/weapons';
 import { attachMouse } from './input/mouse';
+import { firstConnectedGamepad, PadInput } from './input/pad';
+import { DEFAULT_PAD_SETTINGS } from './input/pad-curve';
 import { InputQueue } from './input/queue';
 import { interpolateAngles, SceneRenderer } from './render/scene';
 import { Gun } from './sim/gun';
@@ -66,9 +68,19 @@ async function start(): Promise<void> {
   });
   const view = new SceneRenderer(canvas, world);
 
+  // パッドの fire・ads は読んだ時刻で積み、look は固定ステップごとにそのステップの開始時刻で積む（docs/spec/pad.md）。
+  const pad = new PadInput({
+    emit: (action) => input.push(loop.currentTime(), action),
+    settings: () => DEFAULT_PAD_SETTINGS,
+  });
+
   const loop = new FixedStepLoop({
     timeSource: performanceTimeSource,
-    update: () => sim.step(),
+    update: () => {
+      const look = pad.step(sim.dt);
+      if (look) input.push(sim.time, look);
+      sim.step();
+    },
     render: (alpha) => view.render(world, interpolateAngles(sim.previousViewAngles, viewAngles(world.player), alpha)),
   });
 
@@ -81,6 +93,7 @@ async function start(): Promise<void> {
   const hint = 'クリックで照準の操作を始める';
 
   const tick = () => {
+    pad.poll(firstConnectedGamepad(navigator.getGamepads?.() ?? []));
     loop.frame();
     status.textContent = `${gun.weapon.name} 残弾 ${gun.ammo} / ${gun.weapon.magSize} — ${hint}`;
     requestAnimationFrame(tick);
