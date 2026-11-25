@@ -1,8 +1,6 @@
 import type { InputMethod } from '../input/input-switch';
 import { stickPosition, type LookRate, type PadSettings, type StickPosition } from '../input/pad-curve';
-
-/** パッドの名前が分からないときの表示。 */
-export const UNKNOWN_PAD_NAME = 'パッド';
+import { padDisplayName } from '../input/pad-layout';
 
 /**
  * ガイドを表示するか（docs/spec/pad.md「練習中のガイド」）。設定のゴースト表示が ON で、ゴーストを表示している
@@ -43,7 +41,7 @@ export function padGuideState(input: PadGuideInput): PadGuideState {
   return {
     ideal: stickPosition(input.idealRate, input.settings, input.ads),
     current,
-    name: input.name ?? UNKNOWN_PAD_NAME,
+    name: padDisplayName(input.name),
   };
 }
 

@@ -76,8 +76,26 @@ export function choosePad<P extends DetectedGamepadLike>(pads: readonly (P | nul
 export const PAD_MISSING_MESSAGE = 'パッドが見つかりません。パッドのボタンを押してください';
 export const PAD_NONSTANDARD_MESSAGE = '標準配置でないパッドです（ボタン割り当てが必要）';
 
+/** パッドの名前が分からないときの表示。 */
+export const UNKNOWN_PAD_NAME = 'パッド';
+
 /** HUD に出すパッドの名前の最大の文字数。 */
 export const HUD_PAD_NAME_LENGTH = 32;
+
+/** パッドの名前（docs/spec/pad.md「パッドの名前」）。Gamepad API の id で、空文字やないときは分からない（undefined）。 */
+export function padName(id: string | undefined): string | undefined {
+  return id === undefined || id === '' ? undefined : id;
+}
+
+/**
+ * 画面に出すパッドの名前（docs/spec/pad.md「パッドの名前」）。分からないときは「パッド」。
+ * short なら HUD 向けに縮める（shortPadName）。パッドの名前を表示する画面はすべてこれを通す。
+ */
+export function padDisplayName(id: string | undefined, short = false): string {
+  const name = padName(id);
+  if (name === undefined) return UNKNOWN_PAD_NAME;
+  return short ? shortPadName(name) : name;
+}
 
 /** HUD に出すパッドの名前。最初の「 (」より前を最大 32 文字（超えるときは 31 文字と「…」）。 */
 export function shortPadName(id: string): string {
@@ -90,7 +108,7 @@ export function shortPadName(id: string): string {
 
 /** 状態の表示。short なら HUD 向けに名前を縮める。 */
 export function padStatusText(status: PadStatus<Pick<DetectedGamepadLike, 'id'>>, short = false): string {
-  const name = (id: string) => (short ? shortPadName(id) : id);
+  const name = (id: string) => padDisplayName(id, short);
   switch (status.kind) {
     case 'using':
       return name(status.pad.id);

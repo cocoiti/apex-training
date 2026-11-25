@@ -1,11 +1,11 @@
 import { DEFAULT_PAD_SETTINGS, stickPosition, type PadSettings } from '../input/pad-curve';
+import { padDisplayName } from '../input/pad-layout';
 import type { InputRecording } from '../input/recording';
 import type { PracticeResult } from '../modes/session';
 import { scoreShots, shotDeviations, targetRadius, type ScoreResult } from '../sim/scoring';
 import { aimAtShots, lookRateTrace } from '../sim/trajectory';
 import { idealCorrection, uncorrectedPattern } from '../sim/weapon';
 import type { World } from '../sim/world';
-import { UNKNOWN_PAD_NAME } from './pad-guide';
 import { personalBestKey, recordPersonalBest, type InputMethod, type PersonalBestOutcome } from './personal-best';
 import { recordHistory } from './practice-history';
 import { escapeHtml, plotHtml, tracePlotHtml, type Plot, type TracePlot } from './result-plot';
@@ -115,7 +115,7 @@ export function padTraceView(
       { name: 'stick', label: '自分', points: trace.map((p) => ({ time: p.time, value: p.stick[axis] })) },
     ],
   });
-  const name = practice.result.padName ?? UNKNOWN_PAD_NAME;
+  const name = padDisplayName(practice.result.padName);
   return {
     title: `右スティックの入力推移（${name}）`,
     plots: [plot('stick-x', '左右（右が正、%）', 'x'), plot('stick-y', '上下（上が正、%）', 'y')],

@@ -5,6 +5,9 @@ import {
   MappingCapture,
   PAD_MISSING_MESSAGE,
   PAD_NONSTANDARD_MESSAGE,
+  UNKNOWN_PAD_NAME,
+  padDisplayName,
+  padName,
   padStatusText,
   shortPadName,
   STANDARD_PAD_LAYOUT,
@@ -76,6 +79,26 @@ describe('入力に使うパッド', () => {
     const gone = fakePad(0, 'standard', 'gone', false);
     const odd = fakePad(1, '');
     expect(choosePad([gone, odd], () => undefined)).toEqual({ kind: 'nonstandard', pad: odd });
+  });
+});
+
+describe('パッドの名前（docs/spec/pad.md「パッドの名前」）', () => {
+  const dualSense = 'DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)';
+
+  it('PAD-31: id が空文字なら名前は分からず、どこでも「パッド」と表示する', () => {
+    expect(padName('')).toBeUndefined();
+    expect(padName(undefined)).toBeUndefined();
+    expect(padDisplayName('')).toBe(UNKNOWN_PAD_NAME);
+    expect(padDisplayName('', true)).toBe(UNKNOWN_PAD_NAME);
+    expect(padStatusText({ kind: 'using', pad: { id: '' }, layout: STANDARD_PAD_LAYOUT }, true)).toBe(UNKNOWN_PAD_NAME);
+  });
+
+  it('PAD-31: HUD だけ縮め、ほかは id を省略しない', () => {
+    expect(padName(dualSense)).toBe(dualSense);
+    expect(padDisplayName(dualSense)).toBe(dualSense);
+    expect(padDisplayName(dualSense, true)).toBe('DualSense Wireless Controller');
+    expect(padStatusText({ kind: 'using', pad: { id: dualSense }, layout: STANDARD_PAD_LAYOUT }, true)).toBe('DualSense Wireless Controller');
+    expect(padStatusText({ kind: 'using', pad: { id: dualSense }, layout: STANDARD_PAD_LAYOUT })).toBe(dualSense);
   });
 });
 

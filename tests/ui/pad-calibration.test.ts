@@ -44,6 +44,12 @@ describe('パッドの一覧', () => {
     const rows = padListRows(pads, choosePad(pads, () => undefined), () => undefined);
     expect(rows.map((row) => row[6])).toEqual(['', '使用中']);
   });
+
+  it('PAD-31: id が空文字のパッドは、名前を「パッド」と出す', () => {
+    const pads = [fakePad(0, 'standard', '')];
+    const rows = padListRows(pads, choosePad(pads, () => undefined), () => undefined);
+    expect(rows[0]?.[1]).toBe('パッド');
+  });
 });
 
 describe('キャリブレーションの値', () => {

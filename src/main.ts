@@ -9,7 +9,7 @@ import { attachMouse } from './input/mouse';
 import type { MouseSettings } from './input/mouse-sensitivity';
 import { PadInput } from './input/pad';
 import { DEFAULT_PAD_SETTINGS, type PadSettings } from './input/pad-curve';
-import { choosePad, MAPPING_ITEMS, padStatusText, type MappingItem, type PadStatus } from './input/pad-layout';
+import { choosePad, MAPPING_ITEMS, padDisplayName, padStatusText, type MappingItem, type PadStatus } from './input/pad-layout';
 import { canRumble, rumbleShot } from './input/pad-rumble';
 import { createSeed, RecordingInput } from './input/recording';
 import { keyControl, PadButtons, type ScreenControl } from './input/screen-controls';
@@ -309,7 +309,7 @@ function startPadScreens(): PadScreens {
       const state = mappingScreen.frame(pads);
       setHidden(mappingEmpty, state.target !== undefined);
       setHidden(mappingBody, state.target === undefined);
-      setText(mappingTarget, state.target ?? '');
+      setText(mappingTarget, state.target === undefined ? '' : padDisplayName(state.target));
       for (const item of MAPPING_ITEMS) setText(mappingValues.get(item) ?? null, state.items[item]);
       setText(mappingSaved, state.saved ? 'このパッドの割り当てを保存しました' : '4 つの項目をすべて割り当てると保存します');
     }

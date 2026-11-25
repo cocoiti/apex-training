@@ -1,6 +1,7 @@
 import {
   isStandardMapping,
   PAD_MISSING_MESSAGE,
+  padDisplayName,
   STANDARD_PAD_LAYOUT,
   type DetectedGamepadLike,
   type MappingLookup,
@@ -37,7 +38,7 @@ export function padListRows<P extends DetectedGamepadLike>(
       const mapped = standard ? '—' : mappings(pad.id) ? '済み' : 'なし';
       return [
         String(pad.index),
-        pad.id,
+        padDisplayName(pad.id),
         pad.mapping === '' ? '（空）' : pad.mapping,
         standard ? 'はい' : 'いいえ',
         mapped,

@@ -1,6 +1,6 @@
 import type { Action, LookAction } from './actions';
 import { lookRate, type PadSettings, type StickPosition } from './pad-curve';
-import { isStandardMapping, STANDARD_PAD_LAYOUT, type PadLayout } from './pad-layout';
+import { isStandardMapping, padName, STANDARD_PAD_LAYOUT, type PadLayout } from './pad-layout';
 
 export { isStandardMapping } from './pad-layout';
 
@@ -102,7 +102,7 @@ export class PadInput {
       return;
     }
     this.connected = true;
-    this.padName = pad.id === undefined || pad.id === '' ? undefined : pad.id;
+    this.padName = padName(pad.id);
     this.layout = use;
     this.stick = { x: readAxis(pad, use.lookX), y: readUp(pad, use.lookY) };
     if (this.detectActivity(pad)) this.onActivity();
