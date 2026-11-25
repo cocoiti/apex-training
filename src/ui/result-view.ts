@@ -11,6 +11,7 @@ import { recordHistory } from './practice-history';
 import { escapeHtml, plotHtml, tracePlotHtml, type Plot, type TracePlot } from './result-plot';
 import { resultSummaryText } from './result-summary';
 import type { SafeStorage } from './storage';
+import { weakSection, weakSectionText } from './weak-section';
 
 /** 練習が終わったときにリザルト画面が受け取るもの（docs/spec/scoring.md「リザルト画面」）。 */
 export interface FinishedPractice {
@@ -56,7 +57,12 @@ export interface ResultView {
   readonly plots: readonly Plot[];
   /** 右スティックの入力推移のグラフ。練習の入力方式がパッドで、採点するモードのときだけ。ほかは null。 */
   readonly padTrace: PadTraceView | null;
+  /** 苦手な区間の 1 行。採点しないモードと、苦手な区間が「なし」のときは null。 */
+  readonly weakSection: string | null;
 }
+
+/** リザルト画面の苦手な区間の行の見出し。 */
+export const WEAK_SECTION_LABEL = 'この武器の苦手な区間';
 
 export function formatDegrees(value: number | null): string {
   return value === null ? 'なし' : `${value.toFixed(2)}°`;
@@ -147,6 +153,7 @@ export function completePractice(
       meanDeviation: null,
       bestUpdated: false,
       padTrace: null,
+      weakSection: null,
       plots: [
         {
           name: 'pattern',
@@ -162,7 +169,9 @@ export function completePractice(
   const key = personalBestKey(practice.input, result.weapon.id, result.mode.id);
   const outcome = recordPersonalBest(storage, key, scored, now);
   // 履歴は自己ベストとは別のキーに足す（docs/spec/scoring.md「練習の履歴」）。
-  recordHistory(storage, { input: practice.input, weaponId: result.weapon.id, modeId: result.mode.id }, scored, now);
+  const history = recordHistory(storage, { input: practice.input, weaponId: result.weapon.id, modeId: result.mode.id }, scored, now);
+  // 苦手な区間は今の練習を足したあとの履歴から求める（docs/spec/scoring.md「リザルト画面」）。
+  const weak = weakSection(history);
   const aim = aimAtShots(practice.recording, result.shots, world.center, practice.dt);
   const ideal = idealCorrection(result.weapon).slice(0, result.shots.length);
   return {
@@ -174,6 +183,7 @@ export function completePractice(
     meanDeviation: scored.meanDeviation,
     bestUpdated: outcome.updated,
     padTrace: result.inputMethod === 'pad' ? padTraceView(practice) : null,
+    weakSection: weak ? `${WEAK_SECTION_LABEL}: ${weakSectionText(weak)}` : null,
     plots: [
       { name: 'scatter', title: '弾痕の散布図', series: [shotSeries], circle: radius },
       {
@@ -196,6 +206,8 @@ export interface ResultElements {
   readonly metrics: Pick<HTMLElement, 'innerHTML'>;
   readonly comments: Pick<HTMLElement, 'textContent'>;
   readonly best: Pick<HTMLElement, 'textContent'>;
+  /** 苦手な区間の行。「なし」のときは隠す。 */
+  readonly weakSection: Pick<HTMLElement, 'textContent' | 'hidden'>;
   readonly plots: Pick<HTMLElement, 'innerHTML'>;
   /** 右スティックの入力推移のグラフの要素。グラフがないときは隠す。 */
   readonly padTrace: Pick<HTMLElement, 'innerHTML' | 'hidden'>;
@@ -210,6 +222,8 @@ export function renderResult(elements: ResultElements, view: ResultView): void {
     .join('');
   elements.comments.textContent = view.comments.join(' / ');
   elements.best.textContent = view.best ?? '';
+  elements.weakSection.textContent = view.weakSection ?? '';
+  elements.weakSection.hidden = view.weakSection === null;
   elements.plots.innerHTML = view.plots.map(plotHtml).join('');
   const trace = view.padTrace;
   elements.padTrace.hidden = trace === null;

@@ -1,4 +1,4 @@
-import type { ScoreResult } from '../sim/scoring';
+import { SHOT_SECTION_SIZE, type ScoreResult, type ShotSection } from '../sim/scoring';
 import type { InputMethod } from './personal-best';
 import type { SafeStorage } from './storage';
 
@@ -23,6 +23,11 @@ export interface HistoryEntry {
   readonly groupingRadius: number;
   /** 撃った弾数。 */
   readonly shots: number;
+  /**
+   * 発の区間ごとのズレ。古い形式の件は持たない。読み出した件では形を確かめていないので、使うときは entrySections を通す。
+   * 形に合わない値も書き直すときはそのまま残す（docs/spec/scoring.md「履歴の保存の形」）。
+   */
+  readonly sections?: unknown;
 }
 
 /** 保存する履歴。localStorage には JSON の文字列で置く。 */
@@ -53,6 +58,35 @@ function isEntry(value: unknown): value is HistoryEntry {
   const record = value as Record<string, unknown>;
   if (typeof record.at !== 'string' || Number.isNaN(Date.parse(record.at))) return false;
   return isFiniteNumber(record.meanError) && record.meanError >= 0;
+}
+
+function isSection(value: unknown): value is ShotSection {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const r = value as Record<string, unknown>;
+  return (
+    Number.isInteger(r.start) &&
+    (r.start as number) >= 1 &&
+    (r.start as number) % SHOT_SECTION_SIZE === 1 &&
+    Number.isInteger(r.shots) &&
+    (r.shots as number) >= 1 &&
+    (r.shots as number) <= SHOT_SECTION_SIZE &&
+    isFiniteNumber(r.meanH) &&
+    isFiniteNumber(r.meanV) &&
+    isFiniteNumber(r.meanError) &&
+    r.meanError >= 0
+  );
+}
+
+/**
+ * 件の発の区間ごとのズレ。sections がない、配列でない、要素のどれかが形に合わない、start が重なるときは null（持たない件）。
+ * 発の番号の順に並べて返す。
+ */
+export function entrySections(entry: Pick<HistoryEntry, 'sections'>): ShotSection[] | null {
+  const sections = entry.sections;
+  if (!Array.isArray(sections) || !sections.every(isSection)) return null;
+  const starts = new Set(sections.map((s) => s.start));
+  if (starts.size !== sections.length) return null;
+  return [...sections].sort((a, b) => a.start - b.start);
 }
 
 /**
@@ -98,6 +132,7 @@ export function recordHistory(
     hitRate: result.hitRate ?? 0,
     groupingRadius: result.groupingRadius ?? 0,
     shots: result.shots,
+    sections: result.sections,
   });
   const kept = entries.slice(-HISTORY_LIMIT);
   const stored: StoredHistory = { version: HISTORY_VERSION, entries: kept };

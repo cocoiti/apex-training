@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Angles } from '../../src/sim/angles';
-import { DEFAULT_TARGET_RADIUS, score, segmentRange, shotDeviations, targetRadius } from '../../src/sim/scoring';
+import { DEFAULT_TARGET_RADIUS, score, segmentRange, shotDeviations, shotSections, targetRadius } from '../../src/sim/scoring';
 import { vec3 } from '../../src/sim/vec3';
 import { createWorld } from '../../src/sim/world';
 
@@ -76,6 +76,7 @@ describe('採点の指標', () => {
       verticalSpread: null,
       spreadRatio: null,
       comments: [],
+      sections: [],
     });
   });
 
@@ -129,6 +130,36 @@ describe('採点のコメント', () => {
 
   it('命中の判定は的の半径ちょうどを含む', () => {
     expect(score([shot(1, 0)], 1).hitRate).toBe(100);
+  });
+});
+
+describe('発の区間ごとのズレ', () => {
+  it('発の番号で 5 発ずつに分け、各発の区間の水平・垂直のズレの平均とズレの大きさの平均を求める', () => {
+    const deviations = [
+      { yaw: 3, pitch: 4 },
+      { yaw: -3, pitch: -4 },
+      { yaw: 0, pitch: 0 },
+      { yaw: 0, pitch: 0 },
+      { yaw: 0, pitch: 0 },
+      { yaw: 1, pitch: 0 },
+      { yaw: 1, pitch: 2 },
+    ];
+    expect(shotSections(deviations)).toEqual([
+      { start: 1, shots: 5, meanH: 0, meanV: 0, meanError: 2 },
+      { start: 6, shots: 2, meanH: 1, meanV: 1, meanError: (1 + Math.hypot(1, 2)) / 2 },
+    ]);
+  });
+
+  it('撃った弾数によらず、同じ発の番号は同じ発の区間に入る（採点の前半・中盤・後半とは別）', () => {
+    const at = (n: number) => shotSections(Array.from({ length: n }, () => ({ yaw: 1, pitch: 0 }))).map((s) => [s.start, s.shots]);
+    expect(at(23)).toEqual([[1, 5], [6, 5], [11, 5], [16, 5], [21, 3]]);
+    expect(at(5)).toEqual([[1, 5]]);
+    expect(at(0)).toEqual([]);
+  });
+
+  it('score の結果にも発の区間ごとのズレを持つ', () => {
+    const deviations = Array.from({ length: 12 }, (_, i) => ({ yaw: i, pitch: 0 }));
+    expect(score(deviations, 1).sections).toEqual(shotSections(deviations));
   });
 });
 

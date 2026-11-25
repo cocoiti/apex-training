@@ -63,6 +63,7 @@ function openPage(backing: FakeBacking) {
     input: new FakeControl(),
     averages: { innerHTML: '' },
     plot: { innerHTML: '' },
+    weak: { innerHTML: '' },
     list: { innerHTML: '' },
     empty: { hidden: true, textContent: '' },
     clear: new FakeControl(),
@@ -131,6 +132,66 @@ describe('推移のグラフと一覧', () => {
 
   it('履歴がなければ点を描かない', () => {
     expect(pointCount(historyPlotHtml([]))).toBe(0);
+  });
+});
+
+describe('発の区間ごとのズレの図', () => {
+  /** 23 発のうち 11〜15 発目だけ水平 h 度、ほかの弾 0 の採点。 */
+  const offAt11 = (h = 2) => score(Array.from({ length: 23 }, (_, i) => ({ yaw: i >= 10 && i < 15 ? h : 0, pitch: 0 })), 1);
+  const bars = (html: string) =>
+    [...html.matchAll(/<rect class="([^"]*)"[^>]*data-start="(\d+)"/g)].map((m) => ({ start: Number(m[2]), weak: m[1]?.includes('plot-section-weak') }));
+
+  it('UI-64: 11〜15 発目だけ右に 2 度ずれた練習が 5 回ある組では、11〜15 の棒だけを違う色で描き「苦手」の印と 1 行を出す', () => {
+    const page = openPage(new FakeBacking());
+    for (let i = 0; i < 5; i += 1) recordHistory(page.storage, LSTAR_CENTER, offAt11(), NOW);
+    page.view.open(LSTAR_CENTER);
+    const html = page.elements.weak.innerHTML;
+    expect(html).toContain('苦手な区間: 11〜15 発目、右に外しがち');
+    expect(bars(html)).toEqual([
+      { start: 1, weak: false },
+      { start: 6, weak: false },
+      { start: 11, weak: true },
+      { start: 16, weak: false },
+      { start: 21, weak: false },
+    ]);
+    expect(html.match(/data-mark="weak">苦手</g)).toHaveLength(1);
+    expect(html).toContain('>11〜15</text>');
+    expect(html).toContain('>2.00</text>');
+  });
+
+  it('UI-65: 発の区間の記録を持つ件が 4 件の組では、図を描かず「今 4 回」と出す', () => {
+    const page = openPage(new FakeBacking());
+    for (let i = 0; i < 4; i += 1) recordHistory(page.storage, LSTAR_CENTER, offAt11(), NOW);
+    page.view.open(LSTAR_CENTER);
+    expect(page.elements.weak.innerHTML).toContain('苦手な区間は、発の区間の記録がある練習を 5 回終えると表示されます（今 4 回）');
+    expect(page.elements.weak.innerHTML).not.toContain('data-plot="sections"');
+  });
+
+  it('UI-66: sections を持たない古い形式の件だけの組では、推移と一覧を出し、図は描かない', () => {
+    const backing = new FakeBacking();
+    const old = Array.from({ length: 6 }, (_, i) => ({ at: NOW.toISOString(), meanError: i / 2, hitRate: 50, groupingRadius: 1, shots: 28 }));
+    backing.items.set(historyKey(LSTAR_CENTER), JSON.stringify({ version: 1, entries: old }));
+    const page = openPage(backing);
+    page.view.open(LSTAR_CENTER);
+    expect(pointCount(page.elements.plot.innerHTML)).toBe(6);
+    expect(listedMeans(page.elements.list.innerHTML)).toHaveLength(6);
+    expect(page.elements.weak.innerHTML).toContain('（今 0 回）');
+    expect(page.elements.weak.innerHTML).not.toContain('data-plot="sections"');
+  });
+
+  it('苦手な区間が「なし」の組では「苦手な区間: なし」と図を出し、違う色の棒はない', () => {
+    const page = openPage(new FakeBacking());
+    for (let i = 0; i < 5; i += 1) recordHistory(page.storage, LSTAR_CENTER, offAt11(0.3), NOW);
+    page.view.open(LSTAR_CENTER);
+    expect(page.elements.weak.innerHTML).toContain('苦手な区間: なし');
+    expect(bars(page.elements.weak.innerHTML).some((b) => b.weak)).toBe(false);
+    expect(page.elements.weak.innerHTML).not.toContain('data-mark="weak"');
+  });
+
+  it('履歴が 1 件もない組では空', () => {
+    const page = openPage(new FakeBacking());
+    page.view.open(LSTAR_CENTER);
+    expect(page.elements.weak.innerHTML).toBe('');
   });
 });
 

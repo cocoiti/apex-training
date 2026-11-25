@@ -1,5 +1,6 @@
 import type { CorrectionPanelUse } from '../modes/types';
 import type { Angles } from '../sim/angles';
+import { SHOT_SECTION_SIZE } from '../sim/scoring';
 import { idealCorrection, type WeaponData } from '../sim/weapon';
 import { plotExtent } from './result-plot';
 
@@ -27,6 +28,17 @@ export interface CorrectionPanelFrame {
 export function correctionPanelFrame(weapon: Pick<WeaponData, 'pattern' | 'magSize'>): CorrectionPanelFrame {
   const ideal = [ORIGIN, ...idealCorrection(weapon).slice(0, weapon.magSize)];
   return { ideal, extent: plotExtent({ series: [{ name: 'ideal', label: '', kind: 'line', points: ideal }] }) };
+}
+
+/**
+ * 理想の線のうち、苦手な区間の発を結ぶ部分の点。前の発の点（1 発目からの区間では原点）から、その発の区間の最後の発
+ * （装弾数を超えるときは装弾数）までの点。苦手な区間がない、または 2 点に満たないときは空。
+ */
+export function weakIdealPoints(frame: Pick<CorrectionPanelFrame, 'ideal'>, weakStart: number | undefined): Angles[] {
+  if (weakStart === undefined) return [];
+  // frame.ideal の i 番目は i 発目の点（0 番目は原点）。
+  const points = frame.ideal.slice(weakStart - 1, weakStart + SHOT_SECTION_SIZE);
+  return points.length >= 2 ? points : [];
 }
 
 /** 描画のたびに変わる部分。 */
@@ -97,6 +109,10 @@ export interface CorrectionPanelElements {
   readonly axisX: PanelNode;
   readonly axisY: PanelNode;
   readonly ideal: PanelNode;
+  /** 理想の線のうち苦手な区間の部分。理想の線の上に違う色で重ねる。 */
+  readonly idealWeak: PanelNode;
+  /** 「苦手な区間」の凡例。苦手な区間がないときは隠す。 */
+  readonly weakLegend: Pick<HTMLElement, 'hidden'>;
   readonly own: PanelNode;
   /** 自分の各弾の点を入れる g。 */
   readonly ownDots: PanelNode & Pick<Element, 'innerHTML'>;
@@ -122,8 +138,11 @@ export class CorrectionPanel {
     this.elements = elements;
   }
 
-  /** 新しい練習を始める。理想の線と範囲を置き、自分の線を消し、今の発の点を 1 発目に戻す。表示は変えない（update で出す）。 */
-  begin(weapon: Pick<WeaponData, 'pattern' | 'magSize'>): void {
+  /**
+   * 新しい練習を始める。理想の線と範囲を置き、自分の線を消し、今の発の点を 1 発目に戻す。表示は変えない（update で出す）。
+   * weakStart は練習の組の苦手な区間の最初の発の番号。あれば理想の線のその部分を違う色で重ね、凡例を出す。練習のあいだは変えない。
+   */
+  begin(weapon: Pick<WeaponData, 'pattern' | 'magSize'>, weakStart?: number): void {
     const frame = correctionPanelFrame(weapon);
     this.frame = frame;
     const e = num(frame.extent);
@@ -135,6 +154,11 @@ export class CorrectionPanel {
     this.set(this.elements.axisY, 'y2', e);
     this.set(this.elements.ideal, 'points', polylinePoints(frame.ideal, frame.extent));
     this.set(this.elements.ideal, 'data-count', String(frame.ideal.length));
+    const weak = weakIdealPoints(frame, weakStart);
+    this.set(this.elements.idealWeak, 'points', polylinePoints(weak, frame.extent));
+    this.set(this.elements.idealWeak, 'data-start', weak.length > 0 ? String(weakStart) : '');
+    this.set(this.elements.idealWeak, 'visibility', weak.length > 0 ? 'inherit' : 'hidden');
+    this.elements.weakLegend.hidden = weak.length === 0;
     this.render(frame, { current: frame.ideal[1], currentShot: frame.ideal[1] ? 1 : undefined, own: [], aim: ORIGIN });
   }
 

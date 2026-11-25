@@ -287,6 +287,70 @@ describe('練習の履歴の保存', () => {
   });
 });
 
+describe('苦手な区間の行', () => {
+  const HISTORY = historyKey({ input: 'mouse', weaponId: 'lstar', modeId: 'center' });
+
+  /** L-STAR とセンター維持の練習の弾のズレを、11〜15 発目だけ水平 h 度、ほかの弾 0 にしたもの。 */
+  const offAt11 = (h = 2): FinishedPractice => {
+    const p = practice('lstar', 'center');
+    const shots = p.result.shots.map((s, i) => ({ ...s, deviation: { yaw: i >= 10 && i < 15 ? h : 0, pitch: 0 } }));
+    return { ...p, result: { ...p.result, shots } };
+  };
+
+  it('SCO-32: 11〜15 発目だけ右に 2 度ずれた練習を 5 回終えると、5 回目に「この武器の苦手な区間: 11〜15 発目、右に外しがち」', () => {
+    const storage = memoryStorage();
+    const views = Array.from({ length: 5 }, () => completePractice(offAt11(), storage, NOW));
+    expect(views[4]?.weakSection).toBe('この武器の苦手な区間: 11〜15 発目、右に外しがち');
+  });
+
+  it('SCO-33: 同じ練習を 4 回だけ終えると、苦手な区間の行は出ない', () => {
+    const storage = memoryStorage();
+    const views = Array.from({ length: 4 }, () => completePractice(offAt11(), storage, NOW));
+    expect(views.map((v) => v.weakSection)).toEqual([null, null, null, null]);
+  });
+
+  it('SCO-35: 直近 5 件のすべての発の区間のズレの大きさの平均が 0.5 度未満なら、苦手な区間の行は出ない', () => {
+    const storage = memoryStorage();
+    const views = Array.from({ length: 5 }, () => completePractice(offAt11(0.4), storage, NOW));
+    expect(views[4]?.weakSection).toBeNull();
+  });
+
+  it('SCO-36: sections を持たない古い形式の件が 10 件ある組で 1 回終えても、行は出ず、履歴は 11 件で古い 10 件はそのまま', () => {
+    const old = Array.from({ length: 10 }, (_, i) => ({ at: NOW.toISOString(), meanError: i, hitRate: 50, groupingRadius: 1, shots: 28 }));
+    const storage = memoryStorage({ [HISTORY]: JSON.stringify({ version: 1, entries: old }) });
+    const view = completePractice(offAt11(), storage, NOW);
+    expect(view.scored).toBe(true);
+    expect(view.weakSection).toBeNull();
+    const saved = JSON.parse(storage.items.get(HISTORY) ?? '') as { entries: unknown[] };
+    expect(saved.entries).toHaveLength(11);
+    expect(saved.entries.slice(0, 10)).toEqual(old);
+  });
+
+  it('SCO-38: パターン観察のリザルトには苦手な区間の行が出ない', () => {
+    expect(completePractice(practice('lstar', 'pattern', 0), memoryStorage(), NOW).weakSection).toBeNull();
+  });
+
+  it('行があれば書いて出し、なければ空にして隠す', () => {
+    const storage = memoryStorage();
+    const views = Array.from({ length: 5 }, () => completePractice(offAt11(), storage, NOW));
+    const element = { textContent: '', hidden: true };
+    const e = {
+      summary: { textContent: '' },
+      score: { hidden: false },
+      metrics: { innerHTML: '' },
+      comments: { textContent: '' },
+      best: { textContent: '' },
+      weakSection: element,
+      plots: { innerHTML: '' },
+      padTrace: { innerHTML: '', hidden: true },
+    };
+    if (views[4]) renderResult(e, views[4]);
+    expect(element).toEqual({ textContent: 'この武器の苦手な区間: 11〜15 発目、右に外しがち', hidden: false });
+    if (views[0]) renderResult(e, views[0]);
+    expect(element).toEqual({ textContent: '', hidden: true });
+  });
+});
+
 describe('リザルト画面と再生の採点', () => {
   it('INP-4: 外れの弾を含む記録でも、リザルト画面の採点結果と、同じ記録を再生した採点結果が一致する', () => {
     // 照準を毎ステップ 0.5 度ずつ上げ、途中から的にも壁にも当たらない（空に向けて撃つ）。
@@ -326,6 +390,7 @@ describe('リザルト画面の要素', () => {
     metrics: { innerHTML: '' },
     comments: { textContent: '' },
     best: { textContent: '' },
+    weakSection: { textContent: '', hidden: true },
     plots: { innerHTML: '' },
     padTrace: { innerHTML: '', hidden: true },
   });
