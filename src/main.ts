@@ -4,6 +4,7 @@ import { performanceTimeSource } from './core/time';
 import { fetchMapJson } from './data/maps';
 import { loadWeapons } from './data/weapons';
 import type { Action } from './input/actions';
+import { InputSwitch } from './input/input-switch';
 import { attachMouse } from './input/mouse';
 import type { MouseSettings } from './input/mouse-sensitivity';
 import { firstConnectedGamepad, PadInput } from './input/pad';
@@ -23,7 +24,6 @@ import { renderHud, type HudElements } from './ui/hud';
 import { fillModeSelect } from './ui/mode-choices';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { PracticeFlow } from './ui/practice-flow';
-import type { InputMethod } from './ui/personal-best';
 import { applyPracticeSettings } from './ui/practice-settings';
 import { completePractice, renderResult, type ResultElements } from './ui/result-view';
 import { adsAfter, applyReticleColor, showAimDisplay, type AimDisplayElements } from './ui/scope';
@@ -153,6 +153,7 @@ async function start(): Promise<void> {
     weapon: document.querySelector<HTMLElement>('[data-hud="weapon"]'),
     ammo: document.querySelector<HTMLElement>('[data-hud="ammo"]'),
     time: document.querySelector<HTMLElement>('[data-hud="time"]'),
+    input: document.querySelector<HTMLElement>('[data-hud="input"]'),
   };
   if (
     !canvas ||
@@ -164,14 +165,13 @@ async function start(): Promise<void> {
     !pausedNotice ||
     !hud.weapon ||
     !hud.ammo ||
-    !hud.time
+    !hud.time ||
+    !hud.input
   ) {
     throw new Error('画面の要素がない');
   }
   const hudElements = hud as HudElements;
   const resultView = resultElements as ResultElements;
-  // 入力方式の切替（docs/spec/input.md）がないあいだ、自己ベストの入力方式はマウスとする（docs/spec/scoring.md「自己ベスト」）。
-  const inputMethod: InputMethod = 'mouse';
 
   const parsed = parseMap(await fetchMapJson('range'));
   if (!parsed.ok) {
@@ -212,14 +212,23 @@ async function start(): Promise<void> {
   };
   setAds(false);
 
-  // 入力はこの 1 か所で練習の入力のキューに積む。入力方式の切替（docs/spec/input.md）はここで差し替える。
-  const emit = (action: Action) => {
+  // 設定で選んだ入力方式。「開始」を押した時点の保存された値（docs/spec/input.md「入力方式の切替」）。
+  let inputPreference = loadCommonSettings(appStorage).inputMethod;
+
+  // 入力はこの 1 か所で練習の入力のキューに積む。時刻を省いたものはループの時計の今の時刻で積む。
+  const push = (action: Action, time?: number) => {
     if (!running) return;
-    running.input.push(running.loop.currentTime(), action);
+    running.input.push(time ?? running.loop.currentTime(), action);
     if (action.type === 'ads') setAds(adsAfter(adsHeld, action));
   };
+  // 今の入力方式のデバイスのアクションだけを積む。今の入力方式はページを開いている間、練習をまたいで引き継ぐ。
+  const inputs = new InputSwitch({ preference: () => inputPreference, emit: push });
   // パッドの fire・ads は読んだ時刻で積み、look は固定ステップごとにそのステップの開始時刻で積む（docs/spec/pad.md）。
-  const pad = new PadInput({ emit, settings: () => DEFAULT_PAD_SETTINGS });
+  const pad = new PadInput({
+    emit: (action) => inputs.input('pad', action),
+    settings: () => DEFAULT_PAD_SETTINGS,
+    onActivity: () => inputs.activity('pad'),
+  });
 
   const begin = () => {
     const weapon = weapons.find((w) => w.id === weaponSelect.value) ?? weapons[0];
@@ -236,15 +245,17 @@ async function start(): Promise<void> {
     if (scope) applyReticleColor(scope, loadCommonSettings(appStorage).crosshairColor);
     showGhost = settings.ghost;
     mouseSettings = settings.mouse;
+    inputPreference = loadCommonSettings(appStorage).inputMethod;
+    inputs.resetHeld();
     // 練習ごとに種を 1 つ決め、積んだ入力を記録する（docs/spec/input.md「入力の記録と再生」）。記録はメモリの中だけで持つ。
     const input = new RecordingInput(createSeed());
     const world = createWorld(map);
-    const session = new PracticeSession({ world, weapon, mode, input, seed: input.seed });
+    const session = new PracticeSession({ world, weapon, mode, input, seed: input.seed, inputMethod: () => inputs.current });
     const loop = new FixedStepLoop({
       timeSource: performanceTimeSource,
       update: () => {
         const look = pad.step(session.sim.dt);
-        if (look) input.push(session.sim.time, look);
+        if (look) inputs.input('pad', look, session.sim.time);
         session.step();
       },
       render: (alpha) => {
@@ -272,9 +283,9 @@ async function start(): Promise<void> {
     running = undefined;
     ghost.hide();
     setAds(false);
-    // 採点し、採点するモードなら自己ベストを保存する。保存できなくても投げず、フッターの表示は appStorage が出す。
+    // 採点し、採点するモードなら練習の入力方式（1 発目を撃ったときの入力方式）の自己ベストを保存する。保存できなくても投げず、フッターの表示は appStorage が出す。
     const view = completePractice(
-      { result, recording: current.input.recording(), world: current.session.world, input: inputMethod, dt: current.session.sim.dt },
+      { result, recording: current.input.recording(), world: current.session.world, input: result.inputMethod, dt: current.session.sim.dt },
       appStorage,
       new Date(),
     );
@@ -285,7 +296,8 @@ async function start(): Promise<void> {
 
   // 設定していなければ既定値（MOU-11）。ロックが外れたら練習を止め、ロックし直したら再開する（docs/spec/mouse.md「一時停止と再開」）。
   attachMouse(canvas, {
-    emit,
+    emit: (action) => inputs.input('mouse', action),
+    onActivity: () => inputs.activity('mouse'),
     settings: () => mouseSettings,
     onLockResult: (result) => showPointerLockNotice(lockNotice, result),
     onLockChange: (locked) => {
@@ -312,6 +324,7 @@ async function start(): Promise<void> {
         ammo: session.gun.ammo,
         magSize: session.weapon.magSize,
         elapsed: session.elapsed,
+        inputMethod: inputs.current,
       });
       status.textContent = hint;
       // 最後の弾の弾痕を記録・表示したあとにリザルト画面へ移る。

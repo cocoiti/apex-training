@@ -1,3 +1,5 @@
+import { INPUT_METHOD_LABELS, type InputMethod } from '../input/input-switch';
+
 /** HUD に出すもの（docs/spec/modes.md「共通」）。 */
 export interface HudState {
   readonly weaponName: string;
@@ -5,12 +7,15 @@ export interface HudState {
   readonly magSize: number;
   /** 練習の開始からの時間（秒、固定ステップの時刻）。 */
   readonly elapsed: number;
+  /** 今の入力方式（docs/spec/input.md「入力方式の切替」）。 */
+  readonly inputMethod: InputMethod;
 }
 
 export interface HudTexts {
   readonly weapon: string;
   readonly ammo: string;
   readonly time: string;
+  readonly input: string;
 }
 
 /** 経過時間を秒の小数第 1 位までにする。切り捨てるので、2 秒たつまで「2.0」にならない。 */
@@ -25,6 +30,7 @@ export function hudTexts(state: HudState): HudTexts {
     weapon: state.weaponName,
     ammo: `残弾 ${state.ammo} / ${state.magSize}`,
     time: formatElapsed(state.elapsed),
+    input: INPUT_METHOD_LABELS[state.inputMethod],
   };
 }
 

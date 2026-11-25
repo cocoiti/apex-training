@@ -183,3 +183,45 @@ describe('記録の再生（モードを含めた練習）', () => {
     expect(replayed.result).toEqual(original.result);
   });
 });
+
+describe('練習の入力方式（docs/spec/input.md「入力方式ごとの保存」）', () => {
+  it('INP-14: 1 発目を撃ったときの入力方式を練習の入力方式にし、あとで切り替わっても変えない', () => {
+    let current: 'mouse' | 'pad' = 'mouse';
+    const s = new PracticeSession({
+      world: wallWorld(),
+      weapon: makeWeapon(),
+      mode: modeById('pattern'),
+      input: inputFromTimedActions([press(0)]),
+      seed: 1,
+      inputMethod: () => current,
+    });
+    s.step();
+    expect(s.gun.shots.length).toBeGreaterThan(0);
+    current = 'pad';
+    advance(s, 5);
+    expect(s.result?.inputMethod).toBe('mouse');
+  });
+
+  it('1 発目より前に切り替わった入力方式は練習の入力方式になる', () => {
+    let current: 'mouse' | 'pad' = 'mouse';
+    const s = new PracticeSession({
+      world: wallWorld(),
+      weapon: makeWeapon(),
+      mode: modeById('pattern'),
+      input: inputFromTimedActions([press(0.5)]),
+      seed: 1,
+      inputMethod: () => current,
+    });
+    advance(s, 0.25);
+    expect(s.gun.shots).toHaveLength(0);
+    current = 'pad';
+    advance(s, 5);
+    expect(s.result?.inputMethod).toBe('pad');
+  });
+
+  it('入力方式を渡さないときはマウス', () => {
+    const s = session([press(0)]);
+    advance(s, 5);
+    expect(s.result?.inputMethod).toBe('mouse');
+  });
+});

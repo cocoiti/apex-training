@@ -20,19 +20,27 @@ describe('HUD', () => {
     expect(formatElapsed(1200 * dt)).toBe('10.0 秒');
   });
 
-  it('武器名・残弾と装弾数・経過時間の文字にする', () => {
-    expect(hudTexts({ weaponName: 'L-STAR', ammo: 23, magSize: 24, elapsed: 0.4 })).toEqual({
+  it('武器名・残弾と装弾数・経過時間・入力方式の文字にする', () => {
+    expect(hudTexts({ weaponName: 'L-STAR', ammo: 23, magSize: 24, elapsed: 0.4, inputMethod: 'mouse' })).toEqual({
       weapon: 'L-STAR',
       ammo: '残弾 23 / 24',
       time: '0.4 秒',
+      input: 'マウス',
     });
+    expect(hudTexts({ weaponName: 'L-STAR', ammo: 23, magSize: 24, elapsed: 0.4, inputMethod: 'pad' }).input).toBe('パッド');
   });
 
   it('要素の文字を書き換える', () => {
-    const elements = { weapon: { textContent: '' }, ammo: { textContent: '' }, time: { textContent: '' } };
-    renderHud(elements, { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0 });
-    expect(elements).toEqual({ weapon: { textContent: 'R-301' }, ammo: { textContent: '残弾 28 / 28' }, time: { textContent: '0.0 秒' } });
-    renderHud(elements, { weaponName: 'R-301', ammo: 27, magSize: 28, elapsed: 0.1 });
+    const elements = { weapon: { textContent: '' }, ammo: { textContent: '' }, time: { textContent: '' }, input: { textContent: '' } };
+    renderHud(elements, { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse' });
+    expect(elements).toEqual({
+      weapon: { textContent: 'R-301' },
+      ammo: { textContent: '残弾 28 / 28' },
+      time: { textContent: '0.0 秒' },
+      input: { textContent: 'マウス' },
+    });
+    renderHud(elements, { weaponName: 'R-301', ammo: 27, magSize: 28, elapsed: 0.1, inputMethod: 'pad' });
     expect(elements.ammo.textContent).toBe('残弾 27 / 28');
+    expect(elements.input.textContent).toBe('パッド');
   });
 });

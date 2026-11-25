@@ -61,6 +61,8 @@ export async function requestRawPointerLock(canvas: HTMLCanvasElement): Promise<
 export interface MouseOptions {
   /** アクションを積む。時刻は呼び出し側で付ける。 */
   emit: (action: Action) => void;
+  /** ロック中のマウスの操作（移動、ボタンの押下）。アクションを積む前に呼ぶ（docs/spec/input.md「入力方式の切替」）。 */
+  onActivity?: () => void;
   settings: () => Readonly<MouseSettings>;
   /** キャンバスのクリックで要求したポインターロックの結果。 */
   onLockResult?: (result: PointerLockResult) => void;
@@ -90,6 +92,7 @@ export function attachMouse(canvas: HTMLCanvasElement, options: MouseOptions): (
   const onMove = (event: MouseEvent) => {
     if (!locked()) return;
     if (event.movementX === 0 && event.movementY === 0) return;
+    options.onActivity?.();
     // ADS 中かはマウスの右ボタンで判断する。
     const look = countsToLook(event.movementX, event.movementY, options.settings(), held.ads);
     options.emit({ type: 'look', ...look });
@@ -103,6 +106,7 @@ export function attachMouse(canvas: HTMLCanvasElement, options: MouseOptions): (
   };
   const onDown = (event: MouseEvent) => {
     if (!locked()) return;
+    options.onActivity?.();
     const type = buttonType(event.button);
     if (!type || held[type]) return;
     held[type] = true;

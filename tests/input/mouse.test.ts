@@ -279,6 +279,30 @@ describe('マウスのボタン', () => {
   });
 });
 
+describe('マウスの操作（docs/spec/input.md「入力方式の切替」）', () => {
+  it('ロック中の移動とボタンの押下を、アクションを積む前に操作として知らせる', () => {
+    const order: string[] = [];
+    const canvas = new FakeCanvas(doc);
+    const detach = attachMouse(canvas as unknown as HTMLCanvasElement, {
+      emit: (action) => order.push(action.type),
+      settings: () => DEFAULT_MOUSE_SETTINGS,
+      onActivity: () => order.push('activity'),
+    });
+    doc.dispatchEvent(move(10, 0));
+    doc.dispatchEvent(mouse('mousedown', 0));
+    expect(order).toEqual([]);
+    doc.pointerLockElement = canvas;
+    doc.dispatchEvent(new Event('pointerlockchange'));
+    doc.dispatchEvent(move(0, 0));
+    doc.dispatchEvent(move(10, 0));
+    doc.dispatchEvent(mouse('mousedown', 0));
+    doc.dispatchEvent(mouse('mousedown', 1));
+    doc.dispatchEvent(mouse('mouseup', 0));
+    expect(order).toEqual(['activity', 'look', 'activity', 'fire', 'activity', 'fire']);
+    detach();
+  });
+});
+
 describe('一時停止と再開', () => {
   /** main.ts と同じつなぎ方で、ループ・シミュレーション・マウスをつなぐ。 */
   function practice() {

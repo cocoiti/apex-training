@@ -1,8 +1,9 @@
+import type { InputMethod } from '../input/input-switch';
 import type { ScoreResult } from '../sim/scoring';
 import type { SafeStorage } from './storage';
 
 /** 入力方式。自己ベストは入力方式ごとに別のキーで保存する（docs/spec/input.md「入力方式ごとの保存」）。 */
-export type InputMethod = 'mouse' | 'pad';
+export type { InputMethod };
 
 /** 保存の形の版（docs/spec/scoring.md「保存の形」）。 */
 export const PERSONAL_BEST_VERSION = 1;
