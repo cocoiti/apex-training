@@ -1,3 +1,4 @@
+import type { Angles } from './angles';
 import { parseMap, type Box, type MapData, type MapError } from './map';
 import { createPlayer, type Player } from './player';
 
@@ -5,6 +6,8 @@ import { createPlayer, type Player } from './player';
 export interface World {
   readonly mapId: string;
   readonly boxes: readonly Box[];
+  /** 中心（マップの開始時の照準）。弾痕の角度のズレの基準。 */
+  readonly center: Angles;
   readonly player: Player;
 }
 
@@ -12,6 +15,7 @@ export function createWorld(map: MapData): World {
   return {
     mapId: map.id,
     boxes: map.boxes,
+    center: map.spawn.aim,
     player: createPlayer(map.spawn.position, map.spawn.aim),
   };
 }

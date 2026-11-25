@@ -1,10 +1,13 @@
 import './ui/style.css';
 import { FixedStepLoop } from './core/loop';
+import { createRandom } from './core/random';
 import { performanceTimeSource } from './core/time';
 import { fetchMapJson } from './data/maps';
+import { loadWeapons } from './data/weapons';
 import { attachMouse } from './input/mouse';
 import { InputQueue } from './input/queue';
 import { interpolateAngles, SceneRenderer } from './render/scene';
+import { Gun } from './sim/gun';
 import { viewAngles } from './sim/player';
 import { Simulation } from './sim/simulation';
 import { loadWorld } from './sim/world';
@@ -37,8 +40,18 @@ async function start(): Promise<void> {
   }
   const { world } = loaded;
 
+  // 武器の選択はトップ画面の Issue で足す。それまでは一覧の最初の武器を使う。
+  const weapons = await loadWeapons();
+  const weapon = weapons[0];
+  if (!weapon) {
+    status.textContent = '武器のデータを読み込めない（コンソールを見る）';
+    return;
+  }
+
   const input = new InputQueue();
   const sim = new Simulation(world, input);
+  const gun = new Gun(weapon, createRandom(Date.now()));
+  sim.addStepHook((w, dt) => gun.step(w, dt));
   const view = new SceneRenderer(canvas, world);
 
   const loop = new FixedStepLoop({
@@ -53,10 +66,11 @@ async function start(): Promise<void> {
   });
 
   window.addEventListener('resize', () => view.resize());
-  status.textContent = 'クリックで照準の操作を始める';
+  const hint = 'クリックで照準の操作を始める';
 
   const tick = () => {
     loop.frame();
+    status.textContent = `${weapon.name} 残弾 ${gun.ammo} / ${weapon.magSize} — ${hint}`;
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
