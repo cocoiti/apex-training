@@ -13,7 +13,8 @@
     "test": "vitest run",
     "lint": "eslint . && tsc --noEmit",
     "check:subpath": "node scripts/check-subpath.mjs",
-    "check:assets": "node scripts/check-assets.mjs"
+    "check:assets": "node scripts/check-assets.mjs",
+    "deploy": "node scripts/deploy.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"
