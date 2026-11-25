@@ -11,20 +11,22 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
-/** 配信のポート（3110〜3119 のうち、ほかの受け入れテストが使っていないもの）。DevTools のポートは Chromium に選ばせる（0）。 */
-const STATIC_PORT = 3117;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const CX = WIDTH / 2;
 const CY = HEIGHT / 2;
 const chromium = findChromium();
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/**
+ * ページが描画を frames 回進めるまで待つ（決まった時間の sleep で待たない。architecture.md ARC-20, ARC-22）。
+ * パッドの読み取りと練習のステップは描画ごとに進むので、変わらないことを確かめるときもこれで待つ。
+ */
+const settle = (page: Page, frames: number) => page.frames(frames);
 
 /** SPEC の文言と値（実装の定数には依存しない）。 */
 const MOUSE = 'マウス';
@@ -97,7 +99,7 @@ async function setInputMethod(page: Page, label: string) {
   await page.evaluate(`location.hash = '#/settings'`);
   await page.waitFor(`!document.querySelector('[data-screen="settings"]').hidden`);
   await choose(page, '#setting-input-method', label);
-  await pause(100);
+  await settle(page, 6);
   await page.evaluate(`location.hash = '#/'`);
   await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
 }
@@ -121,7 +123,7 @@ async function start(page: Page, weapon: WeaponJson, mode = CENTER_MODE) {
     const state = await page.evaluate<unknown>(`({ hash: location.hash, hidden: document.querySelector('[data-screen="play"]').hidden, ammo: document.querySelector('[data-hud="ammo"]')?.textContent, input: document.querySelector('[data-hud="input"]')?.textContent, status: document.querySelector('#status')?.textContent, w: document.querySelector('#weapon').value })`);
     throw new Error(`${String(e)} ${JSON.stringify(state)} ${page.errors.join(' / ')}`, { cause: e });
   }
-  await pause(500);
+  await settle(page, 31);
 }
 
 const mouseButton = (page: Page, type: 'mousePressed' | 'mouseReleased', x = CX, y = CY) =>
@@ -131,7 +133,7 @@ const mouseButton = (page: Page, type: 'mousePressed' | 'mouseReleased', x = CX,
 async function moveMouse(page: Page, dx: number, steps = 10, buttons = 0) {
   for (let i = 1; i <= steps; i += 1) {
     await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: CX + (dx * i) / steps, y: CY + (dx * i) / steps / 4, button: buttons ? 'left' : 'none', buttons });
-    await pause(16);
+    await settle(page, 2);
   }
 }
 
@@ -143,7 +145,7 @@ async function lock(page: Page): Promise<boolean> {
   } catch {
     return false;
   }
-  await pause(200);
+  await settle(page, 12);
   return true;
 }
 
@@ -155,7 +157,7 @@ async function screenshot(page: Page): Promise<Image> {
 /** HTML の画面を見えなくし、キャンバスだけを写す（HUD の文字は textContent で読める。隠した要素はクリックを受けない）。 */
 async function hideHtml(page: Page) {
   await page.evaluate(`for (const el of document.body.children) if (el.tagName !== 'CANVAS') el.style.visibility = 'hidden'`);
-  await pause(300);
+  await settle(page, 19);
 }
 
 const storedBests = (page: Page) =>
@@ -171,7 +173,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
   let work = '';
   let server: Server | undefined;
   let browser: Browser | undefined;
-  const origin = `http://127.0.0.1:${STATIC_PORT}`;
+  let origin = '';
   const pages: Page[] = [];
   const exceptions = (page: Page) => page.errors.filter((e) => e.startsWith('exception:'));
 
@@ -194,8 +196,9 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     const dist = join(work, 'dist');
     const build = spawnSync(`npm run build -- --outDir "${dist}" --emptyOutDir`, { cwd: ROOT, shell: true, encoding: 'utf8' });
     if (build.status !== 0) throw new Error(`ビルドが失敗した:\n${build.stdout}${build.stderr}`);
-    server = await serveStatic(dist, BASE, STATIC_PORT);
-    browser = await launchBrowser(chromium!, 0);
+    server = await serveStatic(dist, BASE);
+    origin = originOf(server);
+    browser = await launchBrowser(chromium!);
   }, 300_000);
 
   afterAll(async () => {
@@ -212,7 +215,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     await start(page, byId('r301'));
     expect(await shownMethod(page)).toBe(MOUSE);
     // 何も操作せずにしばらく置いても、マウスのまま（パッドは接続しているが操作していない）。
-    await pause(800);
+    await settle(page, 50);
     expect(await shownMethod(page)).toBe(MOUSE);
     expect(exceptions(page), page.errors.join('\n')).toEqual([]);
   }, 60_000);
@@ -230,7 +233,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     await page.waitFor(`window.__ammo() <= ${w.magSize - 2}`, 5000);
     await waitShown(page, PAD);
     await page.evaluate('window.__button(7, 0)');
-    await pause(100);
+    await settle(page, 6);
     expect(await shownMethod(page)).toBe(PAD);
     expect(await hash(page)).toBe('#/play');
     // ポインターロックのまま、マウスを動かす（ボタンは押さない）。
@@ -255,18 +258,18 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
 
     // マウスでクリックする（ポインターロックが掛かれば、掛かった状態でも確かめる）。
     const locked = await lock(page);
-    await pause(300);
+    await settle(page, 19);
     expect(await ammo(page), 'クリックで撃たない').toBe(w.magSize);
     expect(await shownMethod(page)).toBe(PAD);
     // 左ボタンを押したまま 0.6 秒保ち、押したまま動かしてから離す。
     await mouseButton(page, 'mousePressed');
-    await pause(600);
+    await settle(page, 38);
     await moveMouse(page, 200, 10, 1);
     await mouseButton(page, 'mouseReleased', CX + 200, CY + 50);
-    await pause(200);
+    await settle(page, 12);
     // ボタンを押さずに大きく動かす。
     await moveMouse(page, -300, 15);
-    await pause(400);
+    await settle(page, 25);
     expect(await ammo(page), `左ボタンを押しても撃たない（ポインターロック: ${locked}）`).toBe(w.magSize);
     expect(await hash(page)).toBe('#/play');
     expect(await shownMethod(page)).toBe(PAD);
@@ -276,9 +279,9 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     // 対照: パッドの右スティックでは照準が動き、R2 では撃てる（画面の中心の色の変化で照準の動きを読める）。
     // ポインターロックは外さない（外すと一時停止になる。mouse.md「一時停止と再開」）。
     await page.evaluate('window.__pad.axes[2] = 0.4');
-    await pause(150);
+    await settle(page, 9);
     await page.evaluate('window.__pad.axes[2] = 0');
-    await pause(300);
+    await settle(page, 19);
     const afterPad = await screenshot(page);
     expect(distance(afterPad.pixel(CX, CY), target), 'パッドでは照準が動く').toBeGreaterThan(30);
     await page.evaluate('window.__button(7, 1)');
@@ -298,7 +301,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
       ];
       for (const [x, y] of tilts) {
         await page.evaluate(`(() => { window.__pad.axes[2] = ${x}; window.__pad.axes[3] = ${y}; })()`);
-        await pause(100);
+        await settle(page, 6);
       }
     }
 
@@ -307,7 +310,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
       await start(page, byId('r301'));
       expect(await shownMethod(page)).toBe(MOUSE);
       await wiggleInsideDeadzone(page);
-      await pause(200);
+      await settle(page, 12);
       expect(await shownMethod(page)).toBe(MOUSE);
       // 対照: デッドゾーンより大きく倒すとパッドになる（このパッドの入力が読まれている）。
       await page.evaluate('window.__pad.axes[2] = 0.5');
@@ -328,7 +331,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
       await moveMouse(page, 100);
       await waitShown(page, MOUSE, 1000);
       await wiggleInsideDeadzone(page);
-      await pause(200);
+      await settle(page, 12);
       expect(await shownMethod(page)).toBe(MOUSE);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
@@ -349,10 +352,10 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     await page.evaluate('window.__button(0, 1)');
     await waitShown(page, PAD, 1000);
     await page.evaluate('window.__button(0, 0)');
-    await pause(200);
+    await settle(page, 12);
     const stoppedAt = await ammo(page);
     // 左ボタンは押したまま 0.8 秒待つ（発射間隔は約 0.11 秒。撃ち続けていれば 7 発ほど減る）。
-    await pause(800);
+    await settle(page, 50);
     const later = await ammo(page);
     expect(stoppedAt).toBeGreaterThan(0);
     expect(later, '左ボタンを押したままでも射撃が止まる').toBe(stoppedAt);
@@ -388,7 +391,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
       await page.evaluate('window.__button(7, 1)');
       await page.waitFor(`location.hash === '#/result' && !document.querySelector('[data-screen="result"]').hidden`, 20_000);
       await page.evaluate('window.__button(7, 0)');
-      await pause(300);
+      await settle(page, 19);
       return resultText(page);
     }
 
