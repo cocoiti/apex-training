@@ -4,16 +4,13 @@ import { formatDegrees, type ResultView } from './result-view';
 export interface RoundResultTexts {
   /** 回の番号と回数。例: 「1 / 5 回目」。 */
   readonly round: string;
-  /** 平均ズレとコメント。採点しないモードでは「採点なし」。 */
+  /** 平均ズレとコメント。 */
   readonly score: string;
   /** その回で自己ベストを更新したときは「自己ベスト更新」、ほかは空。 */
   readonly best: string;
   /** 次の回までの残り秒数。例: 「次の回まで 3 秒」。 */
   readonly countdown: string;
 }
-
-/** 採点しないモードの短いリザルトの表示。 */
-export const UNSCORED_TEXT = '採点なし';
 
 /** 残り時間（秒）を、表示する残り秒数（切り上げ）にする。 */
 export function countdownSeconds(remaining: number): number {
@@ -24,17 +21,14 @@ export function countdownSeconds(remaining: number): number {
 export function roundResultTexts(
   round: number,
   count: number,
-  view: Pick<ResultView, 'scored' | 'meanDeviation' | 'comments' | 'bestUpdated'>,
+  view: Pick<ResultView, 'meanDeviation' | 'comments' | 'bestUpdated'>,
   remaining: number,
 ): RoundResultTexts {
   const comments = view.comments.join(' / ');
-  const score = view.scored
-    ? `平均ズレ ${formatDegrees(view.meanDeviation)}${comments ? ` — ${comments}` : ''}`
-    : UNSCORED_TEXT;
   return {
     round: `${round} / ${count} 回目`,
-    score,
-    best: view.scored && view.bestUpdated ? '自己ベスト更新' : '',
+    score: `平均ズレ ${formatDegrees(view.meanDeviation)}${comments ? ` — ${comments}` : ''}`,
+    best: view.bestUpdated ? '自己ベスト更新' : '',
     countdown: `次の回まで ${countdownSeconds(remaining)} 秒`,
   };
 }

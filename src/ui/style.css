@@ -606,10 +606,6 @@ a {
   gap: 24px;
 }
 
-.result-score[hidden] {
-  display: none;
-}
-
 .result-best {
   font-size: 18px;
   color: #f2c14e;
@@ -710,8 +706,7 @@ polyline.plot-series {
   color: #7cf;
 }
 
-polyline.plot-ideal,
-polyline.plot-pattern {
+polyline.plot-ideal {
   stroke: #f2c14e;
 }
 
@@ -719,8 +714,7 @@ polyline.plot-aim {
   stroke: #7cf;
 }
 
-.plot-ideal,
-.plot-pattern {
+.plot-ideal {
   color: #f2c14e;
 }
 

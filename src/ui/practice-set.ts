@@ -14,7 +14,7 @@ export function parsePracticeCount(value: string): number {
 export interface RoundRecord {
   /** 回の番号（1 から）。 */
   readonly round: number;
-  /** 平均ズレ（度）。採点しないモードと、採点したが「なし」の回は null。 */
+  /** 平均ズレ（度）。「なし」の回は null。 */
   readonly meanDeviation: number | null;
 }
 

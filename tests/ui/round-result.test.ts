@@ -3,7 +3,7 @@ import { countdownSeconds, renderRoundResult, roundResultTexts } from '../../src
 
 describe('連続練習の短いリザルト', () => {
   it('MODE-17: 回の番号と回数、平均ズレとコメント、次の回までの残り秒数を出す', () => {
-    const texts = roundResultTexts(1, 5, { scored: true, meanDeviation: 0.8, comments: ['下げ不足', '横の補正不足'], bestUpdated: false }, 3);
+    const texts = roundResultTexts(1, 5, { meanDeviation: 0.8, comments: ['下げ不足', '横の補正不足'], bestUpdated: false }, 3);
     expect(texts).toEqual({
       round: '1 / 5 回目',
       score: '平均ズレ 0.80° — 下げ不足 / 横の補正不足',
@@ -13,12 +13,13 @@ describe('連続練習の短いリザルト', () => {
   });
 
   it('その回で自己ベストを更新したときは「自己ベスト更新」と出す', () => {
-    expect(roundResultTexts(2, 5, { scored: true, meanDeviation: 0.5, comments: [], bestUpdated: true }, 1).best).toBe('自己ベスト更新');
+    expect(roundResultTexts(2, 5, { meanDeviation: 0.5, comments: [], bestUpdated: true }, 1).best).toBe('自己ベスト更新');
   });
 
-  it('採点しないモードでは平均ズレとコメントの代わりに「採点なし」と出す', () => {
-    const texts = roundResultTexts(3, 10, { scored: false, meanDeviation: null, comments: [], bestUpdated: false }, 2.2);
-    expect(texts.score).toBe('採点なし');
+  it('平均ズレが「なし」の回は「平均ズレ なし」と出し、「採点なし」は出さない', () => {
+    const texts = roundResultTexts(3, 10, { meanDeviation: null, comments: [], bestUpdated: false }, 2.2);
+    expect(texts.score).toBe('平均ズレ なし');
+    expect(texts.score).not.toContain('採点なし');
     expect(texts.best).toBe('');
   });
 
@@ -34,7 +35,7 @@ describe('連続練習の短いリザルト', () => {
   it('要素の文字を書き換える', () => {
     const element = () => ({ textContent: '' });
     const elements = { round: element(), score: element(), best: element(), countdown: element() };
-    renderRoundResult(elements, { round: '1 / 5 回目', score: '採点なし', best: '', countdown: '次の回まで 2 秒' });
+    renderRoundResult(elements, { round: '1 / 5 回目', score: '平均ズレ 0.50°', best: '', countdown: '次の回まで 2 秒' });
     expect(elements.round.textContent).toBe('1 / 5 回目');
     expect(elements.countdown.textContent).toBe('次の回まで 2 秒');
   });

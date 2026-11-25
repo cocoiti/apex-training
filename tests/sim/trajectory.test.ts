@@ -4,7 +4,7 @@ import { PracticeSession } from '../../src/modes/session';
 import type { TrainingMode } from '../../src/modes/types';
 import { aimAtShots, aimTrajectory, lookRateTrace } from '../../src/sim/trajectory';
 import { vec3 } from '../../src/sim/vec3';
-import { idealCorrectionRate, uncorrectedPattern, type WeaponData } from '../../src/sim/weapon';
+import { idealCorrection, idealCorrectionRate, type WeaponData } from '../../src/sim/weapon';
 import { createWorld } from '../../src/sim/world';
 
 const DT = 1 / 120;
@@ -70,7 +70,7 @@ describe('各弾の発射時の照準', () => {
     order: 0,
     setup() {},
     step: () => true,
-    result: () => ({ scored: true }),
+    result: () => ({}),
     teardown() {},
   };
 
@@ -105,10 +105,11 @@ describe('各弾の発射時の照準', () => {
     }
     const shots = session.gun.shots;
     expect(shots).toHaveLength(magSize);
-    const pattern = uncorrectedPattern(weapon, magSize);
+    // 補正しなかった場合のパターン（1〜i+1 発目の pattern の合計）は理想の補正軌道を反転したもの。
+    const ideal = idealCorrection(weapon);
     const expected = shots.map((s, i) => ({
-      yaw: s.angles.yaw - (pattern[i]?.yaw ?? 0) - start.yaw,
-      pitch: s.angles.pitch - (pattern[i]?.pitch ?? 0) - start.pitch,
+      yaw: s.angles.yaw + (ideal[i]?.yaw ?? 0) - start.yaw,
+      pitch: s.angles.pitch + (ideal[i]?.pitch ?? 0) - start.pitch,
     }));
     const aim = aimAtShots(input.recording(), shots, start, session.sim.dt);
     aim.forEach((a, i) => {

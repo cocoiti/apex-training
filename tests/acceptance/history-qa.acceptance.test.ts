@@ -390,11 +390,32 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('SCO-25: パターン観察で練習を終えると、履歴のキーに何も保存されない', async () => {
-      const page = await openFresh();
-      const r = await practice(page, LSTAR.name, 'パターン観察');
-      expect(r.visibleScreens).toEqual(['result']);
-      expect(await storedHistories(page)).toEqual({});
+    it('MODE-28: 以前のパターン観察の自己ベストと履歴のキーがあっても、トップ画面が開いて反復練習が選ばれ、そのまま開始すると反復練習が始まり、2 つのキーは残る', async () => {
+      const bestKey = `${BEST_PREFIX}mouse:lstar:pattern`;
+      const oldHistoryKey = historyKey('mouse', 'lstar', 'pattern');
+      const best = JSON.stringify({ version: 1, meanError: 1.23, groupingRadius: 1, hitRate: 50, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
+      const old = stored([entry(4.56)]);
+      const page = await openFresh({ [bestKey]: best, [oldHistoryKey]: old });
+      await page.waitFor(`document.querySelector('#weapon').options.length > 0 && document.querySelector('#mode').options.length > 0`);
+      expect(await modesOnTop(page)).toEqual(['反復練習', 'センター維持']);
+      expect(await page.evaluate<string>(`document.querySelector('#mode').selectedOptions[0].textContent.trim()`)).toBe('反復練習');
+      // モードを選び直さずに「開始」を押す。
+      await choose(page, '#weapon', LSTAR.name);
+      await page.clickSelector('[data-screen="top"] a[href="#/play"]');
+      await page.waitFor(`window.__ammo() > 0`);
+      await lock(page);
+      await fireAll(page);
+      const summary = await page.evaluate<string>(`document.querySelector('#result-summary').textContent`);
+      expect(summary).toContain('反復練習');
+      // 履歴の画面のモードの選択肢にもパターン観察は出ない。
+      await openHistory(page);
+      const h = await historyState(page);
+      const mode = h.selects.find((s) => s.label.startsWith('モード'));
+      expect(mode!.options).toEqual(['反復練習', 'センター維持']);
+      expect(h.text).not.toContain('パターン観察');
+      // 以前のキーは消されずに残る。
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(bestKey)})`)).toBe(best);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(oldHistoryKey)})`)).toBe(old);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
@@ -572,15 +593,13 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-26: 履歴の画面のモードの選択肢に、反復練習とセンター維持が出て、パターン観察が出ない', async () => {
+    it('UI-26: 履歴の画面のモードの選択肢に、反復練習とセンター維持だけが出る', async () => {
       const page = await openFresh();
       await openHistory(page);
       const h = await historyState(page);
       const mode = h.selects.find((s) => s.label.startsWith('モード'));
       expect(mode, JSON.stringify(h.selects)).toBeDefined();
-      expect(mode!.options).toContain('反復練習');
-      expect(mode!.options).toContain('センター維持');
-      expect(mode!.options).not.toContain('パターン観察');
+      expect(mode!.options).toEqual(['反復練習', 'センター維持']);
       expect(h.text).not.toContain('パターン観察');
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);

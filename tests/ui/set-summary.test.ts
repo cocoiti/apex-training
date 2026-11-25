@@ -55,7 +55,7 @@ describe('セットのまとめ', () => {
     expect(count(setTrendPlotHtml(summary), /<circle /g)).toBe(2);
   });
 
-  it('対象の回がないとき（パターン観察のセット）は平均といちばん良かった回を「なし」とし、推移の図は空で出す', () => {
+  it('対象の回がないとき（どの回も平均ズレが「なし」）は平均といちばん良かった回を「なし」とし、推移の図は空で出す', () => {
     const summary = summarizeSet(rounds([null, null]), 5);
     expect(setAverageText(summary)).toBe('セットの平均 なし');
     expect(setBestText(summary)).toBe('いちばん良かった回 なし');

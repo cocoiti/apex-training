@@ -4,7 +4,7 @@
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、画面写しの画素を読んで確かめる（tests/helpers/png.ts）。
 //
 // ゴーストの見つけ方: ゴーストの色や形は SPEC にないので、HTML の画面を隠したキャンバスだけの画面写しを、ゴーストを出さない
-// パターン観察の同じ時点の画面写しと比べ、違う画素をゴーストとみなす（色はその画素から求め、以後はその色でゴーストを探す）。
+// センター維持の同じ時点の画面写しと比べ、違う画素をゴーストとみなす（色はその画素から求め、以後はその色でゴーストを探す）。
 // ゴーストの画面上の位置: 照準を動かさないとき、カメラは「開始時の照準 + リコイルの累積」を、ゴーストは
 // 「開始時の照準 + 次の弾の理想の補正軌道 + リコイルの累積」を向くので、ゴーストは画面の中心から理想の補正軌道の角度だけずれた位置に出る。
 // 角度から画面上の位置への換算は screens.md の式（FOV 90・1280×800）。
@@ -296,8 +296,8 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
   let browser: Browser | undefined;
   let main = '';
   let copy = '';
-  /** パターン観察で始めた直後のキャンバス（ゴーストのない対照）。 */
-  let patternBase: Image;
+  /** センター維持（ゴーストを表示しない）で始めた直後のキャンバス（ゴーストのない対照）。補正のパネルは HTML なので写らない。 */
+  let centerBase: Image;
   /** ゴーストの色（MODE-12 の対照との差から求める）。 */
   let ghostColor: RGB;
 
@@ -354,11 +354,11 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
     }
     browser = await launchBrowser(chromium!);
 
-    // 対照: パターン観察（ゴーストを表示しない）で始めた直後のキャンバス。
+    // 対照: センター維持（ゴーストを表示しない）で始めた直後のキャンバス。
     const ref = await newPage();
     await resetSettings(ref, main);
-    await start(ref, main, 'L-STAR', 'パターン観察');
-    patternBase = await canvasOnly(ref, { stable: true });
+    await start(ref, main, 'L-STAR', 'センター維持');
+    centerBase = await canvasOnly(ref, { stable: true });
     opened = [];
     await closePage(ref);
 
@@ -367,11 +367,11 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
     await resetSettings(page, main, GHOST_ON);
     await start(page, main, 'L-STAR', '反復練習');
     const ghostCanvas = await canvasOnly(page, { stable: true });
-    const diff = changedPixels(patternBase, ghostCanvas);
-    if (diff.length === 0) throw new Error('反復練習で始めても、パターン観察と違う画素がない（ゴーストが見えない）');
+    const diff = changedPixels(centerBase, ghostCanvas);
+    if (diff.length === 0) throw new Error('反復練習で始めても、センター維持と違う画素がない（ゴーストが見えない）');
     ghostColor = medianColor(ghostCanvas, diff);
     // ゴーストの色は、対照のキャンバス（壁・的・背景）にない色。
-    expect(pixelsOfColor(patternBase, ghostColor).length, `ゴーストの色 ${ghostColor} が対照にもある`).toBe(0);
+    expect(pixelsOfColor(centerBase, ghostColor).length, `ゴーストの色 ${ghostColor} が対照にもある`).toBe(0);
     opened = [];
     await closePage(page);
   }, 300_000);
@@ -392,8 +392,8 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
         await resetSettings(page, origin, GHOST_ON);
         await start(page, origin, w.name, '反復練習');
         const expected = project(ideal(w, 1));
-        // 対照（パターン観察）と違う画素は、ゴーストの 1 か所だけ。
-        const diff = changedPixels(patternBase, await canvasOnly(page, { stable: true }));
+        // 対照（センター維持）と違う画素は、ゴーストの 1 か所だけ。
+        const diff = changedPixels(centerBase, await canvasOnly(page, { stable: true }));
         expect(diff.length, 'ゴーストが表示されていない').toBeGreaterThan(0);
         expect(spread(diff), 'ゴースト以外にも違う画素がある').toBeLessThan(20);
         const c = centroid(diff);
@@ -617,9 +617,9 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       expect(await page.evaluate<boolean>(`document.getElementById('setting-ghost').checked`)).toBe(false);
 
       await start(page, main, w.name, '反復練習');
-      // 撃つ前: パターン観察と同じ画面（ゴーストがない）。
+      // 撃つ前: センター維持と同じ画面（ゴーストがない）。
       const base = await canvasOnly(page, { stable: true });
-      expect(changedPixels(patternBase, base).length, 'ゴースト表示 OFF なのに、パターン観察と違う画素がある').toBe(0);
+      expect(changedPixels(centerBase, base).length, 'ゴースト表示 OFF なのに、センター維持と違う画素がある').toBe(0);
       expect(pixelsOfColor(base, ghostColor).length).toBe(0);
       // 撃っている途中も、離した直後もゴーストがない。
       await holdUntil(page, w.magSize - 8);
@@ -635,17 +635,6 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       expect(text, text).toMatch(/グルーピング半径\s*[\d.]+\s*°/);
       expect(text, text).toMatch(/下げすぎ|下げ不足|横の補正不足|よくまとまっている/);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    it('対照: パターン観察で撃ち切ったリザルトには採点結果が出ない', async () => {
-      const page = await newPage();
-      await resetSettings(page, main);
-      await start(page, main, 'L-STAR', 'パターン観察');
-      await page.evaluate(`window.__setR2(1)`);
-      await page.waitFor(`location.hash === '#/result'`, 15_000);
-      await page.evaluate(`window.__setR2(0)`);
-      await waitResult(page);
-      expect(await resultText(page)).not.toMatch(/平均ズレ/);
     }, 60_000);
   });
 
@@ -663,7 +652,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       const page = await newPage();
       await resetSettings(page, main);
       // 対照: 既定（点・#77ccff）で始めたときは、中心に赤い画素がない。
-      await start(page, main, 'L-STAR', 'パターン観察');
+      await start(page, main, 'L-STAR', 'センター維持');
       expect(near(await screenshot(page), RED).length).toBe(0);
       const dot = near(await screenshot(page), [0x77, 0xcc, 0xff]);
       expect(dot.length, '既定のクロスヘア（#77ccff の点）が見えない').toBeGreaterThan(0);
@@ -671,7 +660,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       await openSettings(page, main);
       await setNative(page, 'setting-crosshair-color', '#ff0000');
       await setNative(page, 'setting-crosshair-shape', 'cross');
-      await start(page, main, 'L-STAR', 'パターン観察');
+      await start(page, main, 'L-STAR', 'センター維持');
       const img = await screenshot(page);
       const red = near(img, RED);
       expect(red.length, 'クロスヘアが #ff0000 で表示されていない').toBeGreaterThan(0);
@@ -723,7 +712,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
         await typeFov(page, String(fov));
         expect(await page.evaluate<string>(`document.getElementById('setting-fov').value`)).toBe(String(fov));
       }
-      await start(page, origin, 'L-STAR', 'パターン観察');
+      await start(page, origin, 'L-STAR', 'センター維持');
       const img = await canvasOnly(page, { stable: true });
       // 壁の色は、的とリングより下で壁の下端より上の行（中心から 45 px 下）の、目地を避けた画素。
       // 目地は 1 m ごと（FOV 90 で約 64 px、FOV 110 で約 45 px ごと）で、中心の真下の列と中心から 38・27 px 下の行を通る。
@@ -802,8 +791,8 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-1: 武器の一覧の武器（L-STAR と C.A.R. SMG）それぞれで、3 つのモードを最後まで練習でき、リザルト画面が表示される', () => {
-    it('トップ画面の選択肢に L-STAR と C.A.R. SMG の 2 つだけの武器と 3 つのモードがある', async () => {
+  describe('MODE-1: 武器の一覧の武器（L-STAR と C.A.R. SMG）それぞれで、反復練習とセンター維持を最後まで練習でき、リザルト画面が表示される', () => {
+    it('トップ画面の選択肢に L-STAR と C.A.R. SMG の 2 つだけの武器と、反復練習とセンター維持の 2 つだけのモードがある', async () => {
       const page = await newPage();
       await page.goto(`${main}${BASE}#/`);
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
@@ -811,7 +800,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
       expect([...weapons].sort()).toEqual([...LISTED_WEAPONS].sort());
       for (const n of PLACEHOLDER_WEAPONS) expect(weapons).not.toContain(n);
-      expect(modes).toEqual(expect.arrayContaining(['パターン観察', '反復練習', 'センター維持']));
+      expect(modes).toEqual(['反復練習', 'センター維持']);
       // C.A.R. SMG（#49）は SMG の分類（WPN-13 の optgroup）にある。
       const group = await page.evaluate<string | null>(
         `([...document.querySelector('#weapon').options].find((o) => o.textContent.trim() === 'C.A.R. SMG')?.closest('optgroup')?.label ?? null)`,
@@ -822,12 +811,12 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
     it('C.A.R. SMG で練習を始めると、HUD の残弾に装弾数 30（WPN-20）が出る', async () => {
       const page = await newPage();
       await resetSettings(page, main);
-      await start(page, main, 'C.A.R. SMG', 'パターン観察');
+      await start(page, main, 'C.A.R. SMG', 'センター維持');
       expect(await ammo(page)).toBe(30);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     });
 
-    it.each(LISTED_WEAPONS.flatMap((n) => ['パターン観察', '反復練習', 'センター維持'].map((m) => [n, m] as const)))(
+    it.each(LISTED_WEAPONS.flatMap((n) => ['反復練習', 'センター維持'].map((m) => [n, m] as const)))(
       '%s / %s',
       async (name, mode) => {
         const page = await newPage();
@@ -841,7 +830,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
         const text = await resultText(page);
         expect(text).toContain(name);
         expect(text).toContain(mode);
-        if (mode !== 'パターン観察') expect(text, text).toMatch(/平均ズレ/);
+        expect(text, text).toMatch(/平均ズレ/);
         expect(exceptions(page), page.errors.join('\n')).toEqual([]);
       },
       60_000,

@@ -25,7 +25,7 @@ const chromium = findChromium();
 /** SPEC の名前と値（実装の定数には依存しない）。 */
 const MEASURED_NAMES = ['C.A.R. SMG', 'L-STAR'];
 const PLACEHOLDER_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア'];
-const MODES = ['パターン観察', '反復練習', 'センター維持'];
+const MODES = ['反復練習', 'センター維持'];
 const BEST_UPDATED = '自己ベスト更新';
 const BEST_KEY = 'apex-training:best:mouse:lstar:center';
 const HISTORY_KEY = 'apex-training:history:mouse:lstar:center';
@@ -402,9 +402,9 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-1: 武器の一覧の武器それぞれで、3 つのモードを最後まで練習できる', () => {
+  describe('MODE-1: 武器の一覧の武器それぞれで、反復練習とセンター維持を最後まで練習できる', () => {
     for (const weapon of ['L-STAR', 'C.A.R. SMG']) {
-      it(`MODE-1: ${weapon} でパターン観察・反復練習・センター維持を撃ち切ると、それぞれリザルト画面が表示される`, async () => {
+      it(`MODE-1: ${weapon} で反復練習・センター維持を撃ち切ると、それぞれリザルト画面が表示される`, async () => {
         serveDist(mainDist);
         const page = await openFresh();
         for (const mode of MODES) {

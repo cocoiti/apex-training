@@ -1,4 +1,4 @@
-// docs/spec/screens.md「補正のパネル」と設定（UI-11・UI-13・UI-55〜UI-63）、docs/spec/modes.md の MODE-24〜MODE-27 の QA の受け入れテスト。
+// docs/spec/screens.md「補正のパネル」と設定（UI-11・UI-13・UI-55〜UI-63）、docs/spec/modes.md の MODE-24・MODE-25・MODE-27 の QA の受け入れテスト。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（トップ・設定・プレイ・リザルト）、index.html の要素、
 // 武器とマップの JSON。画面はヘッドレスの Chromium で開く（tests/helpers/browser.ts）。
 //
@@ -12,8 +12,8 @@
 // pattern はマウスの 1 カウントの角度の整数倍）を足してビルドした画面で確かめる（ghost-follow-qa と同じ方法）。
 // 照準はポインターロック中のマウスの移動（DevTools の mouseMoved の座標の差が movementX / movementY になる）で動かす。
 // パッドは Gamepad API（navigator.getGamepads）の形で与え、R2 で撃つ。ゴーストはキャンバスだけの画面写しを、
-// ゴーストを出さないパターン観察の画面写しと比べて見つける（違う画素がなければゴーストは出ていない）。
-// 補正のパネルは、反復練習では設定によらず必ず、センター維持では設定の補正のパネルが ON（既定）のとき出し、パターン観察では出さない。
+// ゴーストを出さないセンター維持の、HTML を隠したキャンバスだけの画面写しと比べて見つける（違う画素がなければゴーストは出ていない）。
+// 補正のパネルは、反復練習では設定によらず必ず、センター維持では設定の補正のパネルが ON（既定）のとき出す。
 // ゴースト表示（3D の中のゴースト）の既定は OFF。
 // サーバーと DevTools のポートは OS に選ばせる。待ちは sleep にせず、画面の状態の条件で待つ。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
@@ -35,7 +35,6 @@ const CX = WIDTH / 2;
 const CY = HEIGHT / 2;
 const chromium = findChromium();
 
-const PATTERN = 'パターン観察';
 const GHOST = '反復練習';
 const CENTER = 'センター維持';
 
@@ -908,15 +907,15 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
   });
 
   // -------------------------------------------------------------------------
-  /** パターン観察（ゴーストもパネルも出さない）で始めた直後のキャンバス。ゴーストを見つける対照。 */
-  let patternBase: Image | undefined;
+  /** センター維持（ゴーストを出さない。パネルは HTML なので写さない）で始めた直後のキャンバス。ゴーストを見つける対照。 */
+  let centerBase: Image | undefined;
   const baseline = async () => {
-    if (patternBase) return patternBase;
+    if (centerBase) return centerBase;
     const page = await openFresh();
     await configure(page, { input: 'マウス' });
-    await start(page, byId('lstar'), PATTERN);
-    patternBase = await canvasOnly(page);
-    return patternBase;
+    await start(page, byId('lstar'), CENTER);
+    centerBase = await canvasOnly(page);
+    return centerBase;
   };
 
   /** パネルの要素の画面上の箱が、HUD・画面の操作・パッドのガイドの箱と重なるか。見えている要素だけを比べる。 */
@@ -976,13 +975,13 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
 
   // -------------------------------------------------------------------------
   describe('MODE-25: 設定を一度も変えずに反復練習を始めると、3D の中にゴーストは表示されず、補正のパネルが表示され、パッドのときはスティック型のガイドも表示される', () => {
-    it('L-STAR: 撃つ前のキャンバスがパターン観察と同じ（ゴーストがない）で、パネルが表示される', async () => {
+    it('L-STAR: 撃つ前のキャンバスがセンター維持と同じ（ゴーストがない）で、パネルが表示される', async () => {
       const page = await openFresh();
-      await start(page, byId('lstar'), PATTERN);
-      const pattern = await canvasOnly(page);
+      await start(page, byId('lstar'), CENTER);
+      const center = await canvasOnly(page);
       await start(page, byId('lstar'), GHOST);
       expect(await panelVisible(page), 'パネルが表示されない').toBe(true);
-      expect(changedPixels(pattern, await canvasOnly(page)), 'パターン観察と違う画素がある（ゴーストが表示された）').toBe(0);
+      expect(changedPixels(center, await canvasOnly(page)), 'センター維持と違う画素がある（ゴーストが表示された）').toBe(0);
       expect(await panelVisible(page)).toBe(true);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
@@ -1004,49 +1003,29 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
         return { state, img };
       };
       const page = await openFresh();
-      const pattern = await afterOneShot(page, PATTERN);
+      const center = await afterOneShot(page, CENTER);
       const ghost = await afterOneShot(page, GHOST);
       expect(ghost.state.hash).toBe('#/play');
       expect(ghost.state.ammo, '1 発撃った').toBe(w.magSize - 1);
       expect(ghost.state.input, '入力方式がパッドになった').toContain('パッド');
       expect(ghost.state.guide, 'スティック型のガイドが表示されない').toBe(true);
       expect(ghost.state.panel, 'パネルが表示されない').toBe(true);
-      expect(pattern.state.ammo).toBe(w.magSize - 1);
-      // 同じ撃ち方のパターン観察（ゴーストを出さない）と同じキャンバス。
-      expect(changedPixels(pattern.img, ghost.img), 'パターン観察と違う画素がある（ゴーストが表示された）').toBe(0);
+      expect(center.state.ammo).toBe(w.magSize - 1);
+      // 同じ撃ち方のセンター維持（ゴーストを出さない）と同じキャンバス。
+      expect(changedPixels(center.img, ghost.img), 'センター維持と違う画素がある（ゴーストが表示された）').toBe(0);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-26: パターン観察では、設定の補正のパネルが ON でもパネルが表示されない', () => {
-    for (const input of ['mouse', 'pad'] as const) {
-      for (const explicit of [false, true]) {
-        it(`${input === 'mouse' ? 'マウス' : 'パッド'}・補正のパネル ON（${explicit ? '設定画面で ON にした' : '既定'}）`, async () => {
-          const w = byId('lstar');
-          const page = await openFresh();
-          await configure(page, { input: input === 'mouse' ? 'マウス' : 'パッド', ...(explicit ? { panel: true } : {}) });
-          expect(await page.evaluate<boolean>('JSON.parse(localStorage.getItem("apex-training:settings:common") ?? "{}").correctionPanel ?? true')).toBe(true);
-          await start(page, w, PATTERN);
-          const r = await sampleWhilePractising(page, input, w);
-          expect(r.fired, '撃てている').toBeGreaterThan(0);
-          expect(r.hashes).toEqual(['#/play']);
-          expect(r.seen.some(Boolean), 'パネルが表示された').toBe(false);
-          expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-        }, 60_000);
-      }
-    }
-  });
-
-  // -------------------------------------------------------------------------
   describe('MODE-27: モードの表示名は「反復練習」で、セットの表示に「反復練習」の言葉が出ない', () => {
-    it('トップ画面のモードの選択肢に「反復練習」「センター維持」「パターン観察」が出て、「ゴースト追従」は出ない', async () => {
+    it('トップ画面のモードの選択肢に「反復練習」「センター維持」だけが出て、「ゴースト追従」と「パターン観察」は出ない', async () => {
       const page = await openFresh();
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
-      expect(modes).toEqual(expect.arrayContaining([GHOST, CENTER, PATTERN]));
-      expect(modes).not.toContain('ゴースト追従');
+      expect(modes).toEqual([GHOST, CENTER]);
       expect(modes.join(' ')).not.toContain('ゴースト追従');
+      expect(modes.join(' ')).not.toContain('パターン観察');
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 

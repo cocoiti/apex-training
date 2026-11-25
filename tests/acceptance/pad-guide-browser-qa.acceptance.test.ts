@@ -26,7 +26,6 @@ const settle = (page: Page, frames: number) => page.frames(frames);
 const PAD_NAME = 'acceptance pad (STANDARD GAMEPAD)';
 const GHOST = '反復練習';
 const CENTER = 'センター維持';
-const PATTERN = 'パターン観察';
 
 /** SPEC のパッドの詳細設定の既定値（pad.md の表）。 */
 const DEFAULT = { deadzone: 0.1, outer: 0.02, curve: 2, yaw: 300, pitch: 260, adsYaw: 90, adsPitch: 78 };
@@ -315,7 +314,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
       }, 60_000);
     }
 
-    for (const [mode, ghost] of [[CENTER, true], [PATTERN, true], [CENTER, false], [PATTERN, false]] as const) {
+    for (const [mode, ghost] of [[CENTER, true], [CENTER, false]] as const) {
       it(`${mode}のとき（パッド・ゴースト表示 ${ghost ? 'ON' : 'OFF'}）`, async () => {
         const page = await openFresh();
         await configure(page, { input: 'パッド', ghost });
@@ -387,21 +386,6 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
       await mouseButton(page, 'mousePressed');
       await waitResult(page);
       await mouseButton(page, 'mouseReleased');
-      await settle(page, 12);
-      const dom = await padTraceDom(page);
-      expect(dom.visible).toBe(false);
-      expect(await page.evaluate<string>(`document.querySelector('[data-screen="result"]').innerText`)).not.toContain(PAD_NAME);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    it('パターン観察で終えたときは表示されない（パッド）', async () => {
-      const page = await openFresh();
-      await configure(page, { input: 'パッド', ghost: true });
-      const w = byId('lstar');
-      await start(page, w, PATTERN);
-      await page.evaluate('window.__button(7, 1)');
-      await waitResult(page);
-      await page.evaluate('window.__button(7, 0)');
       await settle(page, 12);
       const dom = await padTraceDom(page);
       expect(dom.visible).toBe(false);
