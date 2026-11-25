@@ -9,7 +9,8 @@ const PROBE_KEY = 'apex-training:probe';
  * 起動時の試しの書き込みか保存で一度でも失敗したら「保存できない」になり、ページを開いている間は戻らない。
  */
 export class SafeStorage {
-  private readonly memory = new Map<string, string>();
+  /** このページで書いた値。null はこのページで消したことを表す。 */
+  private readonly memory = new Map<string, string | null>();
   private readonly listeners = new Set<() => void>();
   private failed = false;
 
@@ -29,7 +30,7 @@ export class SafeStorage {
     });
   }
 
-  /** 値を読む。このページで書いた値があればそれを返す。読み出しが例外になったら null。 */
+  /** 値を読む。このページで書いた（消した）値があればそれを返す。読み出しが例外になったら null。 */
   get(key: string): string | null {
     const written = this.memory.get(key);
     if (written !== undefined) return written;
@@ -44,6 +45,12 @@ export class SafeStorage {
   set(key: string, value: string): boolean {
     this.memory.set(key, value);
     return this.attempt((storage) => storage.setItem(key, value));
+  }
+
+  /** 値を消す。localStorage から消せたら true を返す。失敗してもページを開いている間は get で null を返す。 */
+  remove(key: string): boolean {
+    this.memory.set(key, null);
+    return this.attempt((storage) => storage.removeItem(key));
   }
 
   /** 保存できないと分かったときに 1 回呼ぶ。すでに分かっていればすぐに呼ぶ。外すための関数を返す。 */

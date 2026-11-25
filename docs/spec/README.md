@@ -31,7 +31,7 @@
 | [pad.md](pad.md) | パッド入力 | PAD |
 | [weapons.md](weapons.md) | 武器とリコイル | WPN |
 | [modes.md](modes.md) | 練習モード | MODE |
-| [scoring.md](scoring.md) | 採点とリザルト | SCO |
+| [scoring.md](scoring.md) | 採点とリザルト、練習の履歴 | SCO |
 | [screens.md](screens.md) | 画面と設定 | UI |
 | [architecture.md](architecture.md) | 構成と拡張性 | ARC |
 

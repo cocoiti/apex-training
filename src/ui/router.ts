@@ -1,5 +1,5 @@
 /** 画面の識別子。docs/spec/screens.md の画面の表に対応する。 */
-export type ScreenId = 'top' | 'settings' | 'settings-pad' | 'play' | 'result';
+export type ScreenId = 'top' | 'settings' | 'settings-pad' | 'play' | 'result' | 'history';
 
 /** 画面ごとのハッシュ。 */
 export const SCREEN_HASHES: Readonly<Record<ScreenId, string>> = {
@@ -8,6 +8,7 @@ export const SCREEN_HASHES: Readonly<Record<ScreenId, string>> = {
   'settings-pad': '#/settings/pad',
   play: '#/play',
   result: '#/result',
+  history: '#/history',
 };
 
 const SCREEN_BY_PATH: ReadonlyMap<string, ScreenId> = new Map(

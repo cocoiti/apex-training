@@ -20,11 +20,13 @@ import { viewAngles } from './sim/player';
 import { createWorld, type World } from './sim/world';
 import { applyCrosshair } from './ui/crosshair';
 import { fullscreenLabel, toggleFullscreen } from './ui/fullscreen';
+import { bindHistoryView, initialHistorySelection, SCORED_MODES, type HistoryElements } from './ui/history-view';
 import { renderHud, type HudElements } from './ui/hud';
 import { fillModeSelect } from './ui/mode-choices';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { PracticeFlow } from './ui/practice-flow';
 import { applyPracticeSettings } from './ui/practice-settings';
+import type { HistorySelection } from './ui/practice-history';
 import { completePractice, renderResult, type ResultElements } from './ui/result-view';
 import { adsAfter, applyReticleColor, showAimDisplay, type AimDisplayElements } from './ui/scope';
 import { SCREEN_HASHES, watchScreen } from './ui/router';
@@ -38,6 +40,8 @@ import { fillWeaponSelect } from './ui/weapon-choices';
 interface App {
   begin(): void;
   abort(): void;
+  /** 履歴の画面を開いた。 */
+  openHistory(): void;
 }
 
 const flow = new PracticeFlow();
@@ -80,6 +84,7 @@ function startShell(): void {
     showScreen(screens, entry.screen);
     if (entry.screen !== 'play' && document.pointerLockElement) document.exitPointerLock();
     if (entry.abort) void appReady.then((app) => app.abort());
+    if (entry.screen === 'history') void appReady.then((app) => app.openHistory());
     if (entry.start) {
       void appReady.then((app) => {
         if (flow.practicing) app.begin();
@@ -124,6 +129,24 @@ function startSettingsForm(): void {
   bindSettingsForm(elements as SettingsFormElements, appStorage);
   // 入力欄で Enter を押してもフォームを送信しない（ページを読み直さない）。
   document.querySelector('#settings-form')?.addEventListener('submit', (event) => event.preventDefault());
+}
+
+/** 履歴の画面の要素を集める。欠けていれば null。 */
+function historyElements(): HistoryElements | null {
+  const byId = <T extends HTMLElement>(id: string) => document.querySelector<T>(`#history-${id}`);
+  const elements = {
+    weapon: byId<HTMLSelectElement>('weapon'),
+    mode: byId<HTMLSelectElement>('mode'),
+    input: byId<HTMLSelectElement>('input'),
+    averages: byId('averages'),
+    plot: byId('plot'),
+    list: byId('list'),
+    empty: byId('empty'),
+    clear: byId<HTMLButtonElement>('clear'),
+    unavailable: byId('unavailable'),
+  };
+  if (Object.values(elements).some((element) => !element)) return null;
+  return elements as HistoryElements;
 }
 
 /** 1 回の練習の、シミュレーションとループと入力の記録。時刻は練習の開始を 0 とする。 */
@@ -189,6 +212,23 @@ async function start(): Promise<void> {
   fillWeaponSelect(weaponSelect, weapons);
   weaponSelect.value = weapons[0]?.id ?? '';
   fillModeSelect(modeSelect, modes);
+
+  // 履歴の画面（docs/spec/screens.md「履歴の画面」）。武器は一覧のすべて、モードは採点するモードだけを選択肢にする。
+  // このページで最後に終えた採点するモードの組を、開いたときに選ぶ。
+  let lastScored: HistorySelection | null = null;
+  const historyEls = historyElements();
+  let openHistory = () => {};
+  if (historyEls) {
+    fillWeaponSelect(historyEls.weapon as HTMLSelectElement, weapons);
+    fillModeSelect(historyEls.mode as HTMLSelectElement, SCORED_MODES);
+    const historyView = bindHistoryView(historyEls, {
+      storage: appStorage,
+      confirm: (message) => window.confirm(message),
+      now: () => new Date(),
+    });
+    const weaponIds = weapons.map((w) => w.id);
+    openHistory = () => historyView.open(initialHistorySelection(lastScored, weaponIds));
+  }
 
   // 練習していないあいだも、トップ画面などの後ろにシーンを描く。
   let shownWorld: World = createWorld(map);
@@ -290,6 +330,7 @@ async function start(): Promise<void> {
       new Date(),
     );
     renderResult(resultView, view);
+    if (result.modeResult.scored) lastScored = { input: result.inputMethod, weaponId: result.weapon.id, modeId: result.mode.id };
     flow.finish();
     location.hash = SCREEN_HASHES.result;
   };
@@ -336,7 +377,7 @@ async function start(): Promise<void> {
   };
   requestAnimationFrame(tick);
 
-  resolveApp({ begin, abort });
+  resolveApp({ begin, abort, openHistory });
 }
 
 startShell();

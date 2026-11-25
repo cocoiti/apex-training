@@ -5,6 +5,7 @@ import { aimAtShots } from '../sim/trajectory';
 import { idealCorrection, uncorrectedPattern } from '../sim/weapon';
 import type { World } from '../sim/world';
 import { personalBestKey, recordPersonalBest, type InputMethod, type PersonalBestOutcome } from './personal-best';
+import { recordHistory } from './practice-history';
 import { escapeHtml, plotHtml, type Plot } from './result-plot';
 import { resultSummaryText } from './result-summary';
 import type { SafeStorage } from './storage';
@@ -76,7 +77,7 @@ export function personalBestText(outcome: PersonalBestOutcome): string {
 }
 
 /**
- * 練習の結果を採点し、採点するモードなら自己ベストと比べて保存し、リザルト画面に出すものを作る。
+ * 練習の結果を採点し、採点するモードなら自己ベストと比べて保存し、履歴に足し、リザルト画面に出すものを作る。
  * 保存は SafeStorage を通すので、保存できない環境でも投げない。
  */
 export function completePractice(
@@ -111,6 +112,8 @@ export function completePractice(
   const scored = scoreShots(result.shots, world, radius);
   const key = personalBestKey(practice.input, result.weapon.id, result.mode.id);
   const outcome = recordPersonalBest(storage, key, scored, now);
+  // 履歴は自己ベストとは別のキーに足す（docs/spec/scoring.md「練習の履歴」）。
+  recordHistory(storage, { input: practice.input, weaponId: result.weapon.id, modeId: result.mode.id }, scored, now);
   const aim = aimAtShots(practice.recording, result.shots, world.center, practice.dt);
   const ideal = idealCorrection(result.weapon).slice(0, result.shots.length);
   return {
