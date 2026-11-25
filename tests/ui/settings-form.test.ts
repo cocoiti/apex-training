@@ -41,6 +41,7 @@ function setup(initial: Record<string, string> = {}, storageFor?: (backing: Stor
       crosshairColor: new FakeField(),
       ghost: new FakeField(),
       correctionPanel: new FakeField(),
+      patternDisplay: new FakeField(),
       sound: new FakeField(),
       dpi: new FakeField(),
       sensitivity: new FakeField(),
@@ -63,6 +64,7 @@ describe('設定画面', () => {
     expect(form.crosshairColor.value).toBe('#77ccff');
     expect(form.ghost.checked).toBe(false);
     expect(form.correctionPanel.checked).toBe(true);
+    expect(form.patternDisplay.value).toBe('detailed');
     expect(form.sound.checked).toBe(true);
     expect(form.dpi.value).toBe('800');
     expect(form.sensitivity.value).toBe('1.5');
@@ -84,7 +86,7 @@ describe('設定画面', () => {
     expect(app.open().dpi.value).toBe('1200');
   });
 
-  it('UI-11: FOV・クロスヘアの色と形・ゴースト表示・補正のパネルを変えると読み直しても残っている', () => {
+  it('UI-11: FOV・クロスヘアの色と形・ゴースト表示・補正のパネル・パターンの表示を変えると読み直しても残っている', () => {
     const app = setup();
     const form = app.open();
     form.fov.type('100');
@@ -96,6 +98,8 @@ describe('設定画面', () => {
     form.ghost.fire('change');
     form.correctionPanel.checked = false;
     form.correctionPanel.fire('change');
+    form.patternDisplay.value = 'simple';
+    form.patternDisplay.fire('change');
     form.inputMethod.value = 'pad';
     form.inputMethod.fire('change');
     form.sound.checked = false;
@@ -107,6 +111,7 @@ describe('設定画面', () => {
     expect(reopened.crosshairShape.value).toBe('cross');
     expect(reopened.ghost.checked).toBe(true);
     expect(reopened.correctionPanel.checked).toBe(false);
+    expect(reopened.patternDisplay.value).toBe('simple');
     expect(reopened.inputMethod.value).toBe('pad');
     expect(reopened.sound.checked).toBe(false);
   });

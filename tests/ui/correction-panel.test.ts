@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { simplePattern } from '../../src/sim/simple-pattern';
 import { idealCorrection, type RecoilStep, type WeaponData } from '../../src/sim/weapon';
 import { plotExtent } from '../../src/ui/result-plot';
 import {
@@ -8,6 +9,8 @@ import {
   correctionPanelShown,
   correctionPanelState,
   weakIdealPoints,
+  segmentListHtml,
+  segmentOfShot,
   type CorrectionPanelElements,
 } from '../../src/ui/correction-panel';
 
@@ -45,6 +48,8 @@ function elements() {
     current: fakeNode(),
     aim: fakeNode(),
     heading: fakeNode(),
+    idealLegend: { textContent: '理想' as string },
+    segments: { ...fakeNode(), hidden: true },
   } satisfies CorrectionPanelElements;
 }
 
@@ -91,7 +96,7 @@ describe('補正のパネルの今の発の点と自分の線', () => {
   const ideal = idealCorrection(weapon);
 
   it('UI-55: 撃つ前は 1 発目の位置、i 発目を撃つと i+1 発目の位置に進み、撃ち切ると点はない', () => {
-    expect(correctionPanelState(frame, { nextShot: 1, ammo: 6, shotAims: [], aim: O })).toEqual({ current: ideal[0], currentShot: 1, own: [], aim: O });
+    expect(correctionPanelState(frame, { nextShot: 1, ammo: 6, shotAims: [], aim: O })).toEqual({ current: ideal[0], currentShot: 1, currentSegment: undefined, own: [], aim: O });
     expect(correctionPanelState(frame, { nextShot: 3, ammo: 4, shotAims: [], aim: O }).current).toEqual(ideal[2]);
     expect(correctionPanelState(frame, { nextShot: 7, ammo: 0, shotAims: [], aim: O }).current).toBeUndefined();
   });
@@ -121,7 +126,7 @@ describe('補正のパネルの苦手な区間', () => {
   it('UI-67: 11〜15 発目が苦手な区間なら、理想の線のその部分を重ねて描き、「苦手な区間」の凡例を出す', () => {
     const weapon = makeWeapon(20);
     const e = elements();
-    new CorrectionPanel(e).begin(weapon, 11);
+    new CorrectionPanel(e).begin(weapon, { weakStart: 11 });
     const weak = parsePoints(e.idealWeak.attrs.get('points'));
     const line = parsePoints(e.ideal.attrs.get('points'));
     expect(weak).toEqual(line.slice(10, 16));
@@ -134,11 +139,30 @@ describe('補正のパネルの苦手な区間', () => {
     const weapon = makeWeapon(20);
     const e = elements();
     const panel = new CorrectionPanel(e);
-    panel.begin(weapon, 6);
+    panel.begin(weapon, { weakStart: 6 });
     panel.begin(weapon);
     expect(e.idealWeak.attrs.get('points')).toBe('');
     expect(e.idealWeak.attrs.get('visibility')).toBe('hidden');
     expect(e.weakLegend.hidden).toBe(true);
+  });
+
+  it('UI-74: パターンの表示が簡易なら、苦手な区間の部分は簡易版での各発の位置（前の発から）を結ぶ', () => {
+    // 1 発ごとに左右へ振れ、簡易版での位置が理想の補正軌道と違う武器。
+    const pattern: RecoilStep[] = Array.from({ length: 20 }, (_, i) => ({ dx: i % 2 === 0 ? 3 : -3, dy: 0.5 }));
+    const weapon: WeaponData = { ...makeWeapon(20), pattern };
+    const frame = correctionPanelFrame(weapon, 'simple');
+    expect(weakIdealPoints(frame, 11)).toEqual(frame.targets.slice(10, 16));
+    expect(weakIdealPoints(frame, 11)).not.toEqual(frame.ideal.slice(10, 16));
+
+    const simple = elements();
+    new CorrectionPanel(simple).begin(weapon, { weakStart: 11, display: 'simple' });
+    const detailed = elements();
+    new CorrectionPanel(detailed).begin(weapon, { weakStart: 11 });
+    expect(parsePoints(simple.idealWeak.attrs.get('points'))).toHaveLength(6);
+    expect(simple.idealWeak.attrs.get('points')).not.toBe(detailed.idealWeak.attrs.get('points'));
+    expect(simple.idealWeak.attrs.get('data-start')).toBe('11');
+    expect(simple.idealWeak.attrs.get('visibility')).toBe('inherit');
+    expect(simple.weakLegend.hidden).toBe(false);
   });
 });
 
@@ -253,5 +277,115 @@ describe('補正のパネルの要素', () => {
     new CorrectionPanel(e).update({ nextShot: 1, ammo: 6, shotAims: [], aim: O });
     expect(e.root.hidden).toBe(true);
     expect(e.current.writes).toBe(0);
+  });
+});
+
+/** 下に 4 発・左に 4 発の武器。簡易版は頂点 0・4・8 の 2 本。 */
+function bentWeapon(): WeaponData {
+  const pattern = Array.from({ length: 8 }, (_, i) => (i < 4 ? { dx: 0.1 * (i % 2), dy: 1 } : { dx: 1, dy: 0.1 * (i % 2) }));
+  return { ...makeWeapon(8), pattern };
+}
+
+describe('パターンの表示が簡易の補正のパネル', () => {
+  const weapon = bentWeapon();
+  const simple = simplePattern(weapon);
+
+  it('UI-64: 理想の線は簡易版の頂点を結んだ折れ線で、凡例は「理想（簡易）」、区切りの言葉を発の順に並べる', () => {
+    const e = elements();
+    new CorrectionPanel(e).begin(weapon, { display: 'simple' });
+    expect(simple.segments.length).toBeGreaterThanOrEqual(2);
+    expect(e.ideal.attrs.get('data-count')).toBe(String(simple.segments.length + 1));
+    expect(e.ideal.attrs.get('data-display')).toBe('simple');
+    const line = parsePoints(e.ideal.attrs.get('points'));
+    line.forEach((p, i) => {
+      expect(p.yaw).toBeCloseTo(simple.points[i]?.yaw ?? Number.NaN, 4);
+      expect(p.pitch).toBeCloseTo(simple.points[i]?.pitch ?? Number.NaN, 4);
+    });
+    expect(e.idealLegend.textContent).toBe('理想（簡易）');
+    expect(e.segments.hidden).toBe(false);
+    expect(e.segments.attrs.get('data-count')).toBe(String(simple.segments.length));
+    const labels = [...e.segments.innerHTML.matchAll(/<li[^>]*>([^<]*)<\/li>/g)].map((m) => m[1]);
+    expect(labels).toEqual(simple.segments.map((s) => s.label));
+  });
+
+  it('UI-64: 詳細のときは理想の線が 1〜装弾数発目の理想の補正軌道で、区切りの言葉は出さない', () => {
+    const e = elements();
+    const panel = new CorrectionPanel(e);
+    panel.begin(weapon, { display: 'simple' });
+    panel.begin(weapon, { display: 'detailed' });
+    expect(e.ideal.attrs.get('data-count')).toBe(String(weapon.magSize + 1));
+    expect(e.idealLegend.textContent).toBe('理想');
+    expect(e.segments.hidden).toBe(true);
+    expect(e.segments.innerHTML).toBe('');
+    expect(e.segments.attrs.get('data-count')).toBe('0');
+  });
+
+  it('UI-65: 次の発の点は簡易版での位置に置き、i 発撃つごとに i+1 発目へ進んで、受け持つ区切りの言葉を強調する。撃ち切ると点も強調もない', () => {
+    const e = elements();
+    const panel = new CorrectionPanel(e);
+    panel.begin(weapon, { display: 'simple' });
+    const shotsBefore = (i: number) => Array.from({ length: i }, () => O);
+    for (let i = 0; i < weapon.magSize; i++) {
+      if (i > 0) panel.update({ nextShot: i + 1, ammo: weapon.magSize - i, shotAims: shotsBefore(i), aim: O });
+      const target = simple.positions[i + 1];
+      expect(e.current.attrs.get('data-shot')).toBe(String(i + 1));
+      expect(Number(e.current.attrs.get('data-yaw'))).toBeCloseTo(target?.yaw ?? Number.NaN, 4);
+      expect(Number(e.current.attrs.get('data-pitch'))).toBeCloseTo(target?.pitch ?? Number.NaN, 4);
+      const segment = simple.segments.findIndex((s) => s.from < i + 1 && i + 1 <= s.to);
+      expect(e.segments.attrs.get('data-current')).toBe(String(segment));
+      const current = [...e.segments.innerHTML.matchAll(/<li[^>]*class="current"[^>]*>([^<]*)<\/li>/g)].map((m) => m[1]);
+      expect(current).toEqual([simple.segments[segment]?.label]);
+    }
+    panel.update({ nextShot: weapon.magSize + 1, ammo: 0, shotAims: shotsBefore(weapon.magSize), aim: O });
+    expect(e.current.attrs.get('visibility')).toBe('hidden');
+    expect(e.heading.attrs.get('visibility')).toBe('hidden');
+    expect(e.segments.attrs.get('data-current')).toBe('');
+    expect(e.segments.innerHTML).not.toContain('current');
+  });
+
+  it('UI-65: 向かう先の線は今の照準から簡易版での次の発の位置へ引く', () => {
+    const e = elements();
+    const panel = new CorrectionPanel(e);
+    panel.begin(weapon, { display: 'simple' });
+    panel.update({ nextShot: 2, ammo: 7, shotAims: [O], aim: O });
+    expect(Number(e.heading.attrs.get('x2'))).toBeCloseTo(simple.positions[2]?.yaw ?? Number.NaN, 4);
+    expect(Number(e.heading.attrs.get('y2'))).toBeCloseTo(-(simple.positions[2]?.pitch ?? Number.NaN), 4);
+  });
+
+  it('UI-67: 表示の範囲は詳細と簡易で同じ', () => {
+    for (const w of [weapon, makeWeapon(10)]) {
+      expect(correctionPanelFrame(w, 'simple').extent).toBe(correctionPanelFrame(w, 'detailed').extent);
+      const detailed = elements();
+      const simpleElements = elements();
+      new CorrectionPanel(detailed).begin(w, { display: 'detailed' });
+      new CorrectionPanel(simpleElements).begin(w, { display: 'simple' });
+      expect(simpleElements.svg.attrs.get('viewBox')).toBe(detailed.svg.attrs.get('viewBox'));
+    }
+  });
+
+  it('区切りの言葉の強調が変わらない描画では一覧を書き直さない', () => {
+    const e = elements();
+    const panel = new CorrectionPanel(e);
+    panel.begin(weapon, { display: 'simple' });
+    const html = e.segments.innerHTML;
+    let rewrites = 0;
+    const segments = e.segments;
+    Object.defineProperty(segments, 'innerHTML', {
+      get: () => html,
+      set: () => void (rewrites += 1),
+    });
+    panel.update({ nextShot: 1, ammo: 8, shotAims: [], aim: O });
+    panel.update({ nextShot: 1, ammo: 8, shotAims: [], aim: { yaw: 1, pitch: 0 } });
+    expect(rewrites).toBe(0);
+  });
+
+  it('発を受け持つ区切りの番号と、一覧の言葉の書き出し', () => {
+    expect(segmentOfShot(simple.segments, 1)).toBe(0);
+    expect(segmentOfShot(simple.segments, weapon.magSize)).toBe(simple.segments.length - 1);
+    expect(segmentOfShot(simple.segments, undefined)).toBeUndefined();
+    expect(segmentOfShot(simple.segments, weapon.magSize + 1)).toBeUndefined();
+    expect(segmentListHtml([{ from: 0, to: 3, arrow: '↓', direction: '下', label: '1〜3 発: ↓ 下' }], 0)).toBe(
+      '<li data-from="1" data-to="3" class="current" aria-current="step">1〜3 発: ↓ 下</li>',
+    );
   });
 });

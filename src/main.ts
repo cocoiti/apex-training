@@ -189,8 +189,10 @@ function correctionPanelElements(): CorrectionPanelElements | undefined {
   const current = root?.querySelector<SVGCircleElement>('[data-panel="current"]');
   const aim = root?.querySelector<SVGPathElement>('[data-panel="aim"]');
   const heading = root?.querySelector<SVGLineElement>('[data-panel="heading"]');
-  return root && svg && axisX && axisY && ideal && idealWeak && weakLegend && own && ownDots && current && aim && heading
-    ? { root, svg, axisX, axisY, ideal, idealWeak, weakLegend, own, ownDots, current, aim, heading }
+  const idealLegend = root?.querySelector<HTMLElement>('[data-legend="ideal"]');
+  const segments = root?.querySelector<HTMLOListElement>('.correction-panel-segments');
+  return root && svg && axisX && axisY && ideal && idealWeak && weakLegend && own && ownDots && current && aim && heading && idealLegend && segments
+    ? { root, svg, axisX, axisY, ideal, idealWeak, weakLegend, own, ownDots, current, aim, heading, idealLegend, segments }
     : undefined;
 }
 
@@ -204,6 +206,7 @@ function startSettingsForm(): void {
     crosshairColor: byId<HTMLInputElement>('setting-crosshair-color'),
     ghost: byId<HTMLInputElement>('setting-ghost'),
     correctionPanel: byId<HTMLInputElement>('setting-correction-panel'),
+    patternDisplay: byId<HTMLSelectElement>('setting-pattern-display'),
     sound: byId<HTMLInputElement>('setting-sound'),
     dpi: byId<HTMLInputElement>('setting-dpi'),
     sensitivity: byId<HTMLInputElement>('setting-sensitivity'),
@@ -609,7 +612,8 @@ async function start(): Promise<void> {
     // 新しい練習では自分の線を消し、今の発の点を 1 発目に戻す。表示は描画のたびに決める。
     // 苦手な区間は始める時点の入力方式と保存してある履歴から 1 回だけ求め、練習のあいだは変えない（docs/spec/screens.md「補正のパネル」）。
     const weak = weakSection(loadHistory(appStorage, { input: inputs.current, weaponId: weapon.id, modeId: mode.id }));
-    panel?.begin(weapon, weak?.start);
+    // パターンの表示（詳細 / 簡易）はパネルの理想の線と次の発の点だけに使う（docs/spec/screens.md「補正のパネル」）。
+    panel?.begin(weapon, { weakStart: weak?.start, display: settings.patternDisplay });
     panel?.hide();
     setAds(false);
     interlude.hidden = true;

@@ -232,6 +232,30 @@ a {
   font-size: 12px;
 }
 
+/* 区切りの言葉の一覧（パターンの表示が簡易のとき）。次に撃つ弾を受け持つ言葉を次の発の点と同じ色で強調する。 */
+.correction-panel-segments {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #a4a9b2;
+}
+
+.correction-panel-segments li {
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.correction-panel-segments li.current {
+  color: #1b1e24;
+  background: #ff7ad9;
+  font-weight: bold;
+}
+
 .correction-panel-dots {
   fill: #7cf;
 }
@@ -269,6 +293,7 @@ a {
 
 .correction-panel[hidden],
 .correction-panel-legend-weak[hidden],
+.correction-panel-segments[hidden],
 .pad-guide[hidden],
 .pointer-lock-notice[hidden],
 .paused[hidden] {

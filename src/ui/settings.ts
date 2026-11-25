@@ -21,6 +21,11 @@ export type InputMethod = 'mouse' | 'pad' | 'auto';
 
 export const INPUT_METHODS: readonly InputMethod[] = ['mouse', 'pad', 'auto'];
 
+/** 補正のパネルに描くパターン（docs/spec/screens.md「補正のパネル」）。detailed は理想の補正軌道、simple は簡易版のパターン。 */
+export type PatternDisplay = 'detailed' | 'simple';
+
+export const PATTERN_DISPLAYS: readonly PatternDisplay[] = ['detailed', 'simple'];
+
 /** 共通の区分。入力方式によらず 1 つを共有する。 */
 export interface CommonSettings {
   inputMethod: InputMethod;
@@ -31,6 +36,8 @@ export interface CommonSettings {
   ghost: boolean;
   /** 補正のパネル（docs/spec/screens.md「補正のパネル」）。センター維持だけが使う。反復練習では設定によらず出す。 */
   correctionPanel: boolean;
+  /** パターンの表示。反復練習とセンター維持の補正のパネルの理想の線に使う。 */
+  patternDisplay: PatternDisplay;
   sound: boolean;
 }
 
@@ -41,6 +48,7 @@ export const DEFAULT_COMMON_SETTINGS: Readonly<CommonSettings> = {
   crosshairColor: DEFAULT_CROSSHAIR.color,
   ghost: false,
   correctionPanel: true,
+  patternDisplay: 'detailed',
   sound: true,
 };
 
@@ -179,6 +187,7 @@ export function sanitizeCommonSettings(record: Readonly<Record<string, unknown>>
     crosshairColor: color ?? d.crosshairColor,
     ghost: booleanOr(record.ghost, d.ghost),
     correctionPanel: booleanOr(record.correctionPanel, d.correctionPanel),
+    patternDisplay: oneOf(record.patternDisplay, PATTERN_DISPLAYS, d.patternDisplay),
     sound: booleanOr(record.sound, d.sound),
   };
 }

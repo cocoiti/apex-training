@@ -10,6 +10,7 @@ import {
   saveMouseSettings,
   type CommonSettings,
   type InputMethod,
+  type PatternDisplay,
 } from './settings';
 import type { SafeStorage } from './storage';
 import { normalizeColor, type CrosshairShape } from './crosshair';
@@ -34,6 +35,7 @@ export interface SettingsFormElements {
   readonly crosshairColor: FieldElement;
   readonly ghost: CheckElement;
   readonly correctionPanel: CheckElement;
+  readonly patternDisplay: FieldElement;
   readonly sound: CheckElement;
   readonly dpi: FieldElement;
   readonly sensitivity: FieldElement;
@@ -64,6 +66,7 @@ export function bindSettingsForm(elements: SettingsFormElements, storage: Storag
     elements.crosshairColor.value = common.crosshairColor;
     elements.ghost.checked = common.ghost;
     elements.correctionPanel.checked = common.correctionPanel;
+    elements.patternDisplay.value = common.patternDisplay;
     elements.sound.checked = common.sound;
   };
 
@@ -97,6 +100,7 @@ export function bindSettingsForm(elements: SettingsFormElements, storage: Storag
   };
   saveChoice(elements.inputMethod, () => ({ inputMethod: elements.inputMethod.value as InputMethod }));
   saveChoice(elements.crosshairShape, () => ({ crosshairShape: elements.crosshairShape.value as CrosshairShape }));
+  saveChoice(elements.patternDisplay, () => ({ patternDisplay: elements.patternDisplay.value as PatternDisplay }));
   // 色は選んでいる途中（input）でも保存する。色として読めない値は保存せず、直前の色に戻す。
   const saveColor = () => {
     const color = normalizeColor(elements.crosshairColor.value);
