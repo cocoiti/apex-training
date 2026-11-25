@@ -35,6 +35,11 @@ export interface PadInputOptions {
   emit: (action: Action) => void;
   settings: () => Readonly<PadSettings>;
   triggerThreshold?: number;
+  /**
+   * パッドの操作。ボタンを押し始めたとき（R2 / RT と L2 / LT はしきい値以上に押し始めたとき）と、右スティックが
+   * デッドゾーンの内側から外へ出たときに、そのときのアクションを積む前に呼ぶ（docs/spec/input.md「入力方式の切替」）。
+   */
+  onActivity?: () => void;
 }
 
 /**
@@ -46,14 +51,20 @@ export class PadInput {
   private readonly emit: (action: Action) => void;
   private readonly settings: () => Readonly<PadSettings>;
   private readonly threshold: number;
+  private readonly onActivity: () => void;
   private stick = { x: 0, y: 0 };
   private held = { fire: false, ads: false };
   private connected = false;
+  /** 前に読んだときに押していたボタンの番号。 */
+  private pressedButtons = new Set<number>();
+  /** 前に読んだときに右スティックがデッドゾーンの外にあったか。 */
+  private stickOutside = false;
 
   constructor(options: PadInputOptions) {
     this.emit = options.emit;
     this.settings = options.settings;
     this.threshold = options.triggerThreshold ?? DEFAULT_TRIGGER_THRESHOLD;
+    this.onActivity = options.onActivity ?? (() => {});
   }
 
   /** 標準配置のパッドを読んでいるか。 */
@@ -69,6 +80,8 @@ export class PadInput {
     if (!pad || !pad.connected || !isStandardMapping(pad)) {
       this.connected = false;
       this.stick = { x: 0, y: 0 };
+      this.pressedButtons = new Set();
+      this.stickOutside = false;
       this.setHeld('fire', false);
       this.setHeld('ads', false);
       return;
@@ -79,6 +92,7 @@ export class PadInput {
       x: pad.axes[STANDARD_LAYOUT.lookX] ?? 0,
       y: 0 - (pad.axes[STANDARD_LAYOUT.lookY] ?? 0),
     };
+    if (this.detectActivity(pad)) this.onActivity();
     this.setHeld('fire', this.triggerPressed(pad, STANDARD_LAYOUT.fire));
     this.setHeld('ads', this.triggerPressed(pad, STANDARD_LAYOUT.ads));
   }
@@ -88,6 +102,26 @@ export class PadInput {
     const rate = lookRate(this.stick.x, this.stick.y, this.settings(), this.held.ads);
     if (rate.yaw === 0 && rate.pitch === 0) return undefined;
     return { type: 'look', yaw: rate.yaw * dt, pitch: rate.pitch * dt };
+  }
+
+  /** ボタンを押し始めたか、右スティックがデッドゾーンの外へ出たか。押している・外にある状態は次の判定のために覚える。 */
+  private detectActivity(pad: GamepadLike): boolean {
+    const pressed = new Set<number>();
+    pad.buttons.forEach((button, index) => {
+      if (this.buttonPressed(pad, index, button)) pressed.add(index);
+    });
+    const newlyPressed = [...pressed].some((index) => !this.pressedButtons.has(index));
+    this.pressedButtons = pressed;
+    const outside = Math.hypot(this.stick.x, this.stick.y) > this.settings().deadzone / 100;
+    const stickMoved = outside && !this.stickOutside;
+    this.stickOutside = outside;
+    return newlyPressed || stickMoved;
+  }
+
+  /** トリガー（R2 / RT と L2 / LT）はしきい値以上、ほかのボタンは pressed で押しているとみなす。 */
+  private buttonPressed(pad: GamepadLike, index: number, button: GamepadLike['buttons'][number]): boolean {
+    if (index === STANDARD_LAYOUT.fire || index === STANDARD_LAYOUT.ads) return this.triggerPressed(pad, index);
+    return button.pressed;
   }
 
   private triggerPressed(pad: GamepadLike, index: number): boolean {

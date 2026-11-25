@@ -1,4 +1,5 @@
 import { createRandom } from '../core/random';
+import type { InputMethod } from '../input/input-switch';
 import type { InputSource } from '../input/queue';
 import { replayInput, type InputRecording } from '../input/recording';
 import type { Angles } from '../sim/angles';
@@ -16,6 +17,8 @@ export interface PracticeResult {
   /** 撃った弾の記録（弾痕）。撃った順。 */
   readonly shots: readonly ShotRecord[];
   readonly endReason: PracticeEndReason;
+  /** 練習の入力方式。1 発目を撃ったときの今の入力方式（docs/spec/input.md「入力方式ごとの保存」）。 */
+  readonly inputMethod: InputMethod;
   /** 練習の開始から終わりまでの時間（秒、固定ステップの時刻）。 */
   readonly duration: number;
   readonly modeResult: ModeResult;
@@ -30,6 +33,8 @@ export interface PracticeSessionOptions {
   readonly input: InputSource;
   /** 乱数の種。 */
   readonly seed: number;
+  /** 今の入力方式。1 発目を撃ったステップで 1 回だけ読む。省いたときはマウス。 */
+  readonly inputMethod?: () => InputMethod;
   readonly dt?: number;
 }
 
@@ -46,11 +51,15 @@ export class PracticeSession {
   private readonly context: ModeContext;
   private readonly endRule = new PracticeEndRule();
   private finished: PracticeResult | undefined;
+  private readonly currentInputMethod: () => InputMethod;
+  /** 1 発目を撃ったときの入力方式。まだ撃っていなければ undefined。 */
+  private firstShotInputMethod: InputMethod | undefined;
 
   constructor(options: PracticeSessionOptions) {
     this.world = options.world;
     this.weapon = options.weapon;
     this.mode = options.mode;
+    this.currentInputMethod = options.inputMethod ?? (() => 'mouse');
     const random = createRandom(options.seed);
     this.gun = new Gun(options.weapon, random);
     this.sim = new Simulation(options.world, options.input, options.dt);
@@ -58,6 +67,9 @@ export class PracticeSession {
     this.mode.setup(this.context);
     this.sim.addStepHook((world, dt) => {
       this.gun.step(world, dt);
+      if (this.firstShotInputMethod === undefined && this.gun.shots.length > 0) {
+        this.firstShotInputMethod = this.currentInputMethod();
+      }
       const reason = this.endRule.step(world.player, this.gun, dt);
       const keepGoing = this.mode.step(this.context, dt);
       if (reason || !keepGoing) this.finish(reason ?? 'mode', dt);
@@ -106,6 +118,7 @@ export class PracticeSession {
       mode: { id: this.mode.id, name: this.mode.name, category: this.mode.category },
       shots: [...this.gun.shots],
       endReason,
+      inputMethod: this.firstShotInputMethod ?? this.currentInputMethod(),
       // フックはステップの数を数える前に呼ばれるので、このステップの終わりの時刻はステップの数 + 1 から求める。
       duration: (this.sim.stepCount + 1) * dt,
       modeResult,
