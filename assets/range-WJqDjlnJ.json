@@ -1,0 +1,13 @@
+{
+  "id": "range",
+  "name": "射撃場",
+  "spawn": {
+    "position": [0, 1.6, 0],
+    "yaw": 0,
+    "pitch": 0
+  },
+  "boxes": [
+    { "id": "wall", "kind": "wall", "center": [0, 2.5, -10.1], "size": [12, 5, 0.2] },
+    { "id": "target", "kind": "target", "center": [0, 1.6, -9.95], "size": [0.6, 0.6, 0.1] }
+  ]
+}
