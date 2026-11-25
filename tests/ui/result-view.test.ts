@@ -13,6 +13,7 @@ import { score } from '../../src/sim/scoring';
 import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
 import { createWorld, type World } from '../../src/sim/world';
 import { parsePersonalBest, personalBestKey } from '../../src/ui/personal-best';
+import { historyKey, parseHistory } from '../../src/ui/practice-history';
 import { completePractice, metricRows, renderResult, type FinishedPractice } from '../../src/ui/result-view';
 import { SafeStorage } from '../../src/ui/storage';
 
@@ -154,7 +155,7 @@ describe('リザルト画面に出すもの', () => {
     const p = practice('r301', 'center');
     const view = completePractice(p, storage, NOW);
     expect(view.best).toBe('自己ベスト更新');
-    expect([...storage.items.keys()]).toEqual([R301_CENTER]);
+    expect([...storage.items.keys()].filter((k) => k.startsWith('apex-training:best:'))).toEqual([R301_CENTER]);
     const mean = score(
       p.result.shots.map((s) => s.deviation ?? { yaw: NaN, pitch: NaN }),
       1,
@@ -219,6 +220,57 @@ describe('リザルト画面に出すもの', () => {
     expect(view.best).toBe('自己ベスト 平均ズレ なし');
     expect(view.plots.flatMap((plot) => plot.series.map((s) => s.points.length))).toEqual([0, 0, 0]);
     expect(storage.items.size).toBe(0);
+  });
+});
+
+describe('練習の履歴の保存', () => {
+  const R301_CENTER_HISTORY = historyKey({ input: 'mouse', weaponId: 'r301', modeId: 'center' });
+
+  it('SCO-23: マウスで R-301 とセンター維持を 3 回終えると、3 件が古い順にその練習の指標と日時で保存される', () => {
+    const storage = memoryStorage();
+    const pulls = [0.01, 0.02, 0.005];
+    const times = ['2026-11-25T01:00:00.000Z', '2026-11-25T02:00:00.000Z', '2026-11-25T03:00:00.000Z'];
+    const views = pulls.map((pull, i) => completePractice(practice('r301', 'center', pull), storage, new Date(times[i] ?? '')));
+    expect(R301_CENTER_HISTORY).toBe('apex-training:history:mouse:r301:center');
+    const stored = JSON.parse(storage.items.get(R301_CENTER_HISTORY) ?? '') as { version: number; entries: unknown[] };
+    expect(stored.version).toBe(1);
+    const entries = parseHistory(storage.items.get(R301_CENTER_HISTORY) ?? null);
+    expect(entries.map((e) => e.at)).toEqual(times);
+    pulls.forEach((pull, i) => {
+      const p = practice('r301', 'center', pull);
+      const scored = score(
+        p.result.shots.map((s) => s.deviation ?? { yaw: NaN, pitch: NaN }),
+        1,
+      );
+      expect(entries[i]?.shots).toBe(p.result.shots.length);
+      expect(entries[i]?.meanError).toBeCloseTo(scored.meanDeviation ?? NaN, 9);
+      expect(entries[i]).toHaveProperty('hitRate');
+      expect(entries[i]).toHaveProperty('groupingRadius');
+      expect(views[i]?.metrics[0]?.value).toBe(`${entries[i]?.meanError.toFixed(2)}°`);
+    });
+  });
+
+  it('SCO-25: パターン観察では履歴のキーに何も保存しない', () => {
+    const storage = memoryStorage();
+    completePractice(practice('r301', 'pattern', 0), storage, NOW);
+    expect([...storage.items.keys()].filter((k) => k.startsWith('apex-training:history:'))).toEqual([]);
+  });
+
+  it('SCO-26: 別のモード・パッドの練習では、R-301 とセンター維持のマウスの履歴を変えない', () => {
+    const storage = memoryStorage();
+    completePractice(practice('r301', 'center'), storage, NOW);
+    const saved = storage.items.get(R301_CENTER_HISTORY);
+    completePractice(practice('r301', 'ghost'), storage, NOW);
+    completePractice({ ...practice('r301', 'center'), input: 'pad' }, storage, NOW);
+    expect(storage.items.get(R301_CENTER_HISTORY)).toBe(saved);
+    expect(parseHistory(storage.items.get(historyKey({ input: 'mouse', weaponId: 'r301', modeId: 'ghost' })) ?? null)).toHaveLength(1);
+    expect(parseHistory(storage.items.get(historyKey({ input: 'pad', weaponId: 'r301', modeId: 'center' })) ?? null)).toHaveLength(1);
+  });
+
+  it('SCO-29: 履歴のキーに JSON として読めない値があっても、その練習の 1 件だけの履歴にする', () => {
+    const storage = memoryStorage({ [R301_CENTER_HISTORY]: '{broken' });
+    expect(completePractice(practice('r301', 'center'), storage, NOW).scored).toBe(true);
+    expect(parseHistory(storage.items.get(R301_CENTER_HISTORY) ?? null)).toHaveLength(1);
   });
 });
 

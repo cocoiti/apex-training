@@ -429,3 +429,49 @@ polyline.plot-aim {
   border-radius: 2px;
   background: currentcolor;
 }
+
+/* 履歴の画面（docs/spec/screens.md「履歴の画面」）。 */
+.history-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 24px;
+}
+
+.history-unavailable {
+  color: #f2c14e;
+}
+
+.plot-wide svg {
+  width: 480px;
+  aspect-ratio: 480 / 200;
+}
+
+.plot-tick {
+  fill: #a4a9b2;
+  font-size: 11px;
+}
+
+polyline.plot-history {
+  stroke: #7cf;
+}
+
+.plot-history {
+  fill: #7cf;
+}
+
+.history-table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 16px;
+}
+
+.history-table th,
+.history-table td {
+  padding: 2px 12px 2px 0;
+  text-align: left;
+}
+
+.history-table th {
+  color: #a4a9b2;
+  font-weight: normal;
+}

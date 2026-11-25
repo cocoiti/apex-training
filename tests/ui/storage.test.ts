@@ -110,4 +110,24 @@ describe('例外を投げない localStorage', () => {
     storage.onUnavailable(listener);
     expect(listener).toHaveBeenCalledTimes(1);
   });
+
+  it('消すと localStorage から消え、同じページでも新しいページでも読めなくなる', () => {
+    const backing = new FakeStorage();
+    const storage = new SafeStorage(() => backing);
+    storage.set('k', 'v');
+    expect(storage.remove('k')).toBe(true);
+    expect(backing.items.has('k')).toBe(false);
+    expect(storage.get('k')).toBeNull();
+    expect(new SafeStorage(() => backing).get('k')).toBeNull();
+  });
+
+  it('消すのが例外になっても投げず、同じページでは消えたものとして読む', () => {
+    const storage = new SafeStorage(() => {
+      throw new DOMException('denied', 'SecurityError');
+    });
+    storage.set('k', 'v');
+    expect(storage.remove('k')).toBe(false);
+    expect(storage.get('k')).toBeNull();
+    expect(storage.unavailable).toBe(true);
+  });
 });
