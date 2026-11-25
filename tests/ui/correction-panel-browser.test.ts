@@ -1,5 +1,6 @@
 // 補正のパネルのパターンの表示（docs/spec/screens.md「補正のパネル」の簡易のとき）を、ビルドした画面で確かめる。
 // パッドは navigator.getGamepads を差し替えて与え、window.__pad のボタンをテストが変える。
+// 画面は render=off・clock=manual で開き、撃つ時間はページの時計を進めて決める。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -9,13 +10,15 @@ import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { simplePattern } from '../../src/sim/simple-pattern';
 import { parseWeapon } from '../../src/sim/weapon';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
 const chromium = findChromium();
 const R2 = 7;
+/** 3D は描画せず（render=off）、ページの時計はテストから進める（clock=manual）。 */
+const APP = { render: false, manualClock: true };
 
 const parsed = parseWeapon(JSON.parse(readFileSync(join(ROOT, 'src/data/weapons/lstar.json'), 'utf8')));
 if (!parsed.ok) throw new Error('lstar.json を読めない');
@@ -71,7 +74,7 @@ describe.skipIf(NESTED || !chromium)('補正のパネルのパターンの表示
   async function startPractice(patternDisplay: 'detailed' | 'simple'): Promise<Page> {
     const page = await browser!.newPage();
     await page.addInitScript(PAD_INIT);
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', APP));
     const common = JSON.stringify({ patternDisplay, inputMethod: 'pad' });
     await page.evaluate(`(() => { localStorage.clear(); localStorage.setItem('apex-training:settings:common', ${JSON.stringify(common)}); location.reload(); })()`);
     await page.waitFor(`document.readyState === 'complete' && document.querySelector('#weapon').options.length > 0`, 15_000);
@@ -84,13 +87,13 @@ describe.skipIf(NESTED || !chromium)('補正のパネルのパターンの表示
     return page;
   }
 
-  /** R2 を押して、パネルの次の発が shot 発目以降になった描画で離す。離したときの次の発（何発目か）を返す。 */
+  /** R2 を押してページの時計を進め、パネルの次の発が shot 発目以降になった描画で離す。離したときの次の発（何発目か）を返す。 */
   async function fireUntil(page: Page, shot: number): Promise<number> {
     await page.evaluate(`window.__pad.buttons = [${R2}]`);
-    await page.waitFor(`Number(document.querySelector('[data-panel="current"]').getAttribute('data-shot')) >= ${shot}`, 10_000);
+    await page.advanceClockUntil(`Number(document.querySelector('[data-panel="current"]').getAttribute('data-shot')) >= ${shot}`, { limit: 10 });
     await page.evaluate(`window.__pad.buttons = []`);
     // 離したあとに撃った弾があっても、残りの描画で止まった状態を読む。
-    await page.frames(10);
+    await page.advanceClock(10 / 60);
     return Number(await page.evaluate<string>(`document.querySelector('[data-panel="current"]').getAttribute('data-shot')`));
   }
 
@@ -112,7 +115,7 @@ describe.skipIf(NESTED || !chromium)('補正のパネルのパターンの表示
 
   it('設定画面に「パターンの表示（補正のパネル）」の詳細 / 簡易の選択肢があり、既定は詳細', async () => {
     const page = await browser!.newPage();
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', APP));
     await page.evaluate(`(() => { localStorage.clear(); location.hash = '#/settings'; location.reload(); })()`);
     await page.waitFor(`document.readyState === 'complete' && !document.querySelector('[data-screen="settings"]').hidden`, 15_000);
     const field = await page.evaluate<{ label: string; value: string; options: string[] }>(`(() => {
@@ -151,7 +154,7 @@ describe.skipIf(NESTED || !chromium)('補正のパネルのパターンの表示
       expect((await readPanel(page)).current).toEqual([owner?.label]);
     }
     await page.evaluate(`window.__pad.buttons = [${R2}]`);
-    await page.waitFor(`document.querySelector('[data-panel="current"]').getAttribute('visibility') === 'hidden'`, 15_000);
+    await page.advanceClockUntil(`document.querySelector('[data-panel="current"]').getAttribute('visibility') === 'hidden'`, { limit: 15 });
     const after = await readPanel(page);
     expect(after.current).toEqual([]);
     await page.send('Page.close');

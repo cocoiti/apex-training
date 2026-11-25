@@ -4,6 +4,7 @@
 // 公開された入口（docs/spec/、ビルドの結果を /apex-training/ で配信した画面、index.html の要素、武器の JSON、
 // localStorage の自己ベスト・履歴のキー）だけを使い、実装の内部には依存しない。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、パッドは Gamepad API（navigator.getGamepads）の形で与える。
+// 画面は render=off・clock=manual で開き、練習の時間（撃ち切る・撃たない 2 秒）はページの時計を進めて決める。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
@@ -11,12 +12,16 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
 const chromium = findChromium();
+/** 3D は描画せず（render=off）、ページの時計はテストから進める（clock=manual）。 */
+const APP = { render: false, manualClock: true };
+/** ページの時計（clock=manual）を 60Hz の描画 frames 回分進める。実時間では待たない。 */
+const settle = (page: Page, frames: number) => page.advanceClock(frames / 60);
 
 /** SPEC の文言と値（実装の定数には依存しない）。 */
 const GHOST = '反復練習';
@@ -89,7 +94,11 @@ const waitTop = (page: Page) =>
     `window.__vis('[data-screen="top"]') && document.querySelector('#weapon').options.length > 0 && document.querySelector('#mode').options.length > 0`,
     15_000,
   );
-const waitResult = (page: Page) => page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 30_000);
+/** ページの時計を進めてリザルト画面に移るのを待つ。 */
+const waitResult = async (page: Page) => {
+  await page.advanceClockUntil(`location.hash === '#/result'`);
+  await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 30_000);
+};
 
 /** トップ画面で武器・モード・回数を選び（mode が undefined なら選ばない）、「開始」を押してプレイ画面で練習が始まるまで待つ。 */
 async function start(page: Page, weapon: WeaponJson, mode: string | undefined, count = 1) {
@@ -100,21 +109,20 @@ async function start(page: Page, weapon: WeaponJson, mode: string | undefined, c
   if (count !== 1) await choose(page, '#count', count);
   await page.clickSelector('[data-screen="top"] a[href="#/play"]');
   await page.waitFor(`location.hash === '#/play' && window.__vis('[data-screen="play"]') && window.__ammo() === ${weapon.magSize}`, 10_000);
-  await page.frames(4);
+  await settle(page, 4);
 }
 
-/** パッドの R2 を押し続けて撃ち切る（残弾が 0 になるか、練習中でなくなったら離す）。 */
+/** パッドの R2 を押し続けて撃ち切る（ページの時計を進め、残弾が 0 になるか、練習中でなくなったら離す）。 */
 async function padFireAll(page: Page) {
-  await page.evaluate(`(async () => {
-    window.__btn(7, true); const t0 = performance.now();
-    while (window.__ammo() > 0 && location.hash === '#/play' && !window.__interlude() && performance.now() - t0 < 20000) await new Promise((r) => requestAnimationFrame(r));
-    window.__btn(7, false); })()`);
+  await page.evaluate('window.__btn(7, true)');
+  await page.advanceClockUntil(`window.__ammo() === 0 || location.hash !== '#/play' || window.__interlude()`, { limit: 20 });
+  await page.evaluate('window.__btn(7, false)');
 }
 
 async function openHistory(page: Page) {
   await page.evaluate(`location.hash = '#/history'`);
   await page.waitFor(`window.__vis('[data-screen="history"]') && document.querySelector('#history-mode').options.length > 0`);
-  await page.frames(2);
+  await settle(page, 2);
 }
 
 const storageKeys = (page: Page) => page.evaluate<string[]>('Object.keys(localStorage)');
@@ -144,13 +152,13 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
   const pages: Page[] = [];
   const exceptions = (page: Page) => page.errors.filter((e) => e.startsWith('exception:'));
 
-  /** 新しいタブで localStorage を storage にしてから読み込み直したトップ画面を開く。 */
+  /** 新しいタブで localStorage を storage にしてから読み込み直したトップ画面を開く（render=off・clock=manual）。 */
   async function openFresh(storage: Record<string, string> = {}): Promise<Page> {
     for (const p of pages.splice(0)) await p.send('Page.close').catch(() => {});
     const page = await browser!.newPage();
     pages.push(page);
     await page.addInitScript(PAGE_INIT);
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', APP));
     await page.evaluate(`localStorage.clear(); for (const [k, v] of Object.entries(${JSON.stringify(storage)})) localStorage.setItem(k, v);`);
     await page.evaluate('window.__beforeReload = true');
     await page.send('Page.reload', { ignoreCache: false });
@@ -223,11 +231,11 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
         const huds: string[] = [];
         const interludes: string[] = [];
         for (let n = 1; n <= 5; n += 1) {
-          await page.waitFor(`location.hash === '#/play' && !window.__interlude() && window.__ammo() === ${LSTAR.magSize} && window.__hudText().includes('${n} / 5')`, 15_000);
+          await page.advanceClockUntil(`location.hash === '#/play' && !window.__interlude() && window.__ammo() === ${LSTAR.magSize} && window.__hudText().includes('${n} / 5')`, { limit: 15 });
           huds.push(await page.evaluate<string>('window.__hudText()'));
           await padFireAll(page);
           if (n < 5) {
-            await page.waitFor('window.__interlude()', 10_000);
+            await page.advanceClockUntil('window.__interlude()', { limit: 10 });
             interludes.push(await page.evaluate<string>(`document.querySelector('#interlude').innerText`));
             huds.push(await page.evaluate<string>('window.__hudText()'));
             // 「次へ」（Space）で次の回へ。
@@ -235,8 +243,9 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
             await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 });
           }
         }
+        await page.advanceClockUntil(`location.hash === '#/set-result'`, { limit: 15 });
         await page.waitFor(`location.hash === '#/set-result' && window.__vis('[data-screen="set-result"]')`, 15_000);
-        await page.frames(4);
+        await settle(page, 4);
         expect(huds).toHaveLength(9);
         for (const h of huds) expect(h, h).not.toContain(GHOST);
         expect(interludes).toHaveLength(4);
@@ -267,7 +276,7 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
       await page.clickSelector('[data-screen="top"] a[href="#/play"]');
       await page.waitFor(`location.hash === '#/play' && window.__vis('[data-screen="play"]') && window.__ammo() > 0`, 10_000);
       // 反復練習は補正のパネルを必ず表示する（MODE-24）。
-      await page.waitFor(`window.__vis('.correction-panel')`, 5000);
+      await page.advanceClockUntil(`window.__vis('.correction-panel')`, { limit: 5 });
       await padFireAll(page);
       await waitResult(page);
       expect(await page.evaluate<string>(`document.querySelector('#result-summary').innerText`)).toContain(GHOST);
@@ -285,12 +294,12 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
       const best = JSON.stringify({ version: 1, meanError: 1.23, groupingRadius: 1, hitRate: 50, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
       const history = JSON.stringify({ version: 1, entries: [{ at: '2026-01-01T00:00:00.000Z', meanError: 4.56, hitRate: 50, groupingRadius: 1, shots: 28 }] });
       const page = await openFresh({ [OLD_BEST_KEY]: best, [OLD_HISTORY_KEY]: history });
-      await page.goto(`${origin}${BASE}#/history`);
+      await page.goto(appUrl(origin, BASE, '#/history', APP));
       await openHistory(page);
       expect(await options(page, '#history-mode')).toEqual(MODES);
       for (const m of MODES) {
         await choose(page, '#history-mode', m);
-        await page.frames(2);
+        await settle(page, 2);
         expect(await page.evaluate<string>(`document.querySelector('[data-screen="history"]').innerText`)).not.toContain('4.56');
       }
       expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(OLD_BEST_KEY)})`)).toBe(best);
