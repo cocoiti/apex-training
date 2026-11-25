@@ -1,11 +1,12 @@
 /** 画面の識別子。docs/spec/screens.md の画面の表に対応する。 */
-export type ScreenId = 'top' | 'settings' | 'settings-pad' | 'play' | 'result' | 'history' | 'set-result';
+export type ScreenId = 'top' | 'settings' | 'settings-pad' | 'settings-pad-mapping' | 'play' | 'result' | 'history' | 'set-result';
 
 /** 画面ごとのハッシュ。 */
 export const SCREEN_HASHES: Readonly<Record<ScreenId, string>> = {
   top: '#/',
   settings: '#/settings',
   'settings-pad': '#/settings/pad',
+  'settings-pad-mapping': '#/settings/pad/mapping',
   play: '#/play',
   result: '#/result',
   history: '#/history',

@@ -43,7 +43,7 @@ export interface SettingsFormElements {
 type Storage = Pick<SafeStorage, 'get' | 'set'>;
 
 /** 入力を確定したとき（欄から離れたときか Enter を押したとき）に呼ぶ。 */
-function onCommit(field: FieldElement, commit: () => void): void {
+export function onCommit(field: FieldElement, commit: () => void): void {
   field.addEventListener('change', commit);
   field.addEventListener('keydown', (event) => {
     if ((event as KeyboardEvent).key === 'Enter') commit();

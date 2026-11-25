@@ -7,7 +7,7 @@ import { viewAngles } from '../../src/sim/player';
 import { loadWorld, type World } from '../../src/sim/world';
 import type { CrosshairElement } from '../../src/ui/crosshair';
 import { applyPracticeSettings } from '../../src/ui/practice-settings';
-import { saveCommonSettings, saveMouseSettings } from '../../src/ui/settings';
+import { saveCommonSettings, saveMouseSettings, savePadSettings } from '../../src/ui/settings';
 import { SafeStorage } from '../../src/ui/storage';
 
 function memoryStorage(): SafeStorage {
@@ -79,5 +79,23 @@ describe('練習の始めに当てる設定', () => {
     const settings = applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null });
     expect(settings.ghost).toBe(false);
     expect(settings.mouse.dpi).toBe(1600);
+  });
+
+  it('PAD-22: パッドの詳細設定で変えた値を、スティックの換算に使う値として返す', () => {
+    const storage = memoryStorage();
+    const before = applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null });
+    expect(before.pad.yaw).toBe(300);
+    expect(before.vibration).toBe(true);
+    savePadSettings(storage, { yaw: 150, deadzone: 0, outerThreshold: 0, responseCurve: 0, vibration: false });
+    const after = applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null });
+    expect(after.pad).toEqual({ deadzone: 0, outerThreshold: 0, responseCurve: 0, yaw: 150, pitch: 260, adsYaw: 90, adsPitch: 78 });
+    expect(after.vibration).toBe(false);
+  });
+
+  it('簡易設定のときは、対応表で置き換えた値を返す', () => {
+    const storage = memoryStorage();
+    savePadSettings(storage, { mode: 'simple', simpleLook: 2, simpleAds: 5, simpleCurve: 'linear', yaw: 150 });
+    const { pad } = applyPracticeSettings(storage, { view: { setFov: () => {} }, crosshair: null });
+    expect(pad).toEqual({ yaw: 180, pitch: 156, adsYaw: 105, adsPitch: 91, responseCurve: 0, deadzone: 10, outerThreshold: 2 });
   });
 });

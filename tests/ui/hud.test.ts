@@ -27,6 +27,7 @@ describe('HUD', () => {
       time: '0.4 秒',
       input: 'マウス',
       round: '',
+      pad: '',
     });
     expect(hudTexts({ weaponName: 'L-STAR', ammo: 23, magSize: 24, elapsed: 0.4, inputMethod: 'pad' }).input).toBe('パッド');
   });
@@ -38,7 +39,14 @@ describe('HUD', () => {
   });
 
   it('要素の文字を書き換える', () => {
-    const elements = { weapon: { textContent: '' }, ammo: { textContent: '' }, time: { textContent: '' }, input: { textContent: '' }, round: { textContent: '' } };
+    const elements = {
+      weapon: { textContent: '' },
+      ammo: { textContent: '' },
+      time: { textContent: '' },
+      input: { textContent: '' },
+      round: { textContent: '' },
+      pad: { textContent: '', hidden: true },
+    };
     renderHud(elements, { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse', round: { index: 3, count: 5 } });
     expect(elements).toEqual({
       weapon: { textContent: 'R-301' },
@@ -46,9 +54,37 @@ describe('HUD', () => {
       time: { textContent: '0.0 秒' },
       input: { textContent: 'マウス' },
       round: { textContent: '3 / 5' },
+      pad: { textContent: '', hidden: true },
     });
     renderHud(elements, { weaponName: 'R-301', ammo: 27, magSize: 28, elapsed: 0.1, inputMethod: 'pad' });
     expect(elements.ammo.textContent).toBe('残弾 27 / 28');
     expect(elements.input.textContent).toBe('パッド');
+  });
+
+  it('PAD-2・PAD-18: 入力方式の設定が「パッド」か「自動」のときはパッドの状態を出す', () => {
+    const elements = {
+      weapon: { textContent: '' },
+      ammo: { textContent: '' },
+      time: { textContent: '' },
+      input: { textContent: '' },
+      round: { textContent: '' },
+      pad: { textContent: '', hidden: true },
+    };
+    const state = { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse' } as const;
+    renderHud(elements, { ...state, padStatus: 'パッドが見つかりません。パッドのボタンを押してください' });
+    expect(elements.pad).toEqual({ textContent: 'パッドが見つかりません。パッドのボタンを押してください', hidden: false });
+  });
+
+  it('PAD-24: 入力方式の設定が「マウス」のとき（padStatus なし）はパッドの状態を隠す', () => {
+    const elements = {
+      weapon: { textContent: '' },
+      ammo: { textContent: '' },
+      time: { textContent: '' },
+      input: { textContent: '' },
+      round: { textContent: '' },
+      pad: { textContent: 'Xbox Controller', hidden: false },
+    };
+    renderHud(elements, { weaponName: 'R-301', ammo: 28, magSize: 28, elapsed: 0, inputMethod: 'mouse' });
+    expect(elements.pad).toEqual({ textContent: '', hidden: true });
   });
 });

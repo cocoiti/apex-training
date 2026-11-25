@@ -89,9 +89,14 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
-.hud-input {
+.hud-input,
+.hud-pad {
   color: #a4a9b2;
   font-size: 12px;
+}
+
+.hud-pad[hidden] {
+  display: none;
 }
 
 #status {
@@ -344,10 +349,30 @@ a {
   margin-bottom: 16px;
 }
 
-/* 設定画面は項目が多いので、パネルの中で縦にスクロールできるようにする。 */
-.panel:has(.settings) {
+/*
+ * 設定画面・キャリブレーション画面・ボタン割り当て画面は項目が多いので、項目の部分だけをパネルの中で縦にスクロールし、
+ * 戻るリンクはいつも見えるところに置く。
+ */
+.panel:has(.panel-scroll) {
+  display: flex;
+  flex-direction: column;
+  max-width: min(1040px, calc(100vw - 32px));
   max-height: calc(100vh - 96px);
+  box-sizing: border-box;
+}
+
+.panel-scroll {
+  min-height: 0;
+  margin-bottom: 16px;
   overflow-y: auto;
+}
+
+/* 設定の区分は、幅があれば横に並べる。 */
+.settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 0 16px;
+  align-items: start;
 }
 
 .settings fieldset {
@@ -365,6 +390,102 @@ a {
 }
 
 #setting-cm-per-360 {
+  font-variant-numeric: tabular-nums;
+}
+
+/* パッドの区分の注意書きと、簡易設定・詳細設定のまとまり。 */
+.settings .note,
+.panel .note {
+  margin: 0 0 8px;
+  color: #a4a9b2;
+  font-size: 12px;
+}
+
+.note[hidden] {
+  display: none;
+}
+
+.settings .pad-group {
+  margin: 0 0 8px;
+}
+
+.settings .pad-group legend {
+  font-size: 12px;
+}
+
+.settings .pad-links {
+  margin: 0 0 12px;
+}
+
+.pad-status {
+  color: #f2c14e;
+}
+
+.pad-list,
+.pad-mapping {
+  margin: 0 0 16px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.pad-list th,
+.pad-list td,
+.pad-mapping th,
+.pad-mapping td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #3a3f49;
+  text-align: left;
+}
+
+.pad-list[hidden] {
+  display: none;
+}
+
+.calibration {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 0 0 16px;
+}
+
+.calibration h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+.stick-view {
+  width: 160px;
+  height: 160px;
+}
+
+.stick-edge {
+  fill: #1b1e24;
+  stroke: #3a3f49;
+  stroke-width: 0.02;
+}
+
+.stick-outer {
+  fill: none;
+  stroke: #7cf;
+  stroke-width: 0.01;
+  stroke-dasharray: 0.04 0.03;
+}
+
+.stick-deadzone {
+  fill: rgb(242 193 78 / 25%);
+  stroke: #f2c14e;
+  stroke-width: 0.01;
+}
+
+.stick-dot {
+  fill: #e6e8eb;
+}
+
+.pad-values {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 /* リザルト画面は指標と図を並べるので広くし、収まらないときはパネルの中でスクロールする。 */
