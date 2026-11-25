@@ -4,6 +4,9 @@
 // 色の選択（input type="color"）と選択肢（select）はネイティブのピッカーを操作できないため、値を入れて input / change を発火させる。
 // 保存先の localStorage のキーは実装の内部なので決め打ちせず、設定を変えたあとに増えたキーを保存先とみなす（UI-15）。
 // サーバーと DevTools のポートは OS に選ばせる（並行して動くほかの作業ツリーとぶつからないように）。
+// 「開始」を押した時点の設定で練習が始まること（screens.md「設定項目」、mouse.md の換算）は、同じタブで設定を変えてから
+// トップ画面に戻って「開始」を押し、プレイ画面のクロスヘアの属性と、ポインターロック中にマウスを動かしたあとの描画で確かめる。
+// ポインターロック中の DevTools の mouseMoved は、座標の差がそのまま movementX / movementY（カウント）になる。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -12,13 +15,54 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { projectAngleOffset } from '../../src/render/fov';
 import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
 const chromium = findChromium();
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const WIDTH = 1280;
+const HEIGHT = 800;
+const CX = WIDTH / 2;
+const CY = HEIGHT / 2;
+
+type RGB = [number, number, number];
+const distance = (a: RGB, b: RGB) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+/** HTML の画面を見えなくし、キャンバスだけを写す。 */
+async function canvasOnly(page: Page): Promise<Image> {
+  await page.evaluate(`document.getElementById('ui').style.visibility = 'hidden'`);
+  await pause(200);
+  const { data } = await page.send<{ data: string }>('Page.captureScreenshot', { format: 'png' });
+  await page.evaluate(`document.getElementById('ui').style.visibility = ''`);
+  return decodePng(Buffer.from(data, 'base64'));
+}
+
+/** 色 c に近い画素の、いちばん長い区間の中心。axis が 'row' なら行 at を横に、'column' なら列 at を縦に見る。 */
+function blobCenter(img: Image, axis: 'row' | 'column', at: number, c: RGB): number | undefined {
+  const length = axis === 'row' ? WIDTH : HEIGHT;
+  let best: [number, number] | undefined;
+  let start = -1;
+  for (let i = 0; i <= length; i += 1) {
+    const inside = i < length && distance(axis === 'row' ? img.pixel(i, at) : img.pixel(at, i), c) < 30;
+    if (inside && start < 0) start = i;
+    if (!inside && start >= 0) {
+      if (!best || i - start > best[1] - best[0]) best = [start, i - 1];
+      start = -1;
+    }
+  }
+  return best && (best[0] + best[1]) / 2;
+}
+
+/** (CX, CY) から 10 カウントずつ (dx, dy) の向きへ steps 回動かす。 */
+async function drag(page: Page, dx: number, dy: number, steps: number) {
+  for (let i = 1; i <= steps; i += 1) {
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: CX + dx * i, y: CY + dy * i, buttons: 0, button: 'none' });
+  }
+}
 
 interface Shown {
   inputMethod: string;
@@ -307,5 +351,71 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       expect(s.cmPer360).toBe('26.0');
       noExceptions(page);
     });
+  });
+  describe('練習は「開始」を押した時点で保存されている設定で始まる（screens.md「設定項目」、mouse.md の換算）', () => {
+    /** 設定画面からトップ画面に戻り（読み直さない）、「開始」を押してプレイ画面に入る。 */
+    async function startFromTop(p: Page) {
+      await p.clickSelector('[data-screen="settings"] a[href="#/"]');
+      await p.waitFor(`!document.querySelector('[data-screen="top"]').hidden && document.querySelector('#weapon').options.length > 0`);
+      await p.clickSelector('#start');
+      await p.waitFor(`!document.querySelector('[data-screen="play"]').hidden`);
+      await pause(800);
+    }
+
+    /** 開始時に画面の中心に見える的の色を返し、ポインターロックを掛ける。 */
+    async function targetColorAndLock(p: Page): Promise<RGB> {
+      const start = await canvasOnly(p);
+      const target = start.pixel(CX, CY);
+      expect(distance(target, start.pixel(CX + 150, CY)), '開始時に中心に的が見えない').toBeGreaterThan(40);
+      await p.click(CX, CY);
+      await p.waitFor('!!document.pointerLockElement', 5000);
+      return target;
+    }
+
+    it('クロスヘア: 保存した色 #ff3366 と形 十字がプレイ画面のクロスヘアに当たる', async () => {
+      await setNative(page, 'setting-crosshair-color', '#ff3366');
+      await setNative(page, 'setting-crosshair-shape', 'cross');
+      await startFromTop(page);
+      const crosshair = await page.evaluate<{ shape: string; color: string }>(`(() => {
+        const el = document.querySelector('[data-screen="play"] .crosshair');
+        return { shape: el.dataset.shape, color: getComputedStyle(el).getPropertyValue('--crosshair-color').trim().toLowerCase() };
+      })()`);
+      expect(crosshair).toEqual({ shape: 'cross', color: '#ff3366' });
+      noExceptions(page);
+    }, 60_000);
+
+    it('感度と FOV: 感度 2.0・FOV 110 で前に 1000 カウント動かすと、ピッチが 44 度（既定の 33 度でなく）増えて描画される', async () => {
+      await typeInto(page, 'setting-fov', '110', 'enter');
+      await typeInto(page, 'setting-sensitivity', '2.0', 'enter');
+      await startFromTop(page);
+      const target = await targetColorAndLock(page);
+      // 前（movementY が負）に 1000 カウント。
+      await drag(page, 0, -10, 100);
+      await pause(500);
+      const center = blobCenter(await canvasOnly(page), 'column', CX, target);
+      // ピッチが上がると、的は画面の中心から 高さの半分 × tan(44°) ÷ tan(縦の視野角 / 2) 下に描画される（screens.md）。
+      const expected = CY + projectAngleOffset({ yaw: 0, pitch: -44 }, 110, WIDTH, HEIGHT).y;
+      const withDefaultSensitivity = CY + projectAngleOffset({ yaw: 0, pitch: -33 }, 110, WIDTH, HEIGHT).y;
+      expect(expected - withDefaultSensitivity).toBeGreaterThan(80);
+      expect(center, `的の中心 ${center} 期待 ${expected}`).toBeDefined();
+      expect(Math.abs(center! - expected), `的の中心 ${center} 期待 ${expected}`).toBeLessThanOrEqual(8);
+      noExceptions(page);
+    }, 60_000);
+
+    it('FOV: FOV 70 で右に 1000 カウント動かすと、的が FOV 70 の視野角で 33 度ぶん左に描画される', async () => {
+      await typeInto(page, 'setting-fov', '70', 'enter');
+      await startFromTop(page);
+      const target = await targetColorAndLock(page);
+      await drag(page, 10, 0, 100);
+      await pause(500);
+      const center = blobCenter(await canvasOnly(page), 'row', CY, target);
+      // カメラの視野角が fieldOfView(70) なら約 495 px 左、既定の FOV 90 のままなら約 346 px 左。
+      const expected = CX - projectAngleOffset({ yaw: 33, pitch: 0 }, 70, WIDTH, HEIGHT).x;
+      const withDefaultFov = CX - projectAngleOffset({ yaw: 33, pitch: 0 }, 90, WIDTH, HEIGHT).x;
+      expect(withDefaultFov - expected).toBeGreaterThan(80);
+      expect(center, `的の中心 ${center} 期待 ${expected}`).toBeDefined();
+      expect(Math.abs(center! - expected), `的の中心 ${center} 期待 ${expected}`).toBeLessThanOrEqual(8);
+      noExceptions(page);
+    }, 60_000);
   });
 });
