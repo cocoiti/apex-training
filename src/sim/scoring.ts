@@ -1,4 +1,6 @@
-import type { Angles } from './angles';
+import { normalizeYaw, type Angles } from './angles';
+import type { ShotRecord } from './gun';
+import type { World } from './world';
 
 /** 偏りのしきい値（度）。コメントを出すかどうかを分ける。 */
 export const BIAS_THRESHOLD = 0.5;
@@ -96,4 +98,48 @@ export function score(deviations: readonly Angles[], targetRadius: number): Scor
     spreadRatio: verticalSpread === 0 ? null : horizontalSpread / verticalSpread,
     comments: selectComments(meanVertical, horizontalSpread),
   };
+}
+
+/** 的の箱がないマップの的の半径（度）。 */
+export const DEFAULT_TARGET_RADIUS = 1;
+
+const RAD_TO_DEG = 180 / Math.PI;
+
+/**
+ * 弾ごとの角度のズレ（撃った順）。外れの弾（どの箱にも当たらず deviation がない）は、弾の向きと中心との差をズレとする。
+ * 弾のレイは目の位置から飛ぶので、当たった弾の deviation も弾の向きと中心との差に一致する。
+ */
+export function shotDeviations(shots: readonly Pick<ShotRecord, 'angles' | 'deviation'>[], center: Angles): Angles[] {
+  return shots.map(
+    (s) => s.deviation ?? { yaw: normalizeYaw(s.angles.yaw - center.yaw), pitch: s.angles.pitch - center.pitch },
+  );
+}
+
+/**
+ * 的の半径（度）。マップの的の箱（kind が target）の幅と高さの小さいほうの半分を、目の位置から手前の面までの距離で見込む角度。
+ * 的が複数あるときは最も近いもの、的がなければ DEFAULT_TARGET_RADIUS。
+ */
+export function targetRadius(world: Pick<World, 'boxes' | 'player'>): number {
+  const eye = world.player.position;
+  let best: { distance: number; radius: number } | undefined;
+  for (const box of world.boxes) {
+    if (box.kind !== 'target') continue;
+    const toCenter = Math.hypot(box.center.x - eye.x, box.center.y - eye.y, box.center.z - eye.z);
+    const distance = Math.max(toCenter - box.size.z / 2, Number.EPSILON);
+    if (best && distance >= best.distance) continue;
+    best = { distance, radius: Math.atan(Math.min(box.size.x, box.size.y) / 2 / distance) * RAD_TO_DEG };
+  }
+  return best?.radius ?? DEFAULT_TARGET_RADIUS;
+}
+
+/**
+ * 撃った弾を採点する。リザルト画面と入力の記録の再生はどちらもこの関数で採点し、同じ記録から同じ採点結果を出す（INP-4）。
+ * 外れの弾も shotDeviations で弾の向きと中心との差をズレとして入れる。radius は的の半径（度）で、既定は targetRadius(world)。
+ */
+export function scoreShots(
+  shots: readonly Pick<ShotRecord, 'angles' | 'deviation'>[],
+  world: Pick<World, 'boxes' | 'player' | 'center'>,
+  radius: number = targetRadius(world),
+): ScoreResult {
+  return score(shotDeviations(shots, world.center), radius);
 }

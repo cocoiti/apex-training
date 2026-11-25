@@ -85,7 +85,7 @@ describe('練習のシミュレーション', () => {
     expect(practice.gun.shots).toHaveLength(5);
   });
 
-  it('結果は当たった弾のズレで採点する', () => {
+  it('結果は撃った弾すべてのズレで採点する', () => {
     const practice = createPractice({ map, weapon, input: inputFromTimedActions(actions), seed: 3 });
     practice.sim.advance(1);
     const outcome = practiceOutcome(practice, 1);
@@ -99,6 +99,26 @@ describe('練習のシミュレーション', () => {
     const replayed = replayRecording({ seed: 3, actions }, { map, weapon, targetRadius: 1 });
     expect(replayed.shots).toEqual(practice.gun.shots);
     expect(replayed.score).toEqual(practiceOutcome(practice, 1).score);
+  });
+
+  it('外れの弾も弾の向きと中心との差で採点に入れ、的の半径は省略するとマップの的から求める', () => {
+    // 壁だけのマップ。照準を大きく右に振ると壁から外れ、外れの弾が出る。
+    const narrow: MapData = {
+      ...map,
+      boxes: [{ id: 'wall', kind: 'wall', center: vec3(0, 1.6, -10.1), size: vec3(2, 2, 0.2) }],
+    };
+    const swing: TimedAction[] = [
+      { time: 0, action: { type: 'fire', pressed: true } },
+      { time: 0.15, action: { type: 'look', yaw: 30, pitch: 0 } },
+    ];
+    const practice = createPractice({ map: narrow, weapon, input: inputFromTimedActions(swing), seed: 3 });
+    practice.sim.advance(2);
+    expect(practice.gun.shots.some((s) => s.deviation === null)).toBe(true);
+    const outcome = practiceOutcome(practice);
+    expect(outcome.score.shots).toBe(5);
+    expect(outcome).toEqual(practiceOutcome(practice, 1));
+    const replayed = replayRecording({ seed: 3, actions: swing }, { map: narrow, weapon });
+    expect(replayed.score).toEqual(outcome.score);
   });
 
   it('アクションのない記録の再生は 1 ステップで止まり、弾は出ない', () => {

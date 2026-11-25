@@ -2,11 +2,10 @@ import { DEFAULT_FIXED_STEP } from '../core/loop';
 import { createRandom } from '../core/random';
 import type { InputSource } from '../input/queue';
 import { replayInput, type InputRecording } from '../input/recording';
-import type { Angles } from './angles';
 import { Gun, type ShotRecord } from './gun';
 import type { MapData } from './map';
 import type { Player } from './player';
-import { score, type ScoreResult } from './scoring';
+import { scoreShots, type ScoreResult } from './scoring';
 import { Simulation } from './simulation';
 import type { WeaponData } from './weapon';
 import { createWorld, type World } from './world';
@@ -79,20 +78,19 @@ export interface PracticeOutcome {
 }
 
 /**
- * 練習の結果を求める。採点は的・壁に当たった弾の角度のズレで行う（外れの弾の扱いはリザルト画面の Issue で決める）。
- * targetRadius は的の半径（度）。
+ * 練習の結果を求める。採点はリザルト画面と同じ scoreShots で行い、外れの弾も弾の向きと中心との差をズレとして入れる
+ * （ADR: score-inputs-from-map-target）。radius は的の半径（度）で、省略するとマップの的から求める（targetRadius）。
  */
-export function practiceOutcome(practice: Practice, targetRadius: number): PracticeOutcome {
+export function practiceOutcome(practice: Practice, radius?: number): PracticeOutcome {
   const shots = [...practice.gun.shots];
-  const deviations = shots.flatMap((s): Angles[] => (s.deviation ? [s.deviation] : []));
-  return { shots, score: score(deviations, targetRadius) };
+  return { shots, score: scoreShots(shots, practice.world, radius) };
 }
 
 export interface ReplayOptions {
   readonly map: MapData;
   readonly weapon: WeaponData;
-  /** 的の半径（度）。 */
-  readonly targetRadius: number;
+  /** 的の半径（度）。省略するとマップの的から求める（リザルト画面と同じ）。 */
+  readonly targetRadius?: number;
   readonly dt?: number;
 }
 

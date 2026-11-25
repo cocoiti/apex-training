@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildWeaponList, fireInterval, idealCorrection, parseWeapon, type WeaponData } from '../../src/sim/weapon';
+import { buildWeaponList, fireInterval, idealCorrection, parseWeapon, uncorrectedPattern, type WeaponData } from '../../src/sim/weapon';
 
 const WEAPONS_DIR = resolve(__dirname, '../../src/data/weapons');
 
@@ -154,5 +154,30 @@ describe('理想の補正軌道', () => {
 describe('発射間隔', () => {
   it('rpm 600 なら 0.1 秒', () => {
     expect(fireInterval({ rpm: 600 })).toBeCloseTo(0.1, 12);
+  });
+});
+
+describe('補正しなかった場合のパターン', () => {
+  const pattern = [
+    { dx: 1, dy: 2 },
+    { dx: -0.5, dy: 1 },
+    { dx: 0, dy: 3 },
+  ];
+
+  it('i 番目は 1〜i+1 発目の pattern の合計で、撃った弾数まで', () => {
+    expect(uncorrectedPattern({ pattern }, 2)).toEqual([
+      { yaw: 1, pitch: 2 },
+      { yaw: 0.5, pitch: 3 },
+    ]);
+  });
+
+  it('理想の補正軌道を上下左右に反転したものになる', () => {
+    const ideal = idealCorrection({ pattern });
+    expect(uncorrectedPattern({ pattern }, 3)).toEqual(ideal.map((a) => ({ yaw: -a.yaw, pitch: -a.pitch })));
+  });
+
+  it('弾数が 0 なら空、pattern の長さを超えた分は含めない', () => {
+    expect(uncorrectedPattern({ pattern }, 0)).toEqual([]);
+    expect(uncorrectedPattern({ pattern }, 10)).toHaveLength(3);
   });
 });

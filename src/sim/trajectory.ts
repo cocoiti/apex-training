@@ -1,7 +1,8 @@
 import { DEFAULT_FIXED_STEP } from '../core/loop';
 import type { InputRecording } from '../input/recording';
 import { inputFromTimedActions } from '../input/queue';
-import type { Angles } from './angles';
+import { normalizeYaw, type Angles } from './angles';
+import type { ShotRecord } from './gun';
 import { createPlayer } from './player';
 import { applyActions } from './simulation';
 import { vec3 } from './vec3';
@@ -29,4 +30,26 @@ export function aimTrajectory(recording: Pick<InputRecording, 'actions'>, start:
     points.push({ time: end, yaw: player.aim.yaw, pitch: player.aim.pitch });
   }
   return points;
+}
+
+/** 発射の時刻を、その発を撃つステップの番号に丸めるときの許容幅（秒）。Gun と同じ。 */
+const SHOT_EPSILON = 1e-9;
+
+/**
+ * 各弾の発射時の利用者の照準を、開始時の照準からのヨー・ピッチ（度）で撃った順に返す（docs/spec/scoring.md「リザルト画面」）。
+ * 時刻 t の弾はステップ ⌊t ÷ dt⌋ で撃たれ、そのステップの入力を適用したあとの照準（軌道のそのステップの終わりの点）で撃つ。
+ * 記録の最後のアクションのあとに撃った弾は、軌道の最後の点の照準で撃ったものとする。
+ */
+export function aimAtShots(
+  recording: Pick<InputRecording, 'actions'>,
+  shots: readonly Pick<ShotRecord, 'time'>[],
+  start: Angles,
+  dt = DEFAULT_FIXED_STEP,
+): Angles[] {
+  const points = aimTrajectory(recording, start, dt);
+  return shots.map(({ time }) => {
+    const index = Math.min(Math.floor((time + SHOT_EPSILON) / dt) + 1, points.length - 1);
+    const point = points[index] ?? points[points.length - 1] ?? { yaw: start.yaw, pitch: start.pitch };
+    return { yaw: normalizeYaw(point.yaw - start.yaw), pitch: point.pitch - start.pitch };
+  });
 }

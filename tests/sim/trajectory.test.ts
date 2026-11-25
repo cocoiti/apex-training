@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { aimTrajectory } from '../../src/sim/trajectory';
+import { RecordingInput } from '../../src/input/recording';
+import { PracticeSession } from '../../src/modes/session';
+import type { TrainingMode } from '../../src/modes/types';
+import { aimAtShots, aimTrajectory } from '../../src/sim/trajectory';
+import { vec3 } from '../../src/sim/vec3';
+import { uncorrectedPattern, type WeaponData } from '../../src/sim/weapon';
+import { createWorld } from '../../src/sim/world';
 
 const DT = 1 / 120;
 
@@ -53,5 +59,72 @@ describe('照準の軌道', () => {
       { yaw: 0, pitch: 0 },
     );
     expect(points.every((p) => p.yaw === 0 && p.pitch === 0)).toBe(true);
+  });
+});
+
+describe('各弾の発射時の照準', () => {
+  const scoredMode: TrainingMode = {
+    id: 'test',
+    name: 'テスト',
+    category: 'recoil',
+    order: 0,
+    setup() {},
+    step: () => true,
+    result: () => ({ scored: true }),
+    teardown() {},
+  };
+
+  it('練習で撃った各弾の照準（弾の向き − リコイルの累積）と、開始時の照準からの差で一致する', () => {
+    const start = { yaw: 30, pitch: 5 };
+    const world = createWorld({
+      id: 't',
+      name: 't',
+      spawn: { position: vec3(0, 1.6, 0), aim: start },
+      boxes: [],
+    });
+    const magSize = 12;
+    const weapon: WeaponData = {
+      id: 'w',
+      name: 'w',
+      category: 'AR',
+      version: 'v',
+      source: 's',
+      rpm: 777,
+      magSize,
+      pattern: Array.from({ length: magSize }, (_, i) => ({ dx: (i % 3) - 1, dy: 0.4 })),
+      randomness: 0,
+    };
+    const input = new RecordingInput(1);
+    const session = new PracticeSession({ world, weapon, mode: scoredMode, input, seed: 1 });
+    input.push(0, { type: 'fire', pressed: true });
+    // 描画のたびに積むように、ステップの途中の時刻で照準を動かす。
+    for (let i = 0; i < 200 && !session.ended; i += 1) {
+      input.push(session.sim.time + DT * 0.3, { type: 'look', yaw: 0.05, pitch: -0.03 });
+      session.step();
+    }
+    const shots = session.gun.shots;
+    expect(shots).toHaveLength(magSize);
+    const pattern = uncorrectedPattern(weapon, magSize);
+    const expected = shots.map((s, i) => ({
+      yaw: s.angles.yaw - (pattern[i]?.yaw ?? 0) - start.yaw,
+      pitch: s.angles.pitch - (pattern[i]?.pitch ?? 0) - start.pitch,
+    }));
+    const aim = aimAtShots(input.recording(), shots, start, session.sim.dt);
+    aim.forEach((a, i) => {
+      expect(a.yaw).toBeCloseTo(expected[i]?.yaw ?? NaN, 9);
+      expect(a.pitch).toBeCloseTo(expected[i]?.pitch ?? NaN, 9);
+    });
+  });
+
+  it('記録の最後のアクションのあとに撃った弾は、軌道の最後の照準', () => {
+    const recording = { actions: [{ time: 0, action: { type: 'look', yaw: 1, pitch: 2 } } as const] };
+    expect(aimAtShots(recording, [{ time: 0 }, { time: 5 }], { yaw: 0, pitch: 0 })).toEqual([
+      { yaw: 1, pitch: 2 },
+      { yaw: 1, pitch: 2 },
+    ]);
+  });
+
+  it('弾がなければ空', () => {
+    expect(aimAtShots({ actions: [] }, [], { yaw: 0, pitch: 0 })).toEqual([]);
   });
 });
