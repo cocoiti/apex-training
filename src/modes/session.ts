@@ -1,8 +1,9 @@
 import { createRandom } from '../core/random';
 import type { InputSource } from '../input/queue';
+import { replayInput, type InputRecording } from '../input/recording';
 import type { Angles } from '../sim/angles';
 import { Gun, type ShotRecord } from '../sim/gun';
-import { PracticeEndRule, type PracticeEndReason } from '../sim/practice';
+import { MAX_REPLAY_SECONDS, PracticeEndRule, type PracticeEndReason } from '../sim/practice';
 import { Simulation } from '../sim/simulation';
 import type { WeaponData } from '../sim/weapon';
 import type { World } from '../sim/world';
@@ -101,4 +102,17 @@ export class PracticeSession {
       modeResult,
     };
   }
+}
+
+export type ReplaySessionOptions = Omit<PracticeSessionOptions, 'input' | 'seed'>;
+
+/**
+ * 入力の記録を、元の練習と同じ World・武器・モードで再生する（docs/spec/input.md「入力の記録と再生」）。乱数は記録の種で作る。
+ * モードも同じ乱数を使うので、元の練習と同じモードを与える。練習が終わるまで（上限 MAX_REPLAY_SECONDS）進める。
+ */
+export function replayPracticeSession(recording: InputRecording, options: ReplaySessionOptions): PracticeSession {
+  const session = new PracticeSession({ ...options, input: replayInput(recording), seed: recording.seed });
+  const maxSteps = Math.ceil(MAX_REPLAY_SECONDS / session.sim.dt);
+  while (!session.ended && session.sim.stepCount < maxSteps) session.step();
+  return session;
 }
