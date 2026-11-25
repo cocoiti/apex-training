@@ -32,3 +32,4 @@ SPEC（`docs/spec/`）はプロダクトが今どう振る舞うかを書く。A
 | [2026-11-25-fire-schedule-from-press](2026-11-25-fire-schedule-from-press.md) | 発射の時刻は押し始めのステップを起点に「発数 × 発射間隔」で決め、押し直しでは発射間隔を待たない | 承認 | spec/weapons.md（発射、WPN-4, WPN-5）, src/sim/gun.ts |
 | [2026-11-25-pad-look-per-fixed-step](2026-11-25-pad-look-per-fixed-step.md) | パッドの look は描画ごとに読んだ値を保持し、固定ステップごとに「速度 × ステップの長さ」で積む | 承認 | spec/pad.md（PAD-4〜PAD-7、PAD-10〜PAD-14）, src/input/pad.ts, src/input/pad-curve.ts, src/main.ts |
 | [2026-11-25-render-scene-without-webgl](2026-11-25-render-scene-without-webgl.md) | 描画はシーンとカメラ（ViewScene）と WebGL の描画器に分け、FOV の換算は fov.ts の 1 か所で行う | 承認 | spec/architecture.md（ARC-15〜17）, spec/screens.md（UI-5, UI-7, UI-8）, src/render/ |
+| [2026-11-25-lstar-measured-from-view-motion](2026-11-25-lstar-measured-from-view-motion.md) | L-STAR の跳ねは録画の画面の動きから求め、FOV の値の Hor+ 換算（ADS の倍率なし）で角度にする | 承認 | spec/weapons.md（WPN-14〜WPN-17）, src/data/weapons/lstar.json, docs/measurements/lstar.json |
