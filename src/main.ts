@@ -10,7 +10,7 @@ import { firstConnectedGamepad, PadInput } from './input/pad';
 import { DEFAULT_PAD_SETTINGS } from './input/pad-curve';
 import { createSeed, RecordingInput } from './input/recording';
 import { modes } from './modes/registry';
-import { PracticeSession, type PracticeResult } from './modes/session';
+import { PracticeSession } from './modes/session';
 import { ImpactMarks } from './render/impacts';
 import { interpolateAngles, SceneRenderer } from './render/scene';
 import { parseMap, type MapData } from './sim/map';
@@ -22,7 +22,8 @@ import { renderHud, type HudElements } from './ui/hud';
 import { fillModeSelect } from './ui/mode-choices';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { PracticeFlow } from './ui/practice-flow';
-import { resultSummaryText } from './ui/result-summary';
+import type { InputMethod } from './ui/personal-best';
+import { completePractice, renderResult, type ResultElements } from './ui/result-view';
 import { SCREEN_HASHES, watchScreen } from './ui/router';
 import { loadCommonSettings, loadMouseSettings } from './ui/settings';
 import { bindSettingsForm, type SettingsFormElements } from './ui/settings-form';
@@ -53,6 +54,8 @@ function startShell(): void {
 
   // 「開始」を押したあとにプレイ画面に入ったときだけ練習を始める（docs/spec/screens.md）。
   document.querySelector('#start')?.addEventListener('click', () => flow.requestStart());
+  // リザルト画面の「もう一度」は、トップ画面で選んだままの武器とモードで練習を始める（docs/spec/scoring.md「リザルト画面」）。
+  document.querySelector('#retry')?.addEventListener('click', () => flow.requestStart());
 
   // 全画面の切替ボタン（docs/spec/mouse.md「全画面」）。
   const fullscreen = document.querySelector<HTMLButtonElement>('#fullscreen');
@@ -125,7 +128,14 @@ async function start(): Promise<void> {
   const status = document.querySelector<HTMLElement>('#status');
   const weaponSelect = document.querySelector<HTMLSelectElement>('#weapon');
   const modeSelect = document.querySelector<HTMLSelectElement>('#mode');
-  const summary = document.querySelector<HTMLElement>('#result-summary');
+  const resultElements: Partial<Record<keyof ResultElements, HTMLElement | null>> = {
+    summary: document.querySelector<HTMLElement>('#result-summary'),
+    score: document.querySelector<HTMLElement>('#result-score'),
+    metrics: document.querySelector<HTMLElement>('#result-metrics'),
+    comments: document.querySelector<HTMLElement>('#result-comments'),
+    best: document.querySelector<HTMLElement>('#result-best'),
+    plots: document.querySelector<HTMLElement>('#result-plots'),
+  };
   const lockNotice = document.querySelector<HTMLElement>('#pointer-lock-notice');
   const pausedNotice = document.querySelector<HTMLElement>('#paused');
   const hud: Partial<Record<keyof HudElements, HTMLElement | null>> = {
@@ -138,7 +148,7 @@ async function start(): Promise<void> {
     !status ||
     !weaponSelect ||
     !modeSelect ||
-    !summary ||
+    Object.values(resultElements).some((element) => !element) ||
     !lockNotice ||
     !pausedNotice ||
     !hud.weapon ||
@@ -148,6 +158,9 @@ async function start(): Promise<void> {
     throw new Error('画面の要素がない');
   }
   const hudElements = hud as HudElements;
+  const resultView = resultElements as ResultElements;
+  // 入力方式の切替（docs/spec/input.md）がないあいだ、自己ベストの入力方式はマウスとする（docs/spec/scoring.md「自己ベスト」）。
+  const inputMethod: InputMethod = 'mouse';
 
   const parsed = parseMap(await fetchMapJson('range'));
   if (!parsed.ok) {
@@ -211,9 +224,17 @@ async function start(): Promise<void> {
     impacts.clear();
   };
 
-  const finish = (result: PracticeResult) => {
+  const finish = (current: Running) => {
+    const result = current.session.result;
+    if (!result) return;
     running = undefined;
-    summary.textContent = resultSummaryText(result);
+    // 採点し、採点するモードなら自己ベストを保存する。保存できなくても投げず、フッターの表示は appStorage が出す。
+    const view = completePractice(
+      { result, recording: current.input.recording(), world: current.session.world, input: inputMethod, dt: current.session.sim.dt },
+      appStorage,
+      new Date(),
+    );
+    renderResult(resultView, view);
     flow.finish();
     location.hash = SCREEN_HASHES.result;
   };
@@ -250,7 +271,7 @@ async function start(): Promise<void> {
       });
       status.textContent = hint;
       // 最後の弾の弾痕を記録・表示したあとにリザルト画面へ移る。
-      if (session.result) finish(session.result);
+      if (session.result) finish(current);
     } else {
       view.render(shownWorld, viewAngles(shownWorld.player));
     }

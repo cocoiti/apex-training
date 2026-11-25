@@ -86,11 +86,19 @@
         </div>
       </section>
       <section class="screen" data-screen="result" hidden>
-        <div class="panel">
+        <div class="panel panel-result">
           <h2>リザルト</h2>
           <p id="result-summary"></p>
-          <nav class="menu">
-            <a href="#/">トップへ戻る</a>
+          <!-- 指標・コメント・自己ベストは採点するモードだけ表示する（docs/spec/scoring.md「リザルト画面」）。 -->
+          <div id="result-score" class="result-score">
+            <p id="result-best" class="result-best" role="status"></p>
+            <dl id="result-metrics" class="result-metrics"></dl>
+            <p id="result-comments" class="result-comments"></p>
+          </div>
+          <div id="result-plots" class="result-plots"></div>
+          <nav class="menu menu-row">
+            <a href="#/play" id="retry">もう一度</a>
+            <a href="#/" id="change-weapon">武器変更</a>
           </nav>
         </div>
       </section>

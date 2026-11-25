@@ -175,3 +175,17 @@ export function idealCorrection(weapon: Pick<WeaponData, 'pattern'>): Angles[] {
     return { yaw: 0 - dx, pitch: 0 - dy };
   });
 }
+
+/**
+ * 補正しなかった場合のパターン。i 番目（0 始まり）は 1〜i+1 発目の pattern の合計（ヨー・ピッチ、度）。
+ * count 発まで（magSize を超えた分は含めない）。
+ */
+export function uncorrectedPattern(weapon: Pick<WeaponData, 'pattern'>, count: number): Angles[] {
+  let dx = 0;
+  let dy = 0;
+  return weapon.pattern.slice(0, Math.max(count, 0)).map((step) => {
+    dx += step.dx;
+    dy += step.dy;
+    return { yaw: dx, pitch: dy };
+  });
+}

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Angles } from '../../src/sim/angles';
-import { score, segmentRange } from '../../src/sim/scoring';
+import { DEFAULT_TARGET_RADIUS, score, segmentRange, shotDeviations, targetRadius } from '../../src/sim/scoring';
+import { vec3 } from '../../src/sim/vec3';
+import { createWorld } from '../../src/sim/world';
 
 const shot = (yaw: number, pitch: number): Angles => ({ yaw, pitch });
 const repeat = (count: number, d: Angles): Angles[] => Array.from({ length: count }, () => d);
@@ -127,5 +129,41 @@ describe('採点のコメント', () => {
 
   it('命中の判定は的の半径ちょうどを含む', () => {
     expect(score([shot(1, 0)], 1).hitRate).toBe(100);
+  });
+});
+
+describe('弾ごとのズレ', () => {
+  it('当たった弾は記録した角度のズレ、外れの弾は弾の向きと中心との差（ヨーは正規化）', () => {
+    const deviations = shotDeviations(
+      [
+        { angles: { yaw: 1, pitch: 1 }, deviation: { yaw: 0.5, pitch: -0.25 } },
+        { angles: { yaw: -179, pitch: 12 }, deviation: null },
+      ],
+      { yaw: 179, pitch: 10 },
+    );
+    expect(deviations).toEqual([
+      { yaw: 0.5, pitch: -0.25 },
+      { yaw: 2, pitch: 2 },
+    ]);
+  });
+});
+
+describe('的の半径', () => {
+  const world = (boxes: Parameters<typeof createWorld>[0]['boxes']) =>
+    createWorld({ id: 't', name: 't', spawn: { position: vec3(0, 1.6, 0), aim: { yaw: 0, pitch: 0 } }, boxes });
+
+  it('的の箱の幅と高さの小さいほうの半分を、手前の面までの距離で見込む角度', () => {
+    // range の的: 0.6 m 四方、手前の面まで 9.9 m。
+    const r = targetRadius(world([{ id: 'target', kind: 'target', center: vec3(0, 1.6, -9.95), size: vec3(0.6, 0.8, 0.1) }]));
+    expect(r).toBeCloseTo((Math.atan(0.3 / 9.9) * 180) / Math.PI, 9);
+  });
+
+  it('的が複数あれば最も近いもの、的がなければ既定の値', () => {
+    const near = { id: 'a', kind: 'target', center: vec3(0, 1.6, -5.05), size: vec3(1, 1, 0.1) } as const;
+    const far = { id: 'b', kind: 'target', center: vec3(0, 1.6, -20.05), size: vec3(1, 1, 0.1) } as const;
+    expect(targetRadius(world([far, near]))).toBeCloseTo((Math.atan(0.5 / 5) * 180) / Math.PI, 9);
+    expect(targetRadius(world([{ id: 'wall', kind: 'wall', center: vec3(0, 0, -10), size: vec3(1, 1, 1) }]))).toBe(
+      DEFAULT_TARGET_RADIUS,
+    );
   });
 });
