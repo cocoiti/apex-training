@@ -1,4 +1,4 @@
-// docs/spec/weapons.md の受け入れ条件（WPN-1 〜 WPN-5、WPN-8 〜 WPN-13）と modes.md の MODE-1 の受け入れテスト。
+// docs/spec/weapons.md の受け入れ条件（WPN-1 〜 WPN-5、WPN-8 〜 WPN-17）と modes.md の MODE-1 の受け入れテスト。
 // 公開された入口（公開関数・クラス、武器とマップの JSON、ビルドのコマンド）だけを使い、実装の内部には依存しない。
 // WPN-1・WPN-2・WPN-12 はリポジトリの写しに JSON を足してビルドし、写しの中で武器の一覧を読み込んで確かめる。
 import { spawnSync } from 'node:child_process';
@@ -227,16 +227,118 @@ async function loadRepoWeapons(log: (m: string) => void = () => {}) {
 const MVP_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR'];
 
 describe('WPN-3: MVP の武器', () => {
-  it('武器の一覧に 6 つの武器が出て、どれも source に仮データであることが書かれている', async () => {
+  it('武器の一覧に 6 つの武器が出て、L-STAR 以外の 5 つは source に仮データであることが書かれている', async () => {
     const logs: string[] = [];
     const weapons = await loadRepoWeapons((m) => logs.push(m));
     expect(logs).toEqual([]);
     const names = weapons.map((w) => w.name);
     for (const name of MVP_NAMES) expect(names, names.join(', ')).toContain(name);
-    for (const name of MVP_NAMES) {
+    for (const name of MVP_NAMES.filter((n) => n !== 'L-STAR')) {
       const w = weapons.find((x) => x.name === name)!;
       expect(w.source, `${name} の source`).toMatch(/仮/);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WPN-14 〜 WPN-17: 計測した L-STAR
+// ---------------------------------------------------------------------------
+
+interface MeasurementRecord {
+  weapon: string;
+  version: string;
+  conditions: { fovSetting: number };
+  video: { gameArea: { width: number; height: number } };
+  conversion: { region: { x0: number; y0: number } };
+  tolerance: { dx: number; dy: number };
+  shots: { angles: { dx: number; dy: number }[]; imageShiftPx: { x: number; y: number }[] }[];
+}
+
+const MEASUREMENT = JSON.parse(readFileSync(join(ROOT, 'docs/measurements/lstar.json'), 'utf8')) as MeasurementRecord;
+
+async function repoLstar(): Promise<WeaponData> {
+  const w = (await loadRepoWeapons()).find((x) => x.name === 'L-STAR');
+  if (!w) throw new Error('武器の一覧に L-STAR がない');
+  return w;
+}
+
+describe('WPN-14: L-STAR は計測した武器データ', () => {
+  it('source に自分で撮影した射撃訓練場の動画からの計測と書かれ、仮データの旨はなく、version に撮影したシーズンが書かれている', async () => {
+    const w = await repoLstar();
+    expect(w.source).toMatch(/自分で撮影した射撃訓練場の動画からの計測/);
+    expect(w.source).not.toMatch(/仮/);
+    // シーズンの書き方は他の武器と同じ（例: S31-Cipher）。計測の記録の撮影したシーズンと一致する。
+    expect(w.version).toMatch(/^S\d+-\S+$/);
+    expect(w.version).toBe(MEASUREMENT.version);
+  });
+});
+
+describe('WPN-15: L-STAR を randomness 0 で撃つ', () => {
+  it('照準を動かさずに magSize 発撃つと、i 発目は 1〜i 発目の pattern の合計の位置に当たり、magSize 発で止まる', async () => {
+    const w = { ...(await repoLstar()), randomness: 0 };
+    const { sim, gun } = play(w, [press(0)]);
+    sim.advance((w.magSize * 60) / w.rpm + 2);
+    expect(gun.shots).toHaveLength(w.magSize);
+    const expected = cumulative(w.pattern.slice(0, w.magSize));
+    gun.shots.forEach((s, i) => {
+      expect(s.deviation, `${i + 1} 発目`).not.toBeNull();
+      expect(s.deviation!.yaw).toBeCloseTo(expected[i]!.yaw, 6);
+      expect(s.deviation!.pitch).toBeCloseTo(expected[i]!.pitch, 6);
+    });
+  });
+});
+
+describe('WPN-16: 計測の記録と L-STAR の pattern', () => {
+  it('計測の記録の射撃のうち 1 本は、全発で i 発目の角度と pattern の 1〜i 発目の合計との差が許容差に収まる', async () => {
+    const w = await repoLstar();
+    expect(MEASUREMENT.weapon).toBe(w.id);
+    const expected = cumulative(w.pattern.slice(0, w.magSize));
+    const within = MEASUREMENT.shots.filter(
+      (shot) =>
+        shot.angles.length === w.magSize &&
+        shot.angles.every(
+          (a, i) =>
+            Math.abs(a.dx - expected[i]!.yaw) <= MEASUREMENT.tolerance.dx + 1e-9 &&
+            Math.abs(a.dy - expected[i]!.pitch) <= MEASUREMENT.tolerance.dy + 1e-9,
+        ),
+    );
+    expect(within.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('記録の角度は、画面の動き（ピクセル）を FOV の値の Hor+ の換算（4:3 の水平視野角）で角度にしたもの', () => {
+    const { width, height } = MEASUREMENT.video.gameArea;
+    const { x0, y0 } = MEASUREMENT.conversion.region;
+    const rad = (d: number) => (d * Math.PI) / 180;
+    const deg = (r: number) => (r * 180) / Math.PI;
+    const halfTan = Math.tan(rad(MEASUREMENT.conditions.fovSetting / 2));
+    const tanH = halfTan * (width / height) / (4 / 3); // tan(水平視野角 / 2)
+    const tanV = halfTan / (4 / 3); // tan(縦の視野角 / 2)
+    const yaw = (x: number) => deg(Math.atan((x / (width / 2)) * tanH));
+    const pitch = (y: number) => deg(Math.atan((y / (height / 2)) * tanV));
+    for (const shot of MEASUREMENT.shots) {
+      expect(shot.imageShiftPx).toHaveLength(shot.angles.length);
+      shot.angles.forEach((a, i) => {
+        const px = shot.imageShiftPx[i]!;
+        expect(Math.abs(a.dx - (yaw(x0) - yaw(x0 + px.x)))).toBeLessThanOrEqual(0.001);
+        expect(Math.abs(a.dy - (pitch(y0) - pitch(y0 - px.y)))).toBeLessThanOrEqual(0.001);
+      });
+    }
+  });
+});
+
+describe('WPN-17: 動画と画像をリポジトリに入れない', () => {
+  // 動画は SPEC（weapons.md WPN-17）、画像は overview.md「権利と表記」の拡張子。
+  const VIDEO = ['mp4', 'mov', 'mkv', 'webm', 'avi'];
+  const IMAGE = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico', 'svg'];
+
+  it.skipIf(!existsSync(join(ROOT, '.git')))('追跡されたファイルに動画と画像の拡張子のファイルがない', () => {
+    const r = spawnSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' });
+    expect(r.status, r.stderr).toBe(0);
+    const files = r.stdout.split('\0').filter(Boolean);
+    expect(files.length).toBeGreaterThan(0);
+    const forbidden = new Set([...VIDEO, ...IMAGE]);
+    const found = files.filter((f) => forbidden.has(f.split('.').pop()!.toLowerCase()) && f.includes('.'));
+    expect(found).toEqual([]);
   });
 });
 

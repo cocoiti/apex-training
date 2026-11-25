@@ -112,13 +112,21 @@ describe('武器の一覧', () => {
     expect(list.rejected.map((r) => [r.file, r.errors[0]?.path])).toEqual([['b.json', 'id']]);
   });
 
-  it('WPN-3: src/data/weapons/ の JSON から MVP の 6 つの武器が一覧に出て、どれも source に仮データであることが書かれている', () => {
+  it('WPN-3: src/data/weapons/ の JSON から MVP の 6 つの武器が一覧に出て、L-STAR 以外の 5 つは source に仮データであることが書かれている', () => {
     const list = buildWeaponList(readWeaponFiles());
     expect(list.rejected).toEqual([]);
     expect(list.weapons.map((w) => w.name).sort()).toEqual(
       ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR'].sort(),
     );
-    for (const weapon of list.weapons) expect(weapon.source).toMatch(/仮データ/);
+    for (const weapon of list.weapons.filter((w) => w.name !== 'L-STAR')) expect(weapon.source).toMatch(/仮データ/);
+  });
+
+  it('WPN-14: L-STAR の source は自分で撮影した射撃訓練場の動画からの計測で、仮データの旨はなく、version にシーズンがある', () => {
+    const lstar = buildWeaponList(readWeaponFiles()).weapons.find((w) => w.id === 'lstar')!;
+    expect(lstar.source).toMatch(/自分で撮影した射撃訓練場の動画からの計測/);
+    expect(lstar.source).not.toMatch(/仮/);
+    expect(lstar.version).toMatch(/^S\d+-\S+$/);
+    expect(lstar.pattern).toHaveLength(lstar.magSize);
   });
 });
 
