@@ -18,7 +18,8 @@ const ROOT = resolve(__dirname, '../..');
 /** 計測の記録（配布物に入らない場所。L-STAR の source が指している場所）。 */
 const MEASUREMENT = join(ROOT, 'docs/measurements/lstar.json');
 
-const MVP_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR', 'C.A.R. SMG'];
+/** 仮データの武器（weapons.md「MVP の武器」）。武器の一覧に出ない。 */
+const PLACEHOLDER_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア'];
 /** 計測した武器データ（weapons.md）。source に仮データと書かない。 */
 const MEASURED_NAMES = ['L-STAR', 'C.A.R. SMG'];
 
@@ -73,16 +74,13 @@ function measurement(): MeasurementRecord {
 
 // ---------------------------------------------------------------------------
 
-describe('WPN-3: MVP の 7 つの武器', () => {
-  it('武器の一覧に 7 つが出て、L-STAR と C.A.R. SMG 以外の 5 つは source に仮データであることが書かれている', async () => {
+describe('WPN-3: 武器の一覧は計測した 2 つだけ', () => {
+  it('武器の一覧に L-STAR と C.A.R. SMG の 2 つだけが出て、R-301・R-99・フラットライン・ボルト・スピットファイアは出ない', async () => {
     const { weapons, logs } = await repoWeapons();
     expect(logs, '読み込みの誤りがない').toEqual([]);
     const names = weapons.map((w) => w.name);
-    expect([...names].sort()).toEqual([...MVP_NAMES].sort());
-    for (const name of MVP_NAMES.filter((n) => !MEASURED_NAMES.includes(n))) {
-      const w = weapons.find((x) => x.name === name)!;
-      expect(w.source, `${name} の source`).toMatch(/仮データ/);
-    }
+    expect([...names].sort()).toEqual([...MEASURED_NAMES].sort());
+    for (const name of PLACEHOLDER_NAMES) expect(names).not.toContain(name);
   });
 });
 

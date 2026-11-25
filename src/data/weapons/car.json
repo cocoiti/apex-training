@@ -7,6 +7,7 @@
   "rpm": 930,
   "magSize": 30,
   "randomness": 0.21,
+  "measured": true,
   "pattern": [
     { "dx": 0, "dy": 0 },
     { "dx": -0.089, "dy": 0.715 },

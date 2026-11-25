@@ -1,6 +1,6 @@
-// docs/spec/weapons.md の受け入れ条件（WPN-1 〜 WPN-5、WPN-8 〜 WPN-20）と modes.md の MODE-1 の受け入れテスト。
+// docs/spec/weapons.md の受け入れ条件（WPN-1 〜 WPN-5、WPN-8 〜 WPN-23）と modes.md の MODE-1 の受け入れテスト。
 // 公開された入口（公開関数・クラス、武器とマップの JSON、ビルドのコマンド）だけを使い、実装の内部には依存しない。
-// WPN-1・WPN-2・WPN-12 はリポジトリの写しに JSON を足してビルドし、写しの中で武器の一覧を読み込んで確かめる。
+// WPN-1・WPN-2・WPN-12・WPN-21・WPN-22 はリポジトリの写しに JSON を足してビルドし、写しの中で武器の一覧を読み込んで確かめる。
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -46,6 +46,7 @@ function weaponJson(id: string, extra: Record<string, unknown> = {}): Record<str
       { dx: 0.2, dy: 0.5 },
     ],
     randomness: 0,
+    measured: true,
     ...extra,
   };
 }
@@ -63,6 +64,7 @@ function weapon(extra: Partial<WeaponData> = {}): WeaponData {
     magSize,
     pattern,
     randomness: 0,
+    measured: true,
     ...extra,
   } as WeaponData;
 }
@@ -105,7 +107,7 @@ function cumulative(pattern: readonly { dx: number; dy: number }[]) {
 }
 
 // ---------------------------------------------------------------------------
-// WPN-1 / WPN-2 / WPN-12: リポジトリの写しに JSON を足してビルドし、写しの中で武器の一覧を読み込む
+// WPN-1 / WPN-2 / WPN-12 / WPN-21 / WPN-22: リポジトリの写しに JSON を足してビルドし、写しの中で武器の一覧を読み込む
 // ---------------------------------------------------------------------------
 
 /** 写しの中で実行する確認用のテスト。既定の一覧（ファイルの集まり）と既定の出力先（コンソール）で読み込み、結果を JSON で出す。 */
@@ -143,13 +145,18 @@ function run(command: string, cwd: string) {
   return { status: r.status, output: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
-describe.skipIf(NESTED)('WPN-1 / WPN-2 / WPN-12: 武器の JSON を足してビルドする', () => {
+describe.skipIf(NESTED)('WPN-1 / WPN-2 / WPN-12 / WPN-21 / WPN-22: 武器の JSON を足してビルドする', () => {
   let copy = '';
   let build = { status: null as number | null, output: '' };
   let probe: ProbeResult = { ids: [], messages: [] };
-  const originalIds = readdirSync(WEAPONS_DIR)
+  /** 仮データの武器の JSON の measured を true にしてビルドし直したあとの結果（WPN-21）。 */
+  let rebuild = { status: null as number | null, output: '' };
+  let reprobe: ProbeResult = { ids: [], messages: [] };
+  const originalJson = readdirSync(WEAPONS_DIR)
     .filter((f) => f.endsWith('.json'))
-    .map((f) => (JSON.parse(readFileSync(join(WEAPONS_DIR, f), 'utf8')) as { id: string }).id);
+    .map((f) => JSON.parse(readFileSync(join(WEAPONS_DIR, f), 'utf8')) as { id: string; measured: boolean });
+  const originalMeasuredIds = originalJson.filter((w) => w.measured === true).map((w) => w.id);
+  const placeholderJson = () => weaponJson('acceptance-placeholder', { measured: false });
 
   beforeAll(() => {
     copy = mkdtempSync(join(tmpdir(), 'wpn-acc-'));
@@ -169,14 +176,28 @@ describe.skipIf(NESTED)('WPN-1 / WPN-2 / WPN-12: 武器の JSON を足してビ�
       join(dir, 'acceptance-short.json'),
       JSON.stringify(weaponJson('acceptance-short', { pattern: [{ dx: 0, dy: 1 }, { dx: 0, dy: 1 }] }), null, 2),
     );
+    // WPN-21: 項目の確認を通る、measured が false の武器
+    writeFileSync(join(dir, 'acceptance-placeholder.json'), JSON.stringify(placeholderJson(), null, 2));
+    // WPN-22: measured が欠けた武器と、measured が真偽値でない武器
+    const noMeasured = weaponJson('acceptance-no-measured');
+    delete noMeasured.measured;
+    writeFileSync(join(dir, 'acceptance-no-measured.json'), JSON.stringify(noMeasured, null, 2));
+    writeFileSync(join(dir, 'acceptance-text-measured.json'), JSON.stringify(weaponJson('acceptance-text-measured', { measured: 'true' }), null, 2));
     build = run('npm run build', copy);
     const probeDir = join(copy, 'tests/acceptance-probe');
     mkdirSync(probeDir, { recursive: true });
     writeFileSync(join(probeDir, 'probe.test.ts'), PROBE);
-    const r = run('npx vitest run tests/acceptance-probe', copy);
-    const line = r.output.split('\n').find((l) => l.startsWith('PROBE_RESULT '));
-    if (!line) throw new Error(`写しの中で武器の一覧を読み込めない:\n${r.output.slice(-4000)}`);
-    probe = JSON.parse(line.slice('PROBE_RESULT '.length)) as ProbeResult;
+    const runProbe = (): ProbeResult => {
+      const r = run('npx vitest run tests/acceptance-probe', copy);
+      const line = r.output.split('\n').find((l) => l.startsWith('PROBE_RESULT '));
+      if (!line) throw new Error(`写しの中で武器の一覧を読み込めない:\n${r.output.slice(-4000)}`);
+      return JSON.parse(line.slice('PROBE_RESULT '.length)) as ProbeResult;
+    };
+    probe = runProbe();
+    // WPN-21: 同じ JSON の measured だけを true にしてビルドし直す
+    writeFileSync(join(dir, 'acceptance-placeholder.json'), JSON.stringify({ ...placeholderJson(), measured: true }, null, 2));
+    rebuild = run('npm run build', copy);
+    reprobe = runProbe();
   }, 300_000);
 
   afterAll(() => {
@@ -198,7 +219,7 @@ describe.skipIf(NESTED)('WPN-1 / WPN-2 / WPN-12: 武器の JSON を足してビ�
     const message = probe.messages.find((m) => m.includes('acceptance-no-rpm.json'));
     expect(message, probe.messages.join('\n')).toBeDefined();
     expect(message).toMatch(/rpm/);
-    for (const id of [...originalIds, 'acceptance-new']) expect(probe.ids).toContain(id);
+    for (const id of [...originalMeasuredIds, 'acceptance-new']) expect(probe.ids).toContain(id);
   });
 
   it('WPN-12: pattern が magSize より少ない武器は一覧に出ず、ファイル名と pattern の誤りが開発者向けに出力される', () => {
@@ -207,10 +228,27 @@ describe.skipIf(NESTED)('WPN-1 / WPN-2 / WPN-12: 武器の JSON を足してビ�
     expect(message, probe.messages.join('\n')).toBeDefined();
     expect(message).toMatch(/pattern/);
   });
+
+  it('WPN-21: measured が false の武器は一覧に出ず、誤りも出力されない。同じ JSON の measured を true にしてビルドすると一覧に出る', () => {
+    expect(probe.ids).not.toContain('acceptance-placeholder');
+    expect(probe.messages.filter((m) => m.includes('acceptance-placeholder'))).toEqual([]);
+    expect(rebuild.status, rebuild.output.slice(-4000)).toBe(0);
+    expect(reprobe.ids).toContain('acceptance-placeholder');
+    expect(reprobe.messages.filter((m) => m.includes('acceptance-placeholder'))).toEqual([]);
+  });
+
+  it('WPN-22: measured が欠けた・真偽値でない武器は一覧に出ず、ファイル名と measured の誤りが開発者向けに出力される', () => {
+    for (const id of ['acceptance-no-measured', 'acceptance-text-measured']) {
+      expect(probe.ids).not.toContain(id);
+      const message = probe.messages.find((m) => m.includes(`${id}.json`));
+      expect(message, probe.messages.join('\n')).toBeDefined();
+      expect(message).toMatch(/measured/);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
-// WPN-3 / WPN-20 / MODE-1: MVP の 7 つの武器
+// WPN-3 / WPN-20 / WPN-23 / MODE-1: MVP の武器
 // ---------------------------------------------------------------------------
 
 /** リポジトリの武器の JSON を、ファイルから取得したものとして既定の一覧で読み込む。 */
@@ -224,7 +262,15 @@ async function loadRepoWeapons(log: (m: string) => void = () => {}) {
   });
 }
 
-const MVP_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR', 'C.A.R. SMG'];
+/** 仮データの武器（weapons.md「MVP の武器」）。JSON は残すが、武器の一覧に入れない。 */
+const PLACEHOLDERS = [
+  { name: 'R-301', file: 'r301.json' },
+  { name: 'R-99', file: 'r99.json' },
+  { name: 'フラットライン', file: 'flatline.json' },
+  { name: 'ボルト', file: 'volt.json' },
+  { name: 'スピットファイア', file: 'spitfire.json' },
+] as const;
+const PLACEHOLDER_NAMES: readonly string[] = PLACEHOLDERS.map((p) => p.name);
 /** 計測した武器データの名前と、その計測の記録のファイル（weapons.md「計測した武器データ」）。 */
 const MEASURED = [
   { name: 'L-STAR', record: 'docs/measurements/lstar.json' },
@@ -233,16 +279,35 @@ const MEASURED = [
 const MEASURED_NAMES: readonly string[] = MEASURED.map((m) => m.name);
 
 describe('WPN-3: MVP の武器', () => {
-  it('武器の一覧に 7 つの武器が出て、L-STAR と C.A.R. SMG 以外の 5 つは source に仮データであることが書かれている', async () => {
+  it('武器の一覧（トップ画面の武器の選択肢の元）には L-STAR と C.A.R. SMG の 2 つだけが出て、仮データの 5 つは出ず、誤りも出力されない', async () => {
     const logs: string[] = [];
     const weapons = await loadRepoWeapons((m) => logs.push(m));
     expect(logs).toEqual([]);
-    const names = weapons.map((w) => w.name);
-    for (const name of MVP_NAMES) expect(names, names.join(', ')).toContain(name);
-    for (const name of MVP_NAMES.filter((n) => !MEASURED_NAMES.includes(n))) {
-      const w = weapons.find((x) => x.name === name)!;
-      expect(w.source, `${name} の source`).toMatch(/仮/);
+    expect(weapons.map((w) => w.name).sort()).toEqual([...MEASURED_NAMES].sort());
+    for (const name of PLACEHOLDER_NAMES) expect(weapons.map((w) => w.name)).not.toContain(name);
+  });
+});
+
+describe('WPN-23: 計測した武器データと仮データの武器の JSON', () => {
+  const jsons = readdirSync(WEAPONS_DIR)
+    .filter((f) => f.endsWith('.json'))
+    .map((file) => ({ file, json: JSON.parse(readFileSync(join(WEAPONS_DIR, file), 'utf8')) as { id: string; name: string; source: string; measured: unknown } }));
+
+  it('measured が true の JSON には同じ id の計測の記録がある', () => {
+    const measured = jsons.filter((j) => j.json.measured === true);
+    expect(measured.map((j) => j.json.name).sort()).toEqual([...MEASURED_NAMES].sort());
+    for (const { json } of measured) {
+      const path = join(ROOT, 'docs/measurements', `${json.id}.json`);
+      expect(existsSync(path), path).toBe(true);
+      expect((JSON.parse(readFileSync(path, 'utf8')) as { weapon: string }).weapon).toBe(json.id);
     }
+  });
+
+  it('measured が false の JSON は R-301・R-99・フラットライン・ボルト・スピットファイアで、source に仮データであることが書かれている', () => {
+    const placeholders = jsons.filter((j) => j.json.measured === false);
+    expect(placeholders.map((j) => j.file).sort()).toEqual(PLACEHOLDERS.map((p) => p.file).sort());
+    expect(placeholders.map((j) => j.json.name).sort()).toEqual([...PLACEHOLDER_NAMES].sort());
+    for (const { json } of placeholders) expect(json.source, `${json.name} の source`).toMatch(/仮データ/);
   });
 });
 
@@ -402,20 +467,15 @@ describe('WPN-17: 動画と画像をリポジトリに入れない', () => {
   });
 });
 
-describe('MODE-1: MVP の 7 つの武器（weapons.md）', () => {
-  it('modes.md が weapons.md の MVP の 7 つの武器を指し、weapons.md の MVP の武器が 7 つで武器の一覧と一致する', async () => {
+describe('MODE-1: 武器の一覧の武器（weapons.md）', () => {
+  it('modes.md が weapons.md の武器の一覧（L-STAR と C.A.R. SMG）を指し、武器の一覧と一致する', async () => {
     const modes = readFileSync(join(ROOT, 'docs/spec/modes.md'), 'utf8');
-    const weaponsMd = readFileSync(join(ROOT, 'docs/spec/weapons.md'), 'utf8');
-    expect(modes).toMatch(/\*\*MODE-1\*\*: MVP の 7 つの武器（\[weapons\.md\]\(weapons\.md\)）/);
-    expect(modes).not.toMatch(/MVP の 6 つの武器/);
-    const mvpLine = weaponsMd.split('\n').find((l) => l.includes('の 7 つ。'));
-    expect(mvpLine).toBeDefined();
-    for (const name of MVP_NAMES) expect(mvpLine).toContain(name);
+    expect(modes).toMatch(/\*\*MODE-1\*\*: 武器の一覧の武器（\[weapons\.md\]\(weapons\.md\)。L-STAR と C\.A\.R\. SMG）/);
     const weapons = await loadRepoWeapons();
-    expect(weapons).toHaveLength(7);
+    expect(weapons.map((w) => w.name).sort()).toEqual([...MEASURED_NAMES].sort());
   });
 
-  it.todo('MVP の 7 つの武器それぞれでパターン観察・ゴースト追従・センター維持を最後まで練習でき、リザルト画面が表示される（練習モードの Issue で満たす）');
+  it.todo('武器の一覧の武器それぞれでパターン観察・ゴースト追従・センター維持を最後まで練習でき、リザルト画面が表示される（modes.acceptance.test.ts で確かめる）');
 });
 
 // ---------------------------------------------------------------------------
@@ -547,7 +607,7 @@ describe('WPN-11: 理想の補正軌道', () => {
 describe('WPN-13: トップ画面の武器の選択肢', () => {
   it('トップ画面を開いたとき、武器の一覧のすべての武器が category ごとに分かれて選択肢に出る', async () => {
     const weapons = await loadRepoWeapons();
-    expect(weapons).toHaveLength(7);
+    expect(weapons).toHaveLength(MEASURED.length);
     const { select, element } = createFakeSelect();
     fillWeaponSelect(select, weapons);
     const groups = describeSelect(element);

@@ -69,6 +69,7 @@ const weapon: WeaponData = {
   magSize: 5,
   pattern: Array.from({ length: 5 }, () => ({ dx: 0.1, dy: 0.3 })),
   randomness: 0.1,
+  measured: true,
 } as WeaponData;
 
 const actions: TimedAction[] = [

@@ -4,7 +4,7 @@ import { fillWeaponSelect, groupWeaponsByCategory } from '../../src/ui/weapon-ch
 import { createFakeSelect, describeSelect } from './fake-select';
 
 function weapon(id: string, category: string, name = id): WeaponData {
-  return { id, name, category, version: 'v', source: '仮データ', rpm: 600, magSize: 1, pattern: [{ dx: 0, dy: 0 }], randomness: 0 };
+  return { id, name, category, version: 'v', source: '仮データ', rpm: 600, magSize: 1, pattern: [{ dx: 0, dy: 0 }], randomness: 0, measured: true };
 }
 
 describe('groupWeaponsByCategory', () => {

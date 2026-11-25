@@ -20,8 +20,11 @@ function validJson(): Record<string, unknown> {
       { dx: -0.5, dy: 0.5 },
     ],
     randomness: 0,
+    measured: true,
   };
 }
+
+const MEASUREMENTS_DIR = resolve(__dirname, '../../docs/measurements');
 
 function readWeaponFiles() {
   return readdirSync(WEAPONS_DIR)
@@ -58,6 +61,8 @@ describe('武器データの読み込み', () => {
     ['pattern の要素の dx が数でない', (j: Record<string, unknown>) => ((j.pattern as Record<string, unknown>[])[0]!.dx = null), 'pattern[0].dx'],
     ['pattern の要素がオブジェクトでない', (j: Record<string, unknown>) => ((j.pattern as unknown[])[2] = 1), 'pattern[2]'],
     ['pattern の要素数が magSize より少ない', (j: Record<string, unknown>) => (j.magSize = 4), 'pattern'],
+    ['measured がない', (j: Record<string, unknown>) => delete j.measured, 'measured'],
+    ['measured が真偽値でない', (j: Record<string, unknown>) => (j.measured = 'true'), 'measured'],
   ])('%s は読み込みの誤りになる', (_label, mutate, path) => {
     const json = validJson();
     mutate(json);
@@ -112,13 +117,65 @@ describe('武器の一覧', () => {
     expect(list.rejected.map((r) => [r.file, r.errors[0]?.path])).toEqual([['b.json', 'id']]);
   });
 
-  it('WPN-3: src/data/weapons/ の JSON から MVP の 7 つの武器が一覧に出て、L-STAR と C.A.R. SMG 以外の 5 つは source に仮データであることが書かれている', () => {
+  it('WPN-21: measured が false の武器は誤りにならず、一覧に入らずに placeholders に入る。true にすると一覧に出る', () => {
+    const placeholder = { ...validJson(), id: 'p', measured: false };
+    const list = buildWeaponList([
+      { file: 'a.json', json: { ...validJson(), id: 'a' } },
+      { file: 'p.json', json: placeholder },
+    ]);
+    expect(list.weapons.map((w) => w.id)).toEqual(['a']);
+    expect(list.placeholders.map((w) => w.id)).toEqual(['p']);
+    expect(list.rejected).toEqual([]);
+
+    const measured = buildWeaponList([
+      { file: 'a.json', json: { ...validJson(), id: 'a' } },
+      { file: 'p.json', json: { ...placeholder, measured: true } },
+    ]);
+    expect(measured.weapons.map((w) => w.id)).toEqual(['a', 'p']);
+    expect(measured.placeholders).toEqual([]);
+  });
+
+  it('WPN-22: measured が欠けた・真偽値でない JSON は一覧から外れ、ファイル名と measured の誤りが返る', () => {
+    const missing = validJson();
+    delete missing.measured;
+    const list = buildWeaponList([
+      { file: 'missing.json', json: { ...missing, id: 'm' } },
+      { file: 'string.json', json: { ...validJson(), id: 's', measured: 'false' } },
+      { file: 'number.json', json: { ...validJson(), id: 'n', measured: 0 } },
+    ]);
+    expect(list.weapons).toEqual([]);
+    expect(list.placeholders).toEqual([]);
+    expect(list.rejected).toEqual([
+      { file: 'missing.json', errors: [{ path: 'measured', message: '必須の項目がない' }] },
+      { file: 'string.json', errors: [{ path: 'measured', message: '真偽値ではない' }] },
+      { file: 'number.json', errors: [{ path: 'measured', message: '真偽値ではない' }] },
+    ]);
+  });
+
+  it('仮データの武器と id が重なる計測した武器の JSON も一覧から外れる', () => {
+    const list = buildWeaponList([
+      { file: 'a.json', json: { ...validJson(), measured: false } },
+      { file: 'b.json', json: validJson() },
+    ]);
+    expect(list.weapons).toEqual([]);
+    expect(list.rejected.map((r) => [r.file, r.errors[0]?.path])).toEqual([['b.json', 'id']]);
+  });
+
+  it('WPN-3: src/data/weapons/ の JSON から、武器の一覧には L-STAR と C.A.R. SMG の 2 つだけが出る', () => {
     const list = buildWeaponList(readWeaponFiles());
     expect(list.rejected).toEqual([]);
-    expect(list.weapons.map((w) => w.name).sort()).toEqual(
-      ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア', 'L-STAR', 'C.A.R. SMG'].sort(),
-    );
-    for (const weapon of list.weapons.filter((w) => !['lstar', 'car'].includes(w.id))) expect(weapon.source).toMatch(/仮データ/);
+    expect(list.weapons.map((w) => w.name).sort()).toEqual(['L-STAR', 'C.A.R. SMG'].sort());
+    expect(list.placeholders.map((w) => w.name).sort()).toEqual(['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア'].sort());
+  });
+
+  it('WPN-23: measured が true の JSON には同じ id の計測の記録があり、false の JSON の source には仮データであることが書かれている', () => {
+    const list = buildWeaponList(readWeaponFiles());
+    for (const weapon of list.weapons) {
+      const record = JSON.parse(readFileSync(join(MEASUREMENTS_DIR, `${weapon.id}.json`), 'utf8')) as { weapon?: unknown };
+      expect(record.weapon).toBe(weapon.id);
+    }
+    expect(list.placeholders.map((w) => w.id).sort()).toEqual(['flatline', 'r301', 'r99', 'spitfire', 'volt']);
+    for (const weapon of list.placeholders) expect(weapon.source).toMatch(/仮データ/);
   });
 
   it.each(['lstar', 'car'])('WPN-14 / WPN-18: %s の source は自分で撮影した射撃訓練場の動画からの計測で、仮データの旨はなく、アタッチメントはすべて紫、version にシーズンがある', (id) => {

@@ -16,6 +16,7 @@ function weapon(id: string, extra: Record<string, unknown> = {}) {
     magSize: 1,
     pattern: [{ dx: 0, dy: 1 }],
     randomness: 0,
+    measured: true,
     ...extra,
   };
 }
@@ -67,6 +68,44 @@ describe('武器の JSON の一覧と取得', () => {
     });
     expect(weapons.map((w) => w.id)).toEqual(['a']);
     expect(logs).toEqual(['武器のデータ gone.json を読み込めないので一覧から外す: 取得できない（404）']);
+  });
+
+  it('WPN-21: measured が false の武器は返らず、誤りも出力されない。true にすると返る', async () => {
+    const files = [
+      { file: 'a.json', url: 'u/a' },
+      { file: 'p.json', url: 'u/p' },
+    ];
+    const load = (measured: boolean, logs: string[]) =>
+      loadWeapons({
+        files,
+        fetchJson: (url) => Promise.resolve(url === 'u/a' ? weapon('a') : weapon('p', { measured })),
+        log: (m) => logs.push(m),
+      });
+    const logs: string[] = [];
+    expect((await load(false, logs)).map((w) => w.id)).toEqual(['a']);
+    expect(logs).toEqual([]);
+    expect((await load(true, logs)).map((w) => w.id)).toEqual(['a', 'p']);
+    expect(logs).toEqual([]);
+  });
+
+  it('WPN-22: measured が欠けた・真偽値でない武器は返らず、ファイル名と measured の誤りが出力される', async () => {
+    const missing: Record<string, unknown> = weapon('missing');
+    delete missing.measured;
+    const bodies: Record<string, unknown> = { 'u/missing': missing, 'u/text': weapon('text', { measured: 'yes' }) };
+    const logs: string[] = [];
+    const weapons = await loadWeapons({
+      files: [
+        { file: 'missing.json', url: 'u/missing' },
+        { file: 'text.json', url: 'u/text' },
+      ],
+      fetchJson: (url) => Promise.resolve(bodies[url]),
+      log: (m) => logs.push(m),
+    });
+    expect(weapons).toEqual([]);
+    expect(logs).toEqual([
+      '武器のデータ missing.json を読み込めないので一覧から外す: measured: 必須の項目がない',
+      '武器のデータ text.json を読み込めないので一覧から外す: measured: 真偽値ではない',
+    ]);
   });
 
   it('WPN-12: 外した武器の出力にファイル名と pattern の誤りが入る', () => {

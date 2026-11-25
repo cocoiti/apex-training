@@ -11,7 +11,7 @@ import type { TrainingMode } from '../../src/modes/types';
 import type { ShotRecord } from '../../src/sim/gun';
 import { parseMap, type MapData } from '../../src/sim/map';
 import { replayRecording } from '../../src/sim/practice';
-import { score } from '../../src/sim/scoring';
+import { score, scoreShots } from '../../src/sim/scoring';
 import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
 import { createWorld, type World } from '../../src/sim/world';
 import { parsePersonalBest, personalBestKey } from '../../src/ui/personal-best';
@@ -105,15 +105,15 @@ function memoryStorage(initial: Record<string, string> = {}) {
 }
 
 const NOW = new Date('2026-11-25T00:00:00.000Z');
-const R301_CENTER = 'apex-training:best:mouse:r301:center';
+const LSTAR_CENTER = 'apex-training:best:mouse:lstar:center';
 const meanOf = (raw: string | undefined) => parsePersonalBest(raw ?? null)?.meanError;
 
 describe('リザルト画面に出すもの', () => {
   it('SCO-16: センター維持では指標・コメント・自己ベストと、散布図と照準の軌道の重ね描きを出す', () => {
-    const p = practice('r301', 'center');
+    const p = practice('lstar', 'center');
     const view = completePractice(p, memoryStorage(), NOW);
     expect(view.scored).toBe(true);
-    expect(view.summary).toBe(`R-301 / センター維持 — ${p.result.shots.length} 発`);
+    expect(view.summary).toBe(`L-STAR / センター維持 — ${p.result.shots.length} 発`);
     expect(view.metrics.map((m) => m.label)).toEqual(['平均ズレ', 'グルーピング半径', '命中率', '区間ごとのズレ', '横ブレ / 縦ブレ']);
     expect(view.comments.length).toBeGreaterThan(0);
     expect(view.best).toBe('自己ベスト更新');
@@ -129,14 +129,14 @@ describe('リザルト画面に出すもの', () => {
   });
 
   it('SCO-16: ゴースト追従（採点するモード）でも同じものを出す', () => {
-    const view = completePractice(practice('r301', 'ghost'), memoryStorage(), NOW);
+    const view = completePractice(practice('lstar', 'ghost'), memoryStorage(), NOW);
     expect(view.scored).toBe(true);
     expect(view.plots.map((p) => p.name)).toEqual(['scatter', 'trajectory']);
   });
 
   it('SCO-17: パターン観察では指標・コメント・自己ベストを出さず、弾痕と補正しなかった場合のパターンを重ね、何も保存しない', () => {
     const storage = memoryStorage();
-    const p = practice('r301', 'pattern', 0);
+    const p = practice('lstar', 'pattern', 0);
     const view = completePractice(p, storage, NOW);
     expect(view).toMatchObject({ scored: false, metrics: [], comments: [], best: null });
     expect(view.plots).toHaveLength(1);
@@ -152,67 +152,65 @@ describe('リザルト画面に出すもの', () => {
     expect(storage.items.size).toBe(0);
   });
 
-  it('SCO-18: 自己ベストがなければ「自己ベスト更新」を出し、マウス・R-301・センター維持のキーに平均ズレを保存する', () => {
+  it('SCO-18: 自己ベストがなければ「自己ベスト更新」を出し、マウス・L-STAR・センター維持のキーに平均ズレを保存する', () => {
     const storage = memoryStorage();
-    const p = practice('r301', 'center');
+    const p = practice('lstar', 'center');
     const view = completePractice(p, storage, NOW);
     expect(view.best).toBe('自己ベスト更新');
-    expect([...storage.items.keys()].filter((k) => k.startsWith('apex-training:best:'))).toEqual([R301_CENTER]);
-    const mean = score(
-      p.result.shots.map((s) => s.deviation ?? { yaw: NaN, pitch: NaN }),
-      1,
-    ).meanDeviation;
-    expect(meanOf(storage.items.get(R301_CENTER))).toBeCloseTo(mean ?? NaN, 9);
+    expect([...storage.items.keys()].filter((k) => k.startsWith('apex-training:best:'))).toEqual([LSTAR_CENTER]);
+    // L-STAR は壁の外に外れる弾があるので、外れた弾も向きから中心とのズレを求める scoreShots で計算する。
+    const mean = scoreShots(p.result.shots, p.world).meanDeviation;
+    expect(meanOf(storage.items.get(LSTAR_CENTER))).toBeCloseTo(mean ?? NaN, 9);
   });
 
   it('SCO-19: 保存してある自己ベストより平均ズレが大きいか等しいと、保存してある平均ズレを出し、値を変えない', () => {
-    const p = practice('r301', 'center');
+    const p = practice('lstar', 'center');
     const first = memoryStorage();
     completePractice(p, first, NOW);
-    const saved = first.items.get(R301_CENTER) ?? '';
+    const saved = first.items.get(LSTAR_CENTER) ?? '';
     // 等しい
-    const equal = memoryStorage({ [R301_CENTER]: saved });
+    const equal = memoryStorage({ [LSTAR_CENTER]: saved });
     const view = completePractice(p, equal, new Date('2026-12-01T00:00:00.000Z'));
     expect(view.best).not.toBe('自己ベスト更新');
     expect(view.best).toMatch(/^自己ベスト 平均ズレ \d+\.\d{2}°$/);
-    expect(equal.items.get(R301_CENTER)).toBe(saved);
+    expect(equal.items.get(LSTAR_CENTER)).toBe(saved);
     // 大きい（保存してある自己ベストが 0 度）
     const better = JSON.stringify({ version: 1, meanError: 0, groupingRadius: 0, hitRate: 100, shots: 28, achievedAt: NOW.toISOString() });
-    const larger = memoryStorage({ [R301_CENTER]: better });
+    const larger = memoryStorage({ [LSTAR_CENTER]: better });
     expect(completePractice(p, larger, NOW).best).toBe('自己ベスト 平均ズレ 0.00°');
-    expect(larger.items.get(R301_CENTER)).toBe(better);
+    expect(larger.items.get(LSTAR_CENTER)).toBe(better);
   });
 
-  it('SCO-20: R-301 とセンター維持の自己ベストがあっても、別のモード・別の武器は初めてなら更新し、R-301 とセンター維持は変えない', () => {
+  it('SCO-20: L-STAR とセンター維持の自己ベストがあっても、別のモード・別の武器は初めてなら更新し、L-STAR とセンター維持は変えない', () => {
     const best = JSON.stringify({ version: 1, meanError: 0, groupingRadius: 0, hitRate: 100, shots: 28, achievedAt: NOW.toISOString() });
-    const storage = memoryStorage({ [R301_CENTER]: best });
-    expect(completePractice(practice('r301', 'ghost'), storage, NOW).best).toBe('自己ベスト更新');
-    expect(completePractice(practice('r99', 'center'), storage, NOW).best).toBe('自己ベスト更新');
-    expect(storage.items.get(R301_CENTER)).toBe(best);
-    expect(storage.items.has(personalBestKey('mouse', 'r301', 'ghost'))).toBe(true);
-    expect(storage.items.has(personalBestKey('mouse', 'r99', 'center'))).toBe(true);
+    const storage = memoryStorage({ [LSTAR_CENTER]: best });
+    expect(completePractice(practice('lstar', 'ghost'), storage, NOW).best).toBe('自己ベスト更新');
+    expect(completePractice(practice('car', 'center'), storage, NOW).best).toBe('自己ベスト更新');
+    expect(storage.items.get(LSTAR_CENTER)).toBe(best);
+    expect(storage.items.has(personalBestKey('mouse', 'lstar', 'ghost'))).toBe(true);
+    expect(storage.items.has(personalBestKey('mouse', 'car', 'center'))).toBe(true);
   });
 
   it('平均ズレと自己ベストを更新したかを出す。パターン観察では平均ズレがなく、更新もしない', () => {
     const storage = memoryStorage();
-    const first = completePractice(practice('r301', 'center'), storage, NOW);
-    expect(first.meanDeviation).toBeCloseTo(meanOf(storage.items.get(R301_CENTER)) ?? NaN, 9);
+    const first = completePractice(practice('lstar', 'center'), storage, NOW);
+    expect(first.meanDeviation).toBeCloseTo(meanOf(storage.items.get(LSTAR_CENTER)) ?? NaN, 9);
     expect(first.bestUpdated).toBe(true);
-    expect(completePractice(practice('r301', 'center'), storage, NOW).bestUpdated).toBe(false);
-    expect(completePractice(practice('r301', 'pattern', 0), storage, NOW)).toMatchObject({ meanDeviation: null, bestUpdated: false });
+    expect(completePractice(practice('lstar', 'center'), storage, NOW).bestUpdated).toBe(false);
+    expect(completePractice(practice('lstar', 'pattern', 0), storage, NOW)).toMatchObject({ meanDeviation: null, bestUpdated: false });
   });
 
   it('MODE-23: 連続練習で回ごとに採点すると、自己ベストには回のうち平均ズレが最も小さい回の平均ズレが残る', () => {
     const storage = memoryStorage();
-    const means = [0.02, 0.005, 0.03, 0.01, 0.025].map((pullDown) => completePractice(practice('r301', 'center', pullDown), storage, NOW).meanDeviation ?? NaN);
+    const means = [0.02, 0.005, 0.03, 0.01, 0.025].map((pullDown) => completePractice(practice('lstar', 'center', pullDown), storage, NOW).meanDeviation ?? NaN);
     expect(new Set(means).size).toBe(5);
-    expect(meanOf(storage.items.get(R301_CENTER))).toBeCloseTo(Math.min(...means), 9);
+    expect(meanOf(storage.items.get(LSTAR_CENTER))).toBeCloseTo(Math.min(...means), 9);
   });
 
   it('SCO-21: 自己ベストのキーに JSON として読めない値があっても、その結果を自己ベストとして保存する', () => {
-    const storage = memoryStorage({ [R301_CENTER]: 'not json' });
-    expect(completePractice(practice('r301', 'center'), storage, NOW).best).toBe('自己ベスト更新');
-    expect(meanOf(storage.items.get(R301_CENTER))).toBeGreaterThan(0);
+    const storage = memoryStorage({ [LSTAR_CENTER]: 'not json' });
+    expect(completePractice(practice('lstar', 'center'), storage, NOW).best).toBe('自己ベスト更新');
+    expect(meanOf(storage.items.get(LSTAR_CENTER))).toBeGreaterThan(0);
   });
 
   it('SCO-22: 書き込みが例外になる環境でも投げずに出すものを作り、保存できないことを知らせる', () => {
@@ -223,13 +221,13 @@ describe('リザルト画面に出すもの', () => {
     storage.onUnavailable(() => {
       notified = true;
     });
-    const view = completePractice(practice('r301', 'center'), storage, NOW);
+    const view = completePractice(practice('lstar', 'center'), storage, NOW);
     expect(view.best).toBe('自己ベスト更新');
     expect(notified).toBe(true);
   });
 
   it('弾が 1 発もない結果では、指標を「なし」と出し、図は空にする', () => {
-    const p = practice('r301', 'center');
+    const p = practice('lstar', 'center');
     const empty: FinishedPractice = { ...p, result: { ...p.result, shots: [] as ShotRecord[] } as PracticeResult };
     const storage = memoryStorage();
     const view = completePractice(empty, storage, NOW);
@@ -242,24 +240,21 @@ describe('リザルト画面に出すもの', () => {
 });
 
 describe('練習の履歴の保存', () => {
-  const R301_CENTER_HISTORY = historyKey({ input: 'mouse', weaponId: 'r301', modeId: 'center' });
+  const LSTAR_CENTER_HISTORY = historyKey({ input: 'mouse', weaponId: 'lstar', modeId: 'center' });
 
-  it('SCO-23: マウスで R-301 とセンター維持を 3 回終えると、3 件が古い順にその練習の指標と日時で保存される', () => {
+  it('SCO-23: マウスで L-STAR とセンター維持を 3 回終えると、3 件が古い順にその練習の指標と日時で保存される', () => {
     const storage = memoryStorage();
     const pulls = [0.01, 0.02, 0.005];
     const times = ['2026-11-25T01:00:00.000Z', '2026-11-25T02:00:00.000Z', '2026-11-25T03:00:00.000Z'];
-    const views = pulls.map((pull, i) => completePractice(practice('r301', 'center', pull), storage, new Date(times[i] ?? '')));
-    expect(R301_CENTER_HISTORY).toBe('apex-training:history:mouse:r301:center');
-    const stored = JSON.parse(storage.items.get(R301_CENTER_HISTORY) ?? '') as { version: number; entries: unknown[] };
+    const views = pulls.map((pull, i) => completePractice(practice('lstar', 'center', pull), storage, new Date(times[i] ?? '')));
+    expect(LSTAR_CENTER_HISTORY).toBe('apex-training:history:mouse:lstar:center');
+    const stored = JSON.parse(storage.items.get(LSTAR_CENTER_HISTORY) ?? '') as { version: number; entries: unknown[] };
     expect(stored.version).toBe(1);
-    const entries = parseHistory(storage.items.get(R301_CENTER_HISTORY) ?? null);
+    const entries = parseHistory(storage.items.get(LSTAR_CENTER_HISTORY) ?? null);
     expect(entries.map((e) => e.at)).toEqual(times);
     pulls.forEach((pull, i) => {
-      const p = practice('r301', 'center', pull);
-      const scored = score(
-        p.result.shots.map((s) => s.deviation ?? { yaw: NaN, pitch: NaN }),
-        1,
-      );
+      const p = practice('lstar', 'center', pull);
+      const scored = scoreShots(p.result.shots, p.world);
       expect(entries[i]?.shots).toBe(p.result.shots.length);
       expect(entries[i]?.meanError).toBeCloseTo(scored.meanDeviation ?? NaN, 9);
       expect(entries[i]).toHaveProperty('hitRate');
@@ -270,32 +265,32 @@ describe('練習の履歴の保存', () => {
 
   it('SCO-25: パターン観察では履歴のキーに何も保存しない', () => {
     const storage = memoryStorage();
-    completePractice(practice('r301', 'pattern', 0), storage, NOW);
+    completePractice(practice('lstar', 'pattern', 0), storage, NOW);
     expect([...storage.items.keys()].filter((k) => k.startsWith('apex-training:history:'))).toEqual([]);
   });
 
-  it('SCO-26: 別のモード・パッドの練習では、R-301 とセンター維持のマウスの履歴を変えない', () => {
+  it('SCO-26: 別のモード・パッドの練習では、L-STAR とセンター維持のマウスの履歴を変えない', () => {
     const storage = memoryStorage();
-    completePractice(practice('r301', 'center'), storage, NOW);
-    const saved = storage.items.get(R301_CENTER_HISTORY);
-    completePractice(practice('r301', 'ghost'), storage, NOW);
-    completePractice({ ...practice('r301', 'center'), input: 'pad' }, storage, NOW);
-    expect(storage.items.get(R301_CENTER_HISTORY)).toBe(saved);
-    expect(parseHistory(storage.items.get(historyKey({ input: 'mouse', weaponId: 'r301', modeId: 'ghost' })) ?? null)).toHaveLength(1);
-    expect(parseHistory(storage.items.get(historyKey({ input: 'pad', weaponId: 'r301', modeId: 'center' })) ?? null)).toHaveLength(1);
+    completePractice(practice('lstar', 'center'), storage, NOW);
+    const saved = storage.items.get(LSTAR_CENTER_HISTORY);
+    completePractice(practice('lstar', 'ghost'), storage, NOW);
+    completePractice({ ...practice('lstar', 'center'), input: 'pad' }, storage, NOW);
+    expect(storage.items.get(LSTAR_CENTER_HISTORY)).toBe(saved);
+    expect(parseHistory(storage.items.get(historyKey({ input: 'mouse', weaponId: 'lstar', modeId: 'ghost' })) ?? null)).toHaveLength(1);
+    expect(parseHistory(storage.items.get(historyKey({ input: 'pad', weaponId: 'lstar', modeId: 'center' })) ?? null)).toHaveLength(1);
   });
 
   it('SCO-29: 履歴のキーに JSON として読めない値があっても、その練習の 1 件だけの履歴にする', () => {
-    const storage = memoryStorage({ [R301_CENTER_HISTORY]: '{broken' });
-    expect(completePractice(practice('r301', 'center'), storage, NOW).scored).toBe(true);
-    expect(parseHistory(storage.items.get(R301_CENTER_HISTORY) ?? null)).toHaveLength(1);
+    const storage = memoryStorage({ [LSTAR_CENTER_HISTORY]: '{broken' });
+    expect(completePractice(practice('lstar', 'center'), storage, NOW).scored).toBe(true);
+    expect(parseHistory(storage.items.get(LSTAR_CENTER_HISTORY) ?? null)).toHaveLength(1);
   });
 });
 
 describe('リザルト画面と再生の採点', () => {
   it('INP-4: 外れの弾を含む記録でも、リザルト画面の採点結果と、同じ記録を再生した採点結果が一致する', () => {
     // 照準を毎ステップ 0.5 度ずつ上げ、途中から的にも壁にも当たらない（空に向けて撃つ）。
-    const { finished, recording, weapon } = practiceWithRecording('r301', 'center', -0.5);
+    const { finished, recording, weapon } = practiceWithRecording('lstar', 'center', -0.5);
     const shots = finished.result.shots;
     expect(shots.some((s) => s.deviation === null)).toBe(true);
     expect(shots.some((s) => s.deviation !== null)).toBe(true);
@@ -306,7 +301,7 @@ describe('リザルト画面と再生の採点', () => {
     expect(replayed.shots).toEqual(shots);
     expect(view.metrics).toEqual(metricRows(replayed.score));
     expect(view.comments).toEqual(replayed.score.comments);
-    const saved = parsePersonalBest(storage.get(personalBestKey('mouse', 'r301', 'center')));
+    const saved = parsePersonalBest(storage.get(personalBestKey('mouse', 'lstar', 'center')));
     expect(saved?.meanError).toBe(replayed.score.meanDeviation);
   });
 });
@@ -337,14 +332,14 @@ describe('リザルト画面の要素', () => {
 
   it('採点するモードでは指標・コメント・自己ベスト・図を書き、採点しないモードでは指標の要素を隠す', () => {
     const e = elements();
-    renderResult(e, completePractice(practice('r301', 'center'), memoryStorage(), NOW));
+    renderResult(e, completePractice(practice('lstar', 'center'), memoryStorage(), NOW));
     expect(e.score.hidden).toBe(false);
     expect(e.metrics.innerHTML).toContain('<dt>平均ズレ</dt>');
     expect(e.best.textContent).toBe('自己ベスト更新');
     expect(e.plots.innerHTML).toContain('data-plot="scatter"');
     expect(e.plots.innerHTML).toContain('data-plot="trajectory"');
 
-    renderResult(e, completePractice(practice('r301', 'pattern', 0), memoryStorage(), NOW));
+    renderResult(e, completePractice(practice('lstar', 'pattern', 0), memoryStorage(), NOW));
     expect(e.score.hidden).toBe(true);
     expect(e.metrics.innerHTML).toBe('');
     expect(e.best.textContent).toBe('');
@@ -362,7 +357,7 @@ describe('リザルト画面の要素', () => {
     expect(e.padTrace.innerHTML).toContain('data-plot="stick-x"');
     expect(e.padTrace.innerHTML).toContain('data-plot="stick-y"');
 
-    renderResult(e, completePractice(practice('r301', 'center'), memoryStorage(), NOW));
+    renderResult(e, completePractice(practice('lstar', 'center'), memoryStorage(), NOW));
     expect(e.padTrace.hidden).toBe(true);
     expect(e.padTrace.innerHTML).toBe('');
   });
@@ -384,7 +379,7 @@ function padState(x: number, y: number, fire: boolean): GamepadLike {
 function padPractice(modeId: string, padName: string | undefined, options: { hold?: { x: number; y: number }; settings?: PadSettings } = {}): FinishedPractice {
   const settings = options.settings ?? linearPad;
   const world = rangeWorld();
-  const weapon = loadWeapon('r301');
+  const weapon = loadWeapon('lstar');
   const input = new RecordingInput(7);
   const session = new PracticeSession({
     world,
@@ -428,7 +423,7 @@ describe('右スティックの入力推移のグラフ', () => {
   });
 
   it('PAD-19: マウスで終えたとき、パターン観察で終えたときは出さない', () => {
-    expect(completePractice(practice('r301', 'ghost'), memoryStorage(), NOW).padTrace).toBeNull();
+    expect(completePractice(practice('lstar', 'ghost'), memoryStorage(), NOW).padTrace).toBeNull();
     expect(completePractice(padPractice('pattern', 'Xbox Wireless Controller'), memoryStorage(), NOW).padTrace).toBeNull();
   });
 

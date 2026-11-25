@@ -17,7 +17,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
 }
 
 const NOW = new Date('2026-11-25T05:06:07.000Z');
-const KEY = 'apex-training:best:mouse:r301:center';
+const KEY = 'apex-training:best:mouse:lstar:center';
 /** 全弾の水平のズレが h 度の 10 発の採点（平均ズレ h 度）。 */
 const result = (h: number) => score(Array.from({ length: 10 }, () => ({ yaw: h, pitch: 0 })), 1);
 const stored = (meanError: number) =>
@@ -25,8 +25,8 @@ const stored = (meanError: number) =>
 
 describe('自己ベストのキー', () => {
   it('apex-training:best:<入力方式>:<武器の id>:<モードの id>', () => {
-    expect(personalBestKey('mouse', 'r301', 'center')).toBe(KEY);
-    expect(personalBestKey('pad', 'r99', 'ghost')).toBe('apex-training:best:pad:r99:ghost');
+    expect(personalBestKey('mouse', 'lstar', 'center')).toBe(KEY);
+    expect(personalBestKey('pad', 'car', 'ghost')).toBe('apex-training:best:pad:car:ghost');
   });
 });
 
@@ -86,7 +86,7 @@ describe('自己ベストの更新', () => {
 
   it('SCO-20: ほかのキーの自己ベストは比べず、変えない', () => {
     const storage = memoryStorage({ [KEY]: stored(0.1) });
-    const other = personalBestKey('mouse', 'r301', 'ghost');
+    const other = personalBestKey('mouse', 'lstar', 'ghost');
     expect(recordPersonalBest(storage, other, result(0.9), NOW).updated).toBe(true);
     expect(storage.items.get(KEY)).toBe(stored(0.1));
   });

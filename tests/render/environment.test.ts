@@ -35,12 +35,12 @@ function rangeWorld(): World {
 
 function zeroWeapon(): WeaponData {
   const pattern: RecoilStep[] = Array.from({ length: 10 }, () => ({ dx: 0, dy: 0 }));
-  return { id: 'zero', name: 'ゼロ', category: 'AR', version: 'v', source: '仮データ', rpm: 600, magSize: 10, pattern, randomness: 0 };
+  return { id: 'zero', name: 'ゼロ', category: 'AR', version: 'v', source: '仮データ', rpm: 600, magSize: 10, pattern, randomness: 0, measured: true };
 }
 
 function recoilWeapon(): WeaponData {
   const pattern: RecoilStep[] = Array.from({ length: 12 }, (_, i) => ({ dx: ((i % 4) - 1.5) * 0.2, dy: 0.4 }));
-  return { id: 'r', name: 'リコイル', category: 'AR', version: 'v', source: '仮データ', rpm: 600, magSize: 12, pattern, randomness: 0.3 };
+  return { id: 'r', name: 'リコイル', category: 'AR', version: 'v', source: '仮データ', rpm: 600, magSize: 12, pattern, randomness: 0.3, measured: true };
 }
 
 const pattern = () => {

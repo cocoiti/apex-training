@@ -1,7 +1,8 @@
 /**
  * 武器の JSON の一覧と取得。シミュレーションの外で JSON を取得し、中身の確認は sim の buildWeaponList で行う。
  * JSON は Vite の資産として出し、URL はビルド時のベースパス基準になる（docs/adr/2026-11-25-data-json-as-fetched-assets.md）。
- * このディレクトリに JSON を足すと、コードを変えずに武器の一覧に出る（docs/spec/weapons.md WPN-1）。
+ * このディレクトリに measured が true の JSON を足すと、コードを変えずに武器の一覧に出る（docs/spec/weapons.md WPN-1）。
+ * measured が false の仮データの武器は一覧に入れず、誤りとしても出力しない（WPN-21）。
  */
 import { buildWeaponList, type RejectedWeapon, type WeaponData, type WeaponFile } from '../../sim/weapon';
 
@@ -35,7 +36,7 @@ export interface LoadWeaponsOptions {
 }
 
 /**
- * 武器の JSON をすべて取得して武器の一覧を作る。誤りのある JSON と取得できない JSON は一覧から外して出力し、ほかの武器は返す。
+ * 武器の JSON をすべて取得して武器の一覧（計測した武器データだけ）を作る。誤りのある JSON と取得できない JSON は一覧から外して出力し、ほかの武器は返す。
  */
 export async function loadWeapons(options: LoadWeaponsOptions = {}): Promise<WeaponData[]> {
   const { files = weaponUrls, fetchJson: fetcher = fetchJson, log = console.error } = options;

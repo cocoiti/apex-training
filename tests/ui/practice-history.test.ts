@@ -26,8 +26,8 @@ function memoryStorage(initial: Record<string, string> = {}) {
   };
 }
 
-const R301_CENTER = { input: 'mouse', weaponId: 'r301', modeId: 'center' } as const;
-const KEY = 'apex-training:history:mouse:r301:center';
+const LSTAR_CENTER = { input: 'mouse', weaponId: 'lstar', modeId: 'center' } as const;
+const KEY = 'apex-training:history:mouse:lstar:center';
 const NOW = new Date('2026-11-25T05:06:07.000Z');
 /** 全弾の水平のズレが h 度の 10 発の採点（平均ズレ h 度）。 */
 const result = (h: number) => score(Array.from({ length: 10 }, () => ({ yaw: h, pitch: 0 })), 1);
@@ -42,8 +42,8 @@ const stored = (entries: unknown[]) => JSON.stringify({ version: 1, entries });
 
 describe('履歴のキー', () => {
   it('apex-training:history:<入力方式>:<武器の id>:<モードの id>', () => {
-    expect(historyKey(R301_CENTER)).toBe(KEY);
-    expect(historyKey({ input: 'pad', weaponId: 'r99', modeId: 'ghost' })).toBe('apex-training:history:pad:r99:ghost');
+    expect(historyKey(LSTAR_CENTER)).toBe(KEY);
+    expect(historyKey({ input: 'pad', weaponId: 'car', modeId: 'ghost' })).toBe('apex-training:history:pad:car:ghost');
   });
 });
 
@@ -79,7 +79,7 @@ describe('履歴の読み出し', () => {
 describe('履歴に足す', () => {
   it('1 件目は、終えた日時・平均ズレ・命中率・グルーピング半径・撃った弾数を保存の形で保存する', () => {
     const storage = memoryStorage();
-    recordHistory(storage, R301_CENTER, result(0.25), NOW);
+    recordHistory(storage, LSTAR_CENTER, result(0.25), NOW);
     expect(JSON.parse(storage.items.get(KEY) ?? '')).toEqual({
       version: 1,
       entries: [{ at: '2026-11-25T05:06:07.000Z', meanError: 0.25, hitRate: 100, groupingRadius: 0, shots: 10 }],
@@ -88,8 +88,8 @@ describe('履歴に足す', () => {
 
   it('SCO-23: 3 回足すと 3 件が古い順に並ぶ', () => {
     const storage = memoryStorage();
-    [0.5, 0.25, 0.75].forEach((h, i) => recordHistory(storage, R301_CENTER, result(h), new Date(NOW.getTime() + i * 1000)));
-    const entries = loadHistory(storage, R301_CENTER);
+    [0.5, 0.25, 0.75].forEach((h, i) => recordHistory(storage, LSTAR_CENTER, result(h), new Date(NOW.getTime() + i * 1000)));
+    const entries = loadHistory(storage, LSTAR_CENTER);
     expect(entries.map((e) => e.meanError)).toEqual([0.5, 0.25, 0.75]);
     expect(entries.map((e) => Date.parse(e.at))).toEqual([0, 1, 2].map((i) => NOW.getTime() + i * 1000));
   });
@@ -97,8 +97,8 @@ describe('履歴に足す', () => {
   it('SCO-24: 200 件あるときに足すと 200 件のままで、最も古い 1 件が消え、最後が今の結果になる', () => {
     const old = Array.from({ length: HISTORY_LIMIT }, (_, i) => entry(i + 1));
     const storage = memoryStorage({ [KEY]: stored(old) });
-    recordHistory(storage, R301_CENTER, result(0.125), NOW);
-    const entries = loadHistory(storage, R301_CENTER);
+    recordHistory(storage, LSTAR_CENTER, result(0.125), NOW);
+    const entries = loadHistory(storage, LSTAR_CENTER);
     expect(HISTORY_LIMIT).toBe(200);
     expect(entries).toHaveLength(200);
     expect(entries[0]?.meanError).toBe(2);
@@ -108,26 +108,26 @@ describe('履歴に足す', () => {
   it('SCO-26: ほかの組の履歴は変えない', () => {
     const saved = stored([entry(1)]);
     const storage = memoryStorage({ [KEY]: saved });
-    recordHistory(storage, { ...R301_CENTER, modeId: 'ghost' }, result(1), NOW);
-    recordHistory(storage, { ...R301_CENTER, input: 'pad' }, result(1), NOW);
+    recordHistory(storage, { ...LSTAR_CENTER, modeId: 'ghost' }, result(1), NOW);
+    recordHistory(storage, { ...LSTAR_CENTER, input: 'pad' }, result(1), NOW);
     expect(storage.items.get(KEY)).toBe(saved);
   });
 
   it('SCO-29: 保存してある値が JSON として読めなければ、その結果の 1 件だけにする', () => {
     const storage = memoryStorage({ [KEY]: '{broken' });
-    recordHistory(storage, R301_CENTER, result(2), NOW);
-    expect(loadHistory(storage, R301_CENTER).map((e) => e.meanError)).toEqual([2]);
+    recordHistory(storage, LSTAR_CENTER, result(2), NOW);
+    expect(loadHistory(storage, LSTAR_CENTER).map((e) => e.meanError)).toEqual([2]);
   });
 
   it('読み飛ばした要素は、次に足すときに除いて書き直す', () => {
     const storage = memoryStorage({ [KEY]: stored([entry(1), { at: 'x', meanError: 1 }]) });
-    recordHistory(storage, R301_CENTER, result(2), NOW);
+    recordHistory(storage, LSTAR_CENTER, result(2), NOW);
     expect((JSON.parse(storage.items.get(KEY) ?? '') as { entries: unknown[] }).entries).toHaveLength(2);
   });
 
   it('平均ズレが「なし」（1 発も撃っていない）なら足さない', () => {
     const storage = memoryStorage();
-    recordHistory(storage, R301_CENTER, score([], 1), NOW);
+    recordHistory(storage, LSTAR_CENTER, score([], 1), NOW);
     expect(storage.items.size).toBe(0);
   });
 
@@ -135,20 +135,20 @@ describe('履歴に足す', () => {
     const storage = new SafeStorage(() => {
       throw new DOMException('denied', 'SecurityError');
     });
-    recordHistory(storage, R301_CENTER, result(1), NOW);
-    recordHistory(storage, R301_CENTER, result(2), NOW);
+    recordHistory(storage, LSTAR_CENTER, result(1), NOW);
+    recordHistory(storage, LSTAR_CENTER, result(2), NOW);
     expect(storage.unavailable).toBe(true);
-    expect(loadHistory(storage, R301_CENTER).map((e) => e.meanError)).toEqual([1, 2]);
+    expect(loadHistory(storage, LSTAR_CENTER).map((e) => e.meanError)).toEqual([1, 2]);
   });
 });
 
 describe('履歴を消す', () => {
   it('選んだ組の履歴だけを消し、ほかの組と自己ベストは残す', () => {
-    const best = 'apex-training:best:mouse:r301:center';
-    const other = historyKey({ ...R301_CENTER, modeId: 'ghost' });
+    const best = 'apex-training:best:mouse:lstar:center';
+    const other = historyKey({ ...LSTAR_CENTER, modeId: 'ghost' });
     const storage = memoryStorage({ [KEY]: stored([entry(1)]), [other]: stored([entry(2)]), [best]: '{}' });
-    clearHistory(storage, R301_CENTER);
-    expect(loadHistory(storage, R301_CENTER)).toEqual([]);
+    clearHistory(storage, LSTAR_CENTER);
+    expect(loadHistory(storage, LSTAR_CENTER)).toEqual([]);
     expect(storage.items.has(other)).toBe(true);
     expect(storage.items.has(best)).toBe(true);
   });
