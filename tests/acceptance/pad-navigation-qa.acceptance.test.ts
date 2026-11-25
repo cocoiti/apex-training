@@ -594,20 +594,20 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
   // -------------------------------------------------------------------------
   describe('UI-50: ON/OFF の欄は A / × で切り替わり、色の欄は右で並びの次の色になる', () => {
-    it('ゴースト表示の欄で A / × を押すと OFF で保存され、もう一度押すと ON', async () => {
+    it('ゴースト表示の欄で A / × を押すと ON で保存され、もう一度押すと OFF（既定は OFF）', async () => {
       const page = await openFresh({ path: '#/settings' });
       await page.waitFor(screenVisible('settings'));
-      expect(await checked(page, '#setting-ghost')).toBe(true);
-      await focusDownTo(page, 'setting-ghost');
-      await tap(page, A);
-      expect(await checked(page, '#setting-ghost')).toBe(false);
-      await reload(page);
       expect(await checked(page, '#setting-ghost')).toBe(false);
       await focusDownTo(page, 'setting-ghost');
       await tap(page, A);
       expect(await checked(page, '#setting-ghost')).toBe(true);
       await reload(page);
       expect(await checked(page, '#setting-ghost')).toBe(true);
+      await focusDownTo(page, 'setting-ghost');
+      await tap(page, A);
+      expect(await checked(page, '#setting-ghost')).toBe(false);
+      await reload(page);
+      expect(await checked(page, '#setting-ghost')).toBe(false);
       noExceptions(page);
     }, 60_000);
 

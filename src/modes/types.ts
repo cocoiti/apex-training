@@ -5,6 +5,12 @@ import type { World } from '../sim/world';
 
 export type ModeCategory = 'recoil' | 'movement' | 'combined';
 
+/**
+ * 補正のパネル（docs/spec/screens.md「補正のパネル」）の出し方。`always` は設定によらず必ず出し、
+ * `setting` は設定の補正のパネルが ON のときだけ出す。持たないモードは出さない。
+ */
+export type CorrectionPanelUse = 'always' | 'setting';
+
 /** 練習モードに渡すもの。シミュレーションの状態、その練習の武器（残弾・弾痕の記録）、種付きの乱数。 */
 export interface ModeContext {
   readonly world: World;
@@ -30,6 +36,8 @@ export interface TrainingMode<TResult extends ModeResult = ModeResult> {
   readonly category: ModeCategory;
   /** トップ画面の選択肢の並び順。小さいほど前。同じならファイル名の順。 */
   readonly order: number;
+  /** 補正のパネルの出し方。持たないモードでは出さない。 */
+  readonly correctionPanel?: CorrectionPanelUse;
   /** 練習の開始時に 1 回呼ぶ。 */
   setup(context: ModeContext): void;
   /**
@@ -43,7 +51,7 @@ export interface TrainingMode<TResult extends ModeResult = ModeResult> {
   teardown(context: ModeContext): void;
   /**
    * ゴーストを表示するモードだけが持つ。今のステップの状態からゴーストの向き（ヨー・ピッチ、度）を返し、
-   * 表示しないときは undefined を返す。描画のたびに呼ぶので、シミュレーションの状態を変えない（docs/spec/modes.md「ゴースト追従」）。
+   * 表示しないときは undefined を返す。描画のたびに呼ぶので、シミュレーションの状態を変えない（docs/spec/modes.md「反復練習」）。
    */
   ghost?(context: ModeContext): Angles | undefined;
 }

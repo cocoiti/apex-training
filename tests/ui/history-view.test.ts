@@ -78,8 +78,8 @@ const pointCount = (html: string) => Number(/data-series="history" data-count="(
 const listedMeans = (html: string) => [...html.matchAll(/data-field="meanError">([^<]*)</g)].map((m) => m[1]);
 
 describe('履歴の画面の選択肢', () => {
-  it('UI-26: モードの選択肢はゴースト追従とセンター維持で、パターン観察は出ない', () => {
-    expect(SCORED_MODES.map((m) => m.name)).toEqual(['ゴースト追従', 'センター維持']);
+  it('UI-26: モードの選択肢は反復練習とセンター維持で、パターン観察は出ない', () => {
+    expect(SCORED_MODES.map((m) => m.name)).toEqual(['反復練習', 'センター維持']);
     expect(SCORED_MODES.map((m) => m.id)).not.toContain('pattern');
     // 登録されたモードと id・名前が食い違わない。
     for (const mode of modes) {

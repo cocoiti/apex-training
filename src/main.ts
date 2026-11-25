@@ -26,6 +26,7 @@ import type { WeaponData } from './sim/weapon';
 import { createWorld, type World } from './sim/world';
 import { fillCountSelect } from './ui/count-choices';
 import { applyCrosshair } from './ui/crosshair';
+import { CorrectionPanel, correctionPanelShown, type CorrectionPanelElements } from './ui/correction-panel';
 import { fullscreenLabel, toggleFullscreen } from './ui/fullscreen';
 import { bindHistoryView, initialHistorySelection, SCORED_MODES, type HistoryElements } from './ui/history-view';
 import { renderHud, type HudElements } from './ui/hud';
@@ -173,6 +174,23 @@ function padGuideElements(): PadGuideElements | undefined {
   return root && ideal && current && name ? { root, ideal, current, name } : undefined;
 }
 
+/** 補正のパネルの要素。どれかが欠けていれば undefined。 */
+function correctionPanelElements(): CorrectionPanelElements | undefined {
+  const root = document.querySelector<HTMLElement>('[data-screen="play"] .correction-panel');
+  const svg = root?.querySelector<SVGSVGElement>('svg');
+  const axisX = root?.querySelector<SVGLineElement>('[data-panel="axis-x"]');
+  const axisY = root?.querySelector<SVGLineElement>('[data-panel="axis-y"]');
+  const ideal = root?.querySelector<SVGPolylineElement>('[data-series="ideal"]');
+  const own = root?.querySelector<SVGPolylineElement>('[data-series="aim"]');
+  const ownDots = root?.querySelector<SVGGElement>('[data-series="aim-shots"]');
+  const current = root?.querySelector<SVGCircleElement>('[data-panel="current"]');
+  const aim = root?.querySelector<SVGPathElement>('[data-panel="aim"]');
+  const heading = root?.querySelector<SVGLineElement>('[data-panel="heading"]');
+  return root && svg && axisX && axisY && ideal && own && ownDots && current && aim && heading
+    ? { root, svg, axisX, axisY, ideal, own, ownDots, current, aim, heading }
+    : undefined;
+}
+
 /** 設定画面の各項目に保存された値を出し、変えたらすぐに保存する（docs/spec/screens.md「設定項目」）。 */
 function startSettingsForm(): void {
   const byId = <T extends HTMLElement>(id: string) => document.querySelector<T>(`#${id}`);
@@ -182,6 +200,7 @@ function startSettingsForm(): void {
     crosshairShape: byId<HTMLSelectElement>('setting-crosshair-shape'),
     crosshairColor: byId<HTMLInputElement>('setting-crosshair-color'),
     ghost: byId<HTMLInputElement>('setting-ghost'),
+    correctionPanel: byId<HTMLInputElement>('setting-correction-panel'),
     sound: byId<HTMLInputElement>('setting-sound'),
     dpi: byId<HTMLInputElement>('setting-dpi'),
     sensitivity: byId<HTMLInputElement>('setting-sensitivity'),
@@ -475,6 +494,11 @@ async function start(): Promise<void> {
   const hideGuide = () => {
     if (guide) renderPadGuide(guide, undefined);
   };
+  // 補正のパネル（docs/spec/screens.md「補正のパネル」）。表示だけで、シミュレーションと入力の記録には触れない。
+  const panelElements = correctionPanelElements();
+  const panel = panelElements ? new CorrectionPanel(panelElements) : undefined;
+  // 補正のパネルの設定。「開始」を押した時点の保存された値。センター維持だけが使う（反復練習では設定によらず出す）。
+  let showPanel = loadCommonSettings(appStorage).correctionPanel;
   // ゴースト表示の設定。「開始」を押した時点の保存された値（docs/spec/screens.md）。OFF でも採点は変わらない。
   let showGhost = loadCommonSettings(appStorage).ghost;
   let running: Running | undefined;
@@ -543,6 +567,7 @@ async function start(): Promise<void> {
     const scope = document.querySelector<HTMLElement>('.scope');
     if (scope) applyReticleColor(scope, loadCommonSettings(appStorage).crosshairColor);
     showGhost = settings.ghost;
+    showPanel = settings.correctionPanel;
     mouseSettings = settings.mouse;
     padSettings = settings.pad;
     vibration = settings.vibration;
@@ -576,6 +601,9 @@ async function start(): Promise<void> {
     shownWorld = world;
     running = { session, loop, input, padSettings: DEFAULT_PAD_SETTINGS, rumbledShots: 0 };
     hideGuide();
+    // 新しい練習では自分の線を消し、今の発の点を 1 発目に戻す。表示は描画のたびに決める。
+    panel?.begin(weapon);
+    panel?.hide();
     setAds(false);
     interlude.hidden = true;
     playControls.hidden = false;
@@ -602,6 +630,7 @@ async function start(): Promise<void> {
     impacts.clear();
     ghost.hide();
     hideGuide();
+    panel?.hide();
   };
 
   /** 終えた回だけのセットのまとめを出す（docs/spec/screens.md「セットのまとめ」）。 */
@@ -627,6 +656,7 @@ async function start(): Promise<void> {
     running = undefined;
     ghost.hide();
     hideGuide();
+    panel?.hide();
     setAds(false);
     // 採点し、採点するモードなら自己ベストを保存する。連続練習でも回ごとに判定する（docs/spec/scoring.md「自己ベスト」）。
     // 保存できなくても投げず、フッターの表示は appStorage が出す。
@@ -669,6 +699,7 @@ async function start(): Promise<void> {
     if (!set) return;
     const current = set;
     running = undefined;
+    panel?.hide();
     if (current.quit() === 'summary') showSetSummary(current);
     else location.hash = SCREEN_HASHES.top;
   };
@@ -761,7 +792,7 @@ async function start(): Promise<void> {
       });
       // 入力方式がマウスに変わったら、同じ描画ですぐにガイドを消す。撃ち切ったとき・終わったときは session.ghost が undefined。
       if (guide) {
-        const shown = padGuideVisible({ showGhost, ghostShown: session.ghost !== undefined, inputMethod: inputs.current });
+        const shown = padGuideVisible({ ghostShown: session.ghost !== undefined, inputMethod: inputs.current });
         renderPadGuide(
           guide,
           shown
@@ -774,6 +805,14 @@ async function start(): Promise<void> {
               })
             : undefined,
         );
+      }
+      // 補正のパネルは入力方式によらず、反復練習では必ず、センター維持では設定が ON なら出す。一時停止中は状態が変わらないので同じ表示のまま。
+      if (panel) {
+        if (correctionPanelShown(session.mode.correctionPanel, showPanel)) {
+          panel.update({ nextShot: session.gun.nextPatternShot, ammo: session.gun.ammo, shotAims: session.shotAims, aim: session.aim });
+        } else {
+          panel.hide();
+        }
       }
       status.textContent = hint;
       // 最後の弾の弾痕を記録・表示したあとにリザルト画面へ移る。

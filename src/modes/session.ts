@@ -2,7 +2,7 @@ import { createRandom } from '../core/random';
 import type { InputMethod } from '../input/input-switch';
 import type { InputSource } from '../input/queue';
 import { replayInput, type InputRecording } from '../input/recording';
-import type { Angles } from '../sim/angles';
+import { normalizeYaw, type Angles } from '../sim/angles';
 import { Gun, type ShotRecord } from '../sim/gun';
 import { MAX_REPLAY_SECONDS, PracticeEndRule, type PracticeEndReason } from '../sim/practice';
 import { Simulation } from '../sim/simulation';
@@ -64,6 +64,8 @@ export class PracticeSession {
   private readonly currentPadName: () => string | undefined;
   /** 1 発目を撃ったときのパッドの名前。 */
   private firstShotPadName: string | undefined;
+  /** 撃った各弾の発射時の利用者の照準（開始時の照準からの差）。撃った順。 */
+  private readonly aims: Angles[] = [];
 
   constructor(options: PracticeSessionOptions) {
     this.world = options.world;
@@ -78,6 +80,8 @@ export class PracticeSession {
     this.mode.setup(this.context);
     this.sim.addStepHook((world, dt) => {
       this.gun.step(world, dt);
+      // 弾はそのステップの入力を適用したあとの照準で撃つ（src/sim/trajectory.ts の aimAtShots と同じ）。
+      while (this.aims.length < this.gun.shots.length) this.aims.push(this.aim);
       if (this.firstShotInputMethod === undefined && this.gun.shots.length > 0) {
         this.firstShotInputMethod = this.currentInputMethod();
         this.firstShotPadName = this.currentPadName();
@@ -123,6 +127,20 @@ export class PracticeSession {
   get idealRate(): Angles {
     if (this.finished) return { yaw: 0, pitch: 0 };
     return idealCorrectionRate(this.weapon, { fire: this.world.player.fire, nextShot: this.gun.nextPatternShot, ammo: this.gun.ammo });
+  }
+
+  /**
+   * 撃った各弾の発射時の利用者の照準。開始時の照準（World の中心）からのヨー・ピッチ（度）で、リコイルのオフセットは含まない。
+   * 撃った順で、記録から求めるリザルトの「自分の照準の軌道」（aimAtShots）と同じ値。補正のパネルの自分の線に使う。
+   */
+  get shotAims(): readonly Angles[] {
+    return this.aims;
+  }
+
+  /** 今の利用者の照準。開始時の照準（World の中心）からのヨー・ピッチ（度）で、リコイルのオフセットは含まない。補正のパネルの今の照準に使う。 */
+  get aim(): Angles {
+    const { player, center } = this.world;
+    return { yaw: normalizeYaw(player.aim.yaw - center.yaw), pitch: player.aim.pitch - center.pitch };
   }
 
   /** 1 固定ステップ進める。終わったあとは何もしない。 */

@@ -1,4 +1,4 @@
-// docs/spec/modes.md のゴースト追従の受け入れ条件（MODE-1・MODE-3・MODE-12〜MODE-15）と、docs/spec/screens.md の
+// docs/spec/modes.md の反復練習の受け入れ条件（MODE-1・MODE-3・MODE-12〜MODE-15）と、docs/spec/screens.md の
 // 設定を練習に当てる受け入れ条件（UI-4・UI-16・UI-17）の QA の受け入れテスト。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（トップ・設定・プレイ・リザルト）と、武器・マップの JSON。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、画面写しの画素を読んで確かめる（tests/helpers/png.ts）。
@@ -195,10 +195,20 @@ async function setNative(page: Page, id: string, value: string) {
   await page.waitFor(`document.getElementById(${JSON.stringify(id)}).value === ${JSON.stringify(value)}`);
 }
 
-/** 保存された設定を消す（既定値の状態にする）。 */
-async function resetSettings(page: Page, origin: string) {
+/** 共通の設定の保存のキー（screens.md「設定の保存と読み出し」）。 */
+const COMMON_KEY = 'apex-training:settings:common';
+/** ゴースト表示を ON にした共通の設定（既定は OFF。screens.md）。 */
+const GHOST_ON = { ghost: true };
+
+/** 保存された設定を消す（既定値の状態にする）。common を渡すと、共通の設定のその値だけを既定から変えて保存する。 */
+async function resetSettings(page: Page, origin: string, common?: Record<string, unknown>) {
   await page.goto(`${origin}${BASE}#/`);
   await page.evaluate('localStorage.clear()');
+  if (common) await page.evaluate(`localStorage.setItem(${JSON.stringify(COMMON_KEY)}, ${JSON.stringify(JSON.stringify(common))})`);
+  // 開いた時点で読んだ設定（設定画面の表示）を、保存し直した値にするため読み込み直す。
+  await page.evaluate('window.__beforeReload = true');
+  await page.send('Page.reload', { ignoreCache: false });
+  await page.waitFor(`!window.__beforeReload && document.readyState === 'complete'`, 15_000);
 }
 
 /** 設定画面を開く。 */
@@ -280,7 +290,7 @@ const fmt = (p: Point | undefined) => (p ? `(${p[0].toFixed(1)}, ${p[1].toFixed(
 
 // ---------------------------------------------------------------------------
 
-describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練習への反映', () => {
+describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習への反映', () => {
   const temps: string[] = [];
   const servers: Server[] = [];
   let browser: Browser | undefined;
@@ -352,12 +362,13 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
     opened = [];
     await closePage(ref);
 
-    // ゴーストの色: ゴースト追従で始めた直後のキャンバスと対照の違う画素の色。
+    // ゴーストの色: ゴースト表示を ON にして反復練習で始めた直後のキャンバスと対照の違う画素の色。
     const page = await newPage();
-    await start(page, main, 'L-STAR', 'ゴースト追従');
+    await resetSettings(page, main, GHOST_ON);
+    await start(page, main, 'L-STAR', '反復練習');
     const ghostCanvas = await canvasOnly(page, { stable: true });
     const diff = changedPixels(patternBase, ghostCanvas);
-    if (diff.length === 0) throw new Error('ゴースト追従で始めても、パターン観察と違う画素がない（ゴーストが見えない）');
+    if (diff.length === 0) throw new Error('反復練習で始めても、パターン観察と違う画素がない（ゴーストが見えない）');
     ghostColor = medianColor(ghostCanvas, diff);
     // ゴーストの色は、対照のキャンバス（壁・的・背景）にない色。
     expect(pixelsOfColor(patternBase, ghostColor).length, `ゴーストの色 ${ghostColor} が対照にもある`).toBe(0);
@@ -372,14 +383,14 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-12: 1 発も撃っていないとき、ゴーストは開始時の照準 + 1 発目の理想の補正軌道の向きに表示される', () => {
+  describe('MODE-12: ゴースト表示を ON にして 1 発も撃っていないとき、ゴーストは開始時の照準 + 1 発目の理想の補正軌道の向きに表示される', () => {
     it.each([...LISTED_WEAPONS.map((n) => [n, byName(n), 'main'] as const), [ZERO_WEAPON.name, ZERO_WEAPON, 'copy'] as const])(
       '%s',
       async (_name, w, site) => {
         const origin = site === 'main' ? main : copy;
         const page = await newPage();
-        await resetSettings(page, origin);
-        await start(page, origin, w.name, 'ゴースト追従');
+        await resetSettings(page, origin, GHOST_ON);
+        await start(page, origin, w.name, '反復練習');
         const expected = project(ideal(w, 1));
         // 対照（パターン観察）と違う画素は、ゴーストの 1 か所だけ。
         const diff = changedPixels(patternBase, await canvasOnly(page, { stable: true }));
@@ -401,12 +412,12 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-3: ゴーストは次の弾で照準を合わせるべき位置に表示され、1 発撃つごとに次の位置へ進む', () => {
+  describe('MODE-3: ゴースト表示を ON にした反復練習で、ゴーストは次の弾で照準を合わせるべき位置に表示され、1 発撃つごとに次の位置へ進む', () => {
     it(`${ZERO_WEAPON.name}（rpm 30）で R2 を押し続け、各発のあとにゴーストが次の発の理想の補正軌道の位置にある`, async () => {
       const w = ZERO_WEAPON;
       const page = await newPage();
-      await resetSettings(page, copy);
-      await start(page, copy, w.name, 'ゴースト追従');
+      await resetSettings(page, copy, GHOST_ON);
+      await start(page, copy, w.name, '反復練習');
       const seen: Point[] = [];
       await page.evaluate(`window.__setR2(1)`);
       for (let i = 1; i < w.magSize; i += 1) {
@@ -428,8 +439,8 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
     it('L-STAR で 1 発だけ撃つと、ゴーストが 1 発目の位置から 2 発目の位置へ進む', async () => {
       const w = byName('L-STAR');
       const page = await newPage();
-      await resetSettings(page, main);
-      await start(page, main, w.name, 'ゴースト追従');
+      await resetSettings(page, main, GHOST_ON);
+      await start(page, main, w.name, '反復練習');
       const before = await ghostAt(page);
       // パッドが 1 回読まれる間だけ押す代わりに、1 発撃ったら離す（発射間隔 100ms より短く押す）。
       const left = await page.evaluate<number>(`(async () => {
@@ -448,12 +459,12 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-13: randomness 0 の武器で、各発を撃つときにクロスヘアをゴーストに重ねて撃つと、全弾が中心に当たる', () => {
+  describe('MODE-13: ゴースト表示を ON にした反復練習で、randomness 0 の武器で、各発を撃つときにクロスヘアをゴーストに重ねて撃つと、全弾が中心に当たる', () => {
     it(`${ZERO_WEAPON.name}: マウスで照準をゴーストに重ねてから撃ち、撃つたびに次のゴーストに重ね直す`, async () => {
       const w = ZERO_WEAPON;
       const page = await newPage();
-      await resetSettings(page, copy);
-      await start(page, copy, w.name, 'ゴースト追従');
+      await resetSettings(page, copy, GHOST_ON);
+      await start(page, copy, w.name, '反復練習');
       // ポインターロックを掛ける（この クリックでは撃たない: ロックしていない間のボタンは射撃にならない）。
       await page.click(CX, CY);
       await page.waitFor('!!document.pointerLockElement', 5000);
@@ -515,7 +526,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
     it(`対照: ${ZERO_WEAPON.name} で照準を動かさずに撃ち切ると、中心に当たらない（平均ズレが 0 でない）`, async () => {
       const page = await newPage();
       await resetSettings(page, copy);
-      await start(page, copy, ZERO_WEAPON.name, 'ゴースト追従');
+      await start(page, copy, ZERO_WEAPON.name, '反復練習');
       await page.evaluate(`window.__setR2(1)`);
       await page.waitFor(`location.hash === '#/result'`, 15_000);
       await page.evaluate(`window.__setR2(0)`);
@@ -528,15 +539,15 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-14: 1 マガジンを撃ち切ると、ゴーストが表示から消えてリザルト画面に移る', () => {
+  describe('MODE-14: ゴースト表示を ON にした反復練習で 1 マガジンを撃ち切ると、ゴーストが表示から消えてリザルト画面に移る', () => {
     it.each([
       [ZERO_WEAPON.name, ZERO_WEAPON, 'copy'] as const,
       ['L-STAR', byName('L-STAR'), 'main'] as const,
     ])('%s', async (_name, w, site) => {
       const origin = site === 'main' ? main : copy;
       const page = await newPage();
-      await resetSettings(page, origin);
-      await start(page, origin, w.name, 'ゴースト追従');
+      await resetSettings(page, origin, GHOST_ON);
+      await start(page, origin, w.name, '反復練習');
       await page.evaluate(`window.__setR2(1)`);
       if (w.rpm <= 60) {
         // 撃ち切る直前（残弾 1）は、まだゴーストが表示されている。
@@ -558,12 +569,12 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-15: 数発撃って fire を離し、戻りの時間（0.5 秒）より長く待つと、ゴーストが 1 発目の位置に戻る', () => {
+  describe('MODE-15: ゴースト表示を ON にした反復練習で数発撃って fire を離し、戻りの時間（0.5 秒）より長く待つと、ゴーストが 1 発目の位置に戻る', () => {
     it.each([['L-STAR'], ['C.A.R. SMG']])('%s', async (name) => {
       const w = byName(name);
       const page = await newPage();
-      await resetSettings(page, main);
-      await start(page, main, w.name, 'ゴースト追従');
+      await resetSettings(page, main, GHOST_ON);
+      await start(page, main, w.name, '反復練習');
       const first = project(ideal(w, 1));
       const { ammo: left, time: released } = await holdUntil(page, w.magSize - 6);
       expect(w.magSize - left).toBeGreaterThanOrEqual(6);
@@ -591,18 +602,21 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
   });
 
   // -------------------------------------------------------------------------
-  describe('UI-4: 設定画面でゴースト表示を OFF にしてゴースト追従を始めると、ゴーストが表示されず、撃ち切るとリザルトに採点結果が表示される', () => {
+  describe('UI-4: 設定画面でゴースト表示を ON にしてから OFF に戻して反復練習を始めると、ゴーストが表示されず、撃ち切るとリザルトに採点結果が表示される', () => {
     it('L-STAR', async () => {
       const w = byName('L-STAR');
       const page = await newPage();
       await resetSettings(page, main);
       await openSettings(page, main);
-      expect(await page.evaluate<boolean>(`document.getElementById('setting-ghost').checked`)).toBe(true);
+      // 既定は OFF。ON にしてから OFF に戻す。
+      expect(await page.evaluate<boolean>(`document.getElementById('setting-ghost').checked`)).toBe(false);
+      await page.clickSelector('#setting-ghost');
+      await page.waitFor(`document.getElementById('setting-ghost').checked`);
       await page.clickSelector('#setting-ghost');
       await page.waitFor(`!document.getElementById('setting-ghost').checked`);
       expect(await page.evaluate<boolean>(`document.getElementById('setting-ghost').checked`)).toBe(false);
 
-      await start(page, main, w.name, 'ゴースト追従');
+      await start(page, main, w.name, '反復練習');
       // 撃つ前: パターン観察と同じ画面（ゴーストがない）。
       const base = await canvasOnly(page, { stable: true });
       expect(changedPixels(patternBase, base).length, 'ゴースト表示 OFF なのに、パターン観察と違う画素がある').toBe(0);
@@ -616,7 +630,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       await page.evaluate(`window.__setR2(0)`);
       await waitResult(page);
       const text = await resultText(page);
-      expect(text).toContain('ゴースト追従');
+      expect(text).toContain('反復練習');
       expect(text, text).toMatch(/平均ズレ\s*[\d.]+\s*°/);
       expect(text, text).toMatch(/グルーピング半径\s*[\d.]+\s*°/);
       expect(text, text).toMatch(/下げすぎ|下げ不足|横の補正不足|よくまとまっている/);
@@ -797,7 +811,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
       expect([...weapons].sort()).toEqual([...LISTED_WEAPONS].sort());
       for (const n of PLACEHOLDER_WEAPONS) expect(weapons).not.toContain(n);
-      expect(modes).toEqual(expect.arrayContaining(['パターン観察', 'ゴースト追従', 'センター維持']));
+      expect(modes).toEqual(expect.arrayContaining(['パターン観察', '反復練習', 'センター維持']));
       // C.A.R. SMG（#49）は SMG の分類（WPN-13 の optgroup）にある。
       const group = await page.evaluate<string | null>(
         `([...document.querySelector('#weapon').options].find((o) => o.textContent.trim() === 'C.A.R. SMG')?.closest('optgroup')?.label ?? null)`,
@@ -813,7 +827,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     });
 
-    it.each(LISTED_WEAPONS.flatMap((n) => ['パターン観察', 'ゴースト追従', 'センター維持'].map((m) => [n, m] as const)))(
+    it.each(LISTED_WEAPONS.flatMap((n) => ['パターン観察', '反復練習', 'センター維持'].map((m) => [n, m] as const)))(
       '%s / %s',
       async (name, mode) => {
         const page = await newPage();

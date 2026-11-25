@@ -190,7 +190,7 @@ describe('QA: パッド向けのガイド（PAD-15・PAD-16・PAD-20）', () => 
 
   describe('PAD-20: リニアの設定で理想の位置にスティックを倒して記録すると、入力推移のグラフの自分と理想が一致する', () => {
     const linear = settings(0);
-    const ghostMode = modes.find((m) => m.name === 'ゴースト追従');
+    const ghostMode = modes.find((m) => m.name === '反復練習');
 
     /** 理想の補正速度（SPEC「理想の補正速度」）。次に撃つ弾が k 発目（k ≥ 2）なら −pattern[k−1] × rpm ÷ 60。 */
     function specIdealRate(weapon: WeaponData, fire: boolean, nextShot: number, ammo: number) {
@@ -201,7 +201,7 @@ describe('QA: パッド向けのガイド（PAD-15・PAD-16・PAD-20）', () => 
 
     for (const file of WEAPON_FILES) {
       it(file, () => {
-        expect(ghostMode, 'ゴースト追従のモードがある').toBeDefined();
+        expect(ghostMode, '反復練習のモードがある').toBeDefined();
         const weapon = loadWeapon(file);
         const world = rangeWorld();
         const recording = new RecordingInput(12345);
@@ -291,9 +291,9 @@ describe('QA: SPEC の文書（パッド向けのガイド）', () => {
     expect(body.split('\n').filter((l) => l.includes('(pad.md'))).toHaveLength(1);
   });
 
-  it('modes.md「ゴースト追従」に pad.md への参照が 1 行ある', () => {
-    const heading = modesMd.split('\n').find((l) => /^#+\s+ゴースト追従\s*$/.test(l));
-    expect(heading, 'ゴースト追従の見出しがある').toBeDefined();
+  it('modes.md「反復練習」に pad.md への参照が 1 行ある', () => {
+    const heading = modesMd.split('\n').find((l) => /^#+\s+反復練習\s*$/.test(l));
+    expect(heading, '反復練習の見出しがある').toBeDefined();
     const body = section(modesMd, heading!.trim());
     expect(body.split('\n').filter((l) => l.includes('(pad.md'))).toHaveLength(1);
   });

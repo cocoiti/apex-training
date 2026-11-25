@@ -236,9 +236,10 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     await settle(page, 6);
     expect(await shownMethod(page)).toBe(PAD);
     expect(await hash(page)).toBe('#/play');
-    // ポインターロックのまま、マウスを動かす（ボタンは押さない）。
+    // ポインターロックのまま、マウスを動かす（ボタンは押さない）。撃たない時間が 2 秒たつと練習が終わる（modes.md）ので、
+    // 描画の遅い環境でも 2 秒のうちに確かめ終わるよう、動かす回数を少なくする（4 回で 120 動かす）。
     expect(await page.evaluate<boolean>('!!document.pointerLockElement')).toBe(true);
-    await moveMouse(page, 120);
+    await moveMouse(page, 120, 4);
     await waitShown(page, MOUSE, 1000);
     expect(await shownMethod(page)).toBe(MOUSE);
     expect(await hash(page)).toBe('#/play');

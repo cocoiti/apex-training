@@ -38,10 +38,10 @@ function rangeWorld(): World {
   return createWorld(rangeMap());
 }
 
-/** センター維持と同じく採点するゴースト追従の代わり（ゴースト追従のモードはまだない）。 */
+/** センター維持と同じく採点する反復練習の代わり（反復練習のモードはまだない）。 */
 const ghostLike: TrainingMode = {
   id: 'ghost',
-  name: 'ゴースト追従',
+  name: '反復練習',
   category: 'recoil',
   order: 20,
   setup() {},
@@ -128,7 +128,7 @@ describe('リザルト画面に出すもの', () => {
     ]);
   });
 
-  it('SCO-16: ゴースト追従（採点するモード）でも同じものを出す', () => {
+  it('SCO-16: 反復練習（採点するモード）でも同じものを出す', () => {
     const view = completePractice(practice('lstar', 'ghost'), memoryStorage(), NOW);
     expect(view.scored).toBe(true);
     expect(view.plots.map((p) => p.name)).toEqual(['scatter', 'trajectory']);
@@ -404,7 +404,7 @@ function padPractice(modeId: string, padName: string | undefined, options: { hol
 }
 
 describe('右スティックの入力推移のグラフ', () => {
-  it('PAD-19: パッドでゴースト追従・センター維持を終えたとき、左右と上下の図にそれぞれ自分と理想の推移を出し、見出しにパッドの名前を出す', () => {
+  it('PAD-19: パッドで反復練習・センター維持を終えたとき、左右と上下の図にそれぞれ自分と理想の推移を出し、見出しにパッドの名前を出す', () => {
     for (const modeId of ['ghost', 'center']) {
       const view = completePractice(padPractice(modeId, 'Xbox Wireless Controller'), memoryStorage(), NOW);
       expect(view.padTrace?.title).toContain('Xbox Wireless Controller');

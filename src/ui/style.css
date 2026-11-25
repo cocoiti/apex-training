@@ -193,6 +193,81 @@ a {
   white-space: nowrap;
 }
 
+/*
+ * 補正のパネル（docs/spec/screens.md「補正のパネル」）。練習の主な補助なので、凡例を含めて画面の短い辺の 45%（360px まで）の
+ * 大きさにする。右上の操作の下に置き、画面が低いときは右下のパッドのガイド（下から約 190px）の上に収まるまで縮める。
+ * クリックはキャンバスに通す。
+ */
+.correction-panel {
+  --panel-size: min(45vmin, 360px, calc(100vh - 280px));
+  position: absolute;
+  right: 16px;
+  top: 64px;
+  box-sizing: border-box;
+  width: var(--panel-size);
+  height: var(--panel-size);
+  margin: 0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 6px;
+  background: rgb(27 30 36 / 75%);
+  /* 描画のたびに中の点が動くので、描き直しをパネルの中に閉じ、独立した層にしてキャンバスの合成の負荷を増やさない。 */
+  contain: strict;
+  will-change: transform;
+}
+
+.correction-panel-plot {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.correction-panel .plot-legends {
+  flex-wrap: wrap;
+  margin: 0;
+  gap: 4px 10px;
+  font-size: 12px;
+}
+
+.correction-panel-dots {
+  fill: #7cf;
+}
+
+/* 次の発の点は、ゴースト・パッドのガイドの緑と理想・自分の線の色と見分けられる色で塗り、パネルの中でいちばん目立たせる。 */
+.correction-panel-current {
+  fill: #ff7ad9;
+  stroke: #fff;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* 今の照準から次の発の点へ向かう先の線。 */
+.correction-panel-heading {
+  stroke: #ff7ad9;
+  stroke-width: 2px;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.correction-panel-aim {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.correction-panel-legend-current {
+  color: #ff7ad9;
+}
+
+.correction-panel-legend-aim {
+  color: #fff;
+}
+
+.correction-panel[hidden],
 .pad-guide[hidden],
 .pointer-lock-notice[hidden],
 .paused[hidden] {
@@ -367,7 +442,11 @@ a {
   overflow-y: auto;
 }
 
-/* 設定の区分は、幅があれば横に並べる。 */
+/* 設定の区分は、幅があれば横に並べる。設定画面の箱は中身に縮めず、使える幅まで広げて区分を並べられるようにする。 */
+.panel:has(.settings) {
+  width: min(1040px, calc(100vw - 32px));
+}
+
 .settings {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

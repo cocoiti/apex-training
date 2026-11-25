@@ -25,7 +25,7 @@ const chromium = findChromium();
 /** SPEC の名前と値（実装の定数には依存しない）。 */
 const MEASURED_NAMES = ['C.A.R. SMG', 'L-STAR'];
 const PLACEHOLDER_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア'];
-const MODES = ['パターン観察', 'ゴースト追従', 'センター維持'];
+const MODES = ['パターン観察', '反復練習', 'センター維持'];
 const BEST_UPDATED = '自己ベスト更新';
 const BEST_KEY = 'apex-training:best:mouse:lstar:center';
 const HISTORY_KEY = 'apex-training:history:mouse:lstar:center';
@@ -404,7 +404,7 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
   // -------------------------------------------------------------------------
   describe('MODE-1: 武器の一覧の武器それぞれで、3 つのモードを最後まで練習できる', () => {
     for (const weapon of ['L-STAR', 'C.A.R. SMG']) {
-      it(`MODE-1: ${weapon} でパターン観察・ゴースト追従・センター維持を撃ち切ると、それぞれリザルト画面が表示される`, async () => {
+      it(`MODE-1: ${weapon} でパターン観察・反復練習・センター維持を撃ち切ると、それぞれリザルト画面が表示される`, async () => {
         serveDist(mainDist);
         const page = await openFresh();
         for (const mode of MODES) {
@@ -433,12 +433,12 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('SCO-20: L-STAR とセンター維持の自己ベストがある状態で、L-STAR とゴースト追従、C.A.R. SMG とセンター維持を初めて練習すると「自己ベスト更新」が表示され、L-STAR とセンター維持の自己ベストは変わらない', async () => {
+    it('SCO-20: L-STAR とセンター維持の自己ベストがある状態で、L-STAR と反復練習、C.A.R. SMG とセンター維持を初めて練習すると「自己ベスト更新」が表示され、L-STAR とセンター維持の自己ベストは変わらない', async () => {
       serveDist(mainDist);
       const seeded = JSON.stringify({ version: 1, meanError: 0.001, groupingRadius: 0.001, hitRate: 100, shots: 1, achievedAt: '2026-01-01T00:00:00.000Z' });
       const page = await openFresh({ [BEST_KEY]: seeded });
-      const ghost = await practice(page, 'L-STAR', 'ゴースト追従');
-      expect(ghost.text, 'L-STAR / ゴースト追従').toContain(BEST_UPDATED);
+      const ghost = await practice(page, 'L-STAR', '反復練習');
+      expect(ghost.text, 'L-STAR / 反復練習').toContain(BEST_UPDATED);
       expect(await getItem(page, BEST_KEY)).toBe(seeded);
       const car = await practice(page, 'C.A.R. SMG', 'センター維持');
       expect(car.text, 'C.A.R. SMG / センター維持').toContain(BEST_UPDATED);
@@ -511,13 +511,13 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('SCO-26: L-STAR とセンター維持の履歴がある状態で、L-STAR とゴースト追従を練習して終えると、L-STAR とセンター維持のマウスの履歴は変わらない', async () => {
+    it('SCO-26: L-STAR とセンター維持の履歴がある状態で、L-STAR と反復練習を練習して終えると、L-STAR とセンター維持のマウスの履歴は変わらない', async () => {
       serveDist(mainDist);
       const seeded = JSON.stringify({ version: 1, entries: [{ at: '2026-01-01T00:00:00.000Z', meanError: 1.23, hitRate: 50, groupingRadius: 1, shots: 10 }] });
       const page = await openFresh({ [HISTORY_KEY]: seeded });
-      await practice(page, 'L-STAR', 'ゴースト追従');
+      await practice(page, 'L-STAR', '反復練習');
       expect(await getItem(page, HISTORY_KEY)).toBe(seeded);
-      // ゴースト追従の練習は別のキーの履歴に入る。
+      // 反復練習の練習は別のキーの履歴に入る。
       const keys = await keysWith(page, 'apex-training:history:mouse:lstar:');
       expect(keys.filter((k) => k !== HISTORY_KEY), JSON.stringify(keys)).toHaveLength(1);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);

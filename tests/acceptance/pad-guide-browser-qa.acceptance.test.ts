@@ -24,7 +24,7 @@ const chromium = findChromium();
 const settle = (page: Page, frames: number) => page.frames(frames);
 
 const PAD_NAME = 'acceptance pad (STANDARD GAMEPAD)';
-const GHOST = 'ゴースト追従';
+const GHOST = '反復練習';
 const CENTER = 'センター維持';
 const PATTERN = 'パターン観察';
 
@@ -222,55 +222,58 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
   });
 
   // -------------------------------------------------------------------------
-  it('PAD-17: ゴースト追従・ゴースト表示 ON・入力方式パッドで、ガイドとパッドの名前が表示され、2 発目以降の理想の位置が理想の補正速度をカーブの逆で直した位置になる', async () => {
-    const page = await openFresh();
-    await configure(page, { input: 'パッド', ghost: true });
-    const w = byId('lstar');
-    await start(page, w, GHOST);
+  // ゴースト表示（3D の中のゴースト）の設定によらず出る。既定は OFF。
+  for (const ghost of [true, false]) {
+    it(`PAD-17: 反復練習・ゴースト表示 ${ghost ? 'ON' : 'OFF'}・入力方式パッドで、ガイドとパッドの名前が表示され、2 発目以降の理想の位置が理想の補正速度をカーブの逆で直した位置になる`, async () => {
+      const page = await openFresh();
+      await configure(page, { input: 'パッド', ghost });
+      const w = byId('lstar');
+      await start(page, w, GHOST);
 
-    // 撃つ前: ガイドとパッドの名前が出て、理想の位置は中心（fire を押していない）。
-    await page.waitFor('window.__guideVisible()', 3000);
-    const before = await guide(page);
-    expect(before.visible).toBe(true);
-    expect(before.name).toContain(PAD_NAME);
-    expect(Math.abs(before.x)).toBeLessThan(0.5);
-    expect(Math.abs(before.y)).toBeLessThan(0.5);
+      // 撃つ前: ガイドとパッドの名前が出て、理想の位置は中心（fire を押していない）。
+      await page.waitFor('window.__guideVisible()', 3000);
+      const before = await guide(page);
+      expect(before.visible).toBe(true);
+      expect(before.name).toContain(PAD_NAME);
+      expect(Math.abs(before.x)).toBeLessThan(0.5);
+      expect(Math.abs(before.y)).toBeLessThan(0.5);
 
-    // R2 を押し続け、撃っているあいだの理想の位置を描画のたびに読む。
-    await page.evaluate('window.__button(7, 1)');
-    await page.waitFor(`window.__ammo() <= ${w.magSize - 2}`, 5000);
-    const samples: GuideSample[] = [];
-    for (;;) {
-      const s = await guide(page);
-      if (!(s.ammo > 2)) break;
-      samples.push(s);
-      await settle(page, 1);
-    }
-    await page.evaluate('window.__button(7, 0)');
-
-    expect(samples.length).toBeGreaterThan(20);
-    const matchedShots = new Set<number>();
-    const mismatches: string[] = [];
-    for (const s of samples) {
-      expect(s.visible, '撃っているあいだはガイドが出ている').toBe(true);
-      expect(s.name).toContain(PAD_NAME);
-      // HUD の残弾から次に撃つ弾を数える（描画の前のステップの状態でガイドを置くこともあるので、1 発前も許す）。
-      const next = w.magSize - s.ammo + 1;
-      const hit = [next, next - 1].find((k) => {
-        const e = idealPercent(idealRate(w, k));
-        return Math.abs(e.x - s.x) < 0.5 && Math.abs(e.y - s.y) < 0.5;
-      });
-      if (hit === undefined) {
-        const e = idealPercent(idealRate(w, next));
-        mismatches.push(`残弾 ${s.ammo}（次 ${next} 発目）: 表示 (${s.x}, ${s.y}) 期待 (${e.x.toFixed(2)}, ${e.y.toFixed(2)})`);
-      } else if (hit >= 2) {
-        matchedShots.add(hit);
+      // R2 を押し続け、撃っているあいだの理想の位置を描画のたびに読む。
+      await page.evaluate('window.__button(7, 1)');
+      await page.waitFor(`window.__ammo() <= ${w.magSize - 2}`, 5000);
+      const samples: GuideSample[] = [];
+      for (;;) {
+        const s = await guide(page);
+        if (!(s.ammo > 2)) break;
+        samples.push(s);
+        await settle(page, 1);
       }
-    }
-    expect(mismatches, mismatches.join('\n')).toEqual([]);
-    expect(matchedShots.size, '多くの弾で理想の位置を確かめた').toBeGreaterThan(10);
-    expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-  }, 90_000);
+      await page.evaluate('window.__button(7, 0)');
+
+      expect(samples.length).toBeGreaterThan(20);
+      const matchedShots = new Set<number>();
+      const mismatches: string[] = [];
+      for (const s of samples) {
+        expect(s.visible, '撃っているあいだはガイドが出ている').toBe(true);
+        expect(s.name).toContain(PAD_NAME);
+        // HUD の残弾から次に撃つ弾を数える（描画の前のステップの状態でガイドを置くこともあるので、1 発前も許す）。
+        const next = w.magSize - s.ammo + 1;
+        const hit = [next, next - 1].find((k) => {
+          const e = idealPercent(idealRate(w, k));
+          return Math.abs(e.x - s.x) < 0.5 && Math.abs(e.y - s.y) < 0.5;
+        });
+        if (hit === undefined) {
+          const e = idealPercent(idealRate(w, next));
+          mismatches.push(`残弾 ${s.ammo}（次 ${next} 発目）: 表示 (${s.x}, ${s.y}) 期待 (${e.x.toFixed(2)}, ${e.y.toFixed(2)})`);
+        } else if (hit >= 2) {
+          matchedShots.add(hit);
+        }
+      }
+      expect(mismatches, mismatches.join('\n')).toEqual([]);
+      expect(matchedShots.size, '多くの弾で理想の位置を確かめた').toBeGreaterThan(10);
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 90_000);
+  }
 
   // -------------------------------------------------------------------------
   describe('PAD-18: ガイドが表示されないとき', () => {
@@ -290,41 +293,32 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
       return { seen, ammo: await ammo(page), magSize: w.magSize };
     }
 
-    it('ゴースト表示が OFF のとき（ゴースト追従・パッド）', async () => {
-      const page = await openFresh();
-      await configure(page, { input: 'パッド', ghost: false });
-      const w = byId('lstar');
-      await start(page, w, GHOST);
-      const { seen, ammo: left } = await neverShownWhileFiring(page, w);
-      expect(left, 'パッドで撃てている').toBeLessThan(w.magSize);
-      expect(seen.some(Boolean)).toBe(false);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    it('入力方式がマウスのとき（ゴースト追従・ゴースト表示 ON）', async () => {
-      const page = await openFresh();
-      await configure(page, { input: 'マウス', ghost: true });
-      const w = byId('lstar');
-      await start(page, w, GHOST);
-      const { seen } = await neverShownWhileFiring(page, w);
-      // マウスで撃っているあいだも出ない。
-      if (await lock(page)) {
-        await mouseButton(page, 'mousePressed');
-        for (let i = 0; i < 20; i += 1) {
-          seen.push(await guideVisible(page));
-          await settle(page, 2);
-        }
-        await mouseButton(page, 'mouseReleased');
-        expect(await ammo(page), 'マウスで撃てている').toBeLessThan(w.magSize);
-      }
-      expect(seen.some(Boolean)).toBe(false);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    for (const mode of [CENTER, PATTERN]) {
-      it(`${mode}のとき（パッド・ゴースト表示 ON）`, async () => {
+    for (const ghost of [true, false]) {
+      it(`入力方式がマウスのとき（反復練習・ゴースト表示 ${ghost ? 'ON' : 'OFF'}）`, async () => {
         const page = await openFresh();
-        await configure(page, { input: 'パッド', ghost: true });
+        await configure(page, { input: 'マウス', ghost });
+        const w = byId('lstar');
+        await start(page, w, GHOST);
+        const { seen } = await neverShownWhileFiring(page, w);
+        // マウスで撃っているあいだも出ない。
+        if (await lock(page)) {
+          await mouseButton(page, 'mousePressed');
+          for (let i = 0; i < 20; i += 1) {
+            seen.push(await guideVisible(page));
+            await settle(page, 2);
+          }
+          await mouseButton(page, 'mouseReleased');
+          expect(await ammo(page), 'マウスで撃てている').toBeLessThan(w.magSize);
+        }
+        expect(seen.some(Boolean)).toBe(false);
+        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+      }, 60_000);
+    }
+
+    for (const [mode, ghost] of [[CENTER, true], [PATTERN, true], [CENTER, false], [PATTERN, false]] as const) {
+      it(`${mode}のとき（パッド・ゴースト表示 ${ghost ? 'ON' : 'OFF'}）`, async () => {
+        const page = await openFresh();
+        await configure(page, { input: 'パッド', ghost });
         const w = byId('lstar');
         await start(page, w, mode);
         const { seen, ammo: left } = await neverShownWhileFiring(page, w);
@@ -334,9 +328,9 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
       }, 60_000);
     }
 
-    it('入力方式が「自動」でパッドで練習中にマウスを操作したとき、ガイドが消える', async () => {
+    it('入力方式が「自動」でパッドで練習中にマウスを操作したとき、ガイドが消える（ゴースト表示は既定の OFF）', async () => {
       const page = await openFresh();
-      await configure(page, { input: '自動', ghost: true });
+      await configure(page, { input: '自動' });
       const w = byId('lstar');
       await start(page, w, GHOST);
       expect(await lock(page)).toBe(true);

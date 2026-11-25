@@ -5,8 +5,9 @@ import { RecordingInput } from '../../src/input/recording';
 import { modes } from '../../src/modes/registry';
 import { PracticeSession, replayPracticeSession } from '../../src/modes/session';
 import type { TrainingMode } from '../../src/modes/types';
+import { aimAtShots } from '../../src/sim/trajectory';
 import { vec3 } from '../../src/sim/vec3';
-import { idealCorrectionRate, type RecoilStep, type WeaponData } from '../../src/sim/weapon';
+import { idealCorrection, idealCorrectionRate, type RecoilStep, type WeaponData } from '../../src/sim/weapon';
 import { createWorld, type World } from '../../src/sim/world';
 
 /** 正面 10 メートルに大きな壁だけがある World。開始時の照準はヨー 0・ピッチ 0。 */
@@ -271,5 +272,65 @@ describe('パッド向けのガイドと入力推移に使うもの（docs/spec/
     });
     advance(s, 5);
     expect(s.result?.padName).toBeUndefined();
+  });
+});
+
+describe('撃った各弾の発射時の照準（docs/spec/screens.md「補正のパネル」）', () => {
+  it('撃つ前は空で、記録から求めるリザルトの自分の照準の軌道（aimAtShots）と同じ値を撃った順に持つ', () => {
+    const weapon = makeWeapon();
+    const input = new RecordingInput(7);
+    const s = new PracticeSession({ world: wallWorld(), weapon, mode: modeById('center'), input, seed: input.seed });
+    expect(s.shotAims).toEqual([]);
+    input.push(0, { type: 'fire', pressed: true });
+    input.push(0.05, { type: 'look', yaw: 0.4, pitch: -0.7 });
+    input.push(0.23, { type: 'look', yaw: -1.1, pitch: -0.2 });
+    input.push(0.61, { type: 'fire', pressed: false });
+    input.push(0.62, { type: 'look', yaw: 0.3, pitch: 0.3 });
+    while (!s.ended) s.step();
+    expect(s.shotAims).toHaveLength(s.gun.shots.length);
+    const expected = aimAtShots(input.recording(), s.gun.shots, wallWorld().center, s.sim.dt);
+    s.shotAims.forEach((aim, i) => {
+      expect(aim.yaw).toBeCloseTo(expected[i]?.yaw ?? Number.NaN, 9);
+      expect(aim.pitch).toBeCloseTo(expected[i]?.pitch ?? Number.NaN, 9);
+    });
+  });
+
+  it('UI-63: 今の照準は開始時の照準からの差で、撃つ前に動かした分だけ動き、リコイルのオフセットを含まない', () => {
+    const weapon = makeWeapon();
+    const s = session([{ time: 0, action: { type: 'look', yaw: 2, pitch: 1 } }, press(0.1)], { weapon, mode: modeById('ghost') });
+    expect(s.aim).toEqual({ yaw: 0, pitch: 0 });
+    while (s.gun.shots.length < 3) s.step();
+    expect(s.aim.yaw).toBeCloseTo(2, 9);
+    expect(s.aim.pitch).toBeCloseTo(1, 9);
+    expect(s.world.player.recoilOffset.pitch).toBeGreaterThan(0);
+  });
+
+  it('UI-56: 照準を動かさずに 5 発撃つと、5 つの照準はすべて原点（リコイルのオフセットを含まない）', () => {
+    const weapon = makeWeapon();
+    const s = session([press(0)], { weapon, mode: modeById('center') });
+    while (s.gun.shots.length < 5) s.step();
+    expect(s.shotAims.slice(0, 5)).toEqual(Array.from({ length: 5 }, () => ({ yaw: 0, pitch: 0 })));
+    expect(s.world.player.recoilOffset.pitch).toBeGreaterThan(0);
+  });
+
+  it('UI-57: 各発の発射時に照準を理想の補正軌道に合わせて撃つと、各弾の照準が理想の補正軌道に一致する', () => {
+    const weapon = makeWeapon();
+    const ideal = idealCorrection(weapon);
+    const interval = 60 / weapon.rpm;
+    const dt = 1 / 120;
+    const actions: TimedAction[] = [press(0)];
+    ideal.forEach((point, i) => {
+      const previous = ideal[i - 1] ?? { yaw: 0, pitch: 0 };
+      // k 発目の発射の少し前に、照準を k 発目の理想の補正軌道へ動かす。
+      const time = Math.max(0, i * interval - dt / 2);
+      actions.push({ time, action: { type: 'look', yaw: point.yaw - previous.yaw, pitch: point.pitch - previous.pitch } });
+    });
+    const s = session(actions, { weapon, mode: modeById('center') });
+    while (!s.ended) s.step();
+    expect(s.shotAims).toHaveLength(weapon.magSize);
+    s.shotAims.forEach((aim, i) => {
+      expect(aim.yaw).toBeCloseTo(ideal[i]?.yaw ?? Number.NaN, 9);
+      expect(aim.pitch).toBeCloseTo(ideal[i]?.pitch ?? Number.NaN, 9);
+    });
   });
 });
