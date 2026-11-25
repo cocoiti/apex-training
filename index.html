@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>リコイル練習（非公式）</title>
-    <script type="module" crossorigin src="/apex-training/assets/index-Blucf5z3.js"></script>
-    <link rel="stylesheet" crossorigin href="/apex-training/assets/index-B19ePCWa.css">
+    <script type="module" crossorigin src="/apex-training/assets/index-DGfqOdOX.js"></script>
+    <link rel="stylesheet" crossorigin href="/apex-training/assets/index-h5KWMxS7.css">
   </head>
   <body>
     <!-- 3D のキャンバスを画面いっぱいに置き、その上に各画面の HTML を重ねる（docs/spec/overview.md「公開」）。 -->
@@ -27,7 +27,7 @@
       <section class="screen" data-screen="settings" hidden>
         <div class="panel">
           <h2>設定</h2>
-          <form id="settings-form" class="settings" autocomplete="off">
+          <form id="settings-form" class="settings panel-scroll" autocomplete="off">
             <fieldset>
               <legend>共通</legend>
               <label class="setting">入力方式
@@ -56,9 +56,56 @@
               <label class="setting">ADS 倍率 <input id="setting-ads-multiplier" type="text" inputmode="decimal" size="7" /></label>
               <p class="setting">cm/360 <output id="setting-cm-per-360"></output></p>
             </fieldset>
-            <fieldset>
+            <fieldset class="pad-settings">
               <legend>パッド</legend>
-              <a href="#/settings/pad">パッドのキャリブレーション</a>
+              <p class="note">エイムアシストは再現しません。エイムアシストなしの素のリコイル制御を練習します</p>
+              <p class="note">ゲームと完全に一致するものではなく、近い感覚で練習できます</p>
+              <p class="setting">入力に使うパッド <output id="settings-pad-status" class="pad-status"></output></p>
+              <nav class="menu pad-links">
+                <a href="#/settings/pad/mapping" id="link-pad-mapping">ボタン割り当て</a>
+                <a href="#/settings/pad" id="link-pad-calibration">パッドのキャリブレーション</a>
+              </nav>
+              <label class="setting">設定の方式
+                <select id="setting-pad-mode">
+                  <option value="advanced">詳細設定</option>
+                  <option value="simple">簡易設定</option>
+                </select>
+              </label>
+              <fieldset class="pad-group">
+                <legend>簡易設定</legend>
+                <label class="setting">視点感度
+                  <select id="setting-pad-simple-look">
+                    <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                    <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                  </select>
+                </label>
+                <label class="setting">ADS 感度
+                  <select id="setting-pad-simple-ads">
+                    <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                    <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                  </select>
+                </label>
+                <label class="setting">カーブ
+                  <select id="setting-pad-simple-curve">
+                    <option value="classic">クラシック</option>
+                    <option value="linear">リニア</option>
+                  </select>
+                </label>
+              </fieldset>
+              <fieldset class="pad-group">
+                <legend>詳細設定</legend>
+                <label class="setting">デッドゾーン（%） <input id="setting-pad-deadzone" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting">外側しきい値（%） <input id="setting-pad-outer-threshold" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting">レスポンスカーブ <input id="setting-pad-response-curve" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting">ヨー速度 <input id="setting-pad-yaw" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting">ピッチ速度 <input id="setting-pad-pitch" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting">ADS ヨー速度 <input id="setting-pad-ads-yaw" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting">ADS ピッチ速度 <input id="setting-pad-ads-pitch" type="text" inputmode="numeric" size="5" /></label>
+              </fieldset>
+              <p class="setting">
+                <label>振動 <input id="setting-pad-vibration" type="checkbox" /></label>
+                <span id="settings-pad-vibration-notice" class="note" hidden>このパッドまたはブラウザは振動に対応していません</span>
+              </p>
             </fieldset>
           </form>
           <nav class="menu">
@@ -69,6 +116,58 @@
       <section class="screen" data-screen="settings-pad" hidden>
         <div class="panel">
           <h2>パッドのキャリブレーション</h2>
+          <div class="panel-scroll">
+            <p>入力に使うパッド <output id="calibration-status" class="pad-status"></output></p>
+            <p id="calibration-empty" hidden></p>
+            <table id="calibration-table" class="pad-list" hidden>
+              <thead>
+                <tr><th>番号</th><th>名前</th><th>配置</th><th>標準配置</th><th>割り当て</th><th>接続</th><th>入力</th></tr>
+              </thead>
+              <tbody id="calibration-list"></tbody>
+            </table>
+            <div class="calibration">
+              <!-- 右スティックの位置。半径 1 を傾き 1 とし、デッドゾーンと外側しきい値の境目の円を重ねる。 -->
+              <svg id="calibration-stick" class="stick-view" viewBox="-1.1 -1.1 2.2 2.2" role="img" aria-label="右スティックの位置">
+                <circle class="stick-edge" cx="0" cy="0" r="1" />
+                <circle id="calibration-outer" class="stick-outer" cx="0" cy="0" r="0.98" />
+                <circle id="calibration-deadzone" class="stick-deadzone" cx="0" cy="0" r="0.1" />
+                <circle id="calibration-dot" class="stick-dot" cx="0" cy="0" r="0.05" />
+              </svg>
+              <div>
+                <h3>軸</h3>
+                <ol id="calibration-axes" class="pad-values"></ol>
+              </div>
+              <div>
+                <h3>ボタン</h3>
+                <ol id="calibration-buttons" class="pad-values"></ol>
+              </div>
+            </div>
+            <label class="setting">デッドゾーン（%） <input id="calibration-deadzone-input" type="text" inputmode="numeric" size="5" /></label>
+          </div>
+          <nav class="menu">
+            <a href="#/settings">設定へ戻る</a>
+          </nav>
+        </div>
+      </section>
+      <section class="screen" data-screen="settings-pad-mapping" hidden>
+        <div class="panel">
+          <h2>パッドのボタン割り当て</h2>
+          <div class="panel-scroll">
+            <p id="mapping-empty" hidden>標準配置でないパッドがつながっていません</p>
+            <div id="mapping-body" hidden>
+              <p>対象のパッド <output id="mapping-target"></output></p>
+              <table class="pad-mapping">
+                <tbody>
+                  <tr><th>射撃（fire）</th><td><output id="mapping-fire"></output></td><td><button type="button" data-assign="fire">割り当てる</button></td></tr>
+                  <tr><th>ADS（ads）</th><td><output id="mapping-ads"></output></td><td><button type="button" data-assign="ads">割り当てる</button></td></tr>
+                  <tr><th>右スティックの左右</th><td><output id="mapping-lookX"></output></td><td><button type="button" data-assign="lookX">割り当てる</button></td></tr>
+                  <tr><th>右スティックの上下</th><td><output id="mapping-lookY"></output></td><td><button type="button" data-assign="lookY">割り当てる</button></td></tr>
+                </tbody>
+              </table>
+              <p id="mapping-saved" role="status"></p>
+              <button type="button" id="mapping-clear">割り当てを消す</button>
+            </div>
+          </div>
           <nav class="menu">
             <a href="#/settings">設定へ戻る</a>
           </nav>
@@ -87,8 +186,17 @@
           <p class="hud-time" data-hud="time"></p>
           <p class="hud-input" data-hud="input"></p>
           <p class="hud-round" data-hud="round"></p>
+          <p class="hud-pad" data-hud="pad" hidden></p>
           <p id="status">読み込み中</p>
           <p id="pointer-lock-notice" class="pointer-lock-notice" role="status" hidden></p>
+        </div>
+        <!-- パッド向けのスティック型のガイド（docs/spec/pad.md「練習中のガイド」）。ゴースト追従でパッドのあいだだけ出す。 -->
+        <div class="pad-guide" hidden>
+          <div class="pad-guide-stick">
+            <div class="pad-guide-dot pad-guide-ideal" data-guide="ideal"></div>
+            <div class="pad-guide-dot pad-guide-current" data-guide="current"></div>
+          </div>
+          <p class="pad-guide-name"></p>
         </div>
         <p id="paused" class="paused" role="status" hidden></p>
         <!-- 連続練習の途中の回の短いリザルト（docs/spec/modes.md「連続練習（セット）」）。 -->
@@ -119,6 +227,8 @@
             <p id="result-comments" class="result-comments"></p>
           </div>
           <div id="result-plots" class="result-plots"></div>
+          <!-- 右スティックの入力推移のグラフは練習の入力方式がパッドで採点するモードのときだけ表示する（docs/spec/pad.md）。 -->
+          <section id="result-pad" class="result-pad" hidden></section>
           <nav class="menu menu-row">
             <a href="#/play" id="retry">もう一度</a> <span class="controls-hint"><kbd>R</kbd>・<kbd>Space</kbd> / <kbd>A / ×</kbd></span>
             <a href="#/" id="change-weapon">武器変更</a> <span class="controls-hint"><kbd>B / ○</kbd></span>
