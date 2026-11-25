@@ -476,8 +476,8 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       const text = await resultText(page);
       // 全弾が中心に当たる: 平均ズレ 0・グルーピング半径 0（scoring.md）。
       expect(text).toContain(`${w.magSize} 発`);
-      expect(text, text).toMatch(/平均ズレ\s*0(\.0+)?\s*度/);
-      expect(text, text).toMatch(/グルーピング半径\s*0(\.0+)?\s*度/);
+      expect(text, text).toMatch(/平均ズレ\s*0(\.0+)?\s*°/);
+      expect(text, text).toMatch(/グルーピング半径\s*0(\.0+)?\s*°/);
       expect(text).toContain('よくまとまっている');
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
@@ -491,7 +491,7 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       await page.evaluate(`window.__setR2(0)`);
       await pause(300);
       const text = await resultText(page);
-      const m = text.match(/平均ズレ\s*([\d.]+)\s*度/);
+      const m = text.match(/平均ズレ\s*([\d.]+)\s*°/);
       expect(m, text).not.toBeNull();
       expect(Number(m![1])).toBeGreaterThan(0.5);
     }, 60_000);
@@ -585,8 +585,8 @@ describe.skipIf(NESTED || !chromium)('QA: ゴースト追従と、設定の練�
       await pause(300);
       const text = await resultText(page);
       expect(text).toContain('ゴースト追従');
-      expect(text, text).toMatch(/平均ズレ\s*[\d.]+\s*度/);
-      expect(text, text).toMatch(/グルーピング半径\s*[\d.]+\s*度/);
+      expect(text, text).toMatch(/平均ズレ\s*[\d.]+\s*°/);
+      expect(text, text).toMatch(/グルーピング半径\s*[\d.]+\s*°/);
       expect(text, text).toMatch(/下げすぎ|下げ不足|横の補正不足|よくまとまっている/);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
