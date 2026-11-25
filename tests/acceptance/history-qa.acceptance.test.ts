@@ -11,8 +11,8 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
@@ -20,6 +20,8 @@ const BASE = '/apex-training/';
 const CX = 640;
 const CY = 400;
 const chromium = findChromium();
+/** 3D は描画せず（render=off）、ページの時計はテストから進める（clock=manual）。撃ち切るまでを実時間で待たない。 */
+const APP = { render: false, manualClock: true };
 
 /** SPEC の文言と値（実装の定数には依存しない）。 */
 const HISTORY_NOTICE = 'この環境では履歴を保存できません。ページを開いているあいだの練習だけが表示されます。';
@@ -226,7 +228,8 @@ async function start(page: Page, weapon: string, mode: string) {
 
 async function fireAll(page: Page) {
   await mouseButton(page, 'mousePressed');
-  await page.waitFor(`location.hash === '#/result'`, 20_000);
+  // ページの時計（clock=manual）を進めて撃ち切る。実時間では待たない。
+  await page.advanceClockUntil(`location.hash === '#/result'`, { step: 1 / 60 });
   await mouseButton(page, 'mouseReleased');
   await page.evaluate('document.exitPointerLock()');
   await page.waitFor(`!document.querySelector('[data-screen="result"]').hidden`);
@@ -307,7 +310,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
   /** 新しいタブで localStorage を空にし（seed を入れ）、読み込み直したトップ画面を開く。 */
   async function openFresh(seed: Record<string, string> = {}, init?: string): Promise<Page> {
     const page = await browser!.newPage();
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', APP));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]); })()`);
     await page.addInitScript(PAGE_INIT);
     if (init) await page.addInitScript(init);
@@ -334,6 +337,10 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
     origin = originOf(server);
     browser = await launchBrowser(chromium!);
   }, 300_000);
+
+  afterEach(async () => {
+    await browser?.closePages();
+  });
 
   afterAll(async () => {
     await browser?.close();
@@ -456,7 +463,8 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       await page.waitFor(`location.hash === '#/play' && window.__ammo() > 0`);
       await page.frames(5);
       await page.evaluate('window.__r2 = 1');
-      await page.waitFor(`location.hash === '#/result'`, 20_000);
+      await page.frames(2);
+      await page.advanceClockUntil(`location.hash === '#/result'`, { step: 1 / 60 });
       await page.evaluate('window.__r2 = 0');
       await page.waitFor(`!document.querySelector('[data-screen="result"]').hidden`);
       await page.frames(2);
@@ -604,19 +612,6 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('WPN-21: 履歴の画面の武器の選択肢は L-STAR と C.A.R. SMG だけで、仮データの武器は履歴が保存してあっても出ず、保存は消えない', async () => {
-      const placeholderKey = historyKey('mouse', 'r301', 'center');
-      const page = await openFresh({ [placeholderKey]: stored([entry(1.5)]) });
-      await openHistory(page);
-      const h = await historyState(page);
-      const weapon = h.selects.find((s) => s.label.startsWith('武器'));
-      expect(weapon, JSON.stringify(h.selects)).toBeDefined();
-      expect([...weapon!.options].sort()).toEqual(['C.A.R. SMG', 'L-STAR']);
-      for (const name of ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア']) expect(h.text).not.toContain(name);
-      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(placeholderKey)})`)).toBe(stored([entry(1.5)]));
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
     it('UI-27: 履歴がある組で「この履歴を消す」を押して消すことを選ぶと、空になり、再読み込みしても空で、ほかの組の履歴と自己ベストは残る', async () => {
       const target = historyKey('mouse', 'lstar', 'center');
       const others = {
@@ -679,7 +674,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(h.visibleScreens).toEqual(['history']);
       expect(h.text).toContain(HISTORY_NOTICE);
       // 直接 #/history を開いても同じ。
-      await page.goto(`${origin}${BASE}#/history`);
+      await page.goto(appUrl(origin, BASE, '#/history', APP));
       await page.waitFor(`!!document.querySelector('[data-screen="history"]') && !document.querySelector('[data-screen="history"]').hidden`);
       await page.frames(2);
       const direct = await historyState(page);

@@ -77,13 +77,20 @@ describe('ARC-21: ブラウザを使うテストとそれ以外を分けて流�
     expect(usesChromium(`// tests/helpers/browser.ts を使わない`)).toBe(false);
   });
 
+  it('文字列の中に見本として書いた呼び出しは、strings を付けた codeOnly で空白になり、実際の呼び出しは残る', () => {
+    const sample = "const t = parse('x.ts', `beforeAll(async () => { b = await launchBrowser(e); });`);\nconst u = 'findChromium()';";
+    expect(codeOnly(sample, { strings: true })).not.toMatch(/launchBrowser|findChromium/);
+    expect(codeOnly(sample)).toMatch(/launchBrowser/);
+    expect(codeOnly('browser = await launchBrowser(chromium!);', { strings: true })).toMatch(/launchBrowser\(/);
+  });
+
   it('ブラウザを使うテストのファイルは、tests/ 以下のテストのファイルのうち、Chromium の道具を import するものちょうど', () => {
     const all = listTestFiles(ROOT);
     const browser = browserTestFiles(ROOT);
     expect(browser.length).toBeGreaterThan(0);
     for (const f of all.filter((x) => x !== SELF)) {
-      // コメントや見本の表の中の名前ではなく、Chromium を探す・起動する関数を実際に呼んでいるか。
-      const source = codeOnly(readFileSync(join(ROOT, f), 'utf8'));
+      // コメントや見本の表・文字列の中の名前ではなく、Chromium を探す・起動する関数を実際に呼んでいるか。
+      const source = codeOnly(readFileSync(join(ROOT, f), 'utf8'), { strings: true });
       expect(browser.includes(f), f).toBe(/\b(?:findChromium|launchBrowser)\s*\(/.test(source));
     }
   });

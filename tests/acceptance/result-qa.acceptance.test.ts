@@ -1,7 +1,8 @@
 // docs/spec/scoring.md の「リザルト画面」「自己ベスト」の受け入れテスト（SCO-1〜SCO-5 の画面の部分、SCO-15〜SCO-22）と
-// docs/spec/modes.md の MODE-4 のリザルトの部分。
+// docs/spec/modes.md の MODE-4 のリザルトの部分（MODE-4 の ID は modes.acceptance が持つ）。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、武器の JSON、localStorage のキー）だけを使い、実装の内部には依存しない。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、マウス（ポインターロック + 左ボタン）で撃つ。
+// 3D は描画せず（render=off）、ページの時計はテストから進める（clock=manual）。撃ち切るまでを実時間で待たない。
 // 指標が決まった値になる結果を作るため、SCO-1〜SCO-3・SCO-19 はリポジトリの写しに受け入れ用の武器（ブレ 0）を足してビルドした画面で確かめる。
 // 散布図と軌道は、描かれた点を画面上の位置に直し、軸の交点を原点、右と上を正として読む（図の 1 単位を 1 度とみなす）。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
@@ -10,8 +11,8 @@ import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, sym
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
@@ -251,11 +252,11 @@ async function fireAll(page: Page, drag?: { dy: number; steps: number }) {
   await mouseButton(page, 'mousePressed');
   if (drag) {
     for (let i = 1; i <= drag.steps; i += 1) {
-      await page.waitFor(`window.__ammo() <= ${full - i} || location.hash !== '#/play'`, 20_000);
+      await page.advanceClockUntil(`window.__ammo() <= ${full - i} || location.hash !== '#/play'`);
       await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: CX, y: CY + drag.dy * i, button: 'left', buttons: 1 });
     }
   }
-  await page.waitFor(`location.hash === '#/result'`, 20_000);
+  await page.advanceClockUntil(`location.hash === '#/result'`, { step: 1 / 60 });
   await mouseButton(page, 'mouseReleased');
   await page.evaluate('document.exitPointerLock()');
   // リザルト画面が表示され、図が描かれて画面に出るまで待つ。
@@ -324,7 +325,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
   /** 新しいタブで localStorage を空にし（seed を入れ）、読み込み直したトップ画面を開く。 */
   async function openFresh(seed: Record<string, string> = {}, init?: string): Promise<Page> {
     const page = await browser!.newPage();
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', { render: false, manualClock: true }));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]); })()`);
     await page.addInitScript(PAGE_INIT);
     if (init) await page.addInitScript(init);
@@ -366,6 +367,10 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
     origin = originOf(server);
     browser = await launchBrowser(chromium!);
   }, 300_000);
+
+  afterEach(async () => {
+    await browser?.closePages();
+  });
 
   afterAll(async () => {
     await browser?.close();
@@ -458,7 +463,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
 
   // -------------------------------------------------------------------------
   describe('採点するモードのリザルト', () => {
-    it('SCO-16 / MODE-4: センター維持で照準を動かさずに撃ち切ると、指標とコメント、弾痕の散布図、自分の照準と理想の軌道の重ね描きが表示される', async () => {
+    it('SCO-16: センター維持で照準を動かさずに撃ち切ると、指標とコメント、弾痕の散布図、自分の照準と理想の軌道の重ね描きが表示される', async () => {
       serveDist(copyDist);
       const page = await openFresh();
       const w = byId('lstar');

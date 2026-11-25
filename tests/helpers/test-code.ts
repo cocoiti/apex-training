@@ -40,11 +40,16 @@ const FIXED_SLEEP_PATTERNS: [RegExp, string][] = [
 /**
  * source のコメントと .each(...) の引数を空白に置き換えたもの（改行は残すので行番号は変わらない）。
  * 調べ方の見本や説明に書いた書き方を、実際のコードと取り違えないようにする。
+ * strings なら、文字列とテンプレートの中身も空白にする（調べ方の見本を文字列で持つテストを、実際の呼び出しと取り違えない）。
  */
-export function codeOnly(source: string): string {
+export function codeOnly(source: string, { strings = false }: { strings?: boolean } = {}): string {
   const ranges: [number, number][] = [];
   const sf = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const visit = (node: ts.Node) => {
+    if (strings && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateExpression(node))) {
+      ranges.push([node.getStart(sf) + 1, node.getEnd() - 1]);
+      return;
+    }
     for (const r of [...(ts.getLeadingCommentRanges(source, node.getFullStart()) ?? []), ...(ts.getTrailingCommentRanges(source, node.getEnd()) ?? [])]) {
       ranges.push([r.pos, r.end]);
     }

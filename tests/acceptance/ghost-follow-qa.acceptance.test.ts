@@ -1,4 +1,4 @@
-// docs/spec/modes.md の反復練習の受け入れ条件（MODE-1・MODE-3・MODE-12〜MODE-15）と、docs/spec/screens.md の
+// docs/spec/modes.md の反復練習の受け入れ条件（MODE-3・MODE-12〜MODE-15）と、docs/spec/screens.md の
 // 設定を練習に当てる受け入れ条件（UI-4・UI-16・UI-17）の QA の受け入れテスト。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（トップ・設定・プレイ・リザルト）と、武器・マップの JSON。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、画面写しの画素を読んで確かめる（tests/helpers/png.ts）。
@@ -22,7 +22,7 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
@@ -136,8 +136,6 @@ const FAKE_PAD = `
   window.__ammo = () => { const m = (document.querySelector('[data-hud="ammo"]')?.textContent ?? '').match(/\\d+/); return m ? Number(m[0]) : NaN; };
   // HUD の経過時間（練習の開始からの固定ステップの時刻。0.1 秒の切り捨て）。
   window.__time = () => { const m = (document.querySelector('[data-hud="time"]')?.textContent ?? '').match(/[\\d.]+/); return m ? Number(m[0]) : NaN; };
-  // 次の描画まで待つ（ページの中で条件を確かめ直す間隔）。
-  window.__nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
 `;
 
 const hash = (page: Page) => page.evaluate<string>('location.hash');
@@ -145,9 +143,15 @@ const ammo = (page: Page) => page.evaluate<number>('window.__ammo()');
 const resultText = (page: Page) => page.evaluate<string>(`document.querySelector('[data-screen="result"]')?.innerText ?? ''`);
 /** HUD の経過時間（秒）。 */
 const time = (page: Page) => page.evaluate<number>('window.__time()');
-/** 練習の時刻（HUD の経過時間）が from から seconds 秒進むまで待つ。 */
-const untilTime = (page: Page, from: number, seconds: number, timeout = 15_000) =>
-  page.waitFor(`window.__time() >= ${from + seconds}`, timeout);
+/** ページの時計（clock=manual）を、練習の時刻（HUD の経過時間）が from から seconds 秒進むまで進める。実時間では待たない。 */
+const untilTime = (page: Page, from: number, seconds: number) => page.advanceClockUntil(`window.__time() >= ${from + seconds}`, { step: 0.1 });
+/**
+ * 時計を 2 ステップ分進め、直前のステップの動き（撃った弾の跳ねなど）をカメラの補間に描き終えさせる。
+ * 撃っていない・照準を動かしていない間なら、画面は止まったままになる。
+ */
+const settle = (page: Page) => page.advanceClock(1 / 60);
+/** ページの URL（3D は描画し、ページの時計はテストから進める）。 */
+const url = (origin: string, hash: string) => appUrl(origin, BASE, hash, { manualClock: true });
 
 /** リザルト画面が表示され、中身が描かれるまで待つ。 */
 const waitResult = (page: Page) =>
@@ -202,7 +206,7 @@ const GHOST_ON = { ghost: true };
 
 /** 保存された設定を消す（既定値の状態にする）。common を渡すと、共通の設定のその値だけを既定から変えて保存する。 */
 async function resetSettings(page: Page, origin: string, common?: Record<string, unknown>) {
-  await page.goto(`${origin}${BASE}#/`);
+  await page.goto(url(origin, '#/'));
   await page.evaluate('localStorage.clear()');
   if (common) await page.evaluate(`localStorage.setItem(${JSON.stringify(COMMON_KEY)}, ${JSON.stringify(JSON.stringify(common))})`);
   // 開いた時点で読んだ設定（設定画面の表示）を、保存し直した値にするため読み込み直す。
@@ -213,7 +217,7 @@ async function resetSettings(page: Page, origin: string, common?: Record<string,
 
 /** 設定画面を開く。 */
 async function openSettings(page: Page, origin: string) {
-  await page.goto(`${origin}${BASE}#/settings`);
+  await page.goto(url(origin, '#/settings'));
   await page.waitFor(`!document.querySelector('[data-screen="settings"]').hidden && document.getElementById('setting-fov')`);
 }
 
@@ -231,27 +235,32 @@ async function typeFov(page: Page, value: string) {
 
 /** トップ画面を開き、武器とモードを選んで「開始」を押し、プレイ画面になるまで待つ。 */
 async function start(page: Page, origin: string, weapon: string, mode: string) {
-  await page.goto(`${origin}${BASE}#/`);
+  await page.goto(url(origin, '#/'));
   await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden && document.querySelector('#weapon').options.length > 0 && document.querySelector('#mode').options.length > 0`);
   await choose(page, '#weapon', weapon);
   await choose(page, '#mode', mode);
   await page.clickSelector('[data-screen="top"] a[href="#/play"]');
   await page.waitFor(`location.hash === '#/play' && !document.querySelector('[data-screen="play"]').hidden && window.__ammo() > 0`);
-  // 練習が進み始め（HUD の経過時間が 0.5 秒に達し）、その状態が描かれるまで待つ。
-  await page.waitFor('window.__time() >= 0.5', 15_000);
+  // 練習を進め（HUD の経過時間が 0.5 秒に達し）、その状態が描かれるまで待つ。
+  await page.advanceClockUntil('window.__time() >= 0.5');
+  await settle(page);
   await page.frames(2);
 }
 
-/** R2 を押し続け、残弾が left 以下になったら離す。離したときの残弾と、HUD の経過時間を返す。 */
+/** R2 を押し続け（ページの時計を進め）、残弾が left 以下になったら離す。離したときの残弾と、HUD の経過時間を返す。 */
 async function holdUntil(page: Page, left: number): Promise<{ ammo: number; time: number }> {
-  return page.evaluate<{ ammo: number; time: number }>(`(async () => {
-    window.__setR2(1); const t0 = performance.now();
-    while (!(window.__ammo() <= ${left}) && location.hash === '#/play' && performance.now() - t0 < 15000) await window.__nextFrame();
-    window.__setR2(0); return { ammo: window.__ammo(), time: window.__time() }; })()`);
+  await page.evaluate('window.__setR2(1)');
+  await page.advanceClockUntil(`window.__ammo() <= ${left} || location.hash !== '#/play'`);
+  const released = await page.evaluate<{ ammo: number; time: number }>(`(() => { window.__setR2(0); return { ammo: window.__ammo(), time: window.__time() }; })()`);
+  await page.frames(2);
+  await settle(page);
+  return released;
 }
 
-/** 残弾が left になるまで待つ（R2 は押したまま）。 */
-const waitAmmo = (page: Page, left: number, timeout = 10_000) => page.waitFor(`window.__ammo() === ${left}`, timeout);
+/** 残弾が left になるまでページの時計を進める（R2 やマウスのボタンは押したまま）。 */
+const waitAmmo = (page: Page, left: number) => page.advanceClockUntil(`window.__ammo() === ${left}`, { step: 0.1 });
+/** リザルト画面に移るまでページの時計を進める（撃ち切る・撃たない 2 秒がたつ）。 */
+const untilResult = (page: Page) => page.advanceClockUntil(`location.hash === '#/result'`, { step: 0.1 });
 
 // ---------------------------------------------------------------------------
 // ゴーストの検出
@@ -385,7 +394,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
   // -------------------------------------------------------------------------
   describe('MODE-12: ゴースト表示を ON にして 1 発も撃っていないとき、ゴーストは開始時の照準 + 1 発目の理想の補正軌道の向きに表示される', () => {
     it.each([...LISTED_WEAPONS.map((n) => [n, byName(n), 'main'] as const), [ZERO_WEAPON.name, ZERO_WEAPON, 'copy'] as const])(
-      '%s',
+      'MODE-12: %s',
       async (_name, w, site) => {
         const origin = site === 'main' ? main : copy;
         const page = await newPage();
@@ -413,7 +422,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
 
   // -------------------------------------------------------------------------
   describe('MODE-3: ゴースト表示を ON にした反復練習で、ゴーストは次の弾で照準を合わせるべき位置に表示され、1 発撃つごとに次の位置へ進む', () => {
-    it(`${ZERO_WEAPON.name}（rpm 30）で R2 を押し続け、各発のあとにゴーストが次の発の理想の補正軌道の位置にある`, async () => {
+    it(`MODE-3: ${ZERO_WEAPON.name}（rpm 30）で R2 を押し続け、各発のあとにゴーストが次の発の理想の補正軌道の位置にある`, async () => {
       const w = ZERO_WEAPON;
       const page = await newPage();
       await resetSettings(page, copy, GHOST_ON);
@@ -422,6 +431,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       await page.evaluate(`window.__setR2(1)`);
       for (let i = 1; i < w.magSize; i += 1) {
         await waitAmmo(page, w.magSize - i);
+        await settle(page);
         // 撃った直後の動きが止まってから写し、写したあとも次の発の前（残弾が変わっていない）であることを確かめる。
         const g = await ghostAt(page, { stable: true });
         expect(await ammo(page), `${i} 発目のあと、次の発の前に写せていない`).toBe(w.magSize - i);
@@ -436,17 +446,14 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('L-STAR で 1 発だけ撃つと、ゴーストが 1 発目の位置から 2 発目の位置へ進む', async () => {
+    it('MODE-3: L-STAR で 1 発だけ撃つと、ゴーストが 1 発目の位置から 2 発目の位置へ進む', async () => {
       const w = byName('L-STAR');
       const page = await newPage();
       await resetSettings(page, main, GHOST_ON);
       await start(page, main, w.name, '反復練習');
       const before = await ghostAt(page);
-      // パッドが 1 回読まれる間だけ押す代わりに、1 発撃ったら離す（発射間隔 100ms より短く押す）。
-      const left = await page.evaluate<number>(`(async () => {
-        window.__setR2(1); const t0 = performance.now();
-        while (window.__ammo() === ${w.magSize} && performance.now() - t0 < 3000) await window.__nextFrame();
-        window.__setR2(0); return window.__ammo(); })()`);
+      // 1 発撃ったら離す（発射間隔 100ms より短く押す）。
+      const { ammo: left } = await holdUntil(page, w.magSize - 1);
       expect(w.magSize - left).toBeGreaterThanOrEqual(1);
       // 戻りの時間（0.5 秒）がたつ前に写す。撃った数は写したあとの残弾で数える（離すのが間に合わず 2 発撃つことがある）。
       const after = await ghostAt(page);
@@ -460,7 +467,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
 
   // -------------------------------------------------------------------------
   describe('MODE-13: ゴースト表示を ON にした反復練習で、randomness 0 の武器で、各発を撃つときにクロスヘアをゴーストに重ねて撃つと、全弾が中心に当たる', () => {
-    it(`${ZERO_WEAPON.name}: マウスで照準をゴーストに重ねてから撃ち、撃つたびに次のゴーストに重ね直す`, async () => {
+    it(`MODE-13: ${ZERO_WEAPON.name}: マウスで照準をゴーストに重ねてから撃ち、撃つたびに次のゴーストに重ね直す`, async () => {
       const w = ZERO_WEAPON;
       const page = await newPage();
       await resetSettings(page, copy, GHOST_ON);
@@ -487,7 +494,8 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       };
       /** クロスヘア（画面の中心）とゴーストのずれ（ピクセル）。 */
       const offCenter = async (label: string) => {
-        // 照準の移動とカメラの補間が描き終わり、画面が止まってから写す。
+        // 照準の移動をシミュレーションに積み、カメラの補間が描き終わり、画面が止まってから写す。
+        await settle(page);
         const g = await ghostAt(page, { stable: true });
         expect(g.center, `${label}: ゴーストがない`).toBeDefined();
         return Math.hypot(g.center![0] - CX, g.center![1] - CY);
@@ -511,7 +519,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
         expect(off, `${i + 1} 発目の前にクロスヘアがゴーストに重ならない`).toBeLessThanOrEqual(1.5);
       }
       // 撃ち切るとリザルト画面に移る。
-      await page.waitFor(`location.hash === '#/result'`, 10_000);
+      await untilResult(page);
       await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cursor[0], y: cursor[1], button: 'left', buttons: 0, clickCount: 1 });
       await waitResult(page);
       const text = await resultText(page);
@@ -523,12 +531,12 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it(`対照: ${ZERO_WEAPON.name} で照準を動かさずに撃ち切ると、中心に当たらない（平均ズレが 0 でない）`, async () => {
+    it(`MODE-13 の対照: ${ZERO_WEAPON.name} で照準を動かさずに撃ち切ると、中心に当たらない（平均ズレが 0 でない）`, async () => {
       const page = await newPage();
       await resetSettings(page, copy);
       await start(page, copy, ZERO_WEAPON.name, '反復練習');
       await page.evaluate(`window.__setR2(1)`);
-      await page.waitFor(`location.hash === '#/result'`, 15_000);
+      await untilResult(page);
       await page.evaluate(`window.__setR2(0)`);
       await waitResult(page);
       const text = await resultText(page);
@@ -543,7 +551,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
     it.each([
       [ZERO_WEAPON.name, ZERO_WEAPON, 'copy'] as const,
       ['L-STAR', byName('L-STAR'), 'main'] as const,
-    ])('%s', async (_name, w, site) => {
+    ])('MODE-14: %s', async (_name, w, site) => {
       const origin = site === 'main' ? main : copy;
       const page = await newPage();
       await resetSettings(page, origin, GHOST_ON);
@@ -554,7 +562,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
         await waitAmmo(page, 1);
         expect((await ghostAt(page)).count, '撃ち切る前にゴーストが消えた').toBeGreaterThan(0);
       }
-      await page.waitFor(`location.hash === '#/result'`, 15_000);
+      await untilResult(page);
       await page.evaluate(`window.__setR2(0)`);
       expect(await page.evaluate<boolean>(`!document.querySelector('[data-screen="result"]').hidden && document.querySelector('[data-screen="play"]').hidden`)).toBe(true);
       // リザルト画面の後ろのキャンバスにもゴーストがない。
@@ -570,7 +578,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
 
   // -------------------------------------------------------------------------
   describe('MODE-15: ゴースト表示を ON にした反復練習で数発撃って fire を離し、戻りの時間（0.5 秒）より長く待つと、ゴーストが 1 発目の位置に戻る', () => {
-    it.each([['L-STAR'], ['C.A.R. SMG']])('%s', async (name) => {
+    it.each([['L-STAR'], ['C.A.R. SMG']])('MODE-15: %s', async (name) => {
       const w = byName(name);
       const page = await newPage();
       await resetSettings(page, main, GHOST_ON);
@@ -603,7 +611,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
 
   // -------------------------------------------------------------------------
   describe('UI-4: 設定画面でゴースト表示を ON にしてから OFF に戻して反復練習を始めると、ゴーストが表示されず、撃ち切るとリザルトに採点結果が表示される', () => {
-    it('L-STAR', async () => {
+    it('UI-4: L-STAR', async () => {
       const w = byName('L-STAR');
       const page = await newPage();
       await resetSettings(page, main);
@@ -626,7 +634,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       expect((await ghostAt(page)).count, '撃ったあとにゴーストが表示された').toBe(0);
       // 撃ち切るとリザルトに採点結果が表示される。
       await page.evaluate(`window.__setR2(1)`);
-      await page.waitFor(`location.hash === '#/result'`, 15_000);
+      await untilResult(page);
       await page.evaluate(`window.__setR2(0)`);
       await waitResult(page);
       const text = await resultText(page);
@@ -648,7 +656,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       return out;
     };
 
-    it('#ff0000 と十字', async () => {
+    it('UI-16: #ff0000 と十字', async () => {
       const page = await newPage();
       await resetSettings(page, main);
       // 対照: 既定（点・#77ccff）で始めたときは、中心に赤い画素がない。
@@ -763,7 +771,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       };
     }
 
-    it('FOV 90 と FOV 110 で始めて、壁と的の画面上の大きさを比べる', async () => {
+    it('UI-17: FOV 90 と FOV 110 で始めて、壁と的の画面上の大きさを比べる', async () => {
       const page = await newPage();
       const at90 = await measure(page, main, 90);
       const at110 = await measure(page, main, 110);
@@ -791,10 +799,11 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-1: 武器の一覧の武器（L-STAR と C.A.R. SMG）それぞれで、反復練習とセンター維持を最後まで練習でき、リザルト画面が表示される', () => {
+  // 武器 × モードのすべての組み合わせを最後まで練習できること（MODE-1）は measured-weapons-qa が確かめる（tests/acceptance/README.md）。
+  describe('武器の一覧の武器（L-STAR と C.A.R. SMG）', () => {
     it('トップ画面の選択肢に L-STAR と C.A.R. SMG の 2 つだけの武器と、反復練習とセンター維持の 2 つだけのモードがある', async () => {
       const page = await newPage();
-      await page.goto(`${main}${BASE}#/`);
+      await page.goto(url(main, '#/'));
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
       const weapons = await page.evaluate<string[]>(`[...document.querySelector('#weapon').options].map((o) => o.textContent.trim())`);
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
@@ -815,25 +824,5 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       expect(await ammo(page)).toBe(30);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     });
-
-    it.each(LISTED_WEAPONS.flatMap((n) => ['反復練習', 'センター維持'].map((m) => [n, m] as const)))(
-      '%s / %s',
-      async (name, mode) => {
-        const page = await newPage();
-        await resetSettings(page, main);
-        await start(page, main, name, mode);
-        await page.evaluate(`window.__setR2(1)`);
-        await page.waitFor(`location.hash === '#/result'`, 20_000);
-        await page.evaluate(`window.__setR2(0)`);
-        await waitResult(page);
-        expect(await page.evaluate<boolean>(`!document.querySelector('[data-screen="result"]').hidden`)).toBe(true);
-        const text = await resultText(page);
-        expect(text).toContain(name);
-        expect(text).toContain(mode);
-        expect(text, text).toMatch(/平均ズレ/);
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      },
-      60_000,
-    );
   });
 });

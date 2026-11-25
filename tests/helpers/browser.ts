@@ -63,6 +63,23 @@ export async function serveStatic(dir: string, base: string): Promise<Server> {
 
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void };
 
+/** テストのためにページの URL のクエリに付ける振る舞い（docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」）。 */
+export interface AppUrlOptions {
+  /** false なら render=off（3D を描画しない）。既定は描画する。 */
+  render?: boolean;
+  /** true なら clock=manual（ページの時計を Page.advanceClock で進める）。 */
+  manualClock?: boolean;
+}
+
+/** origin + base のページを、テストのためのクエリと hash（#/ など）を付けて開く URL。 */
+export function appUrl(origin: string, base: string, hash = '#/', { render = true, manualClock = false }: AppUrlOptions = {}): string {
+  const params = new URLSearchParams();
+  if (!render) params.set('render', 'off');
+  if (manualClock) params.set('clock', 'manual');
+  const query = params.size > 0 ? `?${params.toString()}` : '';
+  return `${origin}${base}${query}${hash}`;
+}
+
 /** DevTools プロトコルで 1 つのタブを動かす。 */
 export class Page {
   private nextId = 1;
@@ -101,6 +118,35 @@ export class Page {
     const id = this.nextId++;
     this.socket.send(JSON.stringify({ id, method, params }));
     return new Promise<T>((resolve, reject) => this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject }));
+  }
+
+  /**
+   * clock=manual で開いたページの時計を seconds 秒進める（frame 秒ごとに描画を行い、実時間では待たない）。
+   * frame の既定は 1/60 秒。3D を描画するページで長く進めるときは、描画の回数を減らすよう frame を長くする（1 回の描画で進むのは 0.25 秒まで）。
+   * 行った描画の回数を返す。
+   */
+  async advanceClock(seconds: number, frame?: number): Promise<number> {
+    return this.evaluate<number>(`(() => {
+      const clock = window.__apexTestClock;
+      if (!clock) throw new Error('clock=manual で開いたページではない');
+      return clock.advance(${seconds}${frame === undefined ? '' : `, ${frame}`});
+    })()`);
+  }
+
+  /**
+   * clock=manual で開いたページの時計を step 秒ずつ進め（1 回進めるごとに描画を 1 回行う）、式が真になったら止める（真になった時点の時計で止まる）。
+   * 時計を limit 秒進めても真にならなければ、待っていた式を示して失敗する。進めた秒数を返す。
+   * 時計を進めると描画が行われ、パッドが読まれ、シミュレーションが進むので、撃ち切る・残弾が減るなどを実時間で待たずに待てる。
+   */
+  async advanceClockUntil(expression: string, { step = 1 / 120, limit = 30 }: { step?: number; limit?: number } = {}): Promise<number> {
+    const advanced = await this.evaluate<number>(`(() => {
+      const clock = window.__apexTestClock;
+      if (!clock) throw new Error('clock=manual で開いたページではない');
+      let t = 0;
+      while (!(${expression})) { if (t >= ${limit}) return -1; clock.advance(${step}, ${step}); t += ${step}; }
+      return t; })()`);
+    if (advanced < 0) throw new Error(`ページの時計を ${limit} 秒進めても次の状態にならない: ${expression}`);
+    return advanced;
   }
 
   /** 式をページで評価し、結果の値を返す（Promise は待つ）。 */
@@ -215,7 +261,10 @@ export class Page {
 }
 
 export interface Browser {
+  /** このブラウザで新しいタブを開く。テストごとに開き、ブラウザは起動し直さない（ARC-26）。 */
   newPage(): Promise<Page>;
+  /** これまでに開いたタブをすべて閉じる。テストが終わるたびに呼び、裏で描画し続けるタブを残さない。 */
+  closePages(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -268,17 +317,17 @@ export async function launchBrowser(executable: string): Promise<Browser> {
     rmSync(profile, { recursive: true, force: true });
     throw error;
   }
-  const sockets: WebSocket[] = [];
+  const opened: { id: string; socket: WebSocket }[] = [];
   return {
     async newPage() {
       const res = await fetch(`${endpoint}/json/new?about:blank`, { method: 'PUT' });
-      const target = (await res.json()) as { webSocketDebuggerUrl: string };
+      const target = (await res.json()) as { id: string; webSocketDebuggerUrl: string };
       const socket = new WebSocket(target.webSocketDebuggerUrl);
       await new Promise<void>((ok, ng) => {
         socket.addEventListener('open', () => ok());
         socket.addEventListener('error', () => ng(new Error('DevTools に接続できない')));
       });
-      sockets.push(socket);
+      opened.push({ id: target.id, socket });
       const page = new Page(socket);
       await page.send('Runtime.enable');
       await page.send('Page.enable');
@@ -286,8 +335,14 @@ export async function launchBrowser(executable: string): Promise<Browser> {
       await page.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
       return page;
     },
+    async closePages() {
+      for (const { id, socket } of opened.splice(0)) {
+        socket.close();
+        await fetch(`${endpoint}/json/close/${id}`).catch(() => undefined);
+      }
+    },
     async close() {
-      for (const s of sockets) s.close();
+      for (const { socket } of opened.splice(0)) socket.close();
       // 終わったことを確かめてからプロファイルを消す（決まった時間は待たない）。
       if (child.exitCode === null && child.signalCode === null) {
         child.kill();

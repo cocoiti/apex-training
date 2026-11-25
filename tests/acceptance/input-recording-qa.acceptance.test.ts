@@ -7,7 +7,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_FIXED_STEP, FixedStepLoop } from '../../src/core/loop';
 import { ManualTimeSource } from '../../src/core/time';
 import type { Action, TimedAction } from '../../src/input/actions';
@@ -16,7 +16,7 @@ import { parseMap, type MapData } from '../../src/sim/map';
 import { createPractice, practiceOutcome, replayRecording, type Practice } from '../../src/sim/practice';
 import { aimTrajectory } from '../../src/sim/trajectory';
 import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const WEAPON_DIR = join(ROOT, 'src/data/weapons');
@@ -360,7 +360,6 @@ describe.skipIf(NESTED || !chromium)('INP-8: 練習とリザルトの画面に�
   const temps: string[] = [];
   let server: Server | undefined;
   let browser: Browser | undefined;
-  let page: Page;
   let origin = '';
 
   beforeAll(async () => {
@@ -371,9 +370,16 @@ describe.skipIf(NESTED || !chromium)('INP-8: 練習とリザルトの画面に�
     server = await serveStatic(out, BASE);
     origin = originOf(server);
     browser = await launchBrowser(chromium!);
-    page = await browser.newPage();
-    await page.addInitScript(SPY);
   }, 180_000);
+
+  // テストが終わるたびに開いたタブを閉じ、裏で描画し続けるタブを残さない。
+
+  afterEach(async () => {
+
+    await browser?.closePages();
+
+  });
+
 
   afterAll(async () => {
     await browser?.close();
@@ -382,7 +388,9 @@ describe.skipIf(NESTED || !chromium)('INP-8: 練習とリザルトの画面に�
   });
 
   it('練習中とリザルトで、保存・コピー・送信の操作がなく、練習しても保存・コピー・送信の API が呼ばれない', async () => {
-    await page.goto(`${origin}${BASE}`);
+    const page = await browser!.newPage();
+    await page.addInitScript(SPY);
+    await page.goto(appUrl(origin, BASE, '', { render: false }));
     await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden`);

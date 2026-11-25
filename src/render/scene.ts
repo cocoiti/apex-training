@@ -95,8 +95,16 @@ export class ViewScene {
   }
 }
 
+/** シーンとカメラを持ち、描画のたびに照準の向きに合わせるもの。 */
+export interface ViewRenderer {
+  readonly view: ViewScene;
+  /** キャンバスの表示の大きさに合わせて描画の大きさと縦横比を直す。 */
+  resize(): void;
+  render(world: Readonly<World>, view: Angles): void;
+}
+
 /** ViewScene をキャンバスに WebGL で描画する。 */
-export class SceneRenderer {
+export class SceneRenderer implements ViewRenderer {
   readonly view: ViewScene;
   private readonly renderer: THREE.WebGLRenderer;
 
@@ -117,5 +125,30 @@ export class SceneRenderer {
   render(world: Readonly<World>, view: Angles): void {
     this.view.update(world, view);
     this.renderer.render(this.view.scene, this.view.camera);
+  }
+}
+
+/**
+ * 描画しない ViewRenderer（URL の render=off。docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」）。
+ * WebGL の文脈を作らず描画も呼ばないが、シーン・カメラ・層は描画するときと同じに保つ（縦横比はキャンバスの表示の大きさ）。
+ */
+export class UndrawnSceneRenderer implements ViewRenderer {
+  readonly view: ViewScene;
+
+  constructor(
+    private readonly canvas: { readonly clientWidth: number; readonly clientHeight: number },
+    world: Readonly<World>,
+    options: ViewSceneOptions = {},
+  ) {
+    this.view = new ViewScene(world, options);
+    this.resize();
+  }
+
+  resize(): void {
+    this.view.setAspect(this.canvas.clientWidth / Math.max(this.canvas.clientHeight, 1));
+  }
+
+  render(world: Readonly<World>, view: Angles): void {
+    this.view.update(world, view);
   }
 }

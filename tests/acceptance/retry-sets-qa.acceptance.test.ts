@@ -12,8 +12,8 @@ import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, sym
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
@@ -23,12 +23,10 @@ const CX = 640;
 const CY = 400;
 const chromium = findChromium();
 /**
- * ページの時計で ms たつまで描画を進めて待つ。画面の状態を待つためではなく、SPEC が時間で決めている振る舞い
- * （2 秒たってもリザルトに移らない、押し続けても繰り返さない）を確かめるときと、マウスの動きの間隔を空けるときだけに使う。
+ * ページの時計（clock=manual）を ms 進める。実時間では待たない。SPEC が時間で決めている振る舞い
+ * （2 秒たってもリザルトに移らない、押し続けても繰り返さない、3 秒後に次の回）を確かめるときと、マウスの動きの間隔を空けるときに使う。
  */
-const elapse = (page: Page, ms: number) =>
-  page.evaluate(`new Promise((resolve) => { const t0 = performance.now();
-    const next = () => (performance.now() - t0 >= ${ms} ? resolve(true) : requestAnimationFrame(next)); requestAnimationFrame(next); })`);
+const elapse = (page: Page, ms: number) => page.advanceClock(ms / 1000);
 
 /** SPEC の値（実装の定数には依存しない）。 */
 const INTERLUDE_SECONDS = 3;
@@ -167,19 +165,18 @@ async function waitRoundStart(page: Page, weapon: WeaponJson, n: number, count: 
 
 /** パッドの R2 を押し続けて撃ち切る（残弾が 0 になるか、プレイ画面の練習中でなくなったら離す）。 */
 async function padFireAll(page: Page) {
-  await page.evaluate(`(async () => {
-    window.__btn(7, true); const t0 = performance.now();
-    while (window.__ammo() > 0 && location.hash === '#/play' && !window.__interlude() && performance.now() - t0 < 15000) await new Promise((r) => requestAnimationFrame(r));
-    window.__btn(7, false); })()`);
+  await page.evaluate('window.__btn(7, true)');
+  await page.advanceClockUntil(`window.__ammo() === 0 || location.hash !== '#/play' || window.__interlude()`);
+  await page.evaluate('window.__btn(7, false)');
+  await page.frames(2);
 }
 
 /** パッドの R2 で n 発だけ撃つ（残弾が n 減ったら離す）。 */
 async function padFire(page: Page, n: number) {
-  await page.evaluate(`(async () => {
-    const goal = window.__ammo() - ${n};
-    window.__btn(7, true); const t0 = performance.now();
-    while (window.__ammo() > goal && performance.now() - t0 < 10000) await new Promise((r) => requestAnimationFrame(r));
-    window.__btn(7, false); })()`);
+  await page.evaluate(`window.__goal = window.__ammo() - ${n}; window.__btn(7, true)`);
+  await page.advanceClockUntil('window.__ammo() <= window.__goal');
+  await page.evaluate('window.__btn(7, false)');
+  await page.frames(2);
 }
 
 /** 1 回分を撃ち切り、短いリザルトが出るまで待つ。 */
@@ -220,11 +217,11 @@ class Mouse {
     this.y += dy;
     await this.page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: this.x, y: this.y, buttons, button: buttons ? 'left' : 'none' });
   }
-  /** 左ボタンを押し続けて撃ち切る。during は押しているあいだに呼ぶ。 */
+  /** 左ボタンを押し続けて撃ち切る。during は押しているあいだに呼ぶ（ページの時計を進めながら）。 */
   async fireAll(during?: () => Promise<void>) {
     await this.button('mousePressed');
     if (during) await during();
-    await this.page.waitFor(`window.__ammo() === 0 || location.hash !== '#/play' || window.__interlude()`, 20_000);
+    await this.page.advanceClockUntil(`window.__ammo() === 0 || location.hash !== '#/play' || window.__interlude()`);
     await this.button('mouseReleased');
   }
 }
@@ -318,10 +315,13 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
   let origin = '';
   const exceptions = (page: Page) => page.errors.filter((e) => e.startsWith('exception:'));
 
-  /** 新しいタブで localStorage を空にし、読み込み直したトップ画面を開く。pad が true なら標準配置のパッドをつなぐ。 */
-  async function openFresh(opts: { pad?: boolean } = {}): Promise<Page> {
+  /**
+   * 新しいタブで localStorage を空にし、読み込み直したトップ画面を開く。pad が true なら標準配置のパッドをつなぐ。
+   * ページの時計はテストから進める（clock=manual）。弾痕の画面写しを撮るテスト（render: true）だけが 3D を描画する。
+   */
+  async function openFresh(opts: { pad?: boolean; render?: boolean } = {}): Promise<Page> {
     const page = await browser!.newPage();
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', { render: opts.render ?? false, manualClock: true }));
     await page.evaluate('localStorage.clear()');
     await page.addInitScript(PAGE_INIT);
     if (opts.pad) await page.addInitScript(FAKE_PAD);
@@ -367,6 +367,10 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
     browser = await launchBrowser(chromium!);
   }, 300_000);
 
+  afterEach(async () => {
+    await browser?.closePages();
+  });
+
   afterAll(async () => {
     await browser?.close();
     await new Promise((ok) => (server ? server.close(ok) : ok(undefined)));
@@ -407,7 +411,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
   describe('やり直し', () => {
     for (const via of ['キーボードの R', 'パッドの A'] as const) {
       it(`MODE-16: 練習中に 1 発以上撃ったあと、${via}を押すと、プレイ画面のまま同じ武器・モードで練習が始め直され、弾痕が消え、残弾が装弾数に、経過時間が 0.0 に戻る`, async () => {
-        const page = await openFresh({ pad: true });
+        const page = await openFresh({ pad: true, render: true });
         await start(page, LONG, 'センター維持', 1);
         const clean = await canvasShot(page);
         await padFire(page, 4);
@@ -459,26 +463,28 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
       await start(page, LOW, 'センター維持', 5);
       expect(await round(page)).toContain('1 / 5');
       await padFireAll(page);
-      const t = await page.evaluate<{ shown: number; next: number; text: string; hashes: string[]; screensDuring: string[] }>(`(async () => {
-        const until = async (f) => { const t0 = performance.now(); while (!f() && performance.now() - t0 < 10000) await new Promise((r) => requestAnimationFrame(r)); return performance.now(); };
-        const shown = await until(() => window.__interlude());
-        await (async () => { const t1 = performance.now(); while (performance.now() - t1 < 300) await new Promise((r) => requestAnimationFrame(r)); })();
-        const text = document.querySelector('#interlude').innerText;
-        const screensDuring = window.__screens();
-        const next = await until(() => !window.__interlude() && window.__round().includes('2 / 5') && window.__ammo() === ${LOW.magSize});
-        return { shown, next, text, hashes: window.__hashes.slice(), screensDuring }; })()`);
+      await page.waitFor('window.__interlude()', 5000);
+      await page.frames(2);
+      const text = await interludeText(page);
+      const screensDuring = await screens(page);
       // プレイ画面の上に表示される（リザルト画面には移らない）。
-      expect(t.screensDuring).toEqual(['play']);
-      expect(t.hashes).not.toContain('#/result');
+      expect(screensDuring).toEqual(['play']);
+      expect(await page.evaluate<string[]>('window.__hashes')).not.toContain('#/result');
       // 回の番号と回数、平均ズレ（2 度）、コメント（下げすぎ）、残り秒数。
-      expect(t.text).toContain('1 / 5');
-      expect(t.text).toContain('平均ズレ');
-      expect(decimals(t.text).some((v) => Math.abs(v - 2) < 0.01), t.text).toBe(true);
-      expect(COMMENTS.filter((c) => t.text.includes(c))).toEqual(['下げすぎ']);
-      // 3 秒後に 2 回目が始まる。
-      const waited = (t.next - t.shown) / 1000;
-      expect(waited, `${waited} 秒`).toBeGreaterThanOrEqual(INTERLUDE_SECONDS - 0.3);
-      expect(waited, `${waited} 秒`).toBeLessThanOrEqual(INTERLUDE_SECONDS + 1);
+      expect(text).toContain('1 / 5');
+      expect(text).toContain('平均ズレ');
+      expect(decimals(text).some((v) => Math.abs(v - 2) < 0.01), text).toBe(true);
+      expect(COMMENTS.filter((c) => text.includes(c))).toEqual(['下げすぎ']);
+      // 時計を進めない間は、実際の描画が進んでも次の回は始まらない。
+      await page.frames(30);
+      expect(await page.evaluate<boolean>('window.__interlude()')).toBe(true);
+      // 3 秒たつ少し前はまだ短いリザルトで、3 秒たつと操作なしで 2 回目が始まる。
+      await elapse(page, (INTERLUDE_SECONDS - 0.1) * 1000);
+      await page.frames(2);
+      expect(await page.evaluate<boolean>('window.__interlude()')).toBe(true);
+      expect(await round(page)).toContain('1 / 5');
+      await elapse(page, 150);
+      await waitRoundStart(page, LOW, 2, 5, 3000);
       expect(await hash(page)).toBe('#/play');
       expect(await round(page)).toContain('2 / 5');
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
@@ -492,6 +498,8 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
         await padFireAll(page);
         if (n < 5) {
           await page.waitFor('window.__interlude()', 5000);
+          // 操作しないまま、短いリザルトの 3 秒がたつ。
+          await elapse(page, (INTERLUDE_SECONDS + 0.1) * 1000);
           await waitRoundStart(page, LOW, n + 1, 5, 8000);
         }
       }
@@ -517,10 +525,11 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
       for (const [label, press] of vias) {
         await padRoundToInterlude(page);
         await page.frames(2);
-        const t0 = Date.now();
+        // ページの時計を止めたまま押す。3 秒たって始まったのではなく、押したことで次の回が始まる。
+        const t0 = await page.evaluate<number>('window.__apexTestClock.now()');
         await press();
         await waitRoundStart(page, ZERO, n + 1, 5, 2500);
-        const waited = (Date.now() - t0) / 1000;
+        const waited = (await page.evaluate<number>('window.__apexTestClock.now()')) - t0;
         expect(waited, `${label}: ${waited} 秒`).toBeLessThan(INTERLUDE_SECONDS - 1);
         n += 1;
       }
@@ -592,6 +601,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
       // やり直した 3 回目を撃ち切ると、短いリザルト（3 / 5）のあとに 4 回目が始まる。
       await padRoundToInterlude(page);
       expect(await interludeText(page)).toContain('3 / 5');
+      await elapse(page, (INTERLUDE_SECONDS + 0.1) * 1000);
       await waitRoundStart(page, LONG, 4, 5, 8000);
       await padRoundToInterlude(page);
       await key(page, 'space');
@@ -659,7 +669,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
   // -------------------------------------------------------------------------
   describe('リザルト画面の操作', () => {
     it('UI-32: 回数 1 で練習を終えたリザルト画面で、キーボードの R・Space、パッドの A を押すと、同じ武器・同じモードで新しい練習が始まり、前の練習の弾痕は消えている', async () => {
-      const page = await openFresh({ pad: true });
+      const page = await openFresh({ pad: true, render: true });
       await start(page, ZERO, 'センター維持', 1);
       const clean = await canvasShot(page);
       const vias = [

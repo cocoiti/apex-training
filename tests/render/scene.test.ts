@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_FOV, fieldOfView } from '../../src/render/fov';
-import { interpolateAngles, ViewScene } from '../../src/render/scene';
+import { interpolateAngles, UndrawnSceneRenderer, ViewScene } from '../../src/render/scene';
 import { directionFromAngles } from '../../src/sim/angles';
 import { addRecoilOffset, viewAngles } from '../../src/sim/player';
 import { loadWorld, type World } from '../../src/sim/world';
@@ -119,5 +119,23 @@ describe('描画の層', () => {
     view.layer.add(b);
     view.layer.remove(a);
     expect(view.layer.group.children).toEqual([b]);
+  });
+});
+
+describe('描画しない ViewRenderer（render=off）', () => {
+  it('キャンバスの表示の縦横比をカメラに当て、照準の向きにカメラを合わせ、WebGL を使わない', () => {
+    const world = rangeWorld();
+    const canvas = { clientWidth: 1280, clientHeight: 800 };
+    const renderer = new UndrawnSceneRenderer(canvas, world, { fov: 104 });
+    expect(renderer.view.camera.aspect).toBeCloseTo(1.6, 9);
+    expect(renderer.view.fovValue).toBe(104);
+    renderer.render(world, { yaw: 10, pitch: 5 });
+    const expected = directionFromAngles({ yaw: 10, pitch: 5 });
+    const dir = cameraDirection(renderer.view);
+    expect(dir.x).toBeCloseTo(expected.x, 9);
+    expect(dir.y).toBeCloseTo(expected.y, 9);
+    canvas.clientHeight = 0;
+    renderer.resize();
+    expect(renderer.view.camera.aspect).toBe(1280);
   });
 });

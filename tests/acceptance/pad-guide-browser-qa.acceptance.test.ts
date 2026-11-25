@@ -4,14 +4,15 @@
 // ガイドは index.html の .pad-guide（点は [data-guide="ideal"]・[data-guide="current"]、位置は data-x・data-y の右と上が正の %）、
 // 名前は .pad-guide-name、リザルトの入力推移のグラフは #result-pad で読む。
 // 理想の位置の期待値は、SPEC の式（「理想の補正速度」「カーブの逆」）と SPEC のパッドの設定の既定値からこのファイルで求める。
+// 画面は render=off・clock=manual で開き、練習の時間はページの時計を進めて決める。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
@@ -21,7 +22,10 @@ const HEIGHT = 800;
 const CX = WIDTH / 2;
 const CY = HEIGHT / 2;
 const chromium = findChromium();
-const settle = (page: Page, frames: number) => page.frames(frames);
+/** ページの時計（clock=manual）を 60Hz の描画 frames 回分進める。実時間では待たない。 */
+const settle = (page: Page, frames: number) => page.advanceClock(frames / 60);
+/** 3D は描画せず（render=off）、ページの時計はテストから進める（clock=manual）。 */
+const APP = { render: false, manualClock: true };
 
 const PAD_NAME = 'acceptance pad (STANDARD GAMEPAD)';
 const GHOST = '反復練習';
@@ -159,7 +163,10 @@ async function moveMouse(page: Page, dx: number, steps = 10) {
 const mouseButton = (page: Page, type: 'mousePressed' | 'mouseReleased') =>
   page.send('Input.dispatchMouseEvent', { type, x: CX, y: CY, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1 });
 
-const waitResult = (page: Page) => page.waitFor(`location.hash === '#/result' && !document.querySelector('[data-screen="result"]').hidden`, 30_000);
+const waitResult = async (page: Page) => {
+  await page.advanceClockUntil(`location.hash === '#/result'`, { step: 1 / 60 });
+  await page.waitFor(`location.hash === '#/result' && !document.querySelector('[data-screen="result"]').hidden`, 30_000);
+};
 
 /** リザルト画面の右スティックの入力推移のグラフの様子。 */
 interface PadTraceDom {
@@ -188,15 +195,12 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
   let server: Server | undefined;
   let browser: Browser | undefined;
   let origin = '';
-  const pages: Page[] = [];
   const exceptions = (page: Page) => page.errors.filter((e) => e.startsWith('exception:'));
 
   async function openFresh(): Promise<Page> {
-    for (const p of pages.splice(0)) await p.send('Page.close').catch(() => {});
     const page = await browser!.newPage();
-    pages.push(page);
     await page.addInitScript(PAGE_INIT);
-    await page.goto(`${origin}${BASE}#/`);
+    await page.goto(appUrl(origin, BASE, '#/', APP));
     await page.evaluate(`localStorage.clear()`);
     await page.evaluate('window.__beforeReload = true');
     await page.send('Page.reload', { ignoreCache: false });
@@ -213,6 +217,10 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
     origin = originOf(server);
     browser = await launchBrowser(chromium!);
   }, 300_000);
+
+  afterEach(async () => {
+    await browser?.closePages();
+  });
 
   afterAll(async () => {
     await browser?.close();
@@ -239,7 +247,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
 
       // R2 を押し続け、撃っているあいだの理想の位置を描画のたびに読む。
       await page.evaluate('window.__button(7, 1)');
-      await page.waitFor(`window.__ammo() <= ${w.magSize - 2}`, 5000);
+      await page.advanceClockUntil(`window.__ammo() <= ${w.magSize - 2}`);
       const samples: GuideSample[] = [];
       for (;;) {
         const s = await guide(page);
@@ -335,7 +343,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
       expect(await lock(page)).toBe(true);
       // パッドの R2 で何発か撃ち、パッドにする。ガイドが出る。
       await page.evaluate('window.__button(7, 1)');
-      await page.waitFor(`window.__ammo() <= ${w.magSize - 3}`, 5000);
+      await page.advanceClockUntil(`window.__ammo() <= ${w.magSize - 3}`);
       await page.waitFor('window.__guideVisible()', 3000);
       await page.evaluate('window.__button(7, 0)');
       await settle(page, 6);

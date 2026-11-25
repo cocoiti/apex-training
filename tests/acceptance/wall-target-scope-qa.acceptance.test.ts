@@ -12,7 +12,7 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer, type ViteDevServer } from 'vite';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { InputRecording } from '../../src/input/recording';
 import { fieldOfView } from '../../src/render/fov';
 import { parseMap, type MapData } from '../../src/sim/map';
@@ -182,6 +182,15 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     browser = await launchBrowser(chromium!);
   }, 300_000);
 
+  // テストが終わるたびに開いたタブを閉じ、裏で描画し続けるタブを残さない。
+
+  afterEach(async () => {
+
+    await browser?.closePages();
+
+  });
+
+
   afterAll(async () => {
     await browser?.close();
     await dev?.close();
@@ -263,11 +272,12 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     /** 壁の正面（z = -10、目の高さ 1.6 m）の点 (x, y) メートルの画面上の位置。 */
     const onWall = (x: number, y: number): [number, number] => [cx + (k * x) / 10, cy - (k * (y - 1.6)) / 10];
 
+    // 同じ画面写しを読むテストが続くので、画面写しは 1 回だけ撮る。各テストはページを使わず、この画素を読む。
     let img: Image;
-    let page: Page;
     beforeAll(async () => {
-      page = await openPlay();
+      const page = await openPlay();
       img = await canvasOnly(page);
+      noExceptions(page);
     }, 60_000);
 
     it('画面の中心に、中心点と、それを囲む同心円の暗いリング（6 本）が描かれている', () => {
@@ -286,7 +296,6 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
           expect(runs.some((r) => Math.abs(r - expected) <= 1.5), `${theta} 度（${expected} px）: ${JSON.stringify(all)}`).toBe(true);
         }
       }
-      noExceptions(page);
     });
 
     it('壁に 1 m ごとのパネルの目地（壁の地より暗い線）が、壁の左下の角を起点に縦横に描かれている', () => {
