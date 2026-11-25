@@ -48,14 +48,14 @@ let remote = '';
 let repo = '';
 let build = '';
 
-/** origin に見立てた bare リポジトリと、main とブランチ feat/x を持ち、未コミットの変更がある clone を作る。 */
+/** origin に見立てた bare リポジトリと、main とブランチ feat/x を持つ clone を作る。作業ツリーには無視されたファイルだけを置く。 */
 beforeEach(() => {
   remote = join(tempDir('deploy-remote-'), 'origin.git');
   git(['init', '--quiet', '--bare', '--initial-branch=main', remote], tmpdir());
   repo = join(tempDir('deploy-repo-'), 'repo');
   git(['clone', '--quiet', remote, repo], tmpdir());
   git(['symbolic-ref', 'HEAD', 'refs/heads/main'], repo);
-  writeFileSync(join(repo, '.gitignore'), 'dist/\n');
+  writeFileSync(join(repo, '.gitignore'), 'dist/\n*.local\n');
   writeFileSync(join(repo, 'source.txt'), 'main\n');
   git(['add', '.'], repo);
   git(['commit', '--quiet', '-m', 'init'], repo);
@@ -63,8 +63,7 @@ beforeEach(() => {
   git(['checkout', '--quiet', '-b', 'feat/x'], repo);
   writeFileSync(join(repo, 'source.txt'), 'feat\n');
   git(['commit', '--quiet', '-am', 'feat'], repo);
-  writeFileSync(join(repo, 'source.txt'), 'uncommitted\n');
-  writeFileSync(join(repo, 'untracked.txt'), 'untracked\n');
+  writeFileSync(join(repo, 'notes.local'), 'ignored\n');
   build = join(tempDir('deploy-build-'), 'build.mjs');
   writeFileSync(build, FAKE_BUILD);
 });
@@ -121,6 +120,33 @@ describe('公開のコマンド（OVR-7）', () => {
     expect(publishedFiles()).toEqual(['.nojekyll', 'assets/new.js', 'index.html']);
     expect(git(['rev-parse', 'gh-pages^'], remote)).toBe(first);
     expect(localState()).toEqual(before);
+  });
+
+  it.each([
+    ['追跡しているファイルの未コミットの変更', () => writeFileSync(join(repo, 'source.txt'), 'uncommitted\n')],
+    ['追跡していないファイル', () => writeFileSync(join(repo, 'untracked.txt'), 'untracked\n')],
+    ['ステージした変更', () => {
+      writeFileSync(join(repo, 'staged.txt'), 'staged\n');
+      git(['add', 'staged.txt'], repo);
+    }],
+  ])('作業ツリーに%sがあれば、その旨を示して 0 以外で終わり、ビルドも公開もしない', (_, makeDirty) => {
+    expect(deploy(['index.html']).status).toBe(0);
+    const first = git(['rev-parse', 'gh-pages'], remote);
+    makeDirty();
+    const before = localState();
+    const result = deploy(['index.html', 'assets/new.js'], { FAKE_FAIL: '1' });
+    expect(result.status).not.toBe(0);
+    expect(result.output).toContain('未コミットの変更がある');
+    expect(result.output).not.toContain('ビルドが失敗した');
+    expect(git(['rev-parse', 'gh-pages'], remote)).toBe(first);
+    expect(localState()).toEqual(before);
+  });
+
+  it('無視されたファイルだけなら公開する', () => {
+    expect(existsSync(join(repo, 'notes.local'))).toBe(true);
+    const result = deploy(['index.html']);
+    expect(result.status, result.output).toBe(0);
+    expect(publishedFiles()).toEqual(['.nojekyll', 'index.html']);
   });
 
   it('ビルドの結果が前回と同じなら push しない', () => {

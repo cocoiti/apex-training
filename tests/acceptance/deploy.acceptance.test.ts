@@ -1,8 +1,9 @@
-// docs/spec/overview.md「公開」の受け入れ条件（OVR-7・OVR-8）の受け入れテスト。
+// docs/spec/overview.md「公開」の受け入れ条件（OVR-7・OVR-8・OVR-9）の受け入れテスト。
 // 公開された入口（npm run deploy、公開された gh-pages ブランチの中身、公開先の画面）だけを使い、実装の内部には依存しない。
 //
 // OVR-7: 本物の GitHub へ push しないよう、リポジトリを一時ディレクトリへ clone し、origin を手元の bare リポジトリに付け替えて
 //   npm run deploy を実行する。念のため github.com の URL も git の url.<base>.insteadOf でその bare リポジトリへ向ける。
+// OVR-9: OVR-7 の 2 回の公開のあとで、作業ツリーに未コミットの変更を作ってもう一度 npm run deploy を実行し、断られることを確かめる。
 // OVR-8: 公開先（https://cocoiti.github.io/apex-training/）を開く確認はネットワークと実際の公開が要るため、
 //   APEX_ACCEPTANCE_LIVE=1 のときだけ実行する。いつもは代わりに、OVR-7 で push された gh-pages ブランチの中身を
 //   GitHub Pages と同じ形（ブランチのルートを /apex-training/ で配信）で配信して開く。
@@ -80,6 +81,7 @@ function snapshot(clone: string, bare: string) {
     localMain: git('rev-parse refs/heads/main', clone),
     originMain: git(`--git-dir="${bare}" rev-parse refs/heads/main`, clone),
     originWork: git(`--git-dir="${bare}" rev-parse refs/heads/work`, clone),
+    ghPages: sh(`git --git-dir="${bare}" rev-parse --verify -q refs/heads/gh-pages`, clone).stdout.trim(),
     status: git('status --porcelain=v1 --untracked-files=all', clone),
     files: tree(clone, ['.git', 'node_modules']),
     worktrees: git('worktree list --porcelain', clone),
@@ -138,11 +140,9 @@ beforeAll(() => {
   symlinkSync(join(ROOT, 'node_modules'), join(clone, 'node_modules'));
   writeFileSync(join(clone, '.git/info/exclude'), 'node_modules\n', { flag: 'a' });
 
-  // 未コミットの変更（ビルドに関わらないファイル）: 追跡しているファイルの変更、ステージした変更、追跡していないファイル。
-  writeFileSync(join(clone, 'README.md'), `${readFileSync(join(clone, 'README.md'), 'utf8')}\nuncommitted change\n`);
-  writeFileSync(join(clone, 'ACCEPTANCE_STAGED.md'), 'staged\n');
-  git('add ACCEPTANCE_STAGED.md', clone);
-  writeFileSync(join(clone, 'ACCEPTANCE_UNTRACKED.md'), 'untracked\n');
+  // 無視されたファイルだけがある作業ツリー（未コミットの変更はない）で公開する。手元の dist/ に古いビルドを置いておく。
+  mkdirSync(join(clone, 'dist'), { recursive: true });
+  writeFileSync(join(clone, 'dist/local-stale.html'), '<p>local</p>\n');
 
   // 比べるためのビルド結果（作業用のリポジトリの外へ出す）。
   const ref = tempDir('ovr7-ref-');
@@ -174,6 +174,13 @@ beforeAll(() => {
     published = join(work, 'published');
     extractBranch(bare, 'gh-pages', published);
   }
+
+  // 3 回目（OVR-9）: 未コミットの変更（追跡しているファイルの変更、ステージした変更、追跡していないファイル）を作って公開する。
+  writeFileSync(join(clone, 'README.md'), `${readFileSync(join(clone, 'README.md'), 'utf8')}\nuncommitted change\n`);
+  writeFileSync(join(clone, 'ACCEPTANCE_STAGED.md'), 'staged\n');
+  git('add ACCEPTANCE_STAGED.md', clone);
+  writeFileSync(join(clone, 'ACCEPTANCE_UNTRACKED.md'), 'untracked\n');
+  deploy('3 回目（未コミットの変更あり）');
   ready = true;
 }, 900_000);
 
@@ -241,11 +248,26 @@ describe.skipIf(NESTED)('OVR-7: npm run deploy で gh-pages ブランチへ公�
     expect(dist(after.files), `${name}: 作業ツリーの dist/ が変わった`).toEqual(dist(before.files));
   });
 
-  it('未コミットの変更（変更・ステージ・追跡していないファイル）が公開のあとも残っている', () => {
-    const status = git('status --porcelain=v1 --untracked-files=all', clone);
-    expect(status).toContain(' M README.md');
-    expect(status).toContain('A  ACCEPTANCE_STAGED.md');
-    expect(status).toContain('?? ACCEPTANCE_UNTRACKED.md');
+});
+
+describe.skipIf(NESTED)('OVR-9: 未コミットの変更があるときは公開しない', () => {
+  it('前提: 未コミットの変更（変更・ステージ・追跡していないファイル）がある状態で実行した', () => {
+    const { before } = deploys[2]!;
+    expect(before.status).toContain(' M README.md');
+    expect(before.status).toContain('A  ACCEPTANCE_STAGED.md');
+    expect(before.status).toContain('?? ACCEPTANCE_UNTRACKED.md');
+    expect(before.ghPages, '前提: OVR-7 の公開で gh-pages ブランチがある').not.toBe('');
+  });
+
+  it('未コミットの変更がある旨を示して 0 以外で終わる', () => {
+    const d = deploys[2]!;
+    expect(d.status, d.output.slice(-4000)).not.toBe(0);
+    expect(d.output).toContain('未コミットの変更');
+  });
+
+  it('origin の gh-pages ブランチ、ブランチ、作業ツリーの内容（未コミットの変更を含む）、worktree の一覧が変わらない', () => {
+    const { before, after } = deploys[2]!;
+    expect(after).toEqual(before);
     expect(readFileSync(join(clone, 'README.md'), 'utf8')).toContain('uncommitted change');
   });
 });

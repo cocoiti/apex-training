@@ -3,6 +3,7 @@
 // 作業は一時的な作業ツリー（git worktree）で行い、実行したときの作業ツリー・今のブランチ・既定ブランチには触れない。
 // ローカルのブランチも作らず、作ったコミットを <remote> の gh-pages へ直接 push する。
 // ビルドの出力先も作業ツリーの外の一時ディレクトリにし、作業ツリーの dist/ を作ったり上書きしたりしない。
+// 公開したものがコミットと一致するよう、未コミットの変更（無視されたファイルを除く）があれば公開しない。
 // 環境変数 DEPLOY_REMOTE（既定 origin）と DEPLOY_BUILD_COMMAND（既定 npm run build に出力先を渡したもの）は、テストで差し替えるためのもの。
 // 差し替えたビルドのコマンドは、環境変数 DEPLOY_OUT_DIR の場所にビルドの結果を出す。
 import { spawnSync } from 'node:child_process';
@@ -26,6 +27,14 @@ function git(args, cwd, { allowFailure = false } = {}) {
 
 function deploy() {
   const root = git(['rev-parse', '--show-toplevel'], process.cwd()).stdout;
+
+  // ビルドは作業ツリーで行うため、未コミットの変更があると、どのコミットとも一致しないものを公開してしまう。
+  const dirty = git(['status', '--porcelain', '--untracked-files=all'], root).stdout;
+  if (dirty) {
+    throw new DeployError(
+      `作業ツリーに未コミットの変更がある。コミットするか片付けてから公開する。公開しない。\n${dirty}`,
+    );
+  }
 
   const temp = mkdtempSync(join(tmpdir(), 'apex-deploy-'));
   const dist = join(temp, 'dist');
