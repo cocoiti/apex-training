@@ -26,7 +26,6 @@ import { fillModeSelect } from './ui/mode-choices';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { PracticeFlow } from './ui/practice-flow';
 import { applyPracticeSettings } from './ui/practice-settings';
-import type { InputMethod } from './ui/personal-best';
 import type { HistorySelection } from './ui/practice-history';
 import { completePractice, renderResult, type ResultElements } from './ui/result-view';
 import { adsAfter, applyReticleColor, showAimDisplay, type AimDisplayElements } from './ui/scope';

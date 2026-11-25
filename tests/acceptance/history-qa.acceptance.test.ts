@@ -12,16 +12,14 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
-const STATIC_PORT = 3152;
 const CX = 640;
 const CY = 400;
 const chromium = findChromium();
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** SPEC の文言と値（実装の定数には依存しない）。 */
 const HISTORY_NOTICE = 'この環境では履歴を保存できません。ページを開いているあいだの練習だけが表示されます。';
@@ -189,7 +187,7 @@ async function chooseHistory(page: Page, caption: string, label: string) {
     s.value = o.value; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true }));
     return true; })()`);
   if (!ok) throw new Error(`履歴の画面の ${caption} に ${label} の選択肢がない`);
-  await pause(100);
+  await page.frames(2);
 }
 
 /** 履歴の画面で武器・モード・入力方式を選ぶ。 */
@@ -197,14 +195,13 @@ async function selectGroup(page: Page, weapon: string, mode: string, input: stri
   await chooseHistory(page, '武器', weapon);
   await chooseHistory(page, 'モード', mode);
   await chooseHistory(page, '入力方式', input);
-  await pause(200);
 }
 
 /** 同じページのままハッシュで履歴の画面を開く。 */
 async function openHistory(page: Page) {
   await page.evaluate(`location.hash = '#/history'`);
   await page.waitFor(`!!document.querySelector('[data-screen="history"]') && !document.querySelector('[data-screen="history"]').hidden && document.querySelectorAll('[data-screen="history"] select option').length > 0`);
-  await pause(200);
+  await page.frames(2);
 }
 
 const mouseButton = (page: Page, type: 'mousePressed' | 'mouseReleased') =>
@@ -212,10 +209,9 @@ const mouseButton = (page: Page, type: 'mousePressed' | 'mouseReleased') =>
 
 async function lock(page: Page) {
   await page.waitFor(`location.hash === '#/play' && !document.querySelector('[data-screen="play"]').hidden`);
-  await pause(500);
-  await page.click(CX, CY);
-  await page.waitFor('!!document.pointerLockElement', 5000);
-  await pause(200);
+  await page.frames(5);
+  await waitUntil(() => page.lockPointerBy(() => page.click(CX, CY), 1_000), 'クリックでポインターロックが掛かる', { timeout: 15_000 });
+  await page.frames(2);
 }
 
 async function start(page: Page, weapon: string, mode: string) {
@@ -234,7 +230,7 @@ async function fireAll(page: Page) {
   await mouseButton(page, 'mouseReleased');
   await page.evaluate('document.exitPointerLock()');
   await page.waitFor(`!document.querySelector('[data-screen="result"]').hidden`);
-  await pause(300);
+  await page.frames(2);
 }
 
 /** 練習を 1 回（武器とモードを選んで撃ち切る）。 */
@@ -261,7 +257,7 @@ async function clickHistoryButton(page: Page, label: string) {
 async function clearWithAnswer(page: Page, answer: boolean) {
   await page.evaluate(`window.__confirmAnswer = ${answer}; window.__confirmCalls = 0;`);
   await clickHistoryButton(page, CLEAR);
-  await pause(300);
+  await page.frames(2);
   const viaConfirm = await page.evaluate<number>('window.__confirmCalls');
   if (viaConfirm > 0) return;
   const clicked = await page.evaluate<boolean>(`(() => { ${VISIBLE}
@@ -275,7 +271,7 @@ async function clearWithAnswer(page: Page, answer: boolean) {
     }
     return false; })()`);
   if (!clicked) throw new Error('消してよいかの確認が出ない');
-  await pause(300);
+  await page.frames(2);
 }
 
 const PAGE_INIT = `
@@ -305,7 +301,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
   const temps: string[] = [];
   let server: Server | undefined;
   let browser: Browser | undefined;
-  const origin = `http://127.0.0.1:${STATIC_PORT}`;
+  let origin = '';
   const exceptions = (page: Page) => page.errors.filter((e) => e.startsWith('exception:'));
 
   /** 新しいタブで localStorage を空にし（seed を入れ）、読み込み直したトップ画面を開く。 */
@@ -334,8 +330,9 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
     const dist = join(work, 'dist');
     const build = spawnSync(`npm run build -- --outDir "${dist}" --emptyOutDir`, { cwd: ROOT, shell: true, encoding: 'utf8' });
     if (build.status !== 0) throw new Error(`ビルドが失敗した:\n${build.stdout}${build.stderr}`);
-    server = await serveStatic(dist, BASE, STATIC_PORT);
-    browser = await launchBrowser(chromium!, 0);
+    server = await serveStatic(dist, BASE);
+    origin = originOf(server);
+    browser = await launchBrowser(chromium!);
   }, 300_000);
 
   afterAll(async () => {
@@ -353,7 +350,6 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       const startedAt = Date.now();
       for (let i = 0; i < 3; i += 1) {
         results.push(await practice(page, R301.name, 'センター維持'));
-        await pause(50);
       }
       const all = await storedHistories(page);
       const key = historyKey('mouse', 'r301', 'center');
@@ -430,19 +426,19 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       await page.evaluate(`location.hash = '#/settings'`);
       await page.waitFor(`!document.querySelector('[data-screen="settings"]').hidden && !!document.getElementById('setting-input-method')`);
       await choose(page, '#setting-input-method', 'パッド');
-      await pause(200);
+      await page.frames(2);
       await page.evaluate(`location.hash = '#/'`);
       await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden && document.querySelector('#weapon').options.length > 0`);
       await choose(page, '#weapon', R301.name);
       await choose(page, '#mode', 'センター維持');
       await page.clickSelector('[data-screen="top"] a[href="#/play"]');
       await page.waitFor(`location.hash === '#/play' && window.__ammo() > 0`);
-      await pause(500);
+      await page.frames(5);
       await page.evaluate('window.__r2 = 1');
       await page.waitFor(`location.hash === '#/result'`, 20_000);
       await page.evaluate('window.__r2 = 0');
       await page.waitFor(`!document.querySelector('[data-screen="result"]').hidden`);
-      await pause(300);
+      await page.frames(2);
       const r = await resultState(page);
       expect(r.visibleScreens).toEqual(['result']);
       const all = await storedHistories(page);
@@ -561,14 +557,14 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
         el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
       await page.click(box.x, box.y);
       await page.waitFor(`location.hash === '#/history'`);
-      await pause(300);
+      await page.frames(2);
       const h = await historyState(page);
       expect(h.visibleScreens).toEqual(['history']);
       const back = h.controls.find((c) => c.tag === 'a' && (c.href === '#/' || c.href === '#' || c.href === BASE));
       expect(back, JSON.stringify(h.controls)).toBeDefined();
       await clickHistoryButton(page, back!.text);
       await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
-      await pause(200);
+      await page.frames(2);
       const after = await page.evaluate<{ hash: string; screens: string[] }>(`(() => { ${VISIBLE} return { hash: location.hash,
         screens: [...document.querySelectorAll('[data-screen]')].filter(visible).map((s) => s.getAttribute('data-screen')) }; })()`);
       expect(after.hash === '#/' || after.hash === '').toBe(true);
@@ -653,7 +649,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       // 直接 #/history を開いても同じ。
       await page.goto(`${origin}${BASE}#/history`);
       await page.waitFor(`!!document.querySelector('[data-screen="history"]') && !document.querySelector('[data-screen="history"]').hidden`);
-      await pause(300);
+      await page.frames(2);
       const direct = await historyState(page);
       expect(direct.visibleScreens).toEqual(['history']);
       expect(direct.text).toContain(HISTORY_NOTICE);
