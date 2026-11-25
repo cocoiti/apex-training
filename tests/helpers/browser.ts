@@ -164,7 +164,10 @@ export interface Browser {
   close(): Promise<void>;
 }
 
-/** ヘッドレスの Chromium を起動する。 */
+/**
+ * ヘッドレスの Chromium を起動する。debugPort に 0 を渡すと、DevTools のポートは Chromium が空いているものを選ぶ
+ * （開発サーバー用のポート 3100〜3109 を使い切らないため）。
+ */
 export async function launchBrowser(executable: string, debugPort: number): Promise<Browser> {
   const profile = mkdtempSync(join(tmpdir(), 'acceptance-chromium-'));
   const child: ChildProcess = spawn(
@@ -183,10 +186,18 @@ export async function launchBrowser(executable: string, debugPort: number): Prom
     ],
     { stdio: 'ignore' },
   );
-  const endpoint = `http://127.0.0.1:${debugPort}`;
+  let endpoint = `http://127.0.0.1:${debugPort}`;
   const start = Date.now();
   for (;;) {
     try {
+      if (debugPort === 0) {
+        // 選ばれたポートは、プロファイルの DevToolsActivePort の 1 行目に書かれる。
+        const file = join(profile, 'DevToolsActivePort');
+        if (!existsSync(file)) throw new Error('まだ起動していない');
+        const port = readFileSync(file, 'utf8').split('\n')[0]?.trim();
+        if (!port) throw new Error('まだ起動していない');
+        endpoint = `http://127.0.0.1:${port}`;
+      }
       const res = await fetch(`${endpoint}/json/version`);
       if (res.ok) break;
     } catch {
