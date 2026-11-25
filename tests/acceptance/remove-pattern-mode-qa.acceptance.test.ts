@@ -1,6 +1,6 @@
 // Issue #51「パターン観察モードをなくし、すべてのモードを採点する」の QA の受け入れテスト。
-// 対象: MODE-1（変更）・MODE-2（欠番）・MODE-26（欠番）・MODE-27（変更）・MODE-28（追加）・UI-26（変更）・
-// SCO-17（欠番）・SCO-25（欠番）・PAD-18（変更）・PAD-19（変更）。
+// 対象: MODE-2・MODE-26・SCO-17・SCO-25（欠番）・MODE-27（変更）・MODE-28（追加）。
+// MODE-1 は measured-weapons-qa、UI-26 は history-qa、PAD-18・PAD-19 は pad-guide-browser-qa が確かめる（tests/acceptance/README.md）。
 // 公開された入口（docs/spec/、ビルドの結果を /apex-training/ で配信した画面、index.html の要素、武器の JSON、
 // localStorage の自己ベスト・履歴のキー）だけを使い、実装の内部には依存しない。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、パッドは Gamepad API（navigator.getGamepads）の形で与える。
@@ -16,8 +16,6 @@ import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
-const CX = 640;
-const CY = 400;
 const chromium = findChromium();
 
 /** SPEC の文言と値（実装の定数には依存しない）。 */
@@ -45,7 +43,6 @@ const byId = (id: string) => {
   return w;
 };
 /** 武器の一覧の武器（weapons.md: L-STAR と C.A.R. SMG）。 */
-const LISTED = [byId('lstar'), byId('car')];
 const LSTAR = byId('lstar');
 
 const SPEC = (name: string) => readFileSync(join(ROOT, 'docs/spec', name), 'utf8');
@@ -86,7 +83,6 @@ const options = (page: Page, selector: string) =>
   page.evaluate<string[]>(`[...document.querySelector(${JSON.stringify(selector)}).options].map((o) => o.textContent.trim())`);
 const selected = (page: Page, selector: string) =>
   page.evaluate<string>(`document.querySelector(${JSON.stringify(selector)}).selectedOptions[0]?.textContent.trim() ?? ''`);
-const ammo = (page: Page) => page.evaluate<number>('window.__ammo()');
 
 const waitTop = (page: Page) =>
   page.waitFor(
@@ -94,16 +90,6 @@ const waitTop = (page: Page) =>
     15_000,
   );
 const waitResult = (page: Page) => page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 30_000);
-
-/** 設定画面で入力方式を選んでトップ画面に戻る。 */
-async function setInput(page: Page, input: string) {
-  await page.evaluate(`location.hash = '#/settings'`);
-  await page.waitFor(`window.__vis('[data-screen="settings"]')`);
-  await choose(page, '#setting-input-method', input);
-  await page.frames(6);
-  await page.evaluate(`location.hash = '#/'`);
-  await waitTop(page);
-}
 
 /** トップ画面で武器・モード・回数を選び（mode が undefined なら選ばない）、「開始」を押してプレイ画面で練習が始まるまで待つ。 */
 async function start(page: Page, weapon: WeaponJson, mode: string | undefined, count = 1) {
@@ -125,24 +111,6 @@ async function padFireAll(page: Page) {
     window.__btn(7, false); })()`);
 }
 
-const mouseButton = (page: Page, type: 'mousePressed' | 'mouseReleased') =>
-  page.send('Input.dispatchMouseEvent', { type, x: CX, y: CY, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1 });
-
-async function lock(page: Page) {
-  await page.click(CX, CY);
-  await page.waitFor('!!document.pointerLockElement', 5000);
-  await page.frames(6);
-}
-
-/** マウスの左ボタンを押し続けて撃ち切り、リザルト画面を待つ。 */
-async function mouseFireAll(page: Page) {
-  await lock(page);
-  await mouseButton(page, 'mousePressed');
-  await waitResult(page);
-  await mouseButton(page, 'mouseReleased');
-  await page.frames(6);
-}
-
 async function openHistory(page: Page) {
   await page.evaluate(`location.hash = '#/history'`);
   await page.waitFor(`window.__vis('[data-screen="history"]') && document.querySelector('#history-mode').options.length > 0`);
@@ -154,7 +122,7 @@ const storageKeys = (page: Page) => page.evaluate<string[]>('Object.keys(localSt
 // ---------------------------------------------------------------------------
 
 describe('SPEC: パターン観察の受け入れ条件は欠番になっている', () => {
-  it('MODE-2・MODE-26・SCO-17・SCO-25 は受け入れ条件に残っていない（欠番）', () => {
+  it('パターン観察の 4 つの受け入れ条件は受け入れ条件に残っていない（欠番）', () => {
     const ids = specIds();
     for (const id of ['MODE-2', 'MODE-26', 'SCO-17', 'SCO-25']) expect(ids, id).not.toContain(id);
     // 変更・追加された条件はある。
@@ -212,32 +180,9 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
     if (work) rmSync(work, { recursive: true, force: true });
   });
 
-  // -------------------------------------------------------------------------
-  describe('MODE-1: 武器の一覧の武器それぞれで、反復練習とセンター維持を最後まで練習でき、リザルト画面が表示される', () => {
-    for (const w of LISTED) {
-      for (const mode of MODES) {
-        it(`${w.name}・${mode}`, async () => {
-          const page = await openFresh();
-          await start(page, w, mode);
-          expect(await page.evaluate<string>(`document.querySelector('[data-hud="weapon"]').textContent`)).toContain(w.name);
-          await padFireAll(page);
-          await waitResult(page);
-          await page.frames(4);
-          expect(await page.evaluate<string[]>('window.__screens()')).toEqual(['result']);
-          const summary = await page.evaluate<string>(`document.querySelector('#result-summary').innerText`);
-          expect(summary).toContain(w.name);
-          expect(summary).toContain(mode);
-          // どちらのモードも採点する（リザルトに採点結果の指標が出る）。
-          expect(await page.evaluate<boolean>(`window.__vis('#result-metrics')`), 'リザルトに指標が出る').toBe(true);
-          expect(await page.evaluate<string>(`document.querySelector('#result-metrics').innerText`)).toMatch(/\d/);
-          expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-        }, 90_000);
-      }
-    }
-  });
 
   // -------------------------------------------------------------------------
-  describe('MODE-2・MODE-26・SCO-17・SCO-25（欠番）: パターン観察は画面のどこからも選べず、そのキーは保存されない', () => {
+  describe('パターン観察の受け入れ条件（欠番）: パターン観察は画面のどこからも選べず、そのキーは保存されない', () => {
     it('トップ画面と履歴の画面にパターン観察の選択肢がなく、両モードを練習しても :pattern のキーが保存されない', async () => {
       const page = await openFresh();
       expect(await options(page, '#mode')).not.toContain(PATTERN);
@@ -354,126 +299,6 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
     }, 60_000);
   });
 
-  // -------------------------------------------------------------------------
-  describe('UI-26: 履歴の画面のモードの選択肢', () => {
-    it('反復練習とセンター維持だけが出る', async () => {
-      const page = await openFresh();
-      await page.clickSelector('[data-screen="top"] a[href="#/history"]');
-      await openHistory(page);
-      expect(await options(page, '#history-mode')).toEqual(MODES);
-      const text = await page.evaluate<string>(`document.querySelector('[data-screen="history"]').innerText`);
-      expect(text).not.toContain(PATTERN);
-      expect(text).not.toContain(OLD_GHOST);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-  });
 
-  // -------------------------------------------------------------------------
-  describe('PAD-18: スティック型のガイドが表示されないとき', () => {
-    /** 撃つ前と撃っているあいだのガイドの表示を何度も読む。 */
-    async function sampleWhileFiring(page: Page, fire: 'pad' | 'mouse') {
-      const seen: boolean[] = [];
-      for (let i = 0; i < 10; i += 1) {
-        seen.push(await page.evaluate<boolean>('window.__guideVisible()'));
-        await page.frames(2);
-      }
-      if (fire === 'pad') await page.evaluate('window.__btn(7, true)');
-      else await mouseButton(page, 'mousePressed');
-      for (let i = 0; i < 30; i += 1) {
-        seen.push(await page.evaluate<boolean>('window.__guideVisible()'));
-        await page.frames(2);
-      }
-      if (fire === 'pad') await page.evaluate('window.__btn(7, false)');
-      else await mouseButton(page, 'mouseReleased');
-      return seen;
-    }
 
-    for (const mode of MODES) {
-      it(`入力方式がマウスのとき（${mode}）`, async () => {
-        const page = await openFresh();
-        await setInput(page, 'マウス');
-        await start(page, LSTAR, mode);
-        await lock(page);
-        const seen = await sampleWhileFiring(page, 'mouse');
-        expect(await ammo(page), 'マウスで撃てている').toBeLessThan(LSTAR.magSize);
-        expect(seen.some(Boolean)).toBe(false);
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      }, 60_000);
-    }
-
-    it('センター維持のとき（入力方式パッド）', async () => {
-      const page = await openFresh();
-      await setInput(page, 'パッド');
-      await start(page, LSTAR, CENTER);
-      const seen = await sampleWhileFiring(page, 'pad');
-      expect(await ammo(page), 'パッドで撃てている').toBeLessThan(LSTAR.magSize);
-      expect(seen.some(Boolean)).toBe(false);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    it('対照: 反復練習を入力方式パッドで練習しているときはガイドが表示される', async () => {
-      const page = await openFresh();
-      await setInput(page, 'パッド');
-      await start(page, LSTAR, GHOST);
-      await page.waitFor('window.__guideVisible()', 5000);
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    it('入力方式が「自動」でパッドで練習中にマウスを操作したとき、ガイドが消える', async () => {
-      const page = await openFresh();
-      await setInput(page, '自動');
-      await start(page, LSTAR, GHOST);
-      await lock(page);
-      await page.evaluate('window.__btn(7, true)');
-      await page.waitFor(`window.__ammo() <= ${LSTAR.magSize - 3}`, 5000);
-      await page.waitFor('window.__guideVisible()', 3000);
-      await page.evaluate('window.__btn(7, false)');
-      await page.frames(6);
-      expect(await ammo(page)).toBeGreaterThan(0);
-      for (let i = 1; i <= 10; i += 1) {
-        await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: CX + i * 12, y: CY + i * 3, button: 'none', buttons: 0 });
-        await page.frames(2);
-      }
-      await page.waitFor('!window.__guideVisible()', 2000);
-      expect(await page.evaluate<string>('location.hash')).toBe('#/play');
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-  });
-
-  // -------------------------------------------------------------------------
-  describe('PAD-19: リザルト画面の右スティックの入力推移のグラフ', () => {
-    const padVisible = (page: Page) => page.evaluate<boolean>(`window.__vis('#result-pad')`);
-    const resultText = (page: Page) => page.evaluate<string>(`document.querySelector('[data-screen="result"]').innerText`);
-
-    for (const mode of MODES) {
-      it(`マウスで${mode}を練習して終えたときは表示されない`, async () => {
-        const page = await openFresh();
-        await setInput(page, 'マウス');
-        await start(page, LSTAR, mode);
-        await mouseFireAll(page);
-        expect(await padVisible(page)).toBe(false);
-        expect(await resultText(page)).not.toContain(PAD_NAME);
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      }, 60_000);
-
-      it(`パッドで${mode}を練習して終えたときは、左右と上下のグラフと使ったパッドの名前が表示される`, async () => {
-        const page = await openFresh();
-        await setInput(page, 'パッド');
-        await start(page, LSTAR, mode);
-        await page.evaluate('window.__pad.axes[2] = 0.3; window.__pad.axes[3] = 0.2');
-        await padFireAll(page);
-        await waitResult(page);
-        await page.evaluate('window.__pad.axes[2] = 0; window.__pad.axes[3] = 0');
-        await page.frames(6);
-        expect(await padVisible(page)).toBe(true);
-        const text = await page.evaluate<string>(`document.querySelector('#result-pad').innerText`);
-        expect(text).toContain(PAD_NAME);
-        expect(text).toContain('左右');
-        expect(text).toContain('上下');
-        expect(text).toContain('自分');
-        expect(text).toContain('理想');
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      }, 60_000);
-    }
-  });
 });

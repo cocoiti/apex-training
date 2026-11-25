@@ -292,7 +292,7 @@ const resultOf = (page: Page) =>
 
 // ---------------------------------------------------------------------------
 
-describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの表示（UI-11・UI-13・UI-69〜UI-73・WPN-29）', () => {
+describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの表示', () => {
   const temps: string[] = [];
   let server: Server | undefined;
   let browser: Browser | undefined;
@@ -371,8 +371,8 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
   }
 
   // -------------------------------------------------------------------------
-  describe('UI-13・UI-11: パターンの表示の設定', () => {
-    it('UI-13: 設定を一度も変えずに設定画面を開くと、パターンの表示は詳細（ほかの既定値も SPEC のとおり）', async () => {
+  describe('パターンの表示の設定の保存と既定値（設定画面の受け入れ条件は settings-qa が確かめる）', () => {
+    it('設定を一度も変えずに設定画面を開くと、パターンの表示は詳細（ほかの既定値も SPEC のとおり）', async () => {
       const page = await openFresh();
       await page.evaluate(`location.hash = '#/settings'`);
       await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
@@ -399,7 +399,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-11: FOV・クロスヘアの色と形・ゴースト表示・補正のパネル・パターンの表示を変えて再読み込みすると、変えた値が残る', async () => {
+    it('FOV・クロスヘアの色と形・ゴースト表示・補正のパネル・パターンの表示を変えて再読み込みすると、変えた値が残る', async () => {
       const page = await openFresh();
       await page.evaluate(`location.hash = '#/settings'`);
       await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);

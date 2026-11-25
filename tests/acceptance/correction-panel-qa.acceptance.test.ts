@@ -1,4 +1,4 @@
-// docs/spec/screens.md「補正のパネル」と設定（UI-11・UI-13・UI-55〜UI-63）、docs/spec/modes.md の MODE-24・MODE-25・MODE-27 の QA の受け入れテスト。
+// docs/spec/screens.md「補正のパネル」と設定（UI-55〜UI-63）、docs/spec/modes.md の MODE-24・MODE-25 の QA の受け入れテスト。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（トップ・設定・プレイ・リザルト）、index.html の要素、
 // 武器とマップの JSON。画面はヘッドレスの Chromium で開く（tests/helpers/browser.ts）。
 //
@@ -374,7 +374,7 @@ async function sampleWhilePractising(page: Page, input: 'mouse' | 'pad', w: Weap
 
 // ---------------------------------------------------------------------------
 
-describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・UI-55〜UI-63・MODE-24〜MODE-27）', () => {
+describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
   const temps: string[] = [];
   let server: Server | undefined;
   let browser: Browser | undefined;
@@ -439,8 +439,8 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
   });
 
   // -------------------------------------------------------------------------
-  describe('UI-13・UI-11: 補正のパネルの設定', () => {
-    it('UI-13: 設定を一度も変えずに設定画面を開くと、ゴースト表示は OFF、補正のパネルは ON を含む既定値が表示される', async () => {
+  describe('補正のパネルの設定の保存と既定値（設定画面の受け入れ条件は settings-qa が確かめる）', () => {
+    it('設定を一度も変えずに設定画面を開くと、ゴースト表示は OFF、補正のパネルは ON を含む既定値が表示される', async () => {
       const page = await openFresh();
       await page.evaluate(`location.hash = '#/settings'`);
       await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
@@ -469,7 +469,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-11: FOV・クロスヘアの色と形・ゴースト表示・補正のパネルを既定と違う値に変えて再読み込みすると、変えた値が残る', async () => {
+    it('FOV・クロスヘアの色と形・ゴースト表示・補正のパネルを既定と違う値に変えて再読み込みすると、変えた値が残る', async () => {
       const page = await openFresh();
       await page.evaluate(`location.hash = '#/settings'`);
       await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
@@ -1017,57 +1017,6 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル（UI-11・UI-13・U
     }, 60_000);
   });
 
-  // -------------------------------------------------------------------------
-  describe('MODE-27: モードの表示名は「反復練習」で、セットの表示に「反復練習」の言葉が出ない', () => {
-    it('トップ画面のモードの選択肢に「反復練習」「センター維持」だけが出て、「ゴースト追従」と「パターン観察」は出ない', async () => {
-      const page = await openFresh();
-      await page.waitFor(`document.querySelector('#mode').options.length > 0`);
-      const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
-      expect(modes).toEqual([GHOST, CENTER]);
-      expect(modes.join(' ')).not.toContain('ゴースト追従');
-      expect(modes.join(' ')).not.toContain('パターン観察');
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    for (const mode of [CENTER, GHOST]) {
-      it(`回数 5 の${mode}のセット: HUD・短いリザルト・セットのまとめ`, async () => {
-        const w = byId('lstar');
-        const count = 5;
-        const page = await openFresh();
-        await configure(page, { input: 'パッド' });
-        await start(page, w, mode, count);
-        const hud = () => page.evaluate<string>(`document.querySelector('[data-screen="play"] .hud').innerText`);
-        const texts: string[] = [];
-        for (let round = 1; round <= count; round += 1) {
-          const h = await hud();
-          expect(h, h).toContain(`${round} / ${count}`);
-          texts.push(`${round} 回目の HUD: ${h}`);
-          await padFireAll(page);
-          if (round === count) break;
-          await page.waitFor('window.__interlude()', 5000);
-          texts.push(`${round} 回目の短いリザルト: ${await page.evaluate<string>(`document.getElementById('interlude').innerText`)}`);
-          // Space で次の回へ進む（3 秒を待たない）。
-          for (const type of ['keyDown', 'keyUp']) {
-            await page.send('Input.dispatchKeyEvent', { type, key: ' ', code: 'Space', windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32, ...(type === 'keyDown' ? { text: ' ' } : {}) });
-          }
-          await waitStarted(page, w, 10_000);
-        }
-        await page.waitFor(`location.hash === '#/set-result' && window.__vis('[data-screen="set-result"]')`, 15_000);
-        await page.waitFor(`document.getElementById('set-rounds').children.length === ${count}`, 5000);
-        const summary = await page.evaluate<string>(`document.querySelector('[data-screen="set-result"]').innerText`);
-        expect(texts.length).toBe(2 * count - 1);
-        for (const t of texts) expect(t, t).not.toContain('反復練習');
-        // セットのまとめ: 「反復練習」はモードの名前（武器名と並ぶ練習の見出し）としてだけ出る。センター維持のセットでは出ない。
-        const lines = summary.split('\n').filter((l) => l.includes('反復練習'));
-        if (mode === CENTER) expect(lines, summary).toEqual([]);
-        else {
-          expect(lines.length, summary).toBeLessThanOrEqual(1);
-          for (const l of lines) expect(l, 'モードの名前でない「反復練習」').toContain(w.name);
-        }
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      }, 90_000);
-    }
-  });
 
   // -------------------------------------------------------------------------
   it('UI-62: 1280×800 の画面で反復練習を始めると、パネルの一辺が短い辺の 40% 以上で、HUD・画面の操作・パッドのガイドと重ならず、次の発の点がほかの点より大きく、4 つの凡例がある', async () => {

@@ -334,6 +334,9 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
           const summary = await practice(page, weapon, mode);
           expect(summary, `${weapon} / ${mode}`).toContain(weapon);
           expect(summary, `${weapon} / ${mode}`).toContain(mode);
+          // どちらのモードも採点する（リザルトに採点結果の指標が出る）。
+          expect(await page.evaluate<boolean>(`window.__vis('#result-metrics')`), `${weapon} / ${mode}: リザルトに指標が出る`).toBe(true);
+          expect(await page.evaluate<string>(`document.querySelector('#result-metrics').innerText`)).toMatch(/\d/);
         }
         expect(exceptions(page), page.errors.join('\n')).toEqual([]);
       }, 150_000);

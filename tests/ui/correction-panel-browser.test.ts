@@ -123,7 +123,7 @@ describe.skipIf(NESTED || !chromium)('補正のパネルのパターンの表示
     await page.send('Page.close');
   });
 
-  it('UI-69・UI-70・UI-72: 簡易では理想の線が簡易版の頂点の折れ線になり、区切りの言葉の強調が撃つごとに進み、範囲は詳細と同じ', async () => {
+  it('簡易では理想の線が簡易版の頂点の折れ線になり、区切りの言葉の強調が撃つごとに進み、範囲は詳細と同じ', async () => {
     const detailedPage = await startPractice('detailed');
     const detailed = await readPanel(detailedPage);
     expect(detailed.idealCount).toBe(String(lstar.magSize + 1));
