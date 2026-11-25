@@ -587,8 +587,16 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       await start(page, origin, w.name, 'センター維持');
       await hideHtml(page);
       const base = await screenshot(page);
-      const target = base.pixel(WIDTH / 2, HEIGHT / 2);
       const wall = base.pixel(WIDTH / 2 + 80, HEIGHT / 2);
+      // 的の板の色: 中心の近くで、壁と違う色のうちいちばん多い色（リングの線の間に見える）。
+      const counts = new Map<string, [[number, number, number], number]>();
+      for (let dy = -12; dy <= 12; dy += 1) {
+        for (let dx = -12; dx <= 12; dx += 1) {
+          const c = base.pixel(WIDTH / 2 + dx, HEIGHT / 2 + dy);
+          if (distance(c, wall) > 40) counts.set(c.join(','), [c, (counts.get(c.join(','))?.[1] ?? 0) + 1]);
+        }
+      }
+      const target = [...counts.values()].sort((a, b) => b[1] - a[1])[0]![0];
       // 右スティックを右に少し倒して照準を動かす。中心から的が外れ、壁の上を向く。
       await page.evaluate(`window.__pad.axes[2] = 0.4`);
       await pause(150);
@@ -603,19 +611,16 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       // 押し続けたまま、まだ撃ち切っていないうちに写す。リコイルで画面は上にずれるので、壁の色と違う点を中心の縦の線の近くで探す。
       const during = await screenshot(page);
       expect(await hash(page)).toBe('#/play');
-      const sky = base.pixel(5, 5);
-      /** 中心の縦の帯の中で、壁・的・背景のどの色でもない画素の数。 */
+      /** 中心の縦の帯の中で、弾痕の色（黄、#ffd84a）に近い画素の数。壁・的・床・空には黄に近い色はない。 */
+      const yellow: [number, number, number] = [0xff, 0xd8, 0x4a];
       const foreign = (img: Image) => {
         let n = 0;
         for (let y = 0; y < HEIGHT; y += 1) {
-          for (let x = WIDTH / 2 - 40; x <= WIDTH / 2 + 40; x += 1) {
-            const c = img.pixel(x, y);
-            if (distance(c, wall) > 40 && distance(c, target) > 40 && distance(c, sky) > 40) n += 1;
-          }
+          for (let x = WIDTH / 2 - 40; x <= WIDTH / 2 + 40; x += 1) if (distance(img.pixel(x, y), yellow) < 60) n += 1;
         }
         return n;
       };
-      // 対照: 撃つ前は、帯の中に壁・的・背景以外の色がない（クロスヘアなどの HTML は隠している）。
+      // 対照: 撃つ前は、帯の中に弾痕の色がない（クロスヘアなどの HTML は隠している）。
       expect(foreign(moved)).toBe(0);
       const marks = foreign(during);
       expect(marks, '押し続けているあいだに壁に残った弾痕の画素').toBeGreaterThan(0);

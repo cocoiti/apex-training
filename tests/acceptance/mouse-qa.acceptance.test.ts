@@ -53,19 +53,36 @@ function differingPixels(a: Image, b: Image): number {
   return n;
 }
 
-/** 行 y で色 c に近い画素の区間の中心（いちばん長い区間）。 */
+/**
+ * 行 y で色 c に近い画素のまとまりの中心。的はリングの暗い線で区切られるので、12 px 以内の切れ目はつなげ、
+ * 画素がいちばん多いまとまりの両端の中点を返す。
+ */
 function blobCenterOnRow(img: Image, y: number, c: RGB): number | undefined {
-  let best: [number, number] | undefined;
-  let start = -1;
-  for (let x = 0; x <= WIDTH; x += 1) {
-    const inside = x < WIDTH && distance(img.pixel(x, y), c) < 30;
-    if (inside && start < 0) start = x;
-    if (!inside && start >= 0) {
-      if (!best || x - start > best[1] - best[0]) best = [start, x - 1];
-      start = -1;
-    }
+  let best: [number, number, number] | undefined;
+  let group: [number, number, number] | undefined;
+  for (let x = 0; x < WIDTH; x += 1) {
+    if (distance(img.pixel(x, y), c) >= 30) continue;
+    if (group && x - group[1] <= 12) group = [group[0], x, group[2] + 1];
+    else group = [x, x, 1];
+    if (!best || group[2] > best[2]) best = group;
   }
   return best && (best[0] + best[1]) / 2;
+}
+
+/** 的の板の色。中心の近くで、壁（中心から 80 px 右）と違う色のうち、いちばん多い色（リングの線の間に見える板の色）。 */
+function boardColor(img: Image): RGB {
+  const wall = img.pixel(CX + 80, CY);
+  const counts = new Map<string, [RGB, number]>();
+  for (let dy = -12; dy <= 12; dy += 1) {
+    for (let dx = -12; dx <= 12; dx += 1) {
+      const c = img.pixel(CX + dx, CY + dy);
+      if (distance(c, wall) <= 40) continue;
+      const key = c.join(',');
+      counts.set(key, [c, (counts.get(key)?.[1] ?? 0) + 1]);
+    }
+  }
+  const [best] = [...counts.values()].sort((a, b) => b[1] - a[1]);
+  return best ? best[0] : img.pixel(CX, CY);
 }
 
 const keyEscape = async (page: Page) => {
@@ -456,7 +473,7 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
     it('画面: 何も設定していない状態で右に 1000 カウント動かすと、的が 33 度ぶん左に動いて描画される', async () => {
       const page = await openPlay();
       const start = await canvasOnly(page);
-      const target = start.pixel(CX, CY);
+      const target = boardColor(start);
       const wall = start.pixel(CX + 80, CY);
       expect(distance(target, wall)).toBeGreaterThan(40);
       expect(Math.abs(blobCenterOnRow(start, CY, target)! - CX)).toBeLessThanOrEqual(2);

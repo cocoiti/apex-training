@@ -1,4 +1,5 @@
 // docs/spec/screens.md の受け入れ条件のうち、画面で確かめるもの（UI-6・UI-8・UI-9）の受け入れテスト。
+// 壁・的の見た目は #33 の SPEC（パネルの壁、リングの的、床と空）に合わせて確かめる。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、開発サーバーの画面と公開関数）だけを使い、実装の内部には依存しない。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、画面写しの画素を読んで確かめる（tests/helpers/png.ts）。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
@@ -120,46 +121,68 @@ describe.skipIf(NESTED || !chromium)('画面の 3D の表示とクロスヘア',
       await hideHtml(page);
       const img = await screenshot(page);
       expect([img.width, img.height]).toEqual([WIDTH, HEIGHT]);
-      const target = img.pixel(cx, cy);
-      // 的の中は同じ色。
-      for (const [dx, dy] of [[-5, 0], [5, 0], [0, -5], [0, 5]] as const) expect(distance(img.pixel(cx + dx, cy + dy), target)).toBeLessThan(20);
-      // 的の周り（中心から 80 px 離れた所）は壁で、的とは違う色。
+      // 的の周り（中心から 80 px ほど離れた所）は壁で、パネルごとの明るさの違いはわずか。目地（1 m ごと、約 53 px ごと）は避ける。
       const wall = img.pixel(cx + 80, cy);
-      for (const [x, y] of [[cx - 80, cy], [cx, cy - 80], [cx, cy + 60], [cx + 150, cy - 100]] as [number, number][]) {
-        expect(distance(img.pixel(x, y), wall), `(${x}, ${y})`).toBeLessThan(20);
+      for (const [x, y] of [[cx - 80, cy], [cx + 25, cy - 100], [cx - 25, cy + 60], [cx + 150, cy - 100]] as [number, number][]) {
+        expect(distance(img.pixel(x, y), wall), `(${x}, ${y})`).toBeLessThan(25);
       }
-      expect(distance(target, wall), `的 ${target} と壁 ${wall}`).toBeGreaterThan(40);
       // 壁は有限の大きさ（画面の隅は壁ではない）。
       expect(distance(img.pixel(5, 5), wall)).toBeGreaterThan(10);
-      // 的は画面の中心にある（上下左右に同じだけ広がる）。
-      const left = run(img, cx, cy, -1, 0, target, 30);
-      const right = run(img, cx, cy, 1, 0, target, 30);
-      const up = run(img, cx, cy, 0, -1, target, 30);
-      const down = run(img, cx, cy, 0, 1, target, 30);
-      expect(Math.abs(left - right), `${left} ${right}`).toBeLessThanOrEqual(2);
-      expect(Math.abs(up - down), `${up} ${down}`).toBeLessThanOrEqual(2);
+      // 的（リングの暗い線と、白に近い板）は中心の近くにあり、どちらも壁とは違う色。
+      const near: RGB[] = [];
+      for (let dy = -6; dy <= 6; dy += 1) for (let dx = -6; dx <= 6; dx += 1) near.push(img.pixel(cx + dx, cy + dy));
+      const lum = (c: RGB) => c[0] + c[1] + c[2];
+      const darkest = near.reduce((a, b) => (lum(b) < lum(a) ? b : a));
+      const lightest = near.reduce((a, b) => (lum(b) > lum(a) ? b : a));
+      expect(distance(darkest, wall), `暗い線 ${darkest} と壁 ${wall}`).toBeGreaterThan(40);
+      expect(distance(lightest, wall), `板 ${lightest} と壁 ${wall}`).toBeGreaterThan(40);
+      // 的は画面の中心にある（中心から上下左右に、最初の暗いリングまでの距離が同じ）。
+      const firstDark = (dx: number, dy: number) => {
+        for (let n = 3; n < 30; n += 1) if (lum(img.pixel(cx + dx * n, cy + dy * n)) < lum(wall) - 60) return n;
+        return -1;
+      };
+      const [left, right, up, down] = [firstDark(-1, 0), firstDark(1, 0), firstDark(0, -1), firstDark(0, 1)];
+      expect(left).toBeGreaterThan(0);
+      expect(Math.abs(left - right), `${left} ${right}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(up - down), `${up} ${down}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(left - up), `${left} ${up}`).toBeLessThanOrEqual(1);
       expect(page.errors.filter((e) => e.startsWith('exception:')), page.errors.join('\n')).toEqual([]);
     }, 60_000);
   });
 
   describe('UI-8: FOV を指定しないで始めた画面は FOV 90 から求めた視野角で描画される', () => {
-    it('的（0.6 m 四方、手前の面まで 9.9 m）の画面上の大きさが、FOV 90 の視野角での投影と一致する', async () => {
+    it('壁（幅 12 m・高さ 5 m、正面まで 10 m）の画面上の大きさが、FOV 90 の視野角での投影と一致する', async () => {
       const page = await browser!.newPage();
       await enterPlay(page, staticOrigin);
       await hideHtml(page);
       const img = await screenshot(page);
-      const target = img.pixel(cx, cy);
-      const width = run(img, cx, cy, -1, 0, target, 40) + run(img, cx, cy, 1, 0, target, 40) + 1;
-      const height = run(img, cx, cy, 0, -1, target, 40) + run(img, cx, cy, 0, 1, target, 40) + 1;
-      // 縦の視野角 = 2 atan(tan(45°) × 3/4)。半分の高さ 0.3 m を 9.9 m 先に見る。
-      const halfV = Math.atan(0.75);
-      // 中心から縁までは 高さの半分 × (0.3 / 9.9) ÷ tan(縦の視野角 / 2)。全体の高さはその 2 倍（幅も同じ）。
-      const expectedPx = ((0.3 / 9.9) / Math.tan(halfV)) * HEIGHT;
-      // 別の FOV（たとえば縦 90 度）なら約 24 px、FOV 90 の換算なら約 32 px。
-      expect(height, `高さ ${height} 期待 ${expectedPx}`).toBeGreaterThanOrEqual(expectedPx - 3);
-      expect(height).toBeLessThanOrEqual(expectedPx + 3);
-      expect(width, `幅 ${width} 期待 ${expectedPx}`).toBeGreaterThanOrEqual(expectedPx - 3);
-      expect(width).toBeLessThanOrEqual(expectedPx + 3);
+      // 目地（暗い線）を避けた位置で、壁の色が続く所までを数える。
+      const y = cy - 120;
+      const x = cx + 80;
+      const wall = img.pixel(x, y);
+      const edge = (x0: number, y0: number, dx: number, dy: number) => {
+        let n = 0;
+        for (;;) {
+          const px = x0 + dx * (n + 1);
+          const py = y0 + dy * (n + 1);
+          if (px < 0 || py < 0 || px >= img.width || py >= img.height) return n;
+          // 目地は 1〜2 px なので、3 px 続けて壁と違う色になった所を縁とする。
+          const off = [1, 2, 3].every((k) => distance(img.pixel(x0 + dx * (n + k), y0 + dy * (n + k)), wall) > 30);
+          if (off) return n;
+          n += 1;
+        }
+      };
+      const right = cx + 80 + edge(x, y, 1, 0);
+      const top = y - edge(x, y, 0, -1);
+      // 縦の視野角 = 2 atan(tan(45°) × 3/4)。1 m あたりの画素は 高さの半分 ÷ tan(縦の視野角 / 2) ÷ 距離。
+      const pxPerTan = HEIGHT / 2 / 0.75;
+      const expectedRight = cx + pxPerTan * (6 / 10);
+      const expectedTop = cy - pxPerTan * ((5 - 1.6) / 10);
+      // 別の FOV（たとえば縦 90 度）なら右の縁は約 880 px、FOV 90 の換算なら約 960 px。
+      expect(right, `右の縁 ${right} 期待 ${expectedRight}`).toBeGreaterThanOrEqual(expectedRight - 3);
+      expect(right).toBeLessThanOrEqual(expectedRight + 3);
+      expect(top, `上の縁 ${top} 期待 ${expectedTop}`).toBeGreaterThanOrEqual(expectedTop - 3);
+      expect(top).toBeLessThanOrEqual(expectedTop + 3);
     }, 60_000);
   });
 

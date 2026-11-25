@@ -67,7 +67,7 @@ describe('シーン', () => {
     const view = new ViewScene(rangeWorld());
     const meshes = view.scene.children.filter((o): o is THREE.Mesh => o instanceof THREE.Mesh);
     const color = (kind: string) =>
-      (meshes.find((m) => m.userData.kind === kind)?.material as THREE.MeshLambertMaterial | undefined)?.color.getHex();
+      (meshes.find((m) => m.userData.kind === kind)?.material as THREE.MeshBasicMaterial | undefined)?.color.getHex();
     expect(meshes.map((m) => m.userData.kind).sort()).toEqual(['target', 'wall']);
     expect(color('wall')).not.toBe(color('target'));
   });
