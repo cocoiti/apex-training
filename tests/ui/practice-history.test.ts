@@ -7,6 +7,7 @@ import {
   historyKey,
   loadHistory,
   parseHistory,
+  entrySections,
   recordHistory,
   type HistoryEntry,
 } from '../../src/ui/practice-history';
@@ -76,14 +77,92 @@ describe('履歴の読み出し', () => {
   });
 });
 
+describe('件の発の区間ごとのズレ', () => {
+  const section = (start: number, extra: Record<string, unknown> = {}) => ({
+    start,
+    shots: 5,
+    meanH: 0,
+    meanV: 0,
+    meanError: 0,
+    ...extra,
+  });
+
+  it('形に合う sections を発の番号の順に返す', () => {
+    expect(entrySections({ sections: [section(6), section(1)] })?.map((s) => s.start)).toEqual([1, 6]);
+  });
+
+  it.each([
+    ['sections がない', undefined],
+    ['配列でない', {}],
+    ['start が 5 で割って 1 余らない', [section(2)]],
+    ['start が 1 未満', [section(-4)]],
+    ['start が整数でない', [section(1.5)]],
+    ['shots が 0', [section(1, { shots: 0 })]],
+    ['shots が 6', [section(1, { shots: 6 })]],
+    ['meanH が有限の数でない', [section(1, { meanH: null })]],
+    ['meanV が文字列', [section(1, { meanV: '0' })]],
+    ['meanError が負', [section(1, { meanError: -0.1 })]],
+    ['start が重なる', [section(1), section(1)]],
+    ['要素がオブジェクトでない', [1]],
+  ])('%s ときは持たない件とする', (_, sections) => {
+    expect(entrySections({ sections })).toBeNull();
+  });
+
+  it('形に合わない sections の件もほかの項目はそのまま読み、書き直すときも残す', () => {
+    const broken = { ...entry(1), sections: [section(2)] };
+    const storage = memoryStorage({ [KEY]: stored([broken]) });
+    expect(loadHistory(storage, LSTAR_CENTER).map((e) => e.meanError)).toEqual([1]);
+    recordHistory(storage, LSTAR_CENTER, result(1), NOW);
+    const saved = JSON.parse(storage.items.get(KEY) ?? '') as { entries: unknown[] };
+    expect(saved.entries[0]).toEqual(broken);
+  });
+});
+
 describe('履歴に足す', () => {
-  it('1 件目は、終えた日時・平均ズレ・命中率・グルーピング半径・撃った弾数を保存の形で保存する', () => {
+  it('1 件目は、終えた日時・平均ズレ・命中率・グルーピング半径・撃った弾数・発の区間ごとのズレを保存の形で保存する', () => {
     const storage = memoryStorage();
     recordHistory(storage, LSTAR_CENTER, result(0.25), NOW);
+    const section = (start: number) => ({ start, shots: 5, meanH: 0.25, meanV: 0, meanError: 0.25 });
     expect(JSON.parse(storage.items.get(KEY) ?? '')).toEqual({
       version: 1,
-      entries: [{ at: '2026-11-25T05:06:07.000Z', meanError: 0.25, hitRate: 100, groupingRadius: 0, shots: 10 }],
+      entries: [
+        {
+          at: '2026-11-25T05:06:07.000Z',
+          meanError: 0.25,
+          hitRate: 100,
+          groupingRadius: 0,
+          shots: 10,
+          sections: [section(1), section(6)],
+        },
+      ],
     });
+  });
+
+  it('SCO-31: 23 発を採点すると、start が 1・6・11・16・21 の 5 つの発の区間を保存し、最後の発の区間は 3 発になる', () => {
+    const storage = memoryStorage();
+    // i 発目（0 始まり）は水平 i / 10 度、垂直 −i / 20 度。
+    const deviations = Array.from({ length: 23 }, (_, i) => ({ yaw: i / 10, pitch: -i / 20 }));
+    recordHistory(storage, LSTAR_CENTER, score(deviations, 1), NOW);
+    const [saved] = loadHistory(storage, LSTAR_CENTER);
+    const sections = saved ? entrySections(saved) : null;
+    expect(sections?.map((s) => s.start)).toEqual([1, 6, 11, 16, 21]);
+    expect(sections?.map((s) => s.shots)).toEqual([5, 5, 5, 5, 3]);
+    sections?.forEach((s) => {
+      const part = deviations.slice(s.start - 1, s.start - 1 + s.shots);
+      const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
+      expect(s.meanH).toBeCloseTo(mean(part.map((d) => d.yaw)), 10);
+      expect(s.meanV).toBeCloseTo(mean(part.map((d) => d.pitch)), 10);
+      expect(s.meanError).toBeCloseTo(mean(part.map((d) => Math.hypot(d.yaw, d.pitch))), 10);
+    });
+  });
+
+  it('SCO-36: sections を持たない古い形式の件はそのまま残し、11 件目を足す', () => {
+    const old = Array.from({ length: 10 }, (_, i) => entry(i + 1));
+    const storage = memoryStorage({ [KEY]: stored(old) });
+    const kept = recordHistory(storage, LSTAR_CENTER, result(1), NOW);
+    expect(kept).toHaveLength(11);
+    const saved = JSON.parse(storage.items.get(KEY) ?? '') as { entries: unknown[] };
+    expect(saved.entries.slice(0, 10)).toEqual(old);
   });
 
   it('SCO-23: 3 回足すと 3 件が古い順に並ぶ', () => {

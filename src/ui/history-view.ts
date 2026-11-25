@@ -10,6 +10,14 @@ import {
 import { escapeHtml } from './result-plot';
 import { formatDegrees, formatPercent } from './result-view';
 import type { SafeStorage } from './storage';
+import {
+  sectionRangeText,
+  summarizeWeakSection,
+  WEAK_SECTION_RUNS,
+  weakSectionText,
+  type SectionAverage,
+  type WeakSectionSummary,
+} from './weak-section';
 
 /**
  * 履歴の画面のモードの選択肢。採点するモード（反復練習・センター維持）を並び順に並べ、パターン観察は出さない
@@ -157,6 +165,76 @@ export function historyAveragesHtml(entries: readonly HistoryEntry[], now: Date)
     .join('');
 }
 
+/** 発の区間の記録がある件が 5 件に満たないときの文言（n は持つ件の数）。 */
+export function weakSectionPendingMessage(runs: number): string {
+  return `苦手な区間は、発の区間の記録がある練習を ${WEAK_SECTION_RUNS} 回終えると表示されます（今 ${runs} 回）`;
+}
+
+/** 図の上の 1 行。 */
+export function weakSectionLine(summary: Pick<WeakSectionSummary, 'weak'>): string {
+  return `苦手な区間: ${summary.weak ? weakSectionText(summary.weak) : 'なし'}`;
+}
+
+/** 発の区間ごとのズレの図の大きさ（SVG の座標）。 */
+const SECTION_TOP_PAD = 28;
+const SECTION_BOTTOM_PAD = 20;
+
+/**
+ * 発の区間ごとのズレの図の HTML。比べる対象の発の区間を発の番号の順に左から並べ、ズレの大きさの平均の長さの棒で描く。
+ * 棒の下に発の番号の範囲、上にズレの大きさの平均（小数第 2 位まで）を書き、苦手な区間の棒は違う色にして「苦手」の印を付ける。
+ */
+export function weakSectionPlotHtml(sections: readonly SectionAverage[], weakStart: number | null): string {
+  const top = Math.max(MIN_TOP, ...sections.map((s) => s.meanError * MARGIN));
+  const left = PAD_LEFT;
+  const bottom = HEIGHT - SECTION_BOTTOM_PAD;
+  const plotWidth = WIDTH - PAD_LEFT - PAD_RIGHT;
+  const plotHeight = bottom - SECTION_TOP_PAD;
+  const slot = sections.length > 0 ? plotWidth / sections.length : plotWidth;
+  const barWidth = slot * 0.6;
+  const parts = [
+    `<line class="plot-axis" x1="${left}" y1="${bottom}" x2="${WIDTH - PAD_RIGHT}" y2="${bottom}" />`,
+    `<text class="plot-tick" x="${left - 4}" y="${bottom}" text-anchor="end">0°</text>`,
+  ];
+  sections.forEach((s, i) => {
+    const weak = s.start === weakStart;
+    const height = plotHeight * (s.meanError / top);
+    const x = left + slot * i + (slot - barWidth) / 2;
+    const cx = left + slot * i + slot / 2;
+    const y = bottom - height;
+    parts.push(
+      `<rect class="plot-section${weak ? ' plot-section-weak' : ''}" x="${num(x)}" y="${num(y)}" width="${num(barWidth)}" height="${num(height)}"` +
+        ` data-start="${s.start}" data-value="${s.meanError}"${weak ? ' data-weak="true"' : ''} />`,
+      `<text class="plot-tick" x="${num(cx)}" y="${HEIGHT - 6}" text-anchor="middle">${escapeHtml(sectionRangeText(s))}</text>`,
+      `<text class="plot-tick" x="${num(cx)}" y="${num(y - 4)}" text-anchor="middle">${escapeHtml(s.meanError.toFixed(2))}</text>`,
+    );
+    if (weak) {
+      parts.push(`<text class="plot-section-mark" x="${num(cx)}" y="${num(y - 16)}" text-anchor="middle" data-mark="weak">苦手</text>`);
+    }
+  });
+  return (
+    `<figure class="plot plot-wide" data-plot="sections">` +
+    `<figcaption>発の区間ごとのズレ（直近 ${WEAK_SECTION_RUNS} 回）</figcaption>` +
+    `<svg viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="発の区間ごとのズレ" data-count="${sections.length}">${parts.join('')}</svg>` +
+    `</figure>`
+  );
+}
+
+/**
+ * 苦手な区間の表示の HTML（docs/spec/screens.md「履歴の画面」）。履歴がなければ空。発の区間の記録がある件が 5 件に満たなければ
+ * 図を描かずに文言だけ、5 件あれば「苦手な区間: …」の 1 行と図。
+ */
+export function weakSectionHtml(entries: readonly HistoryEntry[]): string {
+  if (entries.length === 0) return '';
+  const summary = summarizeWeakSection(entries);
+  if (!summary.sections) {
+    return `<p class="history-weak-message" data-weak="pending">${escapeHtml(weakSectionPendingMessage(summary.runs))}</p>`;
+  }
+  return (
+    `<p class="history-weak-text" data-weak="line">${escapeHtml(weakSectionLine(summary))}</p>` +
+    weakSectionPlotHtml(summary.sections, summary.weak?.start ?? null)
+  );
+}
+
 /** 選択肢の要素の、履歴の画面が使う部分。 */
 export interface ChoiceElement {
   value: string;
@@ -170,6 +248,8 @@ export interface HistoryElements {
   readonly input: ChoiceElement;
   readonly averages: Pick<HTMLElement, 'innerHTML'>;
   readonly plot: Pick<HTMLElement, 'innerHTML'>;
+  /** 苦手な区間の 1 行と発の区間ごとのズレの図。 */
+  readonly weak: Pick<HTMLElement, 'innerHTML'>;
   readonly list: Pick<HTMLElement, 'innerHTML'>;
   readonly empty: Pick<HTMLElement, 'hidden' | 'textContent'>;
   readonly clear: Pick<HTMLButtonElement, 'disabled'> & Clickable;
@@ -221,6 +301,7 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
     const entries = loadHistory(options.storage, selection());
     elements.averages.innerHTML = historyAveragesHtml(entries, options.now());
     elements.plot.innerHTML = historyPlotHtml(entries);
+    elements.weak.innerHTML = weakSectionHtml(entries);
     elements.list.innerHTML = historyListHtml(entries);
     elements.empty.textContent = HISTORY_EMPTY_MESSAGE;
     elements.empty.hidden = entries.length > 0;

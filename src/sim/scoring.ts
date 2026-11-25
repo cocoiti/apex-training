@@ -11,6 +11,23 @@ const GROUPING_RATIO = 0.95;
 /** 区間の数（前半・中盤・後半）。 */
 const SEGMENT_COUNT = 3;
 
+/** 発の区間の弾数（docs/spec/scoring.md「発の区間ごとのズレ」）。 */
+export const SHOT_SECTION_SIZE = 5;
+
+/** 発の区間ごとのズレ。履歴の 1 件に保存する形（docs/spec/scoring.md「履歴の保存の形」）。 */
+export interface ShotSection {
+  /** 発の区間の最初の発の番号（1, 6, 11, …）。 */
+  readonly start: number;
+  /** その発の区間の弾数（1〜5）。 */
+  readonly shots: number;
+  /** 水平のズレの平均（度、符号つき、右が正）。 */
+  readonly meanH: number;
+  /** 垂直のズレの平均（度、符号つき、上が正）。 */
+  readonly meanV: number;
+  /** ズレの大きさの平均（度）。 */
+  readonly meanError: number;
+}
+
 /** 採点のコメント。縦と横で 1 つずつ、縦・横の順に並ぶ。 */
 export type ScoreComment = '下げすぎ' | '下げ不足' | '横の補正不足' | 'よくまとまっている';
 
@@ -33,6 +50,8 @@ export interface ScoreResult {
   /** 横ブレ ÷ 縦ブレ。縦ブレが 0 のときは null。 */
   readonly spreadRatio: number | null;
   readonly comments: readonly ScoreComment[];
+  /** 発の区間（5 発ごと）のズレ。発の番号の順で、弾が入らない発の区間は持たない。 */
+  readonly sections: readonly ShotSection[];
 }
 
 function mean(values: readonly number[]): number | null {
@@ -43,6 +62,25 @@ function mean(values: readonly number[]): number | null {
 /** n 発を撃った順に 3 つに分けたときの、k 番目の区間の発の番号の範囲 [start, end)。 */
 export function segmentRange(n: number, k: number): readonly [number, number] {
   return [Math.floor((k * n) / SEGMENT_COUNT), Math.floor(((k + 1) * n) / SEGMENT_COUNT)];
+}
+
+/**
+ * 撃った順の弾ごとの角度のズレを、発の番号で 5 発ずつの発の区間に分けて平均する。j 番目の発の区間には (5j − 4)〜5j 発目が入り、
+ * 撃った弾数が 5 の倍数でないときは最後の発の区間の弾数が 5 未満になる。採点の「区間ごとのズレ」（前半・中盤・後半）とは別のもの。
+ */
+export function shotSections(deviations: readonly Angles[]): ShotSection[] {
+  const sections: ShotSection[] = [];
+  for (let first = 0; first < deviations.length; first += SHOT_SECTION_SIZE) {
+    const part = deviations.slice(first, first + SHOT_SECTION_SIZE);
+    sections.push({
+      start: first + 1,
+      shots: part.length,
+      meanH: mean(part.map((d) => d.yaw)) ?? 0,
+      meanV: mean(part.map((d) => d.pitch)) ?? 0,
+      meanError: mean(part.map((d) => Math.hypot(d.yaw, d.pitch))) ?? 0,
+    });
+  }
+  return sections;
 }
 
 function groupingRadius(deviations: readonly Angles[]): number {
@@ -78,6 +116,7 @@ export function score(deviations: readonly Angles[], targetRadius: number): Scor
       verticalSpread: null,
       spreadRatio: null,
       comments: [],
+      sections: [],
     };
   }
 
@@ -97,6 +136,7 @@ export function score(deviations: readonly Angles[], targetRadius: number): Scor
     verticalSpread,
     spreadRatio: verticalSpread === 0 ? null : horizontalSpread / verticalSpread,
     comments: selectComments(meanVertical, horizontalSpread),
+    sections: shotSections(deviations),
   };
 }
 

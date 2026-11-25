@@ -7,6 +7,7 @@ import {
   correctionPanelFrame,
   correctionPanelShown,
   correctionPanelState,
+  weakIdealPoints,
   type CorrectionPanelElements,
 } from '../../src/ui/correction-panel';
 
@@ -37,6 +38,8 @@ function elements() {
     axisX: fakeNode(),
     axisY: fakeNode(),
     ideal: fakeNode(),
+    idealWeak: fakeNode(),
+    weakLegend: { hidden: true },
     own: fakeNode(),
     ownDots: fakeNode(),
     current: fakeNode(),
@@ -101,6 +104,41 @@ describe('補正のパネルの今の発の点と自分の線', () => {
       const target = ideal[i] ?? { yaw: 0, pitch: 0 };
       expect(Math.hypot(p.yaw - target.yaw, p.pitch - target.pitch)).toBeCloseTo(Math.hypot(target.yaw, target.pitch), 12);
     });
+  });
+});
+
+describe('補正のパネルの苦手な区間', () => {
+  it('前の発の点からその発の区間の最後の発までの理想の線の点を取り、1 発目からの区間は原点から始める', () => {
+    const frame = correctionPanelFrame(makeWeapon(20));
+    expect(weakIdealPoints(frame, 11)).toEqual(frame.ideal.slice(10, 16));
+    expect(weakIdealPoints(frame, 1)).toEqual(frame.ideal.slice(0, 6));
+    expect(weakIdealPoints(frame, undefined)).toEqual([]);
+    // 装弾数を超えるところは装弾数まで。発の区間の点がなければ空。
+    expect(weakIdealPoints(frame, 16)).toEqual(frame.ideal.slice(15, 21));
+    expect(weakIdealPoints(frame, 21)).toEqual([]);
+  });
+
+  it('UI-67: 11〜15 発目が苦手な区間なら、理想の線のその部分を重ねて描き、「苦手な区間」の凡例を出す', () => {
+    const weapon = makeWeapon(20);
+    const e = elements();
+    new CorrectionPanel(e).begin(weapon, 11);
+    const weak = parsePoints(e.idealWeak.attrs.get('points'));
+    const line = parsePoints(e.ideal.attrs.get('points'));
+    expect(weak).toEqual(line.slice(10, 16));
+    expect(e.idealWeak.attrs.get('visibility')).toBe('inherit');
+    expect(e.idealWeak.attrs.get('data-start')).toBe('11');
+    expect(e.weakLegend.hidden).toBe(false);
+  });
+
+  it('UI-68: 苦手な区間が「なし」なら重ねる線を描かず、凡例を隠す。次の練習で「なし」になれば消す', () => {
+    const weapon = makeWeapon(20);
+    const e = elements();
+    const panel = new CorrectionPanel(e);
+    panel.begin(weapon, 6);
+    panel.begin(weapon);
+    expect(e.idealWeak.attrs.get('points')).toBe('');
+    expect(e.idealWeak.attrs.get('visibility')).toBe('hidden');
+    expect(e.weakLegend.hidden).toBe(true);
   });
 });
 

@@ -268,6 +268,7 @@ a {
 }
 
 .correction-panel[hidden],
+.correction-panel-legend-weak[hidden],
 .pad-guide[hidden],
 .pointer-lock-notice[hidden],
 .paused[hidden] {
@@ -606,6 +607,38 @@ a {
 
 .result-comments {
   font-size: 18px;
+}
+
+/* 苦手な区間（docs/spec/scoring.md「苦手な区間」）。理想の線の黄・自分の線の水色・次の発の桃色と見分けられる赤で示す。 */
+.result-weak {
+  font-size: 18px;
+  color: #ff6b5a;
+}
+
+.result-weak[hidden] {
+  display: none;
+}
+
+.history-weak-text {
+  margin: 0 0 4px;
+}
+
+.plot-section {
+  fill: #7cf;
+}
+
+.plot-section-weak,
+.plot-section-mark {
+  fill: #ff6b5a;
+}
+
+polyline.plot-series.plot-weak {
+  stroke: #ff6b5a;
+  stroke-width: 3px;
+}
+
+.plot-weak {
+  color: #ff6b5a;
 }
 
 .result-plots {

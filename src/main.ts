@@ -39,7 +39,7 @@ import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { padGuideState, padGuideVisible, renderPadGuide, type PadGuideElements } from './ui/pad-guide';
 import { PracticeFlow } from './ui/practice-flow';
 import { applyPracticeSettings } from './ui/practice-settings';
-import type { HistorySelection } from './ui/practice-history';
+import { loadHistory, type HistorySelection } from './ui/practice-history';
 import type { InputMethod } from './ui/personal-best';
 import { parsePracticeCount, PracticeSet } from './ui/practice-set';
 import { completePractice, renderResult, type ResultElements, type ResultView } from './ui/result-view';
@@ -52,6 +52,7 @@ import { effectivePadSettings, loadCommonSettings, loadMouseSettings, loadPadSet
 import { bindSettingsForm, type SettingsFormElements } from './ui/settings-form';
 import { showScreen, showStorageNotice } from './ui/shell';
 import { appStorage } from './ui/storage';
+import { weakSection } from './ui/weak-section';
 import { fillWeaponSelect } from './ui/weapon-choices';
 
 /** 読み込みが終わったあとに練習を始め・打ち切るもの。 */
@@ -181,13 +182,15 @@ function correctionPanelElements(): CorrectionPanelElements | undefined {
   const axisX = root?.querySelector<SVGLineElement>('[data-panel="axis-x"]');
   const axisY = root?.querySelector<SVGLineElement>('[data-panel="axis-y"]');
   const ideal = root?.querySelector<SVGPolylineElement>('[data-series="ideal"]');
+  const idealWeak = root?.querySelector<SVGPolylineElement>('[data-series="ideal-weak"]');
+  const weakLegend = root?.querySelector<HTMLElement>('.correction-panel-legend-weak');
   const own = root?.querySelector<SVGPolylineElement>('[data-series="aim"]');
   const ownDots = root?.querySelector<SVGGElement>('[data-series="aim-shots"]');
   const current = root?.querySelector<SVGCircleElement>('[data-panel="current"]');
   const aim = root?.querySelector<SVGPathElement>('[data-panel="aim"]');
   const heading = root?.querySelector<SVGLineElement>('[data-panel="heading"]');
-  return root && svg && axisX && axisY && ideal && own && ownDots && current && aim && heading
-    ? { root, svg, axisX, axisY, ideal, own, ownDots, current, aim, heading }
+  return root && svg && axisX && axisY && ideal && idealWeak && weakLegend && own && ownDots && current && aim && heading
+    ? { root, svg, axisX, axisY, ideal, idealWeak, weakLegend, own, ownDots, current, aim, heading }
     : undefined;
 }
 
@@ -223,6 +226,7 @@ function historyElements(): HistoryElements | null {
     input: byId<HTMLSelectElement>('input'),
     averages: byId('averages'),
     plot: byId('plot'),
+    weak: byId('weak'),
     list: byId('list'),
     empty: byId('empty'),
     clear: byId<HTMLButtonElement>('clear'),
@@ -412,6 +416,7 @@ async function start(): Promise<void> {
     metrics: document.querySelector<HTMLElement>('#result-metrics'),
     comments: document.querySelector<HTMLElement>('#result-comments'),
     best: document.querySelector<HTMLElement>('#result-best'),
+    weakSection: document.querySelector<HTMLElement>('#result-weak'),
     plots: document.querySelector<HTMLElement>('#result-plots'),
     padTrace: document.querySelector<HTMLElement>('#result-pad'),
   };
@@ -602,7 +607,9 @@ async function start(): Promise<void> {
     running = { session, loop, input, padSettings: DEFAULT_PAD_SETTINGS, rumbledShots: 0 };
     hideGuide();
     // 新しい練習では自分の線を消し、今の発の点を 1 発目に戻す。表示は描画のたびに決める。
-    panel?.begin(weapon);
+    // 苦手な区間は始める時点の入力方式と保存してある履歴から 1 回だけ求め、練習のあいだは変えない（docs/spec/screens.md「補正のパネル」）。
+    const weak = weakSection(loadHistory(appStorage, { input: inputs.current, weaponId: weapon.id, modeId: mode.id }));
+    panel?.begin(weapon, weak?.start);
     panel?.hide();
     setAds(false);
     interlude.hidden = true;
