@@ -1,4 +1,4 @@
-// docs/spec/scoring.md「発の区間ごとのズレ」「苦手な区間」の受け入れテスト（SCO-31〜SCO-38）と、
+// docs/spec/scoring.md「発の区間ごとのズレ」「苦手な区間」の受け入れテスト（SCO-31〜SCO-37）と、
 // docs/spec/screens.md「履歴の画面」「補正のパネル」の苦手な区間の受け入れテスト（UI-64〜UI-68）。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（トップ・設定・プレイ・リザルト・履歴）、武器の JSON、
 // SPEC に書かれた localStorage のキーと値の形。画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、マウス（ポインターロック + 左ボタン）で撃つ。
@@ -35,7 +35,6 @@ const chromium = findChromium();
 
 const CENTER = 'センター維持';
 const GHOST = '反復練習';
-const PATTERN = 'パターン観察';
 const HISTORY_PREFIX = 'apex-training:history:';
 const historyKey = (input: string, weapon: string, mode: string) => `${HISTORY_PREFIX}${input}:${weapon}:${mode}`;
 
@@ -540,15 +539,6 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
       const page = await openFresh({ [historyKey('mouse', ZERO.id, 'center')]: stored(mixed(4, 1.875)) });
       const text = await practice(page, ZERO.name, CENTER);
       expect(norm(text)).toContain(WEAK_RESULT('6〜10 発目、右に外しがち'));
-      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    it('SCO-38: パターン観察で練習を終えると、リザルトに苦手な区間の行が表示されない（同じ武器の採点するモードに苦手な区間があっても）', async () => {
-      const weak = stored(Array.from({ length: 5 }, (_, i) => withSections(i, sections(28, 0, { 11: { meanH: 2, meanError: 2 } }))));
-      const page = await openFresh({ [historyKey('mouse', 'lstar', 'center')]: weak, [historyKey('mouse', 'lstar', 'ghost')]: weak });
-      const text = await practice(page, LSTAR.name, PATTERN);
-      expect(text.trim().length).toBeGreaterThan(0);
-      expect(text).not.toContain('苦手な区間');
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
   });

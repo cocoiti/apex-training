@@ -281,15 +281,10 @@ describe('苦手な区間の行', () => {
     const old = Array.from({ length: 10 }, (_, i) => ({ at: NOW.toISOString(), meanError: i, hitRate: 50, groupingRadius: 1, shots: 28 }));
     const storage = memoryStorage({ [HISTORY]: JSON.stringify({ version: 1, entries: old }) });
     const view = completePractice(offAt11(), storage, NOW);
-    expect(view.scored).toBe(true);
     expect(view.weakSection).toBeNull();
     const saved = JSON.parse(storage.items.get(HISTORY) ?? '') as { entries: unknown[] };
     expect(saved.entries).toHaveLength(11);
     expect(saved.entries.slice(0, 10)).toEqual(old);
-  });
-
-  it('SCO-38: パターン観察のリザルトには苦手な区間の行が出ない', () => {
-    expect(completePractice(practice('lstar', 'pattern', 0), memoryStorage(), NOW).weakSection).toBeNull();
   });
 
   it('行があれば書いて出し、なければ空にして隠す', () => {
@@ -298,7 +293,6 @@ describe('苦手な区間の行', () => {
     const element = { textContent: '', hidden: true };
     const e = {
       summary: { textContent: '' },
-      score: { hidden: false },
       metrics: { innerHTML: '' },
       comments: { textContent: '' },
       best: { textContent: '' },
