@@ -28,6 +28,7 @@ import { simplePattern } from './sim/simple-pattern';
 import { createWorld, type World } from './sim/world';
 import { fillCountSelect } from './ui/count-choices';
 import { applyCrosshair } from './ui/crosshair';
+import { Analytics, bindAnalyticsView, browserAnalyticsHost, type AnalyticsElements, type AnalyticsView } from './ui/analytics';
 import { CorrectionPanel, correctionPanelShown, type CorrectionPanelElements } from './ui/correction-panel';
 import { DirectionSound, ShotSounds, soundBlockedReason, SoundPreview } from './ui/direction-sound';
 import { fullscreenLabel, toggleFullscreen } from './ui/fullscreen';
@@ -116,6 +117,8 @@ function startShell(): void {
   const notice = document.querySelector<HTMLElement>('#storage-notice');
   if (notice) appStorage.onUnavailable(() => showStorageNotice(notice));
   appStorage.probe();
+  // 画面の表示の計測。保存できるかを確かめたあとに作る（保存できない環境では案内を出さない）。
+  const analytics = startAnalytics();
 
   // ブラウザの自動再生の制限に合わせ、利用者の操作のあとで音を有効にする。ボタンの click より先に届くよう capture で受ける。
   for (const type of ['pointerdown', 'keydown', 'click'] as const) {
@@ -163,6 +166,8 @@ function startShell(): void {
     // 入れない画面のハッシュはトップに置き換える。そのままだと「開始」でハッシュが変わらず練習を始められない。
     if (entry.screen !== requested) history.replaceState(null, '', SCREEN_HASHES[entry.screen]);
     showScreen(screens, entry.screen);
+    // 画面の表示は、実際に表示した画面で積む（入れない画面はトップ画面として）。
+    analytics?.enter(entry.screen);
     padScreens.enter(entry.screen);
     if (entry.screen !== 'play' && document.pointerLockElement) document.exitPointerLock();
     void appReady.then((app) => app.enter(entry.screen));
@@ -174,6 +179,31 @@ function startShell(): void {
       });
     }
   });
+}
+
+/**
+ * 同意の案内と設定画面の計測の区分を、許可した人だけ GTM を読み込む計測に当てる（docs/spec/overview.md「画面の表示の計測」）。
+ * 要素が欠けていれば計測しない。コンテナ ID は vite.config.ts の 1 か所に置き、空なら何もしない。
+ */
+function startAnalytics(): AnalyticsView | undefined {
+  const byId = <T extends HTMLElement>(id: string) => document.querySelector<T>(`#${id}`);
+  const elements = {
+    banner: byId('consent-banner'),
+    message: byId('consent-message'),
+    grant: byId<HTMLButtonElement>('consent-grant'),
+    deny: byId<HTMLButtonElement>('consent-deny'),
+    section: byId('settings-analytics'),
+    toggle: byId<HTMLInputElement>('setting-analytics'),
+    note: byId('settings-analytics-note'),
+  };
+  if (Object.values(elements).some((element) => !element)) return undefined;
+  const analytics = new Analytics({
+    containerId: __GTM_CONTAINER_ID__,
+    storage: appStorage,
+    host: browserAnalyticsHost(window, document),
+    basePath: import.meta.env.BASE_URL,
+  });
+  return bindAnalyticsView(elements as AnalyticsElements, analytics);
 }
 
 /** 今表示している画面。画面の操作がどの画面の操作になるかを決める。 */
@@ -391,6 +421,8 @@ function startPadScreens(): PadScreens {
     navigate: (screen) => {
       location.hash = SCREEN_HASHES[screen];
     },
+    // 同意の案内を出しているあいだは、「許可」「許可しない」を項目の順の最初の 2 つにする（docs/spec/screens.md「計測の同意の案内」）。
+    leading: () => document.querySelector<HTMLElement>('#consent-banner'),
   });
   const tick = (time: number) => {
     const pads = readGamepads();
