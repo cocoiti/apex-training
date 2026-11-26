@@ -291,6 +291,8 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     // プレイ画面に入り、練習が始まって（残弾が出て）シーンが何度か描画されるまで待つ。
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden && ${AMMO} > 0`);
+    // clock=manual では、時計を進めるまでステップが進まず、的が最初のステップのあとの姿で描かれない。比べる元の画面を写す前に少し進めておく。
+    if (manualClock) await page.advanceClock(2 / 60);
     await page.frames(5);
     return page;
   }

@@ -154,6 +154,8 @@ describe.skipIf(NESTED || !chromium)('QA: UI-76 リコイルは視点が跳ね�
     );
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden && ${AMMO} > 0`);
+    // clock=manual では、時計を進めるまでステップが進まず、的が最初のステップのあとの姿で描かれない。撃つ前の画面を写す前に少し進めておく。
+    await page.advanceClock(2 / 60);
     await page.frames(5);
 
     // ポインターロックを掛ける（マウスは中心から動かさない）。
