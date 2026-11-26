@@ -36,9 +36,20 @@ Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescrip
 - ブラウザを使うテストはページを固定の種で開く（`appUrl` の `seed` にファイルに書いた数を渡す。URL の `seed=<数>`）。失敗したときは使った種がメッセージに出る。
 - マップなどのデータの JSON は `src/data/` に置き、`?url` の資産として fetch する（ADR: data-json-as-fetched-assets）。
 
+## CI
+
+GitHub Actions は有効で、GitHub がホストする標準の Linux の runner だけを使う。CI のワークフローは `.github/workflows/ci.yml` の 1 つ。
+
+- PR を作ったとき・PR のブランチに push したときと、`main` に push したときに、`ubuntu-latest` の 1 つのジョブで走る。
+- `npm ci` → `npm run lint` → `npm run test:unit` → Chromium の導入（Playwright のキャッシュの場所）→ `npm run test:browser` → `npm run build` →
+  `npm run check:subpath` → `npm run check:assets` の順に流し、どれかが失敗したらそこで止まってチェックが失敗になる。
+- CI では `APEX_REQUIRE_CHROMIUM=1` にして、Chromium が見つからなければブラウザを使うテストを飛ばさずに失敗にする。
+- CI では `APEX_BROWSER_WORKERS=2` にして、ブラウザを使うテストのファイルを 2 つずつ流す（runner の CPU が 4 つで、3 つでは実時間で動くテストが待ちの上限に当たる）。
+- 同じブランチ（同じ PR）に新しい push があると、走っている古い実行は取り消される。
+
 ## 守ること
 
 - EA / Respawn の画像・ロゴ・武器モデル・効果音を使わない。自作などの画像・音声・3D モデルを足すときは `src/assets/assets.json` に出どころを書く。
 - 補正値のエクスポートや外部デバイスとの連携など、チートに転用できる出力を作らない。
 - `src/sim/` から Three.js と DOM を参照しない。
-- GitHub Actions は費用のため止めている（2026-11-25）。ワークフローを足しても動かない。
+- CI は GitHub がホストする標準の Linux の runner（`ubuntu-latest`）だけで動かす。macOS・Windows の runner を使わず、`gh-pages` への公開を CI でしない。

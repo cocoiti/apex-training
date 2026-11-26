@@ -2,6 +2,7 @@
 // 依存を増やさないよう、Playwright が置いた Chromium を DevTools プロトコルで直接動かす。
 // Chromium は環境変数 CHROMIUM_PATH か、~/Library/Caches/ms-playwright（Linux は ~/.cache/ms-playwright）から探す。
 // ポインターロックが使えるよう、chrome-headless-shell より通常の Chromium（Chrome for Testing）を先に選ぶ。
+// 環境変数 APEX_REQUIRE_CHROMIUM が 1 のとき（CI）は、見つからなければテストを飛ばさずに失敗する（docs/spec/architecture.md ARC-60）。
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
@@ -17,11 +18,25 @@ reportSeedsOnFailure();
 export { listenOnFreePort, originOf, portOf } from './server';
 export { waitUntil } from './wait';
 
-/** 使える Chromium の実行ファイルを探す。見つからなければ undefined。 */
-export function findChromium(): string | undefined {
-  const fromEnv = process.env.CHROMIUM_PATH;
+/** 1 のとき、Chromium が見つからなければ findChromium が例外を投げる環境変数（CI で設定する）。 */
+export const REQUIRE_CHROMIUM_ENV = 'APEX_REQUIRE_CHROMIUM';
+
+/**
+ * 使える Chromium の実行ファイルを探す。見つからなければ undefined（ブラウザを使うテストは飛ばす）。
+ * ただし env の APEX_REQUIRE_CHROMIUM が 1 なら、見つからないときは探した場所を示して例外を投げる。
+ * テストのファイルの読み込みが失敗になるので、CI でブラウザを使うテストが飛ばされて成功になることがない（ARC-60）。
+ */
+export function findChromium(env: Record<string, string | undefined> = process.env, home: string = homedir()): string | undefined {
+  const caches = [join(home, 'Library/Caches/ms-playwright'), join(home, '.cache/ms-playwright')];
+  const found = searchChromium(env.CHROMIUM_PATH, caches);
+  if (found === undefined && env[REQUIRE_CHROMIUM_ENV]?.trim() === '1') {
+    throw new Error(`${REQUIRE_CHROMIUM_ENV}=1 なのに Chromium が見つからない（CHROMIUM_PATH: ${JSON.stringify(env.CHROMIUM_PATH ?? '')}、探した場所: ${caches.join(', ')}）`);
+  }
+  return found;
+}
+
+function searchChromium(fromEnv: string | undefined, caches: string[]): string | undefined {
   if (fromEnv && existsSync(fromEnv)) return fromEnv;
-  const caches = [join(homedir(), 'Library/Caches/ms-playwright'), join(homedir(), '.cache/ms-playwright')];
   for (const cache of caches) {
     if (!existsSync(cache)) continue;
     const dirs = readdirSync(cache).sort().reverse();
@@ -283,13 +298,28 @@ export class Page {
     await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
   }
 
-  /** CSS セレクタに当たる最初の要素の中心をクリックする。 */
-  async clickSelector(selector: string): Promise<void> {
-    const box = await this.evaluate<{ x: number; y: number } | null>(
-      `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null;
-        const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`,
+  /**
+   * CSS セレクタに当たる最初の要素の中心をクリックする。
+   * 読み込みの途中で上の要素（トップ画面の武器のカードなど）が埋まると要素がずれ、測った座標で別の要素を押してしまう。
+   * フォントの読み込みを待ち、1 描画おいても位置が変わらず、その座標でいちばん上にある要素がこの要素（かその中）になるまで待ってから押す。
+   */
+  async clickSelector(selector: string, timeout = 10_000): Promise<void> {
+    const box = await waitUntil(
+      () =>
+        this.evaluate<{ x: number; y: number } | null>(`(async () => {
+          const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null;
+          await document.fonts.ready;
+          const measure = () => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+          const before = measure();
+          // 裏のタブでは requestAnimationFrame が来ないので、来なければ 100 ms で測り直す。
+          await new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(resolve)); setTimeout(resolve, 100); });
+          const after = measure();
+          if (before.x !== after.x || before.y !== after.y) return null;
+          const hit = document.elementFromPoint(after.x, after.y);
+          return hit && (hit === el || el.contains(hit)) ? after : null; })()`),
+      `要素 ${selector} が動かずに、その中心でいちばん上にある`,
+      { timeout },
     );
-    if (!box) throw new Error(`要素がない: ${selector}`);
     await this.click(box.x, box.y);
   }
 }
@@ -332,6 +362,9 @@ export async function launchBrowser(executable: string): Promise<Browser> {
     executable,
     [
       '--headless=new',
+      // Linux の CI の runner（Ubuntu）は、権限のない利用者の名前空間を制限していて Chromium のサンドボックスが起動しない。
+      // 開くのはテストが立てた手元のサーバーのページだけなので、Linux ではサンドボックスを使わない。
+      ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
       '--remote-debugging-port=0',
       '--remote-allow-origins=*',
       `--user-data-dir=${profile}`,
@@ -339,6 +372,9 @@ export async function launchBrowser(executable: string): Promise<Browser> {
       '--no-default-browser-check',
       '--use-angle=swiftshader',
       '--enable-unsafe-swiftshader',
+      // 重いマシン（CI の runner や並行に流しているとき）では、ソフトウェアの WebGL の描画が遅いのを GPU のプロセスが固まったと
+      // 見なして止められ、ブラウザ全体が応答しなくなる。GPU の監視を止める。
+      '--disable-gpu-watchdog',
       '--window-size=1280,800',
       // 重いマシンでも描画やタイマーを間引かせない（画面が隠れている・裏にあると見なされて止まらないように）。
       '--disable-background-timer-throttling',
@@ -346,9 +382,34 @@ export async function launchBrowser(executable: string): Promise<Browser> {
       '--disable-backgrounding-occluded-windows',
       'about:blank',
     ],
-    { stdio: 'ignore', env: { ...process.env, TMPDIR: temp, TMP: temp, TEMP: temp } },
+    // 子のプロセス（GPU・描画・ネットワークなど）ごと止められるよう、Chromium を新しいプロセスグループで起動する。
+    { stdio: 'ignore', detached: true, env: { ...process.env, TMPDIR: temp, TMP: temp, TEMP: temp } },
   );
   const exited = new Promise<void>((ok) => child.once('exit', () => ok()));
+  /**
+   * Chromium のプロセスグループに属するプロセスをすべて止め、いなくなるまで待つ。
+   * 本体だけを止めると、残った子のプロセス（Linux の --no-sandbox ではとくに）がプロファイルに書き続け、
+   * 消す途中に ENOTEMPTY になる。
+   */
+  const stop = async () => {
+    const group = -child.pid!;
+    /** グループにシグナルを送る。グループにもうプロセスがなければ（ESRCH）false。0 は送らずに確かめるだけ。 */
+    const signal = (sig: NodeJS.Signals | 0) => {
+      try {
+        process.kill(group, sig);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const gone = (what: string) => waitUntil(() => !signal(0), what, { timeout: 5_000, interval: 50 });
+    signal('SIGTERM');
+    await gone('Chromium と子のプロセスが終わる').catch(async () => {
+      signal('SIGKILL');
+      await gone('Chromium と子のプロセスが SIGKILL で終わる');
+    });
+    await exited;
+  };
   let endpoint: string;
   try {
     endpoint = await waitUntil(
@@ -366,8 +427,7 @@ export async function launchBrowser(executable: string): Promise<Browser> {
       { timeout: 15_000, interval: 100 },
     );
   } catch (error) {
-    child.kill();
-    await exited;
+    await stop();
     removeRoot();
     throw error;
   }
@@ -402,11 +462,8 @@ export async function launchBrowser(executable: string): Promise<Browser> {
     },
     async close() {
       for (const { socket } of opened.splice(0)) socket.close();
-      // 終わったことを確かめてからプロファイルを消す（決まった時間は待たない）。
-      if (child.exitCode === null && child.signalCode === null) {
-        child.kill();
-        await exited;
-      }
+      // 子のプロセスまで終わったことを確かめてからプロファイルを消す（決まった時間は待たない）。
+      await stop();
       removeRoot();
     },
   };

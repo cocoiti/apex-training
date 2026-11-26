@@ -1,0 +1,76 @@
+# CI（docs/spec/architecture.md「継続的インテグレーション（CI）」、ARC-57〜ARC-61）。
+# PR を作ったとき・PR のブランチに push したときと、main に push したときに、ubuntu-latest の 1 つのジョブで
+# lint・テスト（ブラウザを使うものを含む）・ビルド・配布物の検査を順に流す。どれかが失敗したら後の段は流さない。
+# GitHub Pages への公開はここでは行わず、今までどおり手元から手動で行う。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 同じブランチ（同じ PR）で新しい push があったら、走っている古い実行を取り消す（ARC-59）。
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # ブラウザを使うテストが探す Chromium は Playwright が置くキャッシュの場所にある（tests/helpers/browser.ts）。
+  # Playwright は依存に足さず、版を決めて npx で Chromium の導入だけに使う（docs/adr/2026-11-26-ci-github-actions-ubuntu.md）。
+  PLAYWRIGHT_VERSION: 1.65.0
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 公開のテストなどが手元のリポジトリを clone して履歴を見るので、浅い clone にしない。
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          # CLAUDE.md の「Node.js 22.12 以上」を満たす 22 系の最新（ESLint は 22.13 以上を求める）。
+          node-version: 22
+          cache: npm
+
+      - name: 依存の導入
+        run: npm ci
+
+      - name: lint・型の確認
+        run: npm run lint
+
+      - name: ブラウザを使わないテスト
+        run: npm run test:unit
+
+      - name: Chromium のキャッシュ
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
+
+      - name: Chromium の導入
+        # キャッシュがあればダウンロードは飛ばし、Chromium が使う OS のライブラリだけを入れる。
+        run: npx --yes playwright@${{ env.PLAYWRIGHT_VERSION }} install --with-deps chromium
+
+      - name: ブラウザを使うテスト
+        # Chromium が見つからなければ、テストを飛ばして成功にせず失敗にする（ARC-60）。
+        run: npm run test:browser
+        # runner の CPU は 4 つで、ソフトウェアの WebGL で描く Chromium を 3 つ並べると実時間で動くテストが待ちの上限に当たる。
+        # CI では同時に流すファイルを 2 つにする。
+        env:
+          APEX_REQUIRE_CHROMIUM: '1'
+          APEX_BROWSER_WORKERS: '2'
+
+      - name: ビルド
+        run: npm run build
+
+      - name: サブパスでの配信の確認
+        run: npm run check:subpath
+
+      - name: 配布物が素材の一覧に載っていることの確認
+        run: npm run check:assets
