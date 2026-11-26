@@ -1,4 +1,5 @@
 import type { CompareMetric, MetricSpec, TrainingMode } from '../modes/types';
+import { t } from './i18n';
 
 /**
  * モードごとの採点の指標（docs/spec/scoring.md「モードごとの採点」）。採点の仕方（scoring）を持たないモードは弾痕のズレの採点で、
@@ -11,7 +12,9 @@ export const NO_WEAPON_ID = '-';
 /** 弾痕のズレの採点の比べる指標。平均ズレ（度、0 以上）で、小さいほど良い。保存の項目名は meanError。 */
 export const SHOT_DEVIATION_METRIC: CompareMetric = {
   id: 'meanError',
-  label: '平均ズレ',
+  get label() {
+    return t('metric.meanError');
+  },
   unit: '°',
   better: 'lower',
   format: (value) => `${value.toFixed(2)}°`,
@@ -19,12 +22,26 @@ export const SHOT_DEVIATION_METRIC: CompareMetric = {
 };
 
 /** 弾痕のズレの採点の命中率（%、小数第 1 位まで）。 */
-export const HIT_RATE_METRIC: MetricSpec = { id: 'hitRate', label: '命中率', unit: '%', format: (value) => `${value.toFixed(1)}%` };
+export const HIT_RATE_METRIC: MetricSpec = {
+  id: 'hitRate',
+  get label() {
+    return t('metric.hitRate');
+  },
+  unit: '%',
+  format: (value) => `${value.toFixed(1)}%`,
+};
 
 /** 弾痕のズレの採点の履歴の一覧で、平均ズレのあとに並べる指標（docs/spec/screens.md「履歴の画面」）。 */
 export const SHOT_DEVIATION_COLUMNS: readonly MetricSpec[] = [
   HIT_RATE_METRIC,
-  { id: 'groupingRadius', label: 'グルーピング半径', unit: '°', format: (value) => `${value.toFixed(2)}°` },
+  {
+    id: 'groupingRadius',
+    get label() {
+      return t('metric.groupingRadius');
+    },
+    unit: '°',
+    format: (value) => `${value.toFixed(2)}°`,
+  },
 ];
 
 /** モードの比べる指標。採点の仕方を持たないモードは平均ズレ。 */
@@ -47,7 +64,7 @@ export function isBetter(metric: Pick<CompareMetric, 'better'>, value: number, t
   return metric.better === 'lower' ? value < than : value > than;
 }
 
-/** 指標の値の表示。求まらない（null）ときは「なし」。 */
+/** 指標の値の表示。求まらない（null）ときは「なし」（英語は `N/A`）。 */
 export function formatMetric(metric: Pick<MetricSpec, 'format'>, value: number | null): string {
-  return value === null ? 'なし' : metric.format(value);
+  return value === null ? t('none') : metric.format(value);
 }

@@ -24,14 +24,15 @@ import { TargetMarks } from './render/targets';
 import { parseMap, type MapData } from './sim/map';
 import { viewAngles } from './sim/player';
 import type { WeaponData } from './sim/weapon';
-import { simplePattern } from './sim/simple-pattern';
+import { simplePattern, type SegmentDirection } from './sim/simple-pattern';
 import { createWorld, type World } from './sim/world';
-import { fillCountSelect } from './ui/count-choices';
+import { fillCountSelect, relabelCountSelect } from './ui/count-choices';
 import { applyCrosshair } from './ui/crosshair';
 import { Analytics, bindAnalyticsView, browserAnalyticsHost, type AnalyticsElements, type AnalyticsView } from './ui/analytics';
 import { CorrectionPanel, correctionPanelShown, type CorrectionPanelElements } from './ui/correction-panel';
 import { DirectionSound, ShotSounds, soundBlockedReason, SoundPreview } from './ui/direction-sound';
 import { fullscreenLabel, toggleFullscreen } from './ui/fullscreen';
+import { loadLanguage, localize, onLanguageChange, t } from './ui/i18n';
 import { bindHistoryView, initialHistorySelection, type HistoryElements } from './ui/history-view';
 import { renderHud, type HudElements } from './ui/hud';
 import { renderCalibration, calibrationRadii, type CalibrationElements } from './ui/pad-calibration';
@@ -41,11 +42,12 @@ import { CardChoice } from './ui/card-choices';
 import { fillModeChoice, fillModeSelect, type ModeChoiceElements } from './ui/mode-choices';
 import { modeBestSummary, modeCardContent, setModeBest } from './ui/mode-cards';
 import { compareMetric } from './ui/mode-scoring';
-import { buildOptionFields, modeOptionsOf, optionFieldValues, showOptionFields, type OptionField } from './ui/option-choices';
+import { buildOptionFields, modeOptionsOf, optionFieldValues, relabelOptionFields, showOptionFields, type OptionField } from './ui/option-choices';
 import { PadMenu } from './ui/pad-menu';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { padGuideState, padGuideVisible, renderPadGuide, type PadGuideElements } from './ui/pad-guide';
 import { PracticeFlow } from './ui/practice-flow';
+import { applyPageLanguage, bindLanguageField } from './ui/page-language';
 import { parsePageOptions, TEST_CLOCK_GLOBAL, type TestClockHandle } from './ui/page-options';
 import { applyPracticeSettings } from './ui/practice-settings';
 import { loadHistory, type HistorySelection } from './ui/practice-history';
@@ -117,8 +119,21 @@ const appReady = new Promise<App>((resolve) => {
 
 /** 画面の切替とフッターの表示を始める。3D の読み込みに失敗しても画面は出るよう、先に同期で行う。 */
 function startShell(): void {
+  // 表示の言語（docs/spec/screens.md「表示の言語」）。保存した言語か、なければブラウザの言語で、最初に画面を表示する前に決める。
+  // 選び直したら、index.html の文言・<html lang>・タイトルをすぐに書き直す。画面ごとの文言は、それぞれが登録した関数で書き直す。
+  loadLanguage(appStorage, navigator.language);
+  applyPageLanguage(document);
+  onLanguageChange(() => applyPageLanguage(document));
+  const languageField = document.querySelector<HTMLSelectElement>('#setting-language');
+  if (languageField) bindLanguageField(languageField, appStorage);
+
   const notice = document.querySelector<HTMLElement>('#storage-notice');
-  if (notice) appStorage.onUnavailable(() => showStorageNotice(notice));
+  if (notice) {
+    appStorage.onUnavailable(() => showStorageNotice(notice));
+    onLanguageChange(() => {
+      if (!notice.hidden) showStorageNotice(notice);
+    });
+  }
   appStorage.probe();
   // 画面の表示の計測。保存できるかを確かめたあとに作る（保存できない環境では案内を出さない）。
   const analytics = startAnalytics();
@@ -131,7 +146,10 @@ function startShell(): void {
   applySavedCrosshair();
   startSettingsForm();
   const countSelect = document.querySelector<HTMLSelectElement>('#count');
-  if (countSelect) fillCountSelect(countSelect);
+  if (countSelect) {
+    fillCountSelect(countSelect);
+    onLanguageChange(() => relabelCountSelect(countSelect));
+  }
   const padScreens = startPadScreens();
 
   // 「開始」を押したあとにプレイ画面に入ったときだけ練習を始める（docs/spec/screens.md）。
@@ -153,6 +171,10 @@ function startShell(): void {
   // 全画面の切替ボタン（docs/spec/mouse.md「全画面」）。
   const fullscreen = document.querySelector<HTMLButtonElement>('#fullscreen');
   if (fullscreen) {
+    fullscreen.textContent = fullscreenLabel(document);
+    onLanguageChange(() => {
+      fullscreen.textContent = fullscreenLabel(document);
+    });
     fullscreen.addEventListener('click', () => {
       void toggleFullscreen(document, document.documentElement);
       fullscreen.blur();
@@ -323,6 +345,7 @@ function historyElements(): HistoryElements | null {
   // 練習の選択肢（速さ、出る範囲と的の大きさ）の欄。選択肢ごとに作り、その選択肢を持つモードを選んでいるときだけ出す。
   const optionList = byId('mode-options');
   const options = optionList ? buildOptionFields(optionList, modeOptionsOf(modes), 'history-') : [];
+  onLanguageChange(() => relabelOptionFields(options));
   return {
     ...elements,
     confirm,
@@ -450,7 +473,7 @@ function startPadScreens(): PadScreens {
       setHidden(mappingBody, state.target === undefined);
       setText(mappingTarget, state.target === undefined ? '' : padDisplayName(state.target));
       for (const item of MAPPING_ITEMS) setText(mappingValues.get(item) ?? null, state.items[item]);
-      setText(mappingSaved, state.saved ? 'このパッドの割り当てを保存しました' : '4 つの項目をすべて割り当てると保存します');
+      setText(mappingSaved, state.saved ? t('mapping.saved') : t('mapping.pending'));
     }
     clock.requestFrame(tick);
   };
@@ -557,7 +580,7 @@ async function start(): Promise<void> {
     !hud.round ||
     !hud.pad
   ) {
-    throw new Error('画面の要素がない');
+    throw new Error('screen elements are missing');
   }
   const hudElements = hud as HudElements;
   const resultView = resultElements as ResultElements;
@@ -570,7 +593,7 @@ async function start(): Promise<void> {
 
   const parsed = parseMap(await fetchMapJson('range'));
   if (!parsed.ok) {
-    status.textContent = `マップを読み込めない: ${parsed.errors.map((e) => `${e.path} ${e.message}`).join(' / ')}`;
+    status.textContent = t('play.mapError', { errors: parsed.errors.map((e) => `${e.path} ${e.message}`).join(' / ') });
     return;
   }
   const map: MapData = parsed.map;
@@ -578,7 +601,7 @@ async function start(): Promise<void> {
   // 武器の選択肢は一覧から category ごとに分けて出す（WPN-13、UI-10）。
   const weapons = await loadWeapons();
   if (weapons.length === 0 || modes.length === 0) {
-    status.textContent = '武器またはモードのデータを読み込めない（コンソールを見る）';
+    status.textContent = t('play.dataError');
     return;
   }
   fillWeaponSelect(weaponSelect, weapons);
@@ -587,7 +610,7 @@ async function start(): Promise<void> {
   // 武器とモードはカードの並びで選ぶ（docs/spec/screens.md「トップ画面」）。選んでいる値は隠した select が持つ。
   // 登録されたモードが 1 つのときは、そのカードを選べない形で 1 枚だけ出す。
   const weaponCardsRoot = document.querySelector<HTMLElement>('#weapon-cards');
-  const weaponCards = weaponCardsRoot ? new CardChoice({ select: weaponSelect, container: weaponCardsRoot, label: '武器' }) : undefined;
+  const weaponCards = weaponCardsRoot ? new CardChoice({ select: weaponSelect, container: weaponCardsRoot, label: () => t('top.weapon') }) : undefined;
   weaponCards?.rebuild();
   const modeCardsRoot = document.querySelector<HTMLElement>('#mode-cards');
   const modeById = new Map(modes.map((m) => [m.id, m]));
@@ -595,7 +618,7 @@ async function start(): Promise<void> {
     ? new CardChoice({
         select: modeSelect,
         container: modeCardsRoot,
-        label: 'モード',
+        label: () => t('top.mode'),
         content: (card, doc) => {
           const mode = modeById.get(card.value);
           return mode ? modeCardContent(doc, mode) : [card.label];
@@ -607,13 +630,10 @@ async function start(): Promise<void> {
   // 「パターンの音を聞く」（docs/spec/screens.md「音」の「試聴」）。音が OFF・音量 0 のときは押せない。
   const previewButton = document.querySelector<HTMLButtonElement>('#preview-sound');
   const previewNote = document.querySelector<HTMLElement>('#preview-sound-note');
-  const previewLabel = previewButton?.textContent ?? '';
-  const preview = new SoundPreview({
-    clock,
-    onChange: (playing) => {
-      if (previewButton) previewButton.textContent = playing ? '止める' : previewLabel;
-    },
-  });
+  const writePreviewLabel = (playing: boolean) => {
+    if (previewButton) previewButton.textContent = playing ? t('top.previewStop') : t('top.previewSound');
+  };
+  const preview = new SoundPreview({ clock, onChange: writePreviewLabel });
   const refreshPreview = () => {
     const reason = soundBlockedReason(loadCommonSettings(appStorage));
     if (reason) preview.stop();
@@ -683,8 +703,13 @@ async function start(): Promise<void> {
   if (historyEls) {
     fillWeaponSelect(historyEls.weapon as HTMLSelectElement, weapons);
     const historyModeChoice = historyModeChoiceElements(historyEls.mode as HTMLSelectElement);
-    if (historyModeChoice) fillModeChoice(historyModeChoice, modes);
-    else fillModeSelect(historyEls.mode as HTMLSelectElement, modes);
+    const fillHistoryModes = (keep: boolean) => {
+      if (historyModeChoice) fillModeChoice(historyModeChoice, modes, keep);
+      else fillModeSelect(historyEls.mode as HTMLSelectElement, modes, keep);
+    };
+    fillHistoryModes(false);
+    // 表示の言語を選び直したら、モードの名前を書き直す（選んでいるモードは変えない）。
+    onLanguageChange(() => fillHistoryModes(true));
     const historyView = bindHistoryView(historyEls, { storage: appStorage, now: () => new Date(), modes });
     const weaponIds = weapons.map((w) => w.id);
     const modeIds = modes.map((m) => m.id);
@@ -747,6 +772,17 @@ async function start(): Promise<void> {
   weaponSelect.addEventListener('change', refreshModeBests);
   for (const field of optionFields) field.select.addEventListener('change', refreshModeBests);
   refreshModeBests();
+  // 表示の言語を選び直したら、トップ画面のコードで作った文言（モードの名前とカード、練習の選択肢、自己ベストの要約、試聴）を書き直す。
+  // 選んでいる武器・モード・練習の選択肢の値は変えない（docs/spec/screens.md「言語の設定」）。
+  onLanguageChange(() => {
+    fillModeSelect(modeSelect, modes, true);
+    weaponCards?.rebuild();
+    modeCards?.rebuild();
+    relabelOptionFields(optionFields);
+    refreshModeBests();
+    writePreviewLabel(preview.playing);
+    refreshPreview();
+  });
   // 操作とみなすのはプレイ画面を表示している間の入力だけ。メニューをパッドで操作しても今の入力方式は変えない
   // （docs/spec/input.md「入力方式の切替」）。
   const activity = (device: InputMethod) => {
@@ -823,7 +859,7 @@ async function start(): Promise<void> {
     shownWorld = world;
     // 向きの音は、向きの音を使うモードで、練習の武器の簡易版の区切りで鳴らす。パターンの表示・補正のパネルによらない（docs/spec/screens.md「音」）。
     const play =
-      soundBlockedReason(settings) || !modeUsesDirectionSound(mode) ? undefined : (direction: string) => directionSound.play(direction, settings.volume);
+      soundBlockedReason(settings) || !modeUsesDirectionSound(mode) ? undefined : (direction: SegmentDirection) => directionSound.play(direction, settings.volume);
     const sounds = new ShotSounds(weapon ? simplePattern(weapon) : { segments: [] }, play);
     running = { session, loop, input, padSettings: DEFAULT_PAD_SETTINGS, rumbledShots: 0, sounds };
     hideGuide();
@@ -879,8 +915,9 @@ async function start(): Promise<void> {
     interlude.hidden = true;
     const summary = summarizeSet(current.rounds, current.count, compareMetric(setup.mode));
     const option = optionText(setup.options.map((o) => ({ label: o.option.label, name: o.choice.name })));
-    renderSetSummary(setView, setSummaryHeading(setup.weapon?.name, setup.mode.name, setInput, summary, option), summary);
-    setSharing.set(setShareText(setShare(setup.weapon?.name, setup.mode.name, summary, option)));
+    const modeName = localize(setup.mode.name);
+    renderSetSummary(setView, setSummaryHeading(setup.weapon?.name, modeName, setInput, summary, option), summary);
+    setSharing.set(setShareText(setShare(setup.weapon?.name, modeName, summary, option)));
     flow.finishSet();
     location.hash = SCREEN_HASHES['set-result'];
   };
@@ -1007,7 +1044,6 @@ async function start(): Promise<void> {
   };
 
   window.addEventListener('resize', () => view.resize());
-  const hint = 'クリックで照準の操作を始める（パッドは右スティックと R2 / RT）';
 
   // パッドの A / ×・B / ○・Y / △ は、どの画面でも読み、押し始めだけを画面の操作にする（docs/spec/screens.md「画面の操作」）。
   const padButtons = new PadButtons();
@@ -1062,7 +1098,7 @@ async function start(): Promise<void> {
           panel.hide();
         }
       }
-      status.textContent = hint;
+      status.textContent = t('play.hint');
       // 最後の弾の弾痕を記録・表示したあとにリザルト画面へ移る。
       if (session.result) finish(current);
     } else {

@@ -3,6 +3,9 @@ import type { Angles } from '../sim/angles';
 import type { Gun, ShotRecord } from '../sim/gun';
 import type { PracticeTargets } from '../sim/targets';
 import type { World } from '../sim/world';
+import type { Localized } from '../ui/i18n';
+
+export type { Localized } from '../ui/i18n';
 
 /** モードの種類（docs/spec/modes.md「モードの登録」）。`aim` は追いエイム・フリックなどのエイムの練習。 */
 export type ModeCategory = 'recoil' | 'aim' | 'movement' | 'combined';
@@ -48,8 +51,8 @@ export type ModeOptionValues = Readonly<Record<string, string>>;
 export interface ModeOptionChoice {
   /** 保存のキーの末尾に足す id（例: `normal`）。英小文字・数字・`-` だけ。 */
   readonly id: string;
-  /** 表示名（例: 「ふつう」）。 */
-  readonly name: string;
+  /** 表示名（日本語と英語。例: 「ふつう」・`Normal`）。 */
+  readonly name: Localized;
 }
 
 /**
@@ -59,8 +62,8 @@ export interface ModeOptionChoice {
 export interface ModeOption {
   /** 選択肢の id（例: `speed`）。同じ id の選択肢を持つモードどうしは、トップ画面と履歴の画面で選んだ値を共有する。 */
   readonly id: string;
-  /** 表示名（例: 「速さ」）。 */
-  readonly label: string;
+  /** 表示名（日本語と英語。例: 「速さ」・`Speed`）。 */
+  readonly label: Localized;
   /** 選べる値。並び順に表示する。 */
   readonly choices: readonly ModeOptionChoice[];
   /** 開いたときに選んでいる値の id。choices のどれか。 */
@@ -77,9 +80,9 @@ export type ModeResult = Readonly<Record<string, unknown>>;
 export interface MetricSpec {
   /** 保存の項目名（自己ベストと履歴の 1 件の項目）。`version`・`achievedAt`・`at` は使えない。 */
   readonly id: string;
-  /** 表示名（例: 「命中数」）。 */
+  /** 表示名（例: 「命中数」）。今の表示の言語の文言で、辞書（src/ui/messages/）から読む。 */
   readonly label: string;
-  /** 図の軸に添える単位（例: `°`。ないときは空文字）。 */
+  /** 図の軸に添える単位（例: `°`。ないときは空文字）。今の表示の言語のもの。 */
   readonly unit: string;
   /** 値の書き方（例: `13`、`0.85°`）。リザルト画面・履歴・セットのまとめ・シェアの文で同じ書き方にする。 */
   format(value: number): string;
@@ -120,7 +123,7 @@ export interface ModeScore {
   readonly value: number | null;
   /** リザルト画面に出す指標の行。 */
   readonly metrics: readonly ScoreRow[];
-  /** リザルト画面と短いリザルトに出すコメント。 */
+  /** リザルト画面と短いリザルトに出すコメント（今の表示の言語の文言）。 */
   readonly comments?: readonly string[];
   /** 自己ベストと履歴の 1 件に、比べる指標と一緒に保存する指標（項目名 → 値）。 */
   readonly fields?: Readonly<Record<string, number>>;
@@ -148,9 +151,10 @@ export interface ModeScoring {
  */
 export interface TrainingMode<TResult extends ModeResult = ModeResult> {
   readonly id: string;
-  readonly name: string;
-  /** トップ画面のモードのカードに出すひとこと説明（1 文、docs/spec/modes.md「モードの登録」）。 */
-  readonly description: string;
+  /** 表示名（日本語と英語、docs/spec/modes.md「モードの登録」）。 */
+  readonly name: Localized;
+  /** トップ画面のモードのカードに出すひとこと説明（1 文、日本語と英語、docs/spec/modes.md「モードの登録」）。 */
+  readonly description: Localized;
   /** トップ画面のモードのカードのアイコンの形。 */
   readonly icon: ModeIcon;
   readonly category: ModeCategory;
@@ -233,7 +237,7 @@ export function modeOptionChoices(
   return (mode.options ?? []).map((option) => {
     const id = given[option.id];
     const choice = option.choices.find((c) => c.id === id) ?? option.choices.find((c) => c.id === option.defaultChoice) ?? option.choices[0];
-    if (!choice) throw new Error(`練習の選択肢 ${option.id} に値がない`);
+    if (!choice) throw new Error(`practice option ${option.id} has no choices`);
     return { option, choice };
   });
 }

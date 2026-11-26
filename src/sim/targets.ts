@@ -102,7 +102,7 @@ export class PracticeTargets {
    * 同じ識別子の的があれば投げる。
    */
   add(spec: PracticeTargetSpec): void {
-    if (this.entries.some((e) => e.state.id === spec.id)) throw new Error(`練習の的の識別子 "${spec.id}" が重なっている`);
+    if (this.entries.some((e) => e.state.id === spec.id)) throw new Error(`practice target id "${spec.id}" is a duplicate`);
     const center = positionAt(spec, this.time);
     const appearAt = spec.appearAt ?? 0;
     const disappearAt = spec.disappearAt;

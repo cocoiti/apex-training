@@ -1,6 +1,5 @@
 import {
   isStandardMapping,
-  PAD_MISSING_MESSAGE,
   padDisplayName,
   STANDARD_PAD_LAYOUT,
   type DetectedGamepadLike,
@@ -8,6 +7,7 @@ import {
   type PadLayout,
   type PadStatus,
 } from '../input/pad-layout';
+import { t } from './i18n';
 
 /**
  * キャリブレーション画面の表示（docs/spec/pad.md「パッドの一覧」「キャリブレーション」）。
@@ -35,15 +35,15 @@ export function padListRows<P extends DetectedGamepadLike>(
     .sort((a, b) => a.index - b.index)
     .map((pad) => {
       const standard = isStandardMapping(pad);
-      const mapped = standard ? '—' : mappings(pad.id) ? '済み' : 'なし';
+      const mapped = standard ? '—' : mappings(pad.id) ? t('calibration.mapped') : t('none');
       return [
         String(pad.index),
         padDisplayName(pad.id),
-        pad.mapping === '' ? '（空）' : pad.mapping,
-        standard ? 'はい' : 'いいえ',
+        pad.mapping === '' ? t('calibration.emptyMapping') : pad.mapping,
+        standard ? t('calibration.yes') : t('calibration.no'),
         mapped,
-        pad.connected ? 'はい' : 'いいえ',
-        pad.index === using ? '使用中' : '',
+        pad.connected ? t('calibration.yes') : t('calibration.no'),
+        pad.index === using ? t('calibration.using') : '',
       ] as const;
     });
 }
@@ -64,8 +64,8 @@ export function formatPadValue(value: number): string {
 /** 対象のパッドのすべての軸とボタンの値の表示。 */
 export function padValueTexts(pad: Pick<CalibrationGamepad, 'axes' | 'buttons'>): { axes: string[]; buttons: string[] } {
   return {
-    axes: pad.axes.map((value, index) => `軸 ${index}: ${formatPadValue(value)}`),
-    buttons: pad.buttons.map((button, index) => `ボタン ${index}: ${formatPadValue(button.value)}`),
+    axes: pad.axes.map((value, index) => t('calibration.axisValue', { index, value: formatPadValue(value) })),
+    buttons: pad.buttons.map((button, index) => t('calibration.buttonValue', { index, value: formatPadValue(button.value) })),
   };
 }
 
@@ -153,7 +153,7 @@ export function renderCalibration<P extends CalibrationGamepad>(
   const rows = padListRows(pads, status, mappings);
   elements.table.hidden = rows.length === 0;
   elements.empty.hidden = rows.length > 0;
-  elements.empty.textContent = PAD_MISSING_MESSAGE;
+  elements.empty.textContent = t('pad.missing');
   renderRows(elements.list, rows);
   if (elements.status.textContent !== statusText) elements.status.textContent = statusText;
 

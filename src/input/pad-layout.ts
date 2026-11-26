@@ -1,3 +1,5 @@
+import { t } from '../ui/i18n';
+
 /**
  * パッドの配置（どのボタン・軸を fire・ads・look に使うか）と、入力に使うパッドの選び方（docs/spec/pad.md
  * 「接続と配置」「入力に使うパッド」「ボタン割り当て」）。DOM と保存には頼らない。保存は src/ui/pad-mappings.ts。
@@ -72,12 +74,6 @@ export function choosePad<P extends DetectedGamepadLike>(pads: readonly (P | nul
   return first ? { kind: 'nonstandard', pad: first } : { kind: 'missing' };
 }
 
-/** 状態の文言。 */
-export const PAD_MISSING_MESSAGE = 'パッドが見つかりません。パッドのボタンを押してください';
-export const PAD_NONSTANDARD_MESSAGE = '標準配置でないパッドです（ボタン割り当てが必要）';
-
-/** パッドの名前が分からないときの表示。 */
-export const UNKNOWN_PAD_NAME = 'パッド';
 
 /** HUD に出すパッドの名前の最大の文字数。 */
 export const HUD_PAD_NAME_LENGTH = 32;
@@ -93,7 +89,7 @@ export function padName(id: string | undefined): string | undefined {
  */
 export function padDisplayName(id: string | undefined, short = false): string {
   const name = padName(id);
-  if (name === undefined) return UNKNOWN_PAD_NAME;
+  if (name === undefined) return t('pad.unknownName');
   return short ? shortPadName(name) : name;
 }
 
@@ -113,9 +109,9 @@ export function padStatusText(status: PadStatus<Pick<DetectedGamepadLike, 'id'>>
     case 'using':
       return name(status.pad.id);
     case 'missing':
-      return PAD_MISSING_MESSAGE;
+      return t('pad.missing');
     case 'nonstandard':
-      return `${PAD_NONSTANDARD_MESSAGE}: ${name(status.pad.id)}`;
+      return t('pad.nonstandardWithName', { name: name(status.pad.id) });
   }
 }
 

@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { formatMetric } from './mode-scoring';
 import type { ResultView } from './result-view';
 
@@ -27,10 +28,10 @@ export function roundResultTexts(
 ): RoundResultTexts {
   const comments = view.comments.join(' / ');
   return {
-    round: `${round} / ${count} 回目`,
+    round: t('play.roundIndex', { round, count }),
     score: `${view.metric.label} ${formatMetric(view.metric, view.value)}${comments ? ` — ${comments}` : ''}`,
-    best: view.bestUpdated ? '自己ベスト更新' : '',
-    countdown: `次の回まで ${countdownSeconds(remaining)} 秒`,
+    best: view.bestUpdated ? t('best.updated') : '',
+    countdown: t('play.countdown', { seconds: countdownSeconds(remaining) }),
   };
 }
 

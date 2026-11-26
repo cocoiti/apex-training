@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Action } from '../../src/input/actions';
-import { INPUT_METHOD_LABELS, InputSwitch, type InputPreference } from '../../src/input/input-switch';
+import { inputMethodLabel, InputSwitch, type InputPreference } from '../../src/input/input-switch';
 
 function setup(initial: InputPreference = 'auto') {
   let preference = initial;
@@ -59,7 +59,7 @@ describe('今の入力方式', () => {
   });
 
   it('HUD の文字はマウス・パッド', () => {
-    expect(INPUT_METHOD_LABELS).toEqual({ mouse: 'マウス', pad: 'パッド' });
+    expect([inputMethodLabel('mouse'), inputMethodLabel('pad')]).toEqual(['マウス', 'パッド']);
   });
 });
 

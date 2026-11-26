@@ -10,6 +10,7 @@ import {
   type HistorySelection,
   type StoredEntry,
 } from './practice-history';
+import { t } from './i18n';
 import { escapeHtml } from './result-plot';
 import type { SafeStorage } from './storage';
 import {
@@ -21,20 +22,8 @@ import {
   type WeakSectionSummary,
 } from './weak-section';
 
-/** 入力方式の選択肢。 */
-export const INPUT_METHODS: readonly { readonly id: InputMethod; readonly name: string }[] = [
-  { id: 'mouse', name: 'マウス' },
-  { id: 'pad', name: 'パッド' },
-];
-
-/** 履歴がない組の表示。 */
-export const HISTORY_EMPTY_MESSAGE = 'まだ履歴がありません';
-
-/** 保存できない環境で履歴の画面に出す文言。 */
-export const HISTORY_UNAVAILABLE_MESSAGE = 'この環境では履歴を保存できません。ページを開いているあいだの練習だけが表示されます。';
-
-/** 「この履歴を消す」の確認の文言。 */
-export const HISTORY_CLEAR_CONFIRM = '選んでいる武器・モード・入力方式の履歴を消します。よろしいですか？';
+/** 入力方式の選択肢の id（名前は index.html の選択肢が辞書から出す）。 */
+export const HISTORY_INPUT_METHODS: readonly InputMethod[] = ['mouse', 'pad'];
 
 /**
  * 開いたときに選ぶ組（docs/spec/screens.md「履歴の画面」）。このページで最後に終えた練習があり、その武器（武器を使わないモードの練習なら
@@ -115,7 +104,7 @@ export function historyPlotHtml(entries: readonly StoredEntry[], metric: Compare
     .map((p, i) => `<circle cx="${num(p.x)}" cy="${num(p.y)}" r="3" data-round="${i + 1}" data-value="${values[i] ?? 0}" />`)
     .join('');
   parts.push(`<g class="plot-series plot-history" data-series="history" data-count="${points.length}" data-metric="${escapeHtml(metric.id)}">${dots}</g>`);
-  const title = escapeHtml(`${metric.label}の推移`);
+  const title = escapeHtml(t('plot.trend', { metric: metric.label }));
   return (
     `<figure class="plot plot-wide" data-plot="history">` +
     `<figcaption>${title}</figcaption>` +
@@ -154,7 +143,7 @@ export function historyListHtml(
     )
     .join('');
   const heads = fields.map((f) => `<th>${escapeHtml(f.label)}</th>`).join('');
-  return `<table class="history-table"><thead><tr><th>回</th><th>終えた日時</th>${heads}</tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table class="history-table"><thead><tr><th>${escapeHtml(t('history.round'))}</th><th>${escapeHtml(t('history.finishedAt'))}</th>${heads}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 /** 3 つの平均の HTML（dl の中身）。比べる指標（既定は平均ズレ）の値の平均。 */
@@ -162,9 +151,9 @@ export function historyAveragesHtml(entries: readonly StoredEntry[], now: Date, 
   const averages = historyAverages(entries, now, metric);
   return (
     [
-      ['今日の平均', averages.today],
-      ['直近 10 回の平均', averages.recent],
-      ['全体の平均', averages.overall],
+      [t('history.today'), averages.today],
+      [t('history.recent'), averages.recent],
+      [t('history.overall'), averages.overall],
     ] as const
   )
     .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(formatMetric(metric, value))}</dd>`)
@@ -173,12 +162,12 @@ export function historyAveragesHtml(entries: readonly StoredEntry[], now: Date, 
 
 /** 発の区間の記録がある件が 5 件に満たないときの文言（n は持つ件の数）。 */
 export function weakSectionPendingMessage(runs: number): string {
-  return `苦手な区間は、発の区間の記録がある練習を ${WEAK_SECTION_RUNS} 回終えると表示されます（今 ${runs} 回）`;
+  return t('weak.pending', { required: WEAK_SECTION_RUNS, runs });
 }
 
 /** 図の上の 1 行。 */
 export function weakSectionLine(summary: Pick<WeakSectionSummary, 'weak'>): string {
-  return `苦手な区間: ${summary.weak ? weakSectionText(summary.weak) : 'なし'}`;
+  return t('weak.line', { text: summary.weak ? weakSectionText(summary.weak) : t('none') });
 }
 
 /** 発の区間ごとのズレの図の大きさ（SVG の座標）。 */
@@ -214,13 +203,13 @@ export function weakSectionPlotHtml(sections: readonly SectionAverage[], weakSta
       `<text class="plot-tick" x="${num(cx)}" y="${num(y - 4)}" text-anchor="middle">${escapeHtml(s.meanError.toFixed(2))}</text>`,
     );
     if (weak) {
-      parts.push(`<text class="plot-section-mark" x="${num(cx)}" y="${num(y - 16)}" text-anchor="middle" data-mark="weak">苦手</text>`);
+      parts.push(`<text class="plot-section-mark" x="${num(cx)}" y="${num(y - 16)}" text-anchor="middle" data-mark="weak">${escapeHtml(t('weak.mark'))}</text>`);
     }
   });
   return (
     `<figure class="plot plot-wide" data-plot="sections">` +
-    `<figcaption>発の区間ごとのズレ（直近 ${WEAK_SECTION_RUNS} 回）</figcaption>` +
-    `<svg viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="発の区間ごとのズレ" data-count="${sections.length}">${parts.join('')}</svg>` +
+    `<figcaption>${escapeHtml(t('weak.plotTitle', { runs: WEAK_SECTION_RUNS }))}</figcaption>` +
+    `<svg viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="${escapeHtml(t('weak.plot'))}" data-count="${sections.length}">${parts.join('')}</svg>` +
     `</figure>`
   );
 }
@@ -309,7 +298,7 @@ export interface HistoryView {
   open(selection: HistorySelection): void;
 }
 
-const INPUT_IDS: readonly string[] = INPUT_METHODS.map((m) => m.id);
+const INPUT_IDS: readonly string[] = HISTORY_INPUT_METHODS;
 
 /**
  * 履歴の画面を動かす（docs/spec/screens.md「履歴の画面」）。選び直すとその組の表示に変え、
@@ -346,13 +335,13 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
     // 発の区間ごとのズレの図と苦手な区間は、苦手な区間を使うモード（反復練習）だけで出す。
     elements.weak.innerHTML = modeUsesWeakSections(current) ? weakSectionHtml(entries as HistoryEntry[]) : '';
     elements.list.innerHTML = historyListHtml(entries, metric, historyColumns(current));
-    elements.empty.textContent = HISTORY_EMPTY_MESSAGE;
+    elements.empty.textContent = t('history.empty');
     elements.empty.hidden = entries.length > 0;
     elements.clear.disabled = entries.length === 0;
   };
 
   const showConfirm = (shown: boolean) => {
-    elements.confirm.message.textContent = HISTORY_CLEAR_CONFIRM;
+    elements.confirm.message.textContent = t('history.clearConfirm');
     elements.confirm.root.hidden = !shown;
     elements.body.inert = shown;
   };
@@ -371,7 +360,7 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
   });
   elements.confirm.cancel.addEventListener('click', () => showConfirm(false));
   options.storage.onUnavailable(() => {
-    elements.unavailable.textContent = HISTORY_UNAVAILABLE_MESSAGE;
+    elements.unavailable.textContent = t('history.unavailable');
     elements.unavailable.hidden = false;
   });
 

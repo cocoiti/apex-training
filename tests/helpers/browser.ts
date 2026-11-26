@@ -294,9 +294,21 @@ export class Page {
   }
 }
 
+/** 新しいタブを開くときの指定。 */
+export interface NewPageOptions {
+  /**
+   * ページから見えるブラウザの言語（navigator.language・navigator.languages）。既定は `ja-JP`（表示の言語が日本語になる。
+   * docs/spec/screens.md「最初の言語」）。英語の表示を確かめるテストは `en-US` などを渡す。
+   */
+  readonly language?: string;
+}
+
+/** 既定のブラウザの言語。日本語の文言を確かめるテストが、Chromium の言語の設定によらず日本語で開けるようにする。 */
+export const DEFAULT_PAGE_LANGUAGE = 'ja-JP';
+
 export interface Browser {
   /** このブラウザで新しいタブを開く。テストごとに開き、ブラウザは起動し直さない（ARC-26）。 */
-  newPage(): Promise<Page>;
+  newPage(options?: NewPageOptions): Promise<Page>;
   /** これまでに開いたタブをすべて閉じる。テストが終わるたびに呼び、裏で描画し続けるタブを残さない。 */
   closePages(): Promise<void>;
   close(): Promise<void>;
@@ -361,7 +373,7 @@ export async function launchBrowser(executable: string): Promise<Browser> {
   }
   const opened: { id: string; socket: WebSocket }[] = [];
   return {
-    async newPage() {
+    async newPage({ language = DEFAULT_PAGE_LANGUAGE }: NewPageOptions = {}) {
       const res = await fetch(`${endpoint}/json/new?about:blank`, { method: 'PUT' });
       const target = (await res.json()) as { id: string; webSocketDebuggerUrl: string };
       const socket = new WebSocket(target.webSocketDebuggerUrl);
@@ -375,6 +387,11 @@ export async function launchBrowser(executable: string): Promise<Browser> {
       await page.send('Page.enable');
       await page.send('Page.bringToFront');
       await page.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+      // ページのスクリプトより先に、ブラウザの言語を決まった値にする（Chromium の起動した環境の言語によらない）。
+      await page.addInitScript(
+        `Object.defineProperty(Navigator.prototype, 'language', { configurable: true, get: () => ${JSON.stringify(language)} });` +
+          `Object.defineProperty(Navigator.prototype, 'languages', { configurable: true, get: () => [${JSON.stringify(language)}] });`,
+      );
       return page;
     },
     async closePages() {

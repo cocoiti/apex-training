@@ -1,6 +1,7 @@
 import type { ShotRecord } from '../sim/gun';
-import { simplePattern, type SimplePattern, type SimpleSegment } from '../sim/simple-pattern';
+import { simplePattern, type SegmentDirection, type SimplePattern, type SimpleSegment } from '../sim/simple-pattern';
 import { fireInterval, type WeaponData } from '../sim/weapon';
+import { t } from './i18n';
 
 /**
  * 簡易版のパターンの区切りごとの向きの音（docs/spec/screens.md「音」）。音はすべて Web Audio でその場で合成し、音声のファイルは使わない。
@@ -20,17 +21,17 @@ const LEFT = 330;
 const CENTER = 440;
 const RIGHT = 660;
 
-/** 9 つの向き（簡易版の区切りの向きの名前）の音。高さと波形の組はすべて異なる。 */
-export const DIRECTION_TONES: Readonly<Record<string, DirectionTone>> = {
-  左上: { frequency: LEFT, wave: 'square' },
-  上: { frequency: CENTER, wave: 'square' },
-  右上: { frequency: RIGHT, wave: 'square' },
-  左: { frequency: LEFT, wave: 'triangle' },
-  動かさない: { frequency: CENTER, wave: 'triangle' },
-  右: { frequency: RIGHT, wave: 'triangle' },
-  左下: { frequency: LEFT, wave: 'sine' },
-  下: { frequency: CENTER, wave: 'sine' },
-  右下: { frequency: RIGHT, wave: 'sine' },
+/** 9 つの向き（簡易版の区切りの向き）の音。高さと波形の組はすべて異なる。 */
+export const DIRECTION_TONES: Readonly<Record<SegmentDirection, DirectionTone>> = {
+  'up-left': { frequency: LEFT, wave: 'square' },
+  up: { frequency: CENTER, wave: 'square' },
+  'up-right': { frequency: RIGHT, wave: 'square' },
+  left: { frequency: LEFT, wave: 'triangle' },
+  still: { frequency: CENTER, wave: 'triangle' },
+  right: { frequency: RIGHT, wave: 'triangle' },
+  'down-left': { frequency: LEFT, wave: 'sine' },
+  down: { frequency: CENTER, wave: 'sine' },
+  'down-right': { frequency: RIGHT, wave: 'sine' },
 };
 
 /** 1 つの音の長さ（秒）。 */
@@ -42,8 +43,8 @@ export const MAX_TONE_GAIN = 0.3;
 
 /** 音を鳴らさない理由。鳴らせるときは undefined（docs/spec/screens.md「音」の「鳴らさないとき」）。 */
 export function soundBlockedReason(settings: { readonly sound: boolean; readonly volume: number }): string | undefined {
-  if (!settings.sound) return '設定で音が OFF です';
-  if (settings.volume <= 0) return '設定の音量が 0 です';
+  if (!settings.sound) return t('sound.off');
+  if (settings.volume <= 0) return t('sound.zeroVolume');
   return undefined;
 }
 
@@ -62,7 +63,7 @@ export class ShotSounds {
 
   constructor(
     private readonly pattern: Pick<SimplePattern, 'segments'>,
-    private readonly play: ((direction: string) => void) | undefined,
+    private readonly play: ((direction: SegmentDirection) => void) | undefined,
   ) {}
 
   sync(shots: readonly Pick<ShotRecord, 'patternShot'>[]): void {
@@ -77,7 +78,7 @@ export class ShotSounds {
 /** 試聴で鳴らす 1 つの音。time は押してからの秒。 */
 export interface PreviewCue {
   readonly time: number;
-  readonly direction: string;
+  readonly direction: SegmentDirection;
 }
 
 /** 試聴の音の並び。a 発目〜b 発目の区切りの音を a × 発射間隔 の時刻に鳴らす（fire を押し続けて撃ったときと同じ間隔）。 */
@@ -107,7 +108,7 @@ export interface PreviewOutput {
   /** 音の時計（AudioContext.currentTime）の今の時刻（秒）。音を鳴らせないあいだは undefined。 */
   now(): number | undefined;
   /** direction の向きの音を、音の時計の when 秒に鳴らすよう予約する。鳴らせないときは undefined。 */
-  schedule(direction: string, when: number): ScheduledTone | undefined;
+  schedule(direction: SegmentDirection, when: number): ScheduledTone | undefined;
 }
 
 /**
@@ -253,7 +254,7 @@ export class DirectionSound {
   }
 
   /** direction の向きの音を、音量 volume（0〜100）に比例した大きさで今すぐ 1 回鳴らす。 */
-  play(direction: string, volume: number): void {
+  play(direction: SegmentDirection, volume: number): void {
     this.schedule(direction, volume);
   }
 
@@ -261,8 +262,8 @@ export class DirectionSound {
    * direction の向きの音を、音量 volume（0〜100）に比例した大きさで、音の時計の when 秒（省略時は今）に 1 回鳴らす。
    * 鳴らせないときは undefined を返す。
    */
-  schedule(direction: string, volume: number, when?: number): ScheduledTone | undefined {
-    const tone = DIRECTION_TONES[direction];
+  schedule(direction: SegmentDirection, volume: number, when?: number): ScheduledTone | undefined {
+    const tone = DIRECTION_TONES[direction] as DirectionTone | undefined;
     const context = this.context;
     if (!tone || !context || context.state !== 'running' || volume <= 0) return undefined;
     try {

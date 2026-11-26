@@ -3,10 +3,11 @@ import { padDisplayName } from '../input/pad-layout';
 import type { InputRecording } from '../input/recording';
 import type { PracticeResult } from '../modes/session';
 import { modeUsesWeakSections, type CompareMetric } from '../modes/types';
-import { scoreShots, shotDeviations, targetRadius, type ScoreResult } from '../sim/scoring';
+import { scoreShots, shotDeviations, targetRadius, type ScoreComment, type ScoreResult } from '../sim/scoring';
 import { aimAtShots, lookRateTrace } from '../sim/trajectory';
 import { idealCorrection } from '../sim/weapon';
 import type { World } from '../sim/world';
+import { localize, t, type MessageKey } from './i18n';
 import { compareMetric, formatMetric, NO_WEAPON_ID, SHOT_DEVIATION_METRIC } from './mode-scoring';
 import {
   personalBestKey,
@@ -73,35 +74,48 @@ export interface ResultView {
   readonly weakSection: string | null;
 }
 
-/** リザルト画面の苦手な区間の行の見出し。 */
-export const WEAK_SECTION_LABEL = 'この武器の苦手な区間';
+const COMMENT_KEYS: Readonly<Record<ScoreComment, MessageKey>> = {
+  'over-pull': 'comment.overPull',
+  'under-pull': 'comment.underPull',
+  horizontal: 'comment.horizontal',
+  grouped: 'comment.grouped',
+};
+
+/** 採点のコメントの言葉（例: 「下げすぎ」、英語は `Pulling down too much`）。 */
+export function commentText(comment: ScoreComment): string {
+  return t(COMMENT_KEYS[comment]);
+}
 
 export function formatDegrees(value: number | null): string {
-  return value === null ? 'なし' : `${value.toFixed(2)}°`;
+  return value === null ? t('none') : `${value.toFixed(2)}°`;
 }
 
 export function formatPercent(value: number | null): string {
-  return value === null ? 'なし' : `${value.toFixed(1)}%`;
+  return value === null ? t('none') : `${value.toFixed(1)}%`;
 }
 
 export function formatRatio(value: number | null): string {
-  return value === null ? 'なし' : value.toFixed(2);
+  return value === null ? t('none') : value.toFixed(2);
 }
 
 /** 指標の行（docs/spec/scoring.md「指標」の順）。「なし」の指標は「なし」と表示する。 */
 export function metricRows(result: ScoreResult): MetricRow[] {
   const [first, middle, last] = result.segments;
   return [
-    { label: '平均ズレ', value: formatDegrees(result.meanDeviation) },
-    { label: 'グルーピング半径', value: formatDegrees(result.groupingRadius) },
-    { label: '命中率', value: formatPercent(result.hitRate) },
+    { label: t('metric.meanError'), value: formatDegrees(result.meanDeviation) },
+    { label: t('metric.groupingRadius'), value: formatDegrees(result.groupingRadius) },
+    { label: t('metric.hitRate'), value: formatPercent(result.hitRate) },
     {
-      label: '区間ごとのズレ',
-      value: `前半 ${formatDegrees(first)} / 中盤 ${formatDegrees(middle)} / 後半 ${formatDegrees(last)}`,
+      label: t('metric.segments'),
+      value: t('metric.segmentsValue', { first: formatDegrees(first), middle: formatDegrees(middle), last: formatDegrees(last) }),
     },
     {
-      label: '横ブレ / 縦ブレ',
-      value: `${formatDegrees(result.horizontalSpread)} / ${formatDegrees(result.verticalSpread)}（比 ${formatRatio(result.spreadRatio)}）`,
+      label: t('metric.spread'),
+      value: t('metric.spreadValue', {
+        horizontal: formatDegrees(result.horizontalSpread),
+        vertical: formatDegrees(result.verticalSpread),
+        ratio: formatRatio(result.spreadRatio),
+      }),
     },
   ];
 }
@@ -111,9 +125,9 @@ export function metricRows(result: ScoreResult): MetricRow[] {
  * outcome は弾痕のズレの採点の結果（best を持つ）か、比べる指標の値（value を持つ）。
  */
 export function personalBestText(outcome: PersonalBestOutcome | BestOutcome, metric: CompareMetric = SHOT_DEVIATION_METRIC): string {
-  if (outcome.updated) return '自己ベスト更新';
+  if (outcome.updated) return t('best.updated');
   const value = 'value' in outcome ? outcome.value : (outcome.best?.meanError ?? null);
-  return `自己ベスト ${metric.label} ${formatMetric(metric, value)}`;
+  return t('best.saved', { metric: metric.label, value: formatMetric(metric, value) });
 }
 
 /**
@@ -136,14 +150,14 @@ export function padTraceView(
     name,
     title,
     series: [
-      { name: 'ideal', label: '理想', points: trace.map((p) => ({ time: p.time, value: p.ideal[axis] })) },
-      { name: 'stick', label: '自分', points: trace.map((p) => ({ time: p.time, value: p.stick[axis] })) },
+      { name: 'ideal', label: t('result.ideal'), points: trace.map((p) => ({ time: p.time, value: p.ideal[axis] })) },
+      { name: 'stick', label: t('result.own'), points: trace.map((p) => ({ time: p.time, value: p.stick[axis] })) },
     ],
   });
   const name = padDisplayName(practice.result.padName);
   return {
-    title: `右スティックの入力推移（${name}）`,
-    plots: [plot('stick-x', '左右（右が正、%）', 'x'), plot('stick-y', '上下（上が正、%）', 'y')],
+    title: t('result.padTrace', { name }),
+    plots: [plot('stick-x', t('result.padTraceX'), 'x'), plot('stick-y', t('result.padTraceY'), 'y')],
   };
 }
 
@@ -178,7 +192,7 @@ export function completePractice(
   const outcome = recordBest(storage, personalBestKey(selection.input, selection.weaponId, selection.modeId, selection.options), metric, candidate, now);
   recordHistoryEntry(storage, selection, metric, candidate, now);
   // 練習の選択肢を持つモードは、選んだ値（速さ、出る範囲と的の大きさ）も指標の行に並べる（docs/spec/scoring.md「追いエイムの採点」「フリックの採点」）。
-  const option = result.options.map((o) => ({ label: o.label, value: o.name }));
+  const option = result.options.map((o) => ({ label: localize(o.label), value: localize(o.name) }));
   return {
     summary: resultSummaryText(result),
     metrics: [...scored.metrics, ...option],
@@ -200,7 +214,7 @@ function completeShotDeviation(practice: FinishedPractice, storage: Pick<SafeSto
   const { result, world } = practice;
   const summary = resultSummaryText(result);
   const deviations = shotDeviations(result.shots, world.center);
-  const shotSeries = { name: 'shots', label: '弾痕', kind: 'points', points: deviations } as const;
+  const shotSeries = { name: 'shots', label: t('result.shots'), kind: 'points', points: deviations } as const;
 
   const radius = targetRadius(world);
   const scored = scoreShots(result.shots, world, radius);
@@ -217,22 +231,22 @@ function completeShotDeviation(practice: FinishedPractice, storage: Pick<SafeSto
   return {
     summary,
     metrics: metricRows(scored),
-    comments: scored.comments,
+    comments: scored.comments.map(commentText),
     best: personalBestText(outcome),
     metric: SHOT_DEVIATION_METRIC,
     value: scored.meanDeviation,
     shareScore: shotDeviationShareScore(scored.meanDeviation, scored.hitRate),
     bestUpdated: outcome.updated,
     padTrace: result.inputMethod === 'pad' && weapon ? padTraceView(practice) : null,
-    weakSection: weak ? `${WEAK_SECTION_LABEL}: ${weakSectionText(weak)}` : null,
+    weakSection: weak ? t('result.weakSection', { text: weakSectionText(weak) }) : null,
     plots: [
-      { name: 'scatter', title: '弾痕の散布図', series: [shotSeries], circle: radius },
+      { name: 'scatter', title: t('result.scatter'), series: [shotSeries], circle: radius },
       {
         name: 'trajectory',
-        title: '照準の軌道',
+        title: t('result.trajectory'),
         series: [
-          { name: 'ideal', label: '理想の軌道', kind: 'line', points: ideal },
-          { name: 'aim', label: '自分の照準', kind: 'line', points: aim },
+          { name: 'ideal', label: t('result.idealPath'), kind: 'line', points: ideal },
+          { name: 'aim', label: t('result.ownAim'), kind: 'line', points: aim },
         ],
       },
     ],

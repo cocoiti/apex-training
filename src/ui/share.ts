@@ -1,6 +1,7 @@
 import type { PracticeResult, PracticeResultOption } from '../modes/session';
 import type { CompareMetric } from '../modes/types';
 import type { WeaponData } from '../sim/weapon';
+import { localize, t } from './i18n';
 import { formatMetric, HIT_RATE_METRIC, SHOT_DEVIATION_METRIC } from './mode-scoring';
 import type { ResultView } from './result-view';
 import { optionText } from './result-summary';
@@ -14,9 +15,6 @@ import type { SetSummary } from './set-summary';
 
 /** シェアの文に入れる公開 URL。開いている URL（開発サーバーなど）によらず、公開先を書く。 */
 export const PUBLIC_URL = 'https://cocoiti.github.io/apex-training/';
-
-const APP_NAME = 'Hyper Aim Training（非公式ファンツール）';
-const BEST_UPDATED = '自己ベスト更新！';
 
 /** リザルト画面（回数 1）のシェアの文に入れるもの。 */
 export interface ResultShare {
@@ -63,23 +61,23 @@ export function metricShareScore(metric: Pick<CompareMetric, 'label' | 'format'>
  * （docs/spec/screens.md「シェアの文」）。
  */
 function choiceLine(weaponName: string | undefined, modeName: string, option: string | undefined): string {
-  const choice = weaponName === undefined ? `モード: ${modeName}` : `武器: ${weaponName} / モード: ${modeName}`;
+  const choice = weaponName === undefined ? t('share.mode', { mode: modeName }) : t('share.weaponMode', { weapon: weaponName, mode: modeName });
   return option === undefined ? choice : `${choice} / ${option}`;
 }
 
 function lines(title: string, share: Pick<ResultShare, 'weaponName' | 'modeName' | 'option' | 'bestUpdated'>, score: string): string {
-  return [title, choiceLine(share.weaponName, share.modeName, share.option), score, ...(share.bestUpdated ? [BEST_UPDATED] : []), PUBLIC_URL].join('\n');
+  return [title, choiceLine(share.weaponName, share.modeName, share.option), score, ...(share.bestUpdated ? [t('share.bestUpdated')] : []), PUBLIC_URL].join('\n');
 }
 
-/** リザルト画面のシェアの文。数の書き方はリザルト画面の表示と同じ。 */
+/** リザルト画面のシェアの文。数の書き方はリザルト画面の表示と同じ。文は今の表示の言語で書く（docs/spec/screens.md「表示の言語」）。 */
 export function resultShareText(share: ResultShare): string {
-  return lines(`${APP_NAME}の結果`, share, share.score);
+  return lines(t('share.resultTitle'), share, share.score);
 }
 
 /** セットのまとめのシェアの文。 */
 export function setShareText(share: SetShare): string {
-  const score = `回数: ${share.rounds} / ${share.count} 回 / ${share.average}`;
-  return lines(`${APP_NAME}のセットの結果`, share, score);
+  const score = t('share.setScore', { rounds: share.rounds, count: share.count, average: share.average });
+  return lines(t('share.setTitle'), share, score);
 }
 
 /** リザルト画面の練習の結果と表示から、シェアの文に入れるものを取り出す。 */
@@ -91,7 +89,7 @@ export function resultShare(
   },
   view: Pick<ResultView, 'shareScore' | 'bestUpdated'>,
 ): ResultShare {
-  return { weaponName: result.weapon?.name, modeName: result.mode.name, option: optionText(result.options), score: view.shareScore, bestUpdated: view.bestUpdated };
+  return { weaponName: result.weapon?.name, modeName: localize(result.mode.name), option: optionText(result.options), score: view.shareScore, bestUpdated: view.bestUpdated };
 }
 
 /**
@@ -100,8 +98,8 @@ export function resultShare(
  */
 export function setAverageShareText(summary: Pick<SetSummary, 'metric' | 'average'>): string {
   const { metric } = summary;
-  const label = metric === SHOT_DEVIATION_METRIC ? '平均ズレ' : (metric.averageLabel ?? `平均${metric.label}`);
-  return `セットの${label}: ${formatMetric(summary.metric, summary.average)}`;
+  const label = metric === SHOT_DEVIATION_METRIC ? t('metric.meanErrorAverage') : (metric.averageLabel ?? t('metric.average', { metric: metric.label }));
+  return t('share.setAverage', { metric: label, value: formatMetric(summary.metric, summary.average) });
 }
 
 /**
@@ -180,9 +178,6 @@ export function browserShareTarget(nav: Navigator = navigator): ShareTarget {
   };
 }
 
-export const COPIED_MESSAGE = 'コピーしました';
-export const COPY_FAILED_MESSAGE = 'コピーできませんでした。下の文を選んでコピーしてください。';
-
 /** 結果のシェアの要素。index.html の #result-share-* と #set-share-* の要素。 */
 export interface ShareElements {
   /** 「X に投稿」のリンク。 */
@@ -225,7 +220,7 @@ export class ShareControl {
   private show(outcome: ShareOutcome | undefined): void {
     const { message, fallback } = this.elements;
     // 共有の画面を閉じて取りやめたとき（aborted）とシェアしたときは、メッセージを出さない。
-    const text = outcome === 'copied' ? COPIED_MESSAGE : outcome === 'failed' ? COPY_FAILED_MESSAGE : '';
+    const text = outcome === 'copied' ? t('share.copied') : outcome === 'failed' ? t('share.copyFailed') : '';
     message.textContent = text;
     message.hidden = text === '';
     fallback.value = outcome === 'failed' ? this.text : '';

@@ -17,7 +17,7 @@ export type FetchJson = (url: string) => Promise<unknown>;
 
 async function fetchJson(url: string): Promise<unknown> {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`取得できない（${response.status}）`);
+  if (!response.ok) throw new Error(`can't fetch (${response.status})`);
   return response.json();
 }
 
@@ -25,7 +25,7 @@ async function fetchJson(url: string): Promise<unknown> {
 export function reportRejectedWeapons(rejected: readonly RejectedWeapon[], log: (message: string) => void = console.error): void {
   for (const { file, errors } of rejected) {
     const detail = errors.map((e) => (e.path ? `${e.path}: ${e.message}` : e.message)).join(' / ');
-    log(`武器のデータ ${file} を読み込めないので一覧から外す: ${detail}`);
+    log(`weapon data ${file} can't be loaded, so it is left out of the list: ${detail}`);
   }
 }
 

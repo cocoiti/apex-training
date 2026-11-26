@@ -7,8 +7,8 @@ describe('fillModeSelect', () => {
   it('モードを渡した順に option にし、最初のモードを選ぶ', () => {
     const { select, element } = createFakeSelect();
     fillModeSelect(select, [
-      { id: 'new', name: '新しいモード' },
-      { id: 'ghost', name: '反復練習' },
+      { id: 'new', name: { ja: '新しいモード', en: '新しいモード' } },
+      { id: 'ghost', name: { ja: '反復練習', en: '反復練習' } },
     ]);
     expect(element.children.map((o) => ({ tag: o.tagName, value: o.value, text: o.textContent }))).toEqual([
       { tag: 'OPTION', value: 'new', text: '新しいモード' },
@@ -33,8 +33,8 @@ describe('fillModeSelect', () => {
 
   it('前の選択肢を消してから入れる', () => {
     const { select, element } = createFakeSelect();
-    fillModeSelect(select, [{ id: 'a', name: 'A' }]);
-    fillModeSelect(select, [{ id: 'b', name: 'B' }]);
+    fillModeSelect(select, [{ id: 'a', name: { ja: 'A', en: 'A' } }]);
+    fillModeSelect(select, [{ id: 'b', name: { ja: 'B', en: 'B' } }]);
     expect(element.children.map((o) => o.value)).toEqual(['b']);
   });
 });
@@ -47,7 +47,7 @@ function choiceElements() {
 describe('fillModeChoice', () => {
   it('登録されたモードが 1 つのときは選択肢の欄を隠し、名前だけを出す', () => {
     const { element, elements } = choiceElements();
-    fillModeChoice(elements, [{ id: 'ghost', name: '反復練習' }]);
+    fillModeChoice(elements, [{ id: 'ghost', name: { ja: '反復練習', en: '反復練習' } }]);
     expect(elements.choice.hidden).toBe(true);
     expect(elements.only.hidden).toBe(false);
     expect(elements.name.textContent).toBe('反復練習');
@@ -57,8 +57,8 @@ describe('fillModeChoice', () => {
 
   it('MODE-5: モードが 2 つ以上になると選択肢の欄を出し、名前だけの欄を隠して並び順の順に並べる', () => {
     const { element, elements } = choiceElements();
-    fillModeChoice(elements, [{ id: 'ghost', name: '反復練習' }]);
-    fillModeChoice(elements, [{ id: 'ghost', name: '反復練習' }, { id: 'new', name: '新しいモード' }]);
+    fillModeChoice(elements, [{ id: 'ghost', name: { ja: '反復練習', en: '反復練習' } }]);
+    fillModeChoice(elements, [{ id: 'ghost', name: { ja: '反復練習', en: '反復練習' } }, { id: 'new', name: { ja: '新しいモード', en: '新しいモード' } }]);
     expect(elements.choice.hidden).toBe(false);
     expect(elements.only.hidden).toBe(true);
     expect(elements.name.textContent).toBe('');

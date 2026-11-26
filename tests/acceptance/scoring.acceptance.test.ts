@@ -14,7 +14,7 @@ describe('採点の受け入れ条件', () => {
     expect(r.meanDeviation).toBe(0);
     expect(r.groupingRadius).toBe(0);
     expect(r.hitRate).toBe(100);
-    expect(r.comments).toEqual(['よくまとまっている']);
+    expect(r.comments).toEqual(['grouped']);
   });
 
   it('SCO-6: 前半 0・中盤 水平 1 度・後半 水平 5 度なら区間ごとのズレが 0・1・5 度', () => {
@@ -44,17 +44,17 @@ describe('採点の受け入れ条件', () => {
   });
 
   it('SCO-8: 水平 0・垂直 −2 度ならコメントは「下げすぎ」だけ', () => {
-    expect(score(times(30, dev(0, -2)), 1).comments).toEqual(['下げすぎ']);
+    expect(score(times(30, dev(0, -2)), 1).comments).toEqual(['over-pull']);
   });
 
   it('SCO-9: 水平 0・垂直 +2 度ならコメントは「下げ不足」だけ', () => {
-    expect(score(times(30, dev(0, 2)), 1).comments).toEqual(['下げ不足']);
+    expect(score(times(30, dev(0, 2)), 1).comments).toEqual(['under-pull']);
   });
 
   it('SCO-10: 垂直 0・水平 ±1 度の交互なら「横の補正不足」だけ、横ブレ 1・縦ブレ 0・比なし', () => {
     const shots = Array.from({ length: 30 }, (_, i) => dev(i % 2 === 0 ? 1 : -1, 0));
     const r = score(shots, 1);
-    expect(r.comments).toEqual(['横の補正不足']);
+    expect(r.comments).toEqual(['horizontal']);
     expect(r.horizontalSpread).toBeCloseTo(1, 9);
     expect(r.verticalSpread).toBe(0);
     expect(r.spreadRatio).toBeNull();
@@ -68,7 +68,7 @@ describe('採点の受け入れ条件', () => {
       Array.from({ length: 30 }, (_, i) => dev(((i % 9) - 4) / 10, (((i * 7) % 9) - 4) / 10)),
     ];
     for (const shots of cases) {
-      expect(score(shots, 1).comments).toEqual(['よくまとまっている']);
+      expect(score(shots, 1).comments).toEqual(['grouped']);
     }
   });
 

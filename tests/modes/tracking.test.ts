@@ -101,7 +101,7 @@ describe('追いエイムのモードの登録', () => {
       expect(mode.category).toBe('aim');
       expect(mode.timeLimit).toBe(20);
       expect(mode.options).toEqual([SPEED_OPTION]);
-      expect(mode.options?.[0]?.choices.map((c) => [c.id, c.name])).toEqual([
+      expect(mode.options?.[0]?.choices.map((c) => [c.id, c.name.ja])).toEqual([
         ['slow', '遅い'],
         ['normal', 'ふつう'],
         ['fast', '速い'],
@@ -179,7 +179,7 @@ describe('追いエイムの練習', () => {
     const { session, map } = run({ speed: 'fast', seconds: TRACKING_DURATION });
     const base = expectedMotion(map, 'fast').base;
     expect(anglesToPoint(map.spawn.position, base).yaw).toBeCloseTo(map.spawn.aim.yaw, 9);
-    expect(session.result!.options).toEqual([{ id: 'fast', name: '速い', optionId: 'speed', label: '速さ' }]);
+    expect(session.result!.options).toEqual([{ id: 'fast', name: { ja: '速い', en: 'Fast' }, optionId: 'speed', label: { ja: '速さ', en: 'Speed' } }]);
     expect(session.options[0]?.choice.id).toBe('fast');
   });
 

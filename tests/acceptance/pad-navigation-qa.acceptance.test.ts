@@ -530,6 +530,8 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     it('UI-48: 左スティックを下に 0.6 倒すと移り、0.4 では移らない', async () => {
       const page = await openFresh({ path: '#/settings' });
       await page.waitFor(screenVisible('settings'));
+      // 設定画面の項目の順は、言語・入力方式・FOV（docs/spec/screens.md「設定項目」）。
+      await tap(page, DOWN);
       await tap(page, DOWN);
       await tap(page, DOWN);
       const start = await focused(page);
@@ -710,7 +712,9 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
   it('UI-53: 入力方式を「マウス」に固定していても、トップと設定でパッドの十字キーでフォーカスを移して値を変えられる', async () => {
     const page = await openFresh({ path: '#/settings' });
     await page.waitFor(screenVisible('settings'));
-    // 入力方式をパッドで「マウス」にする。
+    // 入力方式をパッドで「マウス」にする（いちばん上の項目は言語の欄で、その次が入力方式）。
+    await tap(page, DOWN);
+    expect(await focused(page)).toBe('setting-language');
     await tap(page, DOWN);
     expect(await focused(page)).toBe('setting-input-method');
     await chooseByPad(page, '#setting-input-method', MOUSE_LABEL);

@@ -9,7 +9,7 @@ describe('練習の選択肢の値', () => {
 
   it('モードの選択肢の並び順に、渡した値を選ぶ', () => {
     const chosen = modeOptionChoices(flick, { 'flick-size': 'small', 'flick-range': 'far' });
-    expect(chosen.map((s) => [s.option.id, s.choice.id, s.choice.name])).toEqual([
+    expect(chosen.map((s) => [s.option.id, s.choice.id, s.choice.name.ja])).toEqual([
       ['flick-range', 'far', '遠い'],
       ['flick-size', 'small', '小'],
     ]);

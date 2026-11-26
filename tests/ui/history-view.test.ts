@@ -1,17 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { t } from '../../src/ui/i18n';
 import { FLICK_RANGE_OPTION, FLICK_SIZE_OPTION, TIME_PER_HIT_METRIC } from '../../src/modes/aim/flick';
 import { modes } from '../../src/modes/registry';
 import { score } from '../../src/sim/scoring';
 import {
   bindHistoryView,
-  HISTORY_CLEAR_CONFIRM,
-  HISTORY_EMPTY_MESSAGE,
-  HISTORY_UNAVAILABLE_MESSAGE,
   historyListHtml,
   historyPlotHtml,
   historyPointPositions,
   initialHistorySelection,
-  INPUT_METHODS,
+  HISTORY_INPUT_METHODS,
   type HistoryElements,
 } from '../../src/ui/history-view';
 import { historyKey, loadHistory, recordHistory, recordHistoryEntry, type HistoryEntry } from '../../src/ui/practice-history';
@@ -82,12 +80,12 @@ const listedMeans = (html: string) => [...html.matchAll(/data-field="meanError">
 
 describe('履歴の画面の選択肢', () => {
   it('UI-26: モードにする登録されたモードは反復練習・追いエイム・追いエイム＋リコイル・フリックで、センター維持とパターン観察はない', () => {
-    expect(modes.map((m) => m.name)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック']);
+    expect(modes.map((m) => m.name.ja)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック']);
     expect(modes.map((m) => m.id)).toEqual(['ghost', 'tracking', 'tracking-recoil', 'flick']);
   });
 
   it('入力方式はマウスとパッド', () => {
-    expect(INPUT_METHODS.map((m) => m.id)).toEqual(['mouse', 'pad']);
+    expect(HISTORY_INPUT_METHODS).toEqual(['mouse', 'pad']);
   });
 
   it('最後に終えた練習があればその組、なければ最初の武器・最初のモード・マウス', () => {
@@ -215,7 +213,7 @@ describe('履歴の画面', () => {
     const page = openPage(new FakeBacking());
     page.view.open(LSTAR_GHOST);
     expect(page.elements.list.innerHTML).toBe('');
-    expect(page.elements.empty).toEqual({ hidden: false, textContent: HISTORY_EMPTY_MESSAGE });
+    expect(page.elements.empty).toEqual({ hidden: false, textContent: t('history.empty') });
     expect(page.elements.clear.disabled).toBe(true);
     expect(page.elements.averages.innerHTML).toBe(
       '<dt>今日の平均</dt><dd>なし</dd><dt>直近 10 回の平均</dt><dd>なし</dd><dt>全体の平均</dt><dd>なし</dd>',
@@ -238,7 +236,7 @@ describe('履歴の画面', () => {
     expect(page.elements.body.inert).toBe(false);
     expect(pointCount(page.elements.plot.innerHTML)).toBe(0);
     expect(page.elements.list.innerHTML).toBe('');
-    expect(page.elements.empty).toEqual({ hidden: false, textContent: HISTORY_EMPTY_MESSAGE });
+    expect(page.elements.empty).toEqual({ hidden: false, textContent: t('history.empty') });
 
     const reloaded = openPage(backing);
     expect(loadHistory(reloaded.storage, LSTAR_GHOST)).toEqual([]);
@@ -267,7 +265,7 @@ describe('履歴の画面', () => {
     page.view.open(LSTAR_GHOST);
     page.elements.clear.fire();
     expect(page.elements.confirm.root.hidden).toBe(false);
-    expect(page.elements.confirm.message.textContent).toBe(HISTORY_CLEAR_CONFIRM);
+    expect(page.elements.confirm.message.textContent).toBe(t('history.clearConfirm'));
     expect(page.elements.body.inert).toBe(true);
     // 画面を開き直すと確認は閉じる。
     page.view.open(LSTAR_GHOST);
@@ -289,8 +287,8 @@ describe('履歴の画面', () => {
     recordHistory(page.storage, LSTAR_GHOST, result(1), NOW);
     recordHistory(page.storage, LSTAR_GHOST, result(2), NOW);
     page.view.open(LSTAR_GHOST);
-    expect(page.elements.unavailable).toEqual({ hidden: false, textContent: HISTORY_UNAVAILABLE_MESSAGE });
-    expect(HISTORY_UNAVAILABLE_MESSAGE).toBe('この環境では履歴を保存できません。ページを開いているあいだの練習だけが表示されます。');
+    expect(page.elements.unavailable).toEqual({ hidden: false, textContent: t('history.unavailable') });
+    expect(t('history.unavailable')).toBe('この環境では履歴を保存できません。ページを開いているあいだの練習だけが表示されます。');
     expect(listedMeans(page.elements.list.innerHTML)).toEqual(['1.00°', '2.00°']);
   });
 

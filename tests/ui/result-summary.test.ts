@@ -17,7 +17,7 @@ describe('リザルトの要約', () => {
     const shots = [shot(1, { x: 0, y: 1.5, z: -10 }), shot(2, { x: 3, y: 2, z: -10 }), shot(3, null)];
     const text = resultSummaryText({
       weapon: { name: 'L-STAR' } as WeaponData,
-      mode: { id: 'ghost', name: '反復練習', category: 'recoil' },
+      mode: { id: 'ghost', name: { ja: '反復練習', en: 'Recoil Drill' }, category: 'recoil' },
       shots,
     });
     expect(text).toBe('L-STAR / 反復練習 — 3 発');
@@ -25,8 +25,8 @@ describe('リザルトの要約', () => {
   });
 
   it('練習の選択肢を持つモードは、モードのあとに選んだ値を書く', () => {
-    const option = { id: 'fast', name: '速い', optionId: 'speed', label: '速さ' };
-    expect(resultSummaryText({ weapon: undefined, mode: { id: 'tracking', name: '追いエイム', category: 'aim' }, shots: [], options: [option] })).toBe('追いエイム / 速さ: 速い — 0 発');
+    const option = { id: 'fast', name: { ja: '速い', en: 'Fast' }, optionId: 'speed', label: { ja: '速さ', en: 'Speed' } };
+    expect(resultSummaryText({ weapon: undefined, mode: { id: 'tracking', name: { ja: '追いエイム', en: 'Tracking' }, category: 'aim' }, shots: [], options: [option] })).toBe('追いエイム / 速さ: 速い — 0 発');
     expect(optionText([option])).toBe('速さ: 速い');
     expect(optionText([])).toBeUndefined();
     expect(optionText(undefined)).toBeUndefined();

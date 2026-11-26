@@ -47,8 +47,8 @@ const GHOST = '反復練習';
 const PLAIN = 'QA-ゴーストなし';
 const PLAIN_MODE = `const plain = {
   id: 'qa-plain',
-  name: '${PLAIN}',
-  description: 'QA の補正のパネルを出さないモード',
+  name: { ja: '${PLAIN}', en: '${PLAIN}' },
+  description: { ja: 'QA の補正のパネルを出さないモード', en: 'A QA mode without the correction panel' },
   icon: 'spray',
   category: 'recoil',
   order: 90,

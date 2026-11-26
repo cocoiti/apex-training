@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import { t } from '../../src/ui/i18n';
 import { TIME_PER_HIT_METRIC } from '../../src/modes/aim/flick';
 import { summarizeSet } from '../../src/ui/set-summary';
 import { HIT_COUNT } from '../helpers/aim-modes';
 import {
   browserShareTarget,
-  COPIED_MESSAGE,
-  COPY_FAILED_MESSAGE,
   PUBLIC_URL,
   resultShare,
   resultShareText,
@@ -28,7 +27,7 @@ const EXAMPLE = [
   'https://cocoiti.github.io/apex-training/',
 ].join('\n');
 
-const lstar = { weapon: { name: 'L-STAR' }, mode: { name: '反復練習' } };
+const lstar = { weapon: { name: 'L-STAR' }, mode: { name: { ja: '反復練習', en: 'Recoil Drill' } } };
 
 const domError = (name: string) => Object.assign(new Error(name), { name });
 
@@ -100,16 +99,16 @@ describe('シェアの文（docs/spec/screens.md「シェアの文」）', () =>
   });
 
   it('UI-100: 武器を使わないモードでは 2 行目が「モード: <モードの名前>」だけで、3 行目がそのモードの比べる指標', () => {
-    const aim = { weapon: undefined, mode: { name: 'フリック' } };
+    const aim = { weapon: undefined, mode: { name: { ja: 'フリック', en: 'Flick' } } };
     const lines = resultShareText(resultShare(aim, { shareScore: metricShareScore(HIT_COUNT, 13), bestUpdated: false })).split('\n');
     expect(lines).toEqual(['Hyper Aim Training（非公式ファンツール）の結果', 'モード: フリック', '命中数: 13', PUBLIC_URL]);
   });
 
   it('UI-105: 追いエイムでは 2 行目の最後に「 / 速さ: <速さ>」を足し、3 行目が乗っていた割合', () => {
-    const tracking = { weapon: undefined, mode: { name: '追いエイム' }, options: [{ label: '速さ', name: 'ふつう' }] };
+    const tracking = { weapon: undefined, mode: { name: { ja: '追いエイム', en: 'Tracking' } }, options: [{ label: { ja: '速さ', en: 'Speed' }, name: { ja: 'ふつう', en: 'Normal' } }] };
     const lines = resultShareText(resultShare(tracking, { shareScore: '乗っていた割合: 72.0%', bestUpdated: false })).split('\n');
     expect(lines.slice(1, 3)).toEqual(['モード: 追いエイム / 速さ: ふつう', '乗っていた割合: 72.0%']);
-    const recoil = { weapon: { name: 'L-STAR' }, mode: { name: '追いエイム＋リコイル' }, options: [{ label: '速さ', name: '速い' }] };
+    const recoil = { weapon: { name: 'L-STAR' }, mode: { name: { ja: '追いエイム＋リコイル', en: 'Tracking + Recoil' } }, options: [{ label: { ja: '速さ', en: 'Speed' }, name: { ja: '速い', en: 'Fast' } }] };
     expect(resultShareText(resultShare(recoil, { shareScore: '', bestUpdated: false })).split('\n')[1]).toBe('武器: L-STAR / モード: 追いエイム＋リコイル / 速さ: 速い');
   });
 
@@ -149,7 +148,7 @@ describe('シェアの文（docs/spec/screens.md「シェアの文」）', () =>
   });
 
   it('UI-110: フリックのリザルトの文の 2 行目は、選択肢の並び順に出る範囲と的の大きさを書く', () => {
-    const result = { weapon: undefined, mode: { name: 'フリック' }, options: [{ label: '出る範囲', name: '遠い' }, { label: '的の大きさ', name: '小' }] };
+    const result = { weapon: undefined, mode: { name: { ja: 'フリック', en: 'Flick' } }, options: [{ label: { ja: '出る範囲', en: 'Spawn range' }, name: { ja: '遠い', en: 'Far' } }, { label: { ja: '的の大きさ', en: 'Target size' }, name: { ja: '小', en: 'Small' } }] };
     const lines = resultShareText(resultShare(result, { shareScore: '命中 1 回あたりの時間: 0.523 秒 / 命中率: 90.0%', bestUpdated: false })).split('\n');
     expect(lines).toEqual([
       'Hyper Aim Training（非公式ファンツール）の結果',
@@ -229,7 +228,7 @@ describe('結果のシェアの表示', () => {
   it('UI-89: コピーしたら「コピーしました」と出す', async () => {
     const { els, ctl } = control({ writeText: () => Promise.resolve() });
     expect(await ctl.share()).toBe('copied');
-    expect(els.message).toEqual({ textContent: COPIED_MESSAGE, hidden: false });
+    expect(els.message).toEqual({ textContent: t('share.copied'), hidden: false });
     expect(els.fallback.hidden).toBe(true);
   });
 
@@ -246,11 +245,11 @@ describe('結果のシェアの表示', () => {
     let fail = true;
     const { els, ctl } = control({ writeText: () => (fail ? Promise.reject(domError('NotAllowedError')) : Promise.resolve()) });
     expect(await ctl.share()).toBe('failed');
-    expect(els.message).toEqual({ textContent: COPY_FAILED_MESSAGE, hidden: false });
+    expect(els.message).toEqual({ textContent: t('share.copyFailed'), hidden: false });
     expect(els.fallback).toEqual({ value: EXAMPLE, hidden: false });
     fail = false;
     await ctl.share();
-    expect(els.message.textContent).toBe(COPIED_MESSAGE);
+    expect(els.message.textContent).toBe(t('share.copied'));
     expect(els.fallback.hidden).toBe(true);
   });
 
@@ -267,7 +266,7 @@ describe('結果のシェアの表示', () => {
     await ctl.share();
     resolveFirst();
     await first;
-    expect(els.message.textContent).toBe(COPY_FAILED_MESSAGE);
+    expect(els.message.textContent).toBe(t('share.copyFailed'));
   });
 
   it('別の結果の文を決めるとメッセージを消す', async () => {

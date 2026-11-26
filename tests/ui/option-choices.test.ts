@@ -87,7 +87,7 @@ describe('練習の選択肢の欄', () => {
   });
 
   it('違う値の並びの選択肢を渡すと入れ直し、前の値がなければ既定の値を選ぶ', () => {
-    const other: ModeOption = { id: 'size', label: '大きさ', choices: [{ id: 'small', name: '小' }, { id: 'large', name: '大' }], defaultChoice: 'large' };
+    const other: ModeOption = { id: 'size', label: { ja: '大きさ', en: '大きさ' }, choices: [{ id: 'small', name: { ja: '小', en: '小' } }, { id: 'large', name: { ja: '大', en: '大' } }], defaultChoice: 'large' };
     const { element, elements } = choiceElements();
     showOptionChoice(elements, SPEED_OPTION);
     showOptionChoice(elements, other);

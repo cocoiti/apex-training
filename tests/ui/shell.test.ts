@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { showScreen, showStorageNotice, type ScreenElement } from '../../src/ui/shell';
-import { STORAGE_UNAVAILABLE_MESSAGE } from '../../src/ui/storage';
 
 const element = (screen: string): ScreenElement => ({ dataset: { screen }, hidden: false });
 
@@ -20,6 +19,6 @@ describe('保存できないことの表示', () => {
     showStorageNotice(notice);
     expect(notice.hidden).toBe(false);
     expect(notice.textContent).toBe('この環境では設定と記録を保存できません。練習はそのまま続けられます。');
-    expect(notice.textContent).toBe(STORAGE_UNAVAILABLE_MESSAGE);
+    expect(notice.textContent).toBe('この環境では設定と記録を保存できません。練習はそのまま続けられます。');
   });
 });

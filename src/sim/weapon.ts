@@ -41,7 +41,7 @@ function isFiniteNumber(value: unknown): value is number {
 /** 武器の JSON の中身を確かめて WeaponData にする。誤りがあれば、誤りのある項目をすべて返す。 */
 export function parseWeapon(json: unknown): WeaponParseResult {
   if (!isRecord(json)) {
-    return { ok: false, errors: [{ path: '', message: 'オブジェクトではない' }] };
+    return { ok: false, errors: [{ path: '', message: 'not an object' }] };
   }
   const errors: WeaponError[] = [];
   const fail = (path: string, message: string): undefined => {
@@ -51,15 +51,15 @@ export function parseWeapon(json: unknown): WeaponParseResult {
 
   const readString = (key: string): string | undefined => {
     const value = json[key];
-    if (value === undefined) return fail(key, '必須の項目がない');
-    if (typeof value !== 'string') return fail(key, '文字列ではない');
+    if (value === undefined) return fail(key, 'required field is missing');
+    if (typeof value !== 'string') return fail(key, 'not a string');
     return value;
   };
 
   const readNumber = (key: string, valid: (n: number) => boolean, rangeMessage: string): number | undefined => {
     const value = json[key];
-    if (value === undefined) return fail(key, '必須の項目がない');
-    if (!isFiniteNumber(value)) return fail(key, '数ではない');
+    if (value === undefined) return fail(key, 'required field is missing');
+    if (!isFiniteNumber(value)) return fail(key, 'not a number');
     if (!valid(value)) return fail(key, rangeMessage);
     return value;
   };
@@ -69,38 +69,38 @@ export function parseWeapon(json: unknown): WeaponParseResult {
   const category = readString('category');
   const version = readString('version');
   const source = readString('source');
-  const rpm = readNumber('rpm', (n) => n > 0, '0 より大きい数ではない');
-  const magSize = readNumber('magSize', (n) => Number.isInteger(n) && n >= 1, '1 以上の整数ではない');
-  const randomness = readNumber('randomness', (n) => n >= 0, '0 以上の数ではない');
+  const rpm = readNumber('rpm', (n) => n > 0, 'not a number greater than 0');
+  const magSize = readNumber('magSize', (n) => Number.isInteger(n) && n >= 1, 'not an integer of 1 or more');
+  const randomness = readNumber('randomness', (n) => n >= 0, 'not a number of 0 or more');
   const readBoolean = (key: string): boolean | undefined => {
     const value = json[key];
-    if (value === undefined) return fail(key, '必須の項目がない');
-    if (typeof value !== 'boolean') return fail(key, '真偽値ではない');
+    if (value === undefined) return fail(key, 'required field is missing');
+    if (typeof value !== 'boolean') return fail(key, 'not a boolean');
     return value;
   };
   const measured = readBoolean('measured');
 
   let pattern: RecoilStep[] | undefined;
   const rawPattern = json.pattern;
-  if (rawPattern === undefined) fail('pattern', '必須の項目がない');
-  else if (!Array.isArray(rawPattern)) fail('pattern', '配列ではない');
+  if (rawPattern === undefined) fail('pattern', 'required field is missing');
+  else if (!Array.isArray(rawPattern)) fail('pattern', 'not an array');
   else {
     const steps: RecoilStep[] = [];
     rawPattern.forEach((raw: unknown, i: number) => {
       const at = `pattern[${i}]`;
       if (!isRecord(raw)) {
-        fail(at, 'オブジェクトではない');
+        fail(at, 'not an object');
         return;
       }
       const { dx, dy } = raw;
-      if (dx === undefined) fail(`${at}.dx`, '必須の項目がない');
-      else if (!isFiniteNumber(dx)) fail(`${at}.dx`, '数ではない');
-      if (dy === undefined) fail(`${at}.dy`, '必須の項目がない');
-      else if (!isFiniteNumber(dy)) fail(`${at}.dy`, '数ではない');
+      if (dx === undefined) fail(`${at}.dx`, 'required field is missing');
+      else if (!isFiniteNumber(dx)) fail(`${at}.dx`, 'not a number');
+      if (dy === undefined) fail(`${at}.dy`, 'required field is missing');
+      else if (!isFiniteNumber(dy)) fail(`${at}.dy`, 'not a number');
       if (isFiniteNumber(dx) && isFiniteNumber(dy)) steps.push({ dx, dy });
     });
     if (magSize !== undefined && rawPattern.length < magSize) {
-      fail('pattern', `要素数（${rawPattern.length}）が magSize（${magSize}）より少ない`);
+      fail('pattern', `has fewer elements (${rawPattern.length}) than magSize (${magSize})`);
     }
     pattern = steps;
   }
@@ -161,7 +161,7 @@ export function buildWeaponList(files: readonly WeaponFile[]): WeaponList {
     if (!parsed.ok) {
       rejected.push({ file, errors: parsed.errors });
     } else if (seen.has(parsed.weapon.id)) {
-      rejected.push({ file, errors: [{ path: 'id', message: `武器の ID "${parsed.weapon.id}" が重複している` }] });
+      rejected.push({ file, errors: [{ path: 'id', message: `weapon id "${parsed.weapon.id}" is a duplicate` }] });
     } else {
       seen.add(parsed.weapon.id);
       (parsed.weapon.measured ? weapons : placeholders).push(parsed.weapon);

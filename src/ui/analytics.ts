@@ -1,3 +1,4 @@
+import { onLanguageChange, t } from './i18n';
 import { SCREEN_HASHES, type ScreenId } from './router';
 import type { SafeStorage } from './storage';
 
@@ -27,16 +28,6 @@ export const SCREEN_NAMES: Readonly<Record<ScreenId, string>> = {
 
 /** 同意の案内を出す画面（docs/spec/screens.md「計測の同意の案内」）。プレイ・リザルト・セットのまとめでは出さない。 */
 export const CONSENT_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>(['top', 'settings', 'history', 'settings-pad', 'settings-pad-mapping']);
-
-/** 案内の文（docs/spec/screens.md「計測の同意の案内」）。 */
-export const CONSENT_MESSAGE =
-  '画面の表示回数を Google Analytics（Google Tag Manager を通して）で計測します。送るのは表示した画面の名前とパスだけで、' +
-  '成績・照準の動き・補正値・入力の記録は送りません。許可しますか？';
-
-/** 設定画面の計測の区分の説明（docs/spec/screens.md「計測の設定」）。 */
-export const ANALYTICS_SETTING_NOTE =
-  '許可すると、表示した画面の名前とパスだけを Google Tag Manager に送り、Google Analytics で画面の表示回数を数えます。' +
-  '成績・照準の動き・補正値・入力の記録・設定の値は送りません。';
 
 /** 保存された同意の状態。値がない・ほかの値のときは未選択。 */
 export function loadConsent(storage: Pick<SafeStorage, 'get'>): AnalyticsConsent {
@@ -254,8 +245,13 @@ export function bindAnalyticsView(elements: AnalyticsElements, analytics: Analyt
     elements.toggle.checked = analytics.consent === 'granted';
   };
   elements.section.hidden = !analytics.enabled;
-  elements.message.textContent = CONSENT_MESSAGE;
-  elements.note.textContent = ANALYTICS_SETTING_NOTE;
+  // 案内の文（docs/spec/screens.md「計測の同意の案内」）と計測の区分の説明（「計測の設定」）。表示の言語を選び直したら書き直す。
+  const writeTexts = () => {
+    elements.message.textContent = t('consent.message');
+    elements.note.textContent = t('analytics.note');
+  };
+  writeTexts();
+  onLanguageChange(writeTexts);
   if (analytics.enabled) {
     elements.grant.addEventListener('click', () => {
       analytics.grant();

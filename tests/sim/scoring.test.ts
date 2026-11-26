@@ -13,7 +13,7 @@ describe('採点の指標', () => {
     expect(result.meanDeviation).toBe(0);
     expect(result.groupingRadius).toBe(0);
     expect(result.hitRate).toBe(100);
-    expect(result.comments).toEqual(['よくまとまっている']);
+    expect(result.comments).toEqual(['grouped']);
   });
 
   it('SCO-6: 前半 0・中盤 1・後半 5 度のズレは区間ごとのズレがそのまま出る', () => {
@@ -95,11 +95,11 @@ describe('採点の指標', () => {
 
 describe('採点のコメント', () => {
   it('SCO-3 / SCO-8: 全弾が垂直 −2 度なら「下げすぎ」だけ', () => {
-    expect(score(repeat(30, shot(0, -2)), 1).comments).toEqual(['下げすぎ']);
+    expect(score(repeat(30, shot(0, -2)), 1).comments).toEqual(['over-pull']);
   });
 
   it('SCO-9: 全弾が垂直 +2 度なら「下げ不足」だけ', () => {
-    expect(score(repeat(30, shot(0, 2)), 1).comments).toEqual(['下げ不足']);
+    expect(score(repeat(30, shot(0, 2)), 1).comments).toEqual(['under-pull']);
   });
 
   it('SCO-10: 水平が交互に ±1 度なら「横の補正不足」だけで、横ブレ 1・縦ブレ 0・比なし', () => {
@@ -107,7 +107,7 @@ describe('採点のコメント', () => {
       Array.from({ length: 30 }, (_, i) => shot(i % 2 === 0 ? 1 : -1, 0)),
       1,
     );
-    expect(result.comments).toEqual(['横の補正不足']);
+    expect(result.comments).toEqual(['horizontal']);
     expect(result.horizontalSpread).toBe(1);
     expect(result.verticalSpread).toBe(0);
     expect(result.spreadRatio).toBeNull();
@@ -115,17 +115,17 @@ describe('採点のコメント', () => {
 
   it('SCO-11: 全弾が 0.4 度以内なら「よくまとまっている」', () => {
     const result = score([shot(0.4, -0.4), shot(-0.4, 0.4), shot(0.2, -0.3), shot(-0.1, 0.4)], 1);
-    expect(result.comments).toEqual(['よくまとまっている']);
+    expect(result.comments).toEqual(['grouped']);
   });
 
   it('縦と横の両方に当たれば縦・横の順に 2 つ出る', () => {
-    expect(score(repeat(10, shot(1, -1)), 1).comments).toEqual(['下げすぎ', '横の補正不足']);
+    expect(score(repeat(10, shot(1, -1)), 1).comments).toEqual(['over-pull', 'horizontal']);
   });
 
   it('しきい値ちょうどは条件に当たる', () => {
-    expect(score([shot(0, -0.5)], 1).comments).toEqual(['下げすぎ']);
-    expect(score([shot(0, 0.5)], 1).comments).toEqual(['下げ不足']);
-    expect(score([shot(0.5, 0)], 1).comments).toEqual(['横の補正不足']);
+    expect(score([shot(0, -0.5)], 1).comments).toEqual(['over-pull']);
+    expect(score([shot(0, 0.5)], 1).comments).toEqual(['under-pull']);
+    expect(score([shot(0.5, 0)], 1).comments).toEqual(['horizontal']);
   });
 
   it('命中の判定は的の半径ちょうどを含む', () => {
