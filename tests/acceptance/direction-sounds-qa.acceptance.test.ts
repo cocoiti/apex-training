@@ -34,6 +34,8 @@ const GHOST = '反復練習';
 const CENTER = 'センター維持';
 const PREVIEW_LABEL = 'パターンの音を聞く';
 const STOP_LABEL = '止める';
+/** 試聴が音を予約する先読み（秒。src/ui/direction-sound.ts の PREVIEW_LOOKAHEAD と同じ値）。 */
+const PREVIEW_LOOKAHEAD = 0.25;
 
 interface WeaponJson {
   id: string;
@@ -601,6 +603,15 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       return clicked;
     }
     const callsSince = async (page: Page, since: number) => (await sounds(page)).filter((s) => s.call >= since);
+    /**
+     * 試聴は、区切りの音を鳴る時刻の 0.25 秒（先読み）前に予約する。2 つ目の区切りの音を予約する前の時刻（押してからの秒）。
+     * 2 つ目の区切りが先読みの内にあると、押した直後に予約してしまい、止めたあとに鳴らないことを時計で確かめられない。
+     */
+    const beforeSecond = (o: ReturnType<typeof oracleSimplePattern>, interval: number) => {
+      const second = o.segments[1]!.from * interval;
+      expect(second, '2 つ目の区切りが先読みの内にある').toBeGreaterThan(PREVIEW_LOOKAHEAD + 0.02);
+      return Math.min(0.1, second - PREVIEW_LOOKAHEAD - 0.02);
+    };
 
     it('UI-78: L-STAR の試聴で、区切りの順に向きの音が（最初の発 − 1）× 発射間隔の時刻に 1 回ずつ鳴り、最後の音のあとに表示が戻る', async () => {
       const page = await openFresh('', { manualClock: true });
@@ -630,9 +641,9 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       expect(o.segments.length).toBeGreaterThanOrEqual(2);
       const interval = 60 / LSTAR.rpm;
       const clicked = await startPreview(page, LSTAR);
-      // 最初の音のあと、2 つ目の区切りの時刻の前に止める。
-      await page.advanceClock(0.1);
-      expect(0.1).toBeLessThan(o.segments[1]!.from * interval);
+      // 最初の音のあと、2 つ目の区切りの音を予約する（その時刻の先読みの分だけ前）より前に止める。
+      const before = beforeSecond(o, interval);
+      if (before > 0) await page.advanceClock(before);
       expect((await callsSince(page, clicked)).map(toneName)).toEqual([dirOf(o.segments[0]!.label)]);
       await page.clickSelector('#preview-sound');
       const stopped = await page.evaluate<number>('window.__clicks.at(-1)');
@@ -650,8 +661,9 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       const o = oracleSimplePattern(LSTAR);
       const interval = 60 / LSTAR.rpm;
       const clicked = await startPreview(page, LSTAR);
-      await page.advanceClock(0.1);
-      expect(0.1).toBeLessThan(o.segments[1]!.from * interval);
+      const before = beforeSecond(o, interval);
+      if (before > 0) await page.advanceClock(before);
+      expect((await callsSince(page, clicked)).map(toneName)).toEqual([dirOf(o.segments[0]!.label)]);
       const changed = await page.evaluate<number>('performance.now()');
       await choose(page, '#weapon', CAR.name);
       await page.waitFor(`window.__label() === ${JSON.stringify(PREVIEW_LABEL)}`, 2000);
