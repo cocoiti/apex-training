@@ -1,4 +1,4 @@
-// docs/spec/architecture.md「画面の文言の辞書」（ARC-44〜ARC-48）の QA の受け入れテスト。QA が SPEC だけから書いたもの。
+// docs/spec/architecture.md「画面の文言の辞書」（ARC-52〜ARC-56）の QA の受け入れテスト。QA が SPEC だけから書いたもの。
 // 公開された入口（npm test のテスト、辞書の文言のファイル src/ui/messages/ja.ts・en.ts の `export const <言語> = {` の形、
 // モードのファイルの default export の形（src/modes/types.ts の TrainingMode）、画面の文言の入口 src/ui/i18n.ts）だけを使う。
 //
@@ -82,7 +82,7 @@ describe.skipIf(NESTED)('QA: 画面の文言の辞書', () => {
     expect(r.status, r.output.slice(-4000)).toBe(0);
   }, TIMEOUT);
 
-  describe('ARC-44: 片方の言語の辞書にしかないキーがあると npm test が失敗し、そのキーと足りない言語が示される', () => {
+  describe('ARC-52: 片方の言語の辞書にしかないキーがあると npm test が失敗し、そのキーと足りない言語が示される', () => {
     it('日本語の辞書にだけキーを足すと失敗し、キーと英語（en）が足りないことが示される', () => {
       const r = runUnit((copy) => addEntry(copy, JA, 'ja', "'qa.onlyInJa': '日本語だけの文言',"));
       expect(r.status).not.toBe(0);
@@ -100,7 +100,7 @@ describe.skipIf(NESTED)('QA: 画面の文言の辞書', () => {
     }, TIMEOUT);
   });
 
-  describe('ARC-45: 文言が空のキーや、埋め込む場所の名前が言語の間で違うキーがあると npm test が失敗し、そのキーが示される', () => {
+  describe('ARC-53: 文言が空のキーや、埋め込む場所の名前が言語の間で違うキーがあると npm test が失敗し、そのキーが示される', () => {
     it('英語の文言が空の文字列のキーがあると失敗し、そのキーが示される', () => {
       const r = runUnit((copy) => {
         addEntry(copy, JA, 'ja', "'qa.emptyInEn': '空でない文言',");
@@ -129,7 +129,7 @@ describe.skipIf(NESTED)('QA: 画面の文言の辞書', () => {
     }, TIMEOUT);
   });
 
-  describe('ARC-46: 英語の名前かひとこと説明がないモードを src/modes/ に足すと npm test が失敗し、そのモードの id が示される', () => {
+  describe('ARC-54: 英語の名前かひとこと説明がないモードを src/modes/ に足すと npm test が失敗し、そのモードの id が示される', () => {
     /** 追いエイムのモードを元に、id・並び順・名前・説明を差し替えたモードのファイルを src/modes/aim/ に足す。 */
     const addMode = (copy: string, id: string, fields: string) =>
       writeFileSync(
@@ -163,7 +163,7 @@ describe.skipIf(NESTED)('QA: 画面の文言の辞書', () => {
     }, TIMEOUT * 2);
   });
 
-  describe('ARC-47: 辞書とモードの名前の外で src/ の文字列リテラルか index.html にひらがな・カタカナを足すと npm test が失敗し、そのファイルと文言が示される', () => {
+  describe('ARC-55: 辞書とモードの名前の外で src/ の文字列リテラルか index.html にひらがな・カタカナを足すと npm test が失敗し、そのファイルと文言が示される', () => {
     it('src/ui/ のファイルの文字列リテラルにひらがなの文言を足すと失敗し、そのファイルと文言が示される', () => {
       const r = runUnit((copy) => writeFileSync(join(copy, 'src/ui/qa-literal.ts'), "export const qaMessage = 'ひらがなのもんごん';\n"));
       expect(r.status).not.toBe(0);
@@ -203,7 +203,7 @@ describe.skipIf(NESTED)('QA: 画面の文言の辞書', () => {
     }, TIMEOUT);
   });
 
-  describe('ARC-48: src/sim/ が画面の文言の辞書を import していないことをテストで確かめられる', () => {
+  describe('ARC-56: src/sim/ が画面の文言の辞書を import していないことをテストで確かめられる', () => {
     /** src/sim/ 以下の .ts ファイル（ROOT からの相対パス）。 */
     const simFiles = (dir = join(ROOT, 'src/sim')): string[] =>
       readdirSync(dir).flatMap((name) => {

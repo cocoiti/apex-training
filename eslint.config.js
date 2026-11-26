@@ -27,7 +27,7 @@ export default tseslint.config(
         {
           patterns: [
             { group: ['three', 'three/*'], message: 'src/sim/ から Three.js を参照しない' },
-            // 画面の文言は画面の側で書く（ARC-48）。src/sim/ は識別子と数で返す。
+            // 画面の文言は画面の側で書く（ARC-56）。src/sim/ は識別子と数で返す。
             { group: ['**/ui/i18n', '**/ui/i18n.ts', '**/ui/messages', '**/ui/messages/*'], message: 'src/sim/ から画面の文言の辞書を参照しない' },
           ],
         },

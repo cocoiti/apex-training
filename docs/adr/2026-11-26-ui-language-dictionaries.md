@@ -8,7 +8,7 @@
 
 Issue #81 で日本語と英語を切り替えられるようにする（docs/spec/screens.md「表示の言語」）。最初の画面から選んだ言語で出し、選び直したら読み込み直さずに
 すべての画面を変える。文言は index.html と `src/` の 40 ほどのファイルに直接書かれていて、`src/sim/` も採点のコメントや簡易版のパターンの向きの名前を
-日本語の文字列で返していた。辞書のキーの漏れや、辞書の外に日本語を書き足したことをテストで止めたい（ARC-44〜ARC-48）。
+日本語の文字列で返していた。辞書のキーの漏れや、辞書の外に日本語を書き足したことをテストで止めたい（ARC-52〜ARC-56）。
 
 ## 決定
 
@@ -21,7 +21,7 @@ Issue #81 で日本語と英語を切り替えられるようにする（docs/sp
 - モードの表示名・ひとこと説明・練習の選択肢の名前は、モードのファイルが `{ ja, en }`（Localized）で持つ（モードはファイルを 1 つ足すだけで出る、modes.md）。
   指標の名前・単位はモードのファイルでも辞書のキーで読み、`label`・`unit` を getter にして今の言語の文言を返す（使う側は変えない）。
 - `src/sim/` は文言を持たない。採点のコメントは `over-pull` などの識別子、簡易版の区切りの向きは `down` などの識別子で返し、言葉にするのは `src/ui/`。
-  開発者向けのエラーと出力の文は英語にする（`src/` の文字列リテラルにひらがな・カタカナを置かない、ARC-47）。
+  開発者向けのエラーと出力の文は英語にする（`src/` の文字列リテラルにひらがな・カタカナを置かない、ARC-55）。
 - 選んだ言語は `apex-training:language` に `ja`・`en` で SafeStorage を通して保存する（保存できない環境ではページを開いている間だけ残る）。
 
 ## 却下した案
@@ -34,6 +34,6 @@ Issue #81 で日本語と英語を切り替えられるようにする（docs/sp
 
 ## 影響
 
-- spec/screens.md（表示の言語、UI-125〜UI-134）、spec/overview.md（OVR-28, OVR-29）、spec/modes.md（MODE-57）、spec/architecture.md（ARC-44〜ARC-48）
+- spec/screens.md（表示の言語、UI-125〜UI-134）、spec/overview.md（OVR-28, OVR-29）、spec/modes.md（MODE-57）、spec/architecture.md（ARC-52〜ARC-56）
 - src/ui/i18n.ts, src/ui/messages/, src/ui/page-language.ts, index.html, src/main.ts, src/modes/types.ts, src/modes/registry.ts, src/modes/, src/sim/scoring.ts, src/sim/simple-pattern.ts
 - tests/architecture/ui-text.test.ts, tests/helpers/ui-text.ts, tests/helpers/browser.ts（newPage の language。既定は ja-JP）

@@ -33,6 +33,7 @@ const DT = 1 / 120;
 const DEG_PER_COUNT = 1.5 * 0.022;
 
 /** SPEC の値と文言（実装の定数には依存しない）。 */
+const SEED = 12345;
 const LANGUAGE_KEY = 'apex-training:language';
 const CONSENT_KEY = 'apex-training:analytics-consent';
 const CONTAINER_ID = 'GTM-QA0081';
@@ -429,7 +430,7 @@ describe.skipIf(NESTED || !chromium)('QA: 表示の言語（ブラウザ）', ()
     await page.addInitScript(PAGE_INIT);
     if (opts.pad) await page.addInitScript(FAKE_PAD);
     for (const s of opts.init ?? []) await page.addInitScript(s);
-    await page.goto(appUrl(origin, BASE, opts.hash ?? '#/', { render: opts.render ?? false, manualClock: true }));
+    await page.goto(appUrl(origin, BASE, opts.hash ?? '#/', { render: opts.render ?? false, manualClock: true, seed: SEED }));
     const screen = opts.screen ?? 'top';
     await page.waitFor(screen === 'top' ? TOP_READY : `window.__vis('[data-screen="${screen}"]')`, 15_000);
     await page.frames(3);

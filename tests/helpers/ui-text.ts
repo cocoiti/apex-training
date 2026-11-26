@@ -1,4 +1,4 @@
-// 画面の文言の辞書と、辞書の外に書いた文言を調べる道具（docs/spec/architecture.md「画面の文言の辞書」、ARC-44〜ARC-48）。
+// 画面の文言の辞書と、辞書の外に書いた文言を調べる道具（docs/spec/architecture.md「画面の文言の辞書」、ARC-52〜ARC-56）。
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import ts from 'typescript';
@@ -14,7 +14,7 @@ export function placeholdersOf(text: string): string[] {
 }
 
 /**
- * 言語ごとの辞書の問題（ARC-44, ARC-45）。片方の言語にしかないキー、文言が空のキー、埋め込む場所の名前の組が言語の間で違うキーを、
+ * 言語ごとの辞書の問題（ARC-52, ARC-53）。片方の言語にしかないキー、文言が空のキー、埋め込む場所の名前の組が言語の間で違うキーを、
  * キーと言語を示す文で返す。問題がなければ空。
  */
 export function findDictionaryProblems(dictionaries: Readonly<Record<string, Readonly<Record<string, string>>>>): string[] {
@@ -45,7 +45,7 @@ function isFilledLocalized(value: unknown): boolean {
 }
 
 /**
- * モードの名前の問題（ARC-46）。表示名・ひとこと説明・練習の選択肢とその値の名前を、日本語と英語の両方で持たないモードを、
+ * モードの名前の問題（ARC-54）。表示名・ひとこと説明・練習の選択肢とその値の名前を、日本語と英語の両方で持たないモードを、
  * モードの id（とファイル）を示す文で返す。value はモードのファイルの default export。
  */
 export function findModeNameProblems(modes: readonly { readonly file: string; readonly value: unknown }[]): string[] {
@@ -88,7 +88,7 @@ function isModeName(node: ts.Node): boolean {
 }
 
 /**
- * 1 つのソースの文字列リテラル（コメントは除く）から、ひらがな・カタカナを含むものを探す（ARC-47）。
+ * 1 つのソースの文字列リテラル（コメントは除く）から、ひらがな・カタカナを含むものを探す（ARC-55）。
  * allowModeNames なら、モードのファイルが持つ日本語の名前（`ja:` の値）は除く。
  */
 export function findKanaLiterals(file: string, source: string, { allowModeNames = false } = {}): StrayText[] {
@@ -118,7 +118,7 @@ function listSources(dir: string): string[] {
   });
 }
 
-/** src/ 以下の、辞書とモードの名前の外の文字列リテラルにある、ひらがな・カタカナを含む文言（ARC-47）。file は src/ からの相対。 */
+/** src/ 以下の、辞書とモードの名前の外の文字列リテラルにある、ひらがな・カタカナを含む文言（ARC-55）。file は src/ からの相対。 */
 export function findStrayKanaInSources(srcDir: string): StrayText[] {
   return listSources(srcDir).flatMap((path) => {
     const file = relative(srcDir, path).split(sep).join('/');
@@ -143,7 +143,7 @@ export function htmlTexts(html: string): { line: number; text: string }[] {
   return texts.sort((a, b) => a.line - b.line);
 }
 
-/** HTML の表示する文字などにある、ひらがな・カタカナを含む文言（ARC-47）。 */
+/** HTML の表示する文字などにある、ひらがな・カタカナを含む文言（ARC-55）。 */
 export function findKanaInHtml(file: string, html: string): StrayText[] {
   return htmlTexts(html)
     .filter((t) => KANA.test(t.text))
@@ -155,7 +155,7 @@ export function isDictionaryImport(specifier: string): boolean {
   return /(?:^|\/)ui\/(?:i18n(?:\.ts)?|messages(?:\/.*)?)$/.test(specifier);
 }
 
-/** src/sim/ 以下で、画面の文言の辞書を import しているところ（ARC-48）。file は sim のディレクトリからの相対。 */
+/** src/sim/ 以下で、画面の文言の辞書を import しているところ（ARC-56）。file は sim のディレクトリからの相対。 */
 export function findDictionaryImports(simDir: string): StrayText[] {
   return listSources(simDir).flatMap((path) => {
     const file = relative(simDir, path).split(sep).join('/');

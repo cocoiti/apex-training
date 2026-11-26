@@ -24,12 +24,12 @@ const modeFiles = Object.entries(import.meta.glob<{ default?: unknown }>('../../
 }));
 
 describe('画面の文言の辞書（docs/spec/architecture.md「画面の文言の辞書」）', () => {
-  it('ARC-44・ARC-45: 日本語と英語の辞書はキーの組が一致し、どの文言も空でなく、埋め込む場所の名前の組がキーごとに同じ', () => {
+  it('ARC-52・ARC-53: 日本語と英語の辞書はキーの組が一致し、どの文言も空でなく、埋め込む場所の名前の組がキーごとに同じ', () => {
     expect(findDictionaryProblems(DICTIONARIES)).toEqual([]);
     expect(Object.keys(DICTIONARIES.ja).length).toBeGreaterThan(100);
   });
 
-  it('ARC-44: 片方の言語の辞書にだけあるキーを足すと、そのキーと足りない言語が示される', () => {
+  it('ARC-52: 片方の言語の辞書にだけあるキーを足すと、そのキーと足りない言語が示される', () => {
     expect(findDictionaryProblems({ ja: { ...DICTIONARIES.ja, 'extra.only': '日本語だけ' }, en: DICTIONARIES.en })).toEqual([
       'キー "extra.only" が en の辞書にない',
     ]);
@@ -38,7 +38,7 @@ describe('画面の文言の辞書（docs/spec/architecture.md「画面の文言
     ]);
   });
 
-  it('ARC-45: 文言が空のキーと、埋め込む場所の名前が言語の間で違うキーが示される', () => {
+  it('ARC-53: 文言が空のキーと、埋め込む場所の名前が言語の間で違うキーが示される', () => {
     expect(findDictionaryProblems({ ja: { ...DICTIONARIES.ja, 'top.start': '' }, en: DICTIONARIES.en })).toEqual(['キー "top.start" の ja の文言が空']);
     expect(findDictionaryProblems({ ja: DICTIONARIES.ja, en: { ...DICTIONARIES.en, 'mode.flickTargets': 'Targets: {count} / {total}' } })).toEqual([
       'キー "mode.flickTargets" の埋め込む場所の名前が言語の間で違う（ja: {done,total} / en: {count,total}）',
@@ -47,7 +47,7 @@ describe('画面の文言の辞書（docs/spec/architecture.md「画面の文言
 });
 
 describe('モードの名前（docs/spec/modes.md「モードの登録」）', () => {
-  it('ARC-46: src/modes/ のモードのファイルはどれも、両方の言語の表示名・ひとこと説明・練習の選択肢とその値の名前を持つ', () => {
+  it('ARC-54: src/modes/ のモードのファイルはどれも、両方の言語の表示名・ひとこと説明・練習の選択肢とその値の名前を持つ', () => {
     expect(modeFiles.map((m) => m.file).sort()).toEqual([
       'src/modes/aim/flick.ts',
       'src/modes/aim/tracking-recoil.ts',
@@ -57,7 +57,7 @@ describe('モードの名前（docs/spec/modes.md「モードの登録」）', (
     expect(findModeNameProblems(modeFiles)).toEqual([]);
   });
 
-  it('ARC-46: 英語の表示名かひとこと説明を持たないモードのファイルを足すと、そのモードの id が示される', () => {
+  it('ARC-54: 英語の表示名かひとこと説明を持たないモードのファイルを足すと、そのモードの id が示される', () => {
     const added = [
       ...modeFiles,
       { file: 'src/modes/aim/no-english.ts', value: { id: 'no-english', name: { ja: '英語なし' }, description: { ja: '説明', en: 'About' } } },
@@ -80,19 +80,19 @@ describe('モードの名前（docs/spec/modes.md「モードの登録」）', (
   });
 });
 
-describe('辞書の外の文言（ARC-47）', () => {
+describe('辞書の外の文言（ARC-55）', () => {
   let copy: string | undefined;
   afterEach(() => {
     if (copy) rmSync(copy, { recursive: true, force: true });
     copy = undefined;
   });
 
-  it('ARC-47: 辞書とモードの名前の外の src/ の文字列リテラルと index.html の表示する文字・aria-label・title・placeholder に、ひらがな・カタカナがない', () => {
+  it('ARC-55: 辞書とモードの名前の外の src/ の文字列リテラルと index.html の表示する文字・aria-label・title・placeholder に、ひらがな・カタカナがない', () => {
     expect(findStrayKanaInSources(SRC)).toEqual([]);
     expect(findKanaInHtml('index.html', readFileSync(join(ROOT, 'index.html'), 'utf8'))).toEqual([]);
   });
 
-  it('ARC-47: src/ の写しにひらがな・カタカナを含む文言を書いたファイルを足すと、そのファイルと文言が示される', () => {
+  it('ARC-55: src/ の写しにひらがな・カタカナを含む文言を書いたファイルを足すと、そのファイルと文言が示される', () => {
     copy = mkdtempSync(join(tmpdir(), 'ui-text-'));
     cpSync(SRC, copy, { recursive: true });
     writeFileSync(join(copy, 'ui', 'added.ts'), "// コメントは調べない\nexport const label = 'もう一度';\nexport const ok = 'Try again';\n");
@@ -103,7 +103,7 @@ describe('辞書の外の文言（ARC-47）', () => {
     ]);
   });
 
-  it('ARC-47: index.html の表示する文字と aria-label・title・placeholder の文言は見つかり、コメントと辞書のキーは見つからない', () => {
+  it('ARC-55: index.html の表示する文字と aria-label・title・placeholder の文言は見つかり、コメントと辞書のキーは見つからない', () => {
     const html = [
       '<!-- コメントは調べない -->',
       '<p data-i18n="top.start"></p>',
@@ -127,12 +127,12 @@ describe('辞書の外の文言（ARC-47）', () => {
   });
 });
 
-describe('src/sim/ と辞書（ARC-48）', () => {
-  it('ARC-48: src/sim/ 以下のファイルは画面の文言の辞書を import していない', () => {
+describe('src/sim/ と辞書（ARC-56）', () => {
+  it('ARC-56: src/sim/ 以下のファイルは画面の文言の辞書を import していない', () => {
     expect(findDictionaryImports(SIM)).toEqual([]);
   });
 
-  it('ARC-48: 辞書を import するファイルを足した src/sim/ の写しでは、そのファイルが示される', () => {
+  it('ARC-56: 辞書を import するファイルを足した src/sim/ の写しでは、そのファイルが示される', () => {
     const copy = mkdtempSync(join(tmpdir(), 'sim-dictionary-'));
     try {
       cpSync(SIM, copy, { recursive: true });
