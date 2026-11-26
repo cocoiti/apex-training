@@ -272,13 +272,28 @@ export class Page {
     await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
   }
 
-  /** CSS セレクタに当たる最初の要素の中心をクリックする。 */
-  async clickSelector(selector: string): Promise<void> {
-    const box = await this.evaluate<{ x: number; y: number } | null>(
-      `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null;
-        const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`,
+  /**
+   * CSS セレクタに当たる最初の要素の中心をクリックする。
+   * 読み込みの途中で上の要素（トップ画面の武器のカードなど）が埋まると要素がずれ、測った座標で別の要素を押してしまう。
+   * フォントの読み込みを待ち、1 描画おいても位置が変わらず、その座標でいちばん上にある要素がこの要素（かその中）になるまで待ってから押す。
+   */
+  async clickSelector(selector: string, timeout = 10_000): Promise<void> {
+    const box = await waitUntil(
+      () =>
+        this.evaluate<{ x: number; y: number } | null>(`(async () => {
+          const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null;
+          await document.fonts.ready;
+          const measure = () => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+          const before = measure();
+          // 裏のタブでは requestAnimationFrame が来ないので、来なければ 100 ms で測り直す。
+          await new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(resolve)); setTimeout(resolve, 100); });
+          const after = measure();
+          if (before.x !== after.x || before.y !== after.y) return null;
+          const hit = document.elementFromPoint(after.x, after.y);
+          return hit && (hit === el || el.contains(hit)) ? after : null; })()`),
+      `要素 ${selector} が動かずに、その中心でいちばん上にある`,
+      { timeout },
     );
-    if (!box) throw new Error(`要素がない: ${selector}`);
     await this.click(box.x, box.y);
   }
 }
@@ -319,6 +334,9 @@ export async function launchBrowser(executable: string): Promise<Browser> {
       '--no-default-browser-check',
       '--use-angle=swiftshader',
       '--enable-unsafe-swiftshader',
+      // 重いマシン（CI の runner や並行に流しているとき）では、ソフトウェアの WebGL の描画が遅いのを GPU のプロセスが固まったと
+      // 見なして止められ、ブラウザ全体が応答しなくなる。GPU の監視を止める。
+      '--disable-gpu-watchdog',
       '--window-size=1280,800',
       // 重いマシンでも描画やタイマーを間引かせない（画面が隠れている・裏にあると見なされて止まらないように）。
       '--disable-background-timer-throttling',
