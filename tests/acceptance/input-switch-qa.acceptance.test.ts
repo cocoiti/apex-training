@@ -17,6 +17,8 @@ import { decodePng, type Image } from '../helpers/png';
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const CX = WIDTH / 2;
@@ -190,7 +192,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
   async function openFresh(seed: Record<string, string> = {}, { render = false, manualClock = true } = {}): Promise<Page> {
     const page = await browser!.newPage();
     await page.addInitScript(PAGE_INIT);
-    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock }));
+    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock, seed: SEED }));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]); })()`);
     await page.evaluate('window.__beforeReload = true');
     await page.send('Page.reload', { ignoreCache: false });

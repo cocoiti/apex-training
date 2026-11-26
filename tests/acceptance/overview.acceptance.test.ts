@@ -13,6 +13,8 @@ import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browse
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const NOTICE = 'この環境では設定と記録を保存できません。練習はそのまま続けられます。';
 const UNOFFICIAL = /非公式ファンツール.*EA \/ Respawn.*無関係/;
 
@@ -121,7 +123,7 @@ describe.skipIf(NESTED || !chromium)('画面（ビルドの結果を /apex-train
   let browser: Browser | undefined;
   let origin = '';
   /** 3D の描画を確かめるテストはないので、描画せずに開く（render=off）。 */
-  const url = (hash: string) => appUrl(origin, BASE, hash, { render: false });
+  const url = (hash: string) => appUrl(origin, BASE, hash, { render: false, seed: SEED });
 
   beforeAll(async () => {
     server = await serveStatic(dist, BASE);

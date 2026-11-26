@@ -7,8 +7,12 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { createServer, type Server } from 'node:http';
 import { homedir, tmpdir } from 'node:os';
 import { extname, join, normalize } from 'node:path';
+import { noteOpenedUrl, reportSeedsOnFailure } from './seed-report';
 import { listenOnFreePort } from './server';
 import { waitUntil } from './wait';
+
+// テストが失敗したとき、そのテストで開いたページの種（URL の seed）をメッセージに出す（ARC-50）。
+reportSeedsOnFailure();
 
 export { listenOnFreePort, originOf, portOf } from './server';
 export { waitUntil } from './wait';
@@ -63,19 +67,40 @@ export async function serveStatic(dir: string, base: string): Promise<Server> {
 
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void };
 
-/** テストのためにページの URL のクエリに付ける振る舞い（docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」）。 */
+/**
+ * 種を付けずに開く印（appUrl の seed）。種を付けないときの振る舞い（練習ごとに種を選ぶ、画面に種が出ない）を確かめるテストだけが使い、
+ * 使ってよいファイルは tests/helpers/test-code.ts の UNSEEDED_PAGE_FILES に書く（ARC-49）。
+ */
+export const NO_SEED = 'none';
+
+/**
+ * テストのためにページの URL のクエリに付ける振る舞い（docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」
+ * 「テストのための乱数の種の固定」）。
+ */
 export interface AppUrlOptions {
   /** false なら render=off（3D を描画しない）。既定は描画する。 */
   render?: boolean;
   /** true なら clock=manual（ページの時計を Page.advanceClock で進める）。 */
   manualClock?: boolean;
+  /**
+   * 練習の乱数の種（seed=<数>、0 以上 2³² 未満の整数）。ブラウザのテストはページを固定の種で開くので、必ず渡す。
+   * 種の値はテストのコードに書いた数にする（ARC-49）。NO_SEED なら付けない。
+   */
+  seed: number | typeof NO_SEED;
 }
 
+/** 種のほかの、テストのためのクエリ（ページを開く関数に渡し、種は appUrl を呼ぶ所で渡す）。 */
+export type PageQuery = Omit<AppUrlOptions, 'seed'>;
+
 /** origin + base のページを、テストのためのクエリと hash（#/ など）を付けて開く URL。 */
-export function appUrl(origin: string, base: string, hash = '#/', { render = true, manualClock = false }: AppUrlOptions = {}): string {
+export function appUrl(origin: string, base: string, hash: string, { render = true, manualClock = false, seed }: AppUrlOptions): string {
   const params = new URLSearchParams();
   if (!render) params.set('render', 'off');
   if (manualClock) params.set('clock', 'manual');
+  if (seed !== NO_SEED) {
+    if (!Number.isInteger(seed) || seed < 0 || seed >= 2 ** 32) throw new Error(`種は 0 以上 2³² 未満の整数にする: ${seed}`);
+    params.set('seed', String(seed));
+  }
   const query = params.size > 0 ? `?${params.toString()}` : '';
   return `${origin}${base}${query}${hash}`;
 }
@@ -176,6 +201,7 @@ export class Page {
 
   /** url を開き、読み込みが終わるまで待つ。 */
   async goto(url: string): Promise<void> {
+    noteOpenedUrl(url);
     await this.send('Page.navigate', { url });
     await this.waitFor('document.readyState === "complete"');
   }

@@ -16,6 +16,8 @@ import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const chromium = findChromium();
 const A = 0;
 const R2 = 7;
@@ -128,7 +130,7 @@ describe.skipIf(NESTED || !chromium)('画面の表示の計測', () => {
     if (consent) saved[ANALYTICS_CONSENT_KEY] = consent;
     await page.evaluate(`(() => { localStorage.clear(); for (const [k, v] of Object.entries(${JSON.stringify(saved)})) localStorage.setItem(k, v); })()`);
     await page.addInitScript(PAGE_INIT + init);
-    await page.goto(appUrl(origin, BASE, hash, { render: false, manualClock }));
+    await page.goto(appUrl(origin, BASE, hash, { render: false, manualClock, seed: SEED }));
     await page.waitFor(READY, 15_000);
     return { page, requests };
   }
@@ -144,11 +146,15 @@ describe.skipIf(NESTED || !chromium)('画面の表示の計測', () => {
     await page.evaluate(`window.__beforeReload = true; location.reload()`);
     await page.waitFor(`!window.__beforeReload && ${READY}`, 15_000);
   };
+  /**
+   * パッドのボタンを押して離す。時計を手で進めて、押している間を 2 描画（1/30 秒）にする。
+   * 描画の回数で待つと、マシンが重いときに押している間が押し続けの繰り返し（400 ms）を超え、項目が 1 つ余計に動く。
+   */
   const tap = async (page: Page, button: number) => {
     await page.evaluate(`window.__pad.buttons = [${button}]`);
-    await page.frames(3);
+    await page.advanceClock(2 / 60);
     await page.evaluate(`window.__pad.buttons = []`);
-    await page.frames(3);
+    await page.advanceClock(2 / 60);
   };
   const gaCookies = (page: Page) =>
     page.evaluate<string[]>(`document.cookie.split(';').map((c) => c.split('=')[0].trim()).filter((n) => n.startsWith('_ga') || n === '_gid')`);
@@ -255,8 +261,8 @@ describe.skipIf(NESTED || !chromium)('画面の表示の計測', () => {
   });
 
   it('案内を出したトップ画面で、十字キーの下を 2 回と A / × で「許可しない」、1 回と A / × で「許可」を押す', async () => {
-    const denied = await open();
-    await denied.page.frames(10);
+    const denied = await open('#/', { manualClock: true });
+    await denied.page.advanceClock(10 / 60);
     await tap(denied.page, DOWN);
     await tap(denied.page, DOWN);
     expect(await denied.page.evaluate<string>(`document.querySelector('.pad-focus')?.id ?? ''`)).toBe('consent-deny');
@@ -267,8 +273,8 @@ describe.skipIf(NESTED || !chromium)('画面の表示の計測', () => {
     await denied.page.frames(3);
     expect(denied.requests).toEqual([]);
 
-    const granted = await open();
-    await granted.page.frames(10);
+    const granted = await open('#/', { manualClock: true });
+    await granted.page.advanceClock(10 / 60);
     await tap(granted.page, DOWN);
     expect(await granted.page.evaluate<string>(`document.querySelector('.pad-focus')?.id ?? ''`)).toBe('consent-grant');
     await tap(granted.page, A);

@@ -13,12 +13,14 @@ import { join, resolve } from 'node:path';
 import { createServer, type ViteDevServer } from 'vite';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { cmPer360, countsToLook, DEFAULT_MOUSE_SETTINGS, formatCmPer360 } from '../../src/input/mouse-sensitivity';
-import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const CX = WIDTH / 2;
@@ -194,7 +196,7 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
   async function openPlay(init?: string): Promise<Page> {
     const page = await browser!.newPage();
     if (init) await page.addInitScript(init);
-    await page.goto(`${staticOrigin}${BASE}`);
+    await page.goto(appUrl(staticOrigin, BASE, '', { seed: SEED }));
     await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden && ${AMMO} > 0`);
@@ -211,7 +213,7 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
    */
   async function openHarness(settings: { dpi: number; sensitivity: number; adsMultiplier: number }): Promise<Page> {
     const page = await browser!.newPage();
-    await page.goto(`${devOrigin}${BASE}`);
+    await page.goto(appUrl(devOrigin, BASE, '', { seed: SEED }));
     await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
     await page.evaluate(`(async () => {
       const src = '${BASE}src/';

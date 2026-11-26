@@ -28,6 +28,8 @@ import { decodePng, type Image } from '../helpers/png';
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const CX = WIDTH / 2;
@@ -151,7 +153,7 @@ const untilTime = (page: Page, from: number, seconds: number) => page.advanceClo
  */
 const settle = (page: Page) => page.advanceClock(1 / 60);
 /** ページの URL（3D は描画し、ページの時計はテストから進める）。 */
-const url = (origin: string, hash: string) => appUrl(origin, BASE, hash, { manualClock: true });
+const url = (origin: string, hash: string) => appUrl(origin, BASE, hash, { manualClock: true, seed: SEED });
 
 /** リザルト画面が表示され、中身が描かれるまで待つ。 */
 const waitResult = (page: Page) =>

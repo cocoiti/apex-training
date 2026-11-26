@@ -21,6 +21,8 @@ import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browse
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const chromium = findChromium();
 
 interface WeaponJson {
@@ -209,7 +211,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     if (opts.width) {
       await page.send('Emulation.setDeviceMetricsOverride', { width: opts.width, height: 800, deviceScaleFactor: 1, mobile: false });
     }
-    const url = appUrl(opts.at ?? origin, BASE, '#/', { render: opts.render ?? false });
+    const url = appUrl(opts.at ?? origin, BASE, '#/', { render: opts.render ?? false, seed: SEED });
     await page.goto(url);
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(opts.seed ?? {})}; for (const k in seed) localStorage.setItem(k, seed[k]); })()`);
     await page.addInitScript(PAGE_INIT);
@@ -519,7 +521,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     const page = await browser!.newPage();
     requests = [];
     await page.addInitScript(PAGE_INIT);
-    await page.goto(appUrl(origin, BASE, '#/', { render: false }));
+    await page.goto(appUrl(origin, BASE, '#/', { render: false, seed: SEED }));
     await page.waitFor(TOP_READY, 15_000);
     await page.evaluate(`document.fonts.ready.then(() => true)`);
     await page.frames(5);

@@ -10,12 +10,14 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const CX = WIDTH / 2;
@@ -140,7 +142,7 @@ describe.skipIf(NESTED || !chromium)('QA: UI-76 リコイルは視点が跳ね�
     expect(upWeaponFiles, '書き換える武器の JSON が配信物にない').toBeGreaterThan(0);
     const page = await browser!.newPage();
     await page.send('Emulation.setDeviceMetricsOverride', { width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false });
-    await page.goto(`${upOrigin}${BASE}`);
+    await page.goto(appUrl(upOrigin, BASE, '', { seed: SEED }));
     await page.evaluate('localStorage.clear()');
     // 読み込み直す前のページで開始を押さないように、印を付けてから読み込み直し、印がなく武器の選択肢がそろうまで待つ。
     await page.evaluate('window.__beforeReload = true; location.reload()');
@@ -212,7 +214,7 @@ describe.skipIf(NESTED || !chromium)('QA: UI-76 リコイルは視点が跳ね�
 
   it('設定画面: 視点の跳ねとカメラの固定（リコイルの表示の方式）を切り替える項目はない', async () => {
     const page = await browser!.newPage();
-    await page.goto(`${staticOrigin}${BASE}#/settings`);
+    await page.goto(appUrl(staticOrigin, BASE, '#/settings', { seed: SEED }));
     await page.waitFor(`document.querySelector('[data-screen="settings"]') && !document.querySelector('[data-screen="settings"]').hidden && document.getElementById('setting-fov')`);
     const found = await page.evaluate<{ controls: { id: string; name: string; label: string; options: string }[]; text: string }>(`(() => {
       const root = document.querySelector('[data-screen="settings"]');
