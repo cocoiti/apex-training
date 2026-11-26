@@ -35,7 +35,7 @@ describe('ARC-49: ブラウザを使うテストは、ページを固定の種�
   });
 
   it('種を付けずに開いてよいファイルは、種を付けないときの振る舞い（ARC-47・ARC-48）を確かめるブラウザのテストだけ', () => {
-    expect(UNSEEDED_PAGE_FILES).toHaveLength(1);
+    expect(UNSEEDED_PAGE_FILES).toHaveLength(2);
     for (const f of UNSEEDED_PAGE_FILES) {
       const source = read(f);
       expect(usesChromium(source), f).toBe(true);

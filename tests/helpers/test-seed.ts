@@ -7,7 +7,11 @@ import type { TestCodeViolation } from './test-code';
  * 種を付けずにページを開いてよい（appUrl に NO_SEED を渡してよい）ブラウザのテストのファイル。種を付けないときの振る舞い
  * （練習ごとに種を選ぶ・画面に種が出ない、ARC-47・ARC-48）を確かめるファイルだけ。
  */
-export const UNSEEDED_PAGE_FILES: readonly string[] = ['tests/acceptance/fixed-seed-qa.acceptance.test.ts'];
+export const UNSEEDED_PAGE_FILES: readonly string[] = [
+  'tests/acceptance/fixed-seed-qa.acceptance.test.ts',
+  // QA が SPEC だけから書いた、種を付けないときの振る舞い（ARC-47・ARC-48）のブラウザの受け入れテスト。
+  'tests/acceptance/seed-query-qa.acceptance.test.ts',
+];
 
 /**
  * 練習の種を選ぶ処理そのもの（選ぶたびに値が変わること、選んだ値の範囲）を確かめるテスト。ファイルとテストの名前（it の最初の引数）。
