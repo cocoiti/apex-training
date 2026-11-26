@@ -624,9 +624,14 @@ describe('ARC-47: CI で Chromium が見つからないとき、ブラウザを�
 
     it('Chromium があるとき、CI の設定でブラウザを使うテストのファイルが飛ばされずに流れて通る', (ctx) => {
       const home = process.env.HOME ?? '';
-      const hasChromium = ['Library/Caches/ms-playwright', '.cache/ms-playwright'].some((d) => existsSync(join(home, d)));
-      if (!hasChromium && !process.env.CHROMIUM_PATH) ctx.skip();
-      const r = runBrowser({ ...browserStageEnv(), CI: 'true', CHROMIUM_PATH: process.env.CHROMIUM_PATH }, home);
+      const ciEnv = { ...browserStageEnv(), CI: 'true', CHROMIUM_PATH: process.env.CHROMIUM_PATH };
+      // Chromium があるかは、findChromium と同じ探し方になるよう、同じ段を APEX_REQUIRE_CHROMIUM なしで一度流して確かめる。
+      // すべてのテストが飛ばされたら Chromium がない（キャッシュのディレクトリだけがある・ほかのブラウザだけがあるときも含む）。
+      const probe = runBrowser({ ...ciEnv, APEX_REQUIRE_CHROMIUM: undefined }, home);
+      expect(probe.status, probe.output).toBe(0);
+      expect(probe.report, probe.output).toBeDefined();
+      if (probe.report!.numPendingTests === probe.report!.numTotalTests) ctx.skip();
+      const r = runBrowser(ciEnv, home);
       expect(r.status, r.output).toBe(0);
       expect(r.report, r.output).toBeDefined();
       expect(r.report!.numPendingTests, '飛ばされたテスト').toBe(0);
