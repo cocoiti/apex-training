@@ -723,7 +723,7 @@ async function start(): Promise<void> {
       render: (alpha) => {
         // 撃ち切ったときと練習が終わったときはゴーストを消す（session.ghost が undefined）。
         ghost.update(world.player.position, showGhost ? session.ghost : undefined);
-        // 練習の的は読むだけで、シミュレーションの状態を変えない（ARC-37）。
+        // 練習の的は読むだけで、シミュレーションの状態を変えない（ARC-43）。
         targetMarks.update(world.targets.all, alpha);
         // テストが時計を進めている途中の描画（clock.draws が false）では 3D を描かず、次の実際の描画で最後の状態を描く。
         if (clock.draws) view.render(world, interpolateAngles(session.previousViewAngles, viewAngles(world.player), alpha));

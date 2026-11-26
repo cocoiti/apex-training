@@ -88,7 +88,7 @@ describe('練習の的の表示', () => {
     expect([params.width, params.height, params.depth]).toEqual([0.4, 0.6, 0.2]);
   });
 
-  it('ARC-37: 練習の的を描画しても、シミュレーションの的の位置・出現と照準の当たりは描画しないときと変わらない', () => {
+  it('ARC-43: 練習の的を描画しても、シミュレーションの的の位置・出現と照準の当たりは描画しないときと変わらない', () => {
     const run = (draw: boolean) => {
       const w = world();
       const mode = aimMode({

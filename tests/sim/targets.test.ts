@@ -18,7 +18,7 @@ function emptyWorld(): World {
 const sliding = { id: 'slide', size: SIZE, position: (t: number) => vec3(2 * t, 1.6, -10) };
 
 describe('練習の的の位置', () => {
-  it('ARC-30: 左右に毎秒 2 メートルで動く的を置いて 1 秒進めると、中心の X が 2 メートル動いている', () => {
+  it('ARC-36: 左右に毎秒 2 メートルで動く的を置いて 1 秒進めると、中心の X が 2 メートル動いている', () => {
     const world = emptyWorld();
     world.targets.add(sliding);
     const start = world.targets.get('slide')!.center.x;
@@ -27,7 +27,7 @@ describe('練習の的の位置', () => {
     expect(world.targets.get('slide')!.center.x - start).toBeCloseTo(2, 9);
   });
 
-  it('ARC-30: 1/60 秒間隔と 1/144 秒間隔の描画で合計 1 秒を与えたときの的の位置が一致する', () => {
+  it('ARC-36: 1/60 秒間隔と 1/144 秒間隔の描画で合計 1 秒を与えたときの的の位置が一致する', () => {
     const run = (hz: number) => {
       const world = emptyWorld();
       world.targets.add(sliding);

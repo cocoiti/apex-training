@@ -1,4 +1,4 @@
-// docs/spec/architecture.md「練習の的」「照準と的の当たり」「武器を使わない練習」「決まった結果」の受け入れテスト（ARC-30〜ARC-37）と、
+// docs/spec/architecture.md「練習の的」「照準と的の当たり」「武器を使わない練習」「決まった結果」の受け入れテスト（ARC-36〜ARC-43）と、
 // docs/spec/screens.md「3D の表示」の練習の的の表示の受け入れテスト（UI-98）。QA が SPEC だけから書いたもの。
 // 公開された入口（練習モードの共通の型、PracticeSession・replayPracticeSession、World・マップの形、入力の記録、固定ステップのループ、
 // 描画の ViewScene・TargetMarks・ImpactMarks）だけを使い、ブラウザなしで動かす。
@@ -83,7 +83,7 @@ function stepUntil(s: PracticeSession<undefined>, t: number) {
   while (s.sim.time < t - 1e-9 && !s.ended) s.step();
 }
 
-describe('ARC-30: 動く的の位置は固定ステップの時刻だけで決まる', () => {
+describe('ARC-36: 動く的の位置は固定ステップの時刻だけで決まる', () => {
   const moving = () => mode({ setup: (c) => c.targets.add({ id: 'm', size: SIZE, position: (t) => vec3(2 * t, 1.6, -10) }) });
 
   it('毎秒 2 メートルで +X へ動く的は、1 秒進めると中心の X が開始時（X 0）より 2 メートル動いている', () => {
@@ -117,7 +117,7 @@ describe('ARC-30: 動く的の位置は固定ステップの時刻だけで決�
   });
 });
 
-describe('ARC-31: 乱数で出現の位置と時刻を決める的は、種だけで決まる', () => {
+describe('ARC-37: 乱数で出現の位置と時刻を決める的は、種だけで決まる', () => {
   /** 0.5 秒ごとに、乱数で X と出現までの遅れを決めた的を 1 つ足す（モードのステップごとの処理で足す）。 */
   const randomMode = () => {
     let next = 0;
@@ -161,7 +161,7 @@ describe('ARC-31: 乱数で出現の位置と時刻を決める的は、種だ�
   });
 });
 
-describe('ARC-32: 照準が的に「乗っている」の判定', () => {
+describe('ARC-38: 照準が的に「乗っている」の判定', () => {
   const always = vec3(3, 1.6, -10);
   const pop = vec3(-3, 1.6, -10);
 
@@ -195,7 +195,7 @@ describe('ARC-32: 照準が的に「乗っている」の判定', () => {
   });
 });
 
-describe('ARC-33: 的と目のあいだに壁があるとき', () => {
+describe('ARC-39: 的と目のあいだに壁があるとき', () => {
   it('的の中心に向けても乗っておらず、その向きで撃った弾は壁に当たって命中にならない', () => {
     const center = vec3(0, 1.6, -10);
     const wall: Box = { id: 'between', kind: 'wall', center: vec3(0, 1.6, -5), size: vec3(4, 4, 0.2) };
@@ -216,7 +216,7 @@ describe('ARC-33: 的と目のあいだに壁があるとき', () => {
   });
 });
 
-describe('ARC-34: 動いている的に撃った弾', () => {
+describe('ARC-40: 動いている的に撃った弾', () => {
   it('動いている的の中心に向けて撃つと、弾の記録に的の識別子が入って命中になり、その弾の弾痕は表示されない', () => {
     const at = (t: number) => vec3(-2 + 2 * t, 1.6, -10);
     const fireAt = 0.5 + DT / 2; // 0.5 秒から始まるステップの中（そのステップの終わりは 0.5 + 1/120 秒）
@@ -255,7 +255,7 @@ describe('ARC-34: 動いている的に撃った弾', () => {
   });
 });
 
-describe('ARC-35: 武器を使わない練習の撃ち方', () => {
+describe('ARC-41: 武器を使わない練習の撃ち方', () => {
   it('fire を 1 秒押し続けても弾は 1 発で、練習のあいだリコイルのオフセットはヨー 0・ピッチ 0 のまま', () => {
     const s = session(mode(), inputFromTimedActions([fire(0.05, true), fire(1.05, false)]));
     const offsets = new Set<string>();
@@ -275,7 +275,7 @@ describe('ARC-35: 武器を使わない練習の撃ち方', () => {
   });
 });
 
-/** 動く的・出てくる的・乱数で位置を決める的を置くモード（ARC-36・ARC-37）。制限時間 4 秒。 */
+/** 動く的・出てくる的・乱数で位置を決める的を置くモード（ARC-42・ARC-43）。制限時間 4 秒。 */
 function busyMode(): TrainingMode {
   let next = 0;
   let n = 0;
@@ -320,7 +320,7 @@ function sweepActions(): TimedAction[] {
   return out;
 }
 
-describe('ARC-36: 練習の的を置いた練習の入力の記録を再生する', () => {
+describe('ARC-42: 練習の的を置いた練習の入力の記録を再生する', () => {
   it('再生したときの各ステップの的の位置・出現・乗っているの判定が、記録したときと一致する', () => {
     const recorder = new RecordingInput(2024);
     for (const a of sweepActions()) recorder.push(a.time, a.action);
@@ -350,7 +350,7 @@ describe('ARC-36: 練習の的を置いた練習の入力の記録を再生す�
   });
 });
 
-describe('ARC-37: 描画はシミュレーションの的と当たりを変えない', () => {
+describe('ARC-43: 描画はシミュレーションの的と当たりを変えない', () => {
   it('練習の的を描画したときと描画しないときで、各ステップの的の位置・出現と照準の当たりが一致する', () => {
     const plain = session(busyMode(), inputFromTimedActions(sweepActions()));
     const drawn = session(busyMode(), inputFromTimedActions(sweepActions()));

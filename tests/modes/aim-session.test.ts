@@ -50,7 +50,7 @@ describe('照準と的の当たり', () => {
   const center = vec3(3, 1.6, -10);
   const onTarget = anglesToPoint(EYE, center);
 
-  it('ARC-32: 出現している的の中心に向けたステップでは乗っていて、的の幅より大きくヨーをずらすと乗っていない', () => {
+  it('ARC-38: 出現している的の中心に向けたステップでは乗っていて、的の幅より大きくヨーをずらすと乗っていない', () => {
     const s = weaponless(aimMode({ targets: still('t', center) }), [lookAt(0.1, { yaw: 0, pitch: 0 }, onTarget), lookAt(0.3, onTarget, { ...onTarget, yaw: onTarget.yaw + 10 })]);
     advance(s, 0.2);
     expect(s.world.targets.aimed).toBe('t');
@@ -59,7 +59,7 @@ describe('照準と的の当たり', () => {
     expect(s.world.targets.aimed).toBeUndefined();
   });
 
-  it('ARC-32: 出現の時刻より前と消える時刻より後のステップでは、的の位置に向けても乗っていない', () => {
+  it('ARC-38: 出現の時刻より前と消える時刻より後のステップでは、的の位置に向けても乗っていない', () => {
     const s = weaponless(aimMode({ targets: still('t', center, { appearAt: 1, disappearAt: 2 }) }), [lookAt(0, { yaw: 0, pitch: 0 }, onTarget)]);
     const seen: (string | undefined)[] = [];
     for (const until of [0.5, 1.5, 2.5]) {
@@ -69,7 +69,7 @@ describe('照準と的の当たり', () => {
     expect(seen).toEqual([undefined, 't', undefined]);
   });
 
-  it('ARC-33: 的と目のあいだに壁があると、的の中心に向けても乗っておらず、その向きで撃った弾は壁に当たって命中にならない', () => {
+  it('ARC-39: 的と目のあいだに壁があると、的の中心に向けても乗っておらず、その向きで撃った弾は壁に当たって命中にならない', () => {
     const between: Box = { id: 'between', kind: 'wall', center: vec3(1.5, 1.6, -5), size: vec3(2, 2, 0.2) };
     const s = weaponless(aimMode({ targets: still('t', center) }), [lookAt(0, { yaw: 0, pitch: 0 }, onTarget), press(0.1), release(0.2)], world([between, BACK_WALL]));
     advance(s, 0.3);
@@ -79,7 +79,7 @@ describe('照準と的の当たり', () => {
     expect(s.shots[0]!.position!.z).toBeCloseTo(-4.9, 6);
   });
 
-  it('ARC-34: 動いている的の中心に向けて撃つと、弾の記録に的の識別子が入って命中になる', () => {
+  it('ARC-40: 動いている的の中心に向けて撃つと、弾の記録に的の識別子が入って命中になる', () => {
     // 毎秒 2 メートルで +X へ動く的。0.5 秒のステップでは中心が X = 1（そのステップの終わりの時刻 0.5 + dt で決まる）。
     const moving = (context: ModeContext) => context.targets.add({ id: 'mover', size: TARGET_SIZE, position: (t) => vec3(2 * t, 1.6, -10) });
     const dt = 1 / 120;
@@ -100,7 +100,7 @@ describe('照準と的の当たり', () => {
 });
 
 describe('武器を使わない練習', () => {
-  it('ARC-35: fire を 1 秒押し続けても弾は 1 発で、リコイルのオフセットは 0 のまま。3 回押し直すと 3 発', () => {
+  it('ARC-41: fire を 1 秒押し続けても弾は 1 発で、リコイルのオフセットは 0 のまま。3 回押し直すと 3 発', () => {
     const held = weaponless(aimMode(), [press(0), release(1)]);
     const offsets: { yaw: number; pitch: number }[] = [];
     for (let i = 0; i < 150; i += 1) {
@@ -207,7 +207,7 @@ describe('乱数で決める的', () => {
     return mode.log.map((e) => ({ ...e }));
   };
 
-  it('ARC-31: 同じ種・同じ入力で 2 回 5 秒進めると位置と出現の時刻の列が一致し、違う種では一致しない', () => {
+  it('ARC-37: 同じ種・同じ入力で 2 回 5 秒進めると位置と出現の時刻の列が一致し、違う種では一致しない', () => {
     const first = run(42);
     expect(first.length).toBeGreaterThanOrEqual(9);
     expect(run(42)).toEqual(first);
@@ -216,7 +216,7 @@ describe('乱数で決める的', () => {
 });
 
 describe('入力の記録の再生', () => {
-  it('ARC-36: 練習の的を置いた練習の記録を再生すると、各ステップの的の位置・出現・乗っているの判定が一致する', () => {
+  it('ARC-42: 練習の的を置いた練習の記録を再生すると、各ステップの的の位置・出現・乗っているの判定が一致する', () => {
     const trace = (s: PracticeSession<WeaponData | undefined>) => {
       const steps: string[] = [];
       const step = () => {

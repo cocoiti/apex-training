@@ -29,7 +29,7 @@ describe('弾痕の表示', () => {
     expect(marks(view)).toHaveLength(2);
   });
 
-  it('ARC-34: 練習の的に当たった弾（target を持つ）の弾痕は表示しない', () => {
+  it('ARC-40: 練習の的に当たった弾（target を持つ）の弾痕は表示しない', () => {
     const view = new ViewScene(rangeWorld());
     const impacts = new ImpactMarks(view.layer);
     impacts.sync([{ ...shot(1, vec3(0, 1.6, -5)), target: 'mover' }, shot(2, vec3(0, 1.6, -9.9))], eye);

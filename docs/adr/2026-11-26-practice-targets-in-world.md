@@ -5,8 +5,8 @@
 ## 背景
 
 Issue #72 で、動く的・出てくる的と照準の当たり（docs/spec/architecture.md「練習の的」「照準と的の当たり」「武器を使わない練習」）を足す。
-位置と出現は固定ステップの時刻だけで決まり、描画の間隔によらず、入力の記録の再生で同じになる必要がある（ARC-30, ARC-36）。
-弾は練習の的にもマップの箱にも当たり、目の位置からいちばん近いものに当たる（ARC-33, ARC-34）。
+位置と出現は固定ステップの時刻だけで決まり、描画の間隔によらず、入力の記録の再生で同じになる必要がある（ARC-36, ARC-42）。
+弾は練習の的にもマップの箱にも当たり、目の位置からいちばん近いものに当たる（ARC-39, ARC-40）。
 
 ## 決定
 
@@ -17,7 +17,7 @@ Issue #72 で、動く的・出てくる的と照準の当たり（docs/spec/arc
   そのステップの射撃のあと・モードの処理の前に求め、モードは `context.targets.aimed` で読む。
 - 武器を使わない練習は Gun の代わりに `TapFire`（押し始めごとに 1 発、リコイルなし）で撃つ。PracticeSession の `gun` は武器の型引数で
   `Gun` か `undefined` になり、武器を使う練習の既存のコードとテストは `gun` をそのまま使える。撃った弾は両方とも `session.shots` で読む。
-- 描画は src/render/targets.ts が描画のたびに的の状態を読んで層に置き直すだけで、シミュレーションの状態を変えない（ARC-37）。
+- 描画は src/render/targets.ts が描画のたびに的の状態を読んで層に置き直すだけで、シミュレーションの状態を変えない（ARC-43）。
 
 ## 却下した案
 
@@ -29,6 +29,6 @@ Issue #72 で、動く的・出てくる的と照準の当たり（docs/spec/arc
 
 ## 影響
 
-- docs/spec/architecture.md（練習の的、照準と的の当たり、武器を使わない練習、ARC-30〜ARC-37）, docs/spec/screens.md（3D の表示、UI-98）, docs/spec/modes.md（共通）
+- docs/spec/architecture.md（練習の的、照準と的の当たり、武器を使わない練習、ARC-36〜ARC-43）, docs/spec/screens.md（3D の表示、UI-98）, docs/spec/modes.md（共通）
 - src/sim/targets.ts, src/sim/hit.ts, src/sim/gun.ts, src/sim/tap-fire.ts, src/sim/simulation.ts, src/sim/world.ts, src/modes/session.ts, src/modes/types.ts,
   src/render/targets.ts, src/render/impacts.ts, src/main.ts

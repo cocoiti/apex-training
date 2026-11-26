@@ -15,7 +15,7 @@ export function interpolatePosition(from: Vec3, to: Vec3, alpha: number): Vec3 {
 }
 
 /**
- * 練習の的（docs/spec/screens.md「3D の表示」）を描画の層に置く。シミュレーションの的の状態を読むだけで、書き換えない（ARC-37）。
+ * 練習の的（docs/spec/screens.md「3D の表示」）を描画の層に置く。シミュレーションの的の状態を読むだけで、書き換えない（ARC-43）。
  * 出現している的だけを、的の箱の大きさで、直前のステップと最後のステップの位置を補間した位置に表示する。
  * シミュレーションからなくなった的の表示物は捨てる。
  */
