@@ -17,6 +17,8 @@ import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const CX = 640;
 const CY = 400;
 const chromium = findChromium();
@@ -325,7 +327,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
   /** 新しいタブで localStorage を空にし（seed を入れ）、読み込み直したトップ画面を開く。 */
   async function openFresh(seed: Record<string, string> = {}, init?: string): Promise<Page> {
     const page = await browser!.newPage();
-    await page.goto(appUrl(origin, BASE, '#/', { render: false, manualClock: true }));
+    await page.goto(appUrl(origin, BASE, '#/', { render: false, manualClock: true, seed: SEED }));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]); })()`);
     await page.addInitScript(PAGE_INIT);
     if (init) await page.addInitScript(init);

@@ -17,11 +17,13 @@ import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const CX = 640;
 const CY = 400;
 const chromium = findChromium();
 /** 3D は描画せず（render=off）、ページの時計はテストから進める（clock=manual）。撃ち切るまでを実時間で待たない。 */
-const APP = { render: false, manualClock: true };
+const APP = { render: false, manualClock: true, seed: SEED };
 
 /** SPEC の文言と値（実装の定数には依存しない）。 */
 const HISTORY_NOTICE = 'この環境では履歴を保存できません。ページを開いているあいだの練習だけが表示されます。';

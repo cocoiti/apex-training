@@ -21,6 +21,8 @@ import { decodePng, type Image } from '../helpers/png';
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const chromium = findChromium();
 const WIDTH = 1280;
 const HEIGHT = 800;
@@ -205,7 +207,7 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
   /** 練習に設定が当たることを画面写しで確かめるテストの describe の名前。このテストだけが 3D を描画する。 */
   const RENDERED = '練習は「開始」を押した時点で保存されている設定で始まる';
   /** 設定画面の URL。描画を確かめるテストのほかは 3D を描画しない（render=off）。 */
-  const settingsUrl = () => appUrl(origin, BASE, '#/settings', { render: (expect.getState().currentTestName ?? '').includes(RENDERED) });
+  const settingsUrl = () => appUrl(origin, BASE, '#/settings', { render: (expect.getState().currentTestName ?? '').includes(RENDERED), seed: SEED });
   /** 設定画面が表示され、保存された値が欄に入っている（cm/360 が表示されている）まで待つ。 */
   const waitSettings = (p: Page) =>
     p.waitFor(

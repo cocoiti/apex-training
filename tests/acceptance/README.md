@@ -10,6 +10,9 @@
 - 同じ武器 × モードの組み合わせを複数のファイルで最後まで練習しない（武器 × モードのすべての組は MODE-1 の持ち主が流す）。
 - ブラウザのテストは、描画を確かめるもののほかは `render=off` で、時間を決めている所は `clock=manual` で開く
   （`tests/helpers/browser.ts` の `appUrl`・`Page.advanceClock`・`Page.advanceClockUntil`）。
+- ブラウザのテストは、ページを `appUrl` の `seed` に書いた固定の種で開く（ARC-49。種はファイルに書いた数の定数にする）。
+  種を付けずに開いてよいのは、種を付けないときの振る舞いを確かめる `fixed-seed-qa.acceptance.test.ts` だけ（`NO_SEED`）。
+  テストが失敗すると、そのテストで開いたページの種が失敗のメッセージに出る（ARC-50）。
 
 | 受け入れ条件 | SPEC | テストのファイル |
 |-------------|------|-----------------|
@@ -18,6 +21,11 @@
 | ARC-23 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/render-clock-qa.acceptance.test.ts` |
 | ARC-24 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/render-clock-qa.acceptance.test.ts` |
 | ARC-25 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/render-clock-qa.acceptance.test.ts` |
+| ARC-44 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/fixed-seed-qa.acceptance.test.ts` |
+| ARC-45 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/fixed-seed-qa.acceptance.test.ts` |
+| ARC-46 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/fixed-seed-qa.acceptance.test.ts` |
+| ARC-47 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/fixed-seed-qa.acceptance.test.ts` |
+| ARC-48 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/fixed-seed-qa.acceptance.test.ts` |
 | INP-4 | [input.md](../../docs/spec/input.md) | `tests/acceptance/input-recording-qa.acceptance.test.ts` |
 | INP-5 | [input.md](../../docs/spec/input.md) | `tests/acceptance/input-recording-qa.acceptance.test.ts` |
 | INP-6 | [input.md](../../docs/spec/input.md) | `tests/acceptance/input-recording-qa.acceptance.test.ts` |

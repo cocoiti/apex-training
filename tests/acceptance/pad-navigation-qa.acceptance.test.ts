@@ -27,6 +27,8 @@ import { decodePng, type Image } from '../helpers/png';
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const CX = WIDTH / 2;
@@ -273,7 +275,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
   }: { pads?: PadDef[]; seed?: Record<string, string>; clock?: boolean; render?: boolean; path?: string } = {}): Promise<Page> {
     const page = await browser!.newPage();
     await page.addInitScript(PAGE_INIT);
-    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock: clock }));
+    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock: clock, seed: SEED }));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]);
       sessionStorage.setItem('__qaPads', ${JSON.stringify(JSON.stringify(pads))});
       location.hash = ${JSON.stringify(path)}; })()`);

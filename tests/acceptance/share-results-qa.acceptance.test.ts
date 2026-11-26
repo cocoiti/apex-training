@@ -20,6 +20,8 @@ import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browse
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const CX = 640;
 const CY = 400;
 const chromium = findChromium();
@@ -454,7 +456,7 @@ describe.skipIf(NESTED || !chromium)('QA: 結果のシェア', () => {
 
   async function openFresh(opts: { share?: ShareEnv; clip?: ClipEnv; pad?: boolean; seed?: Record<string, string> } = {}): Promise<Page> {
     const page = await browser!.newPage();
-    await page.goto(appUrl(origin, BASE, '#/', { render: false, manualClock: true }));
+    await page.goto(appUrl(origin, BASE, '#/', { render: false, manualClock: true, seed: SEED }));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(opts.seed ?? {})}; for (const k in seed) localStorage.setItem(k, seed[k]); })()`);
     await page.addInitScript(PAGE_INIT);
     await page.addInitScript(envScript(opts.share ?? 'ok', opts.clip ?? 'ok'));

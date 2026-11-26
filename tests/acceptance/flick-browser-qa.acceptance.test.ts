@@ -22,6 +22,8 @@ import { decodePng } from '../helpers/png';
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const CX = 640;
 const CY = 400;
 const chromium = findChromium();
@@ -343,7 +345,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
   /** 新しいタブで localStorage を空にし（seed を入れ）、読み込み直したトップ画面を開く。 */
   async function openFresh(opts: { seed?: Record<string, string>; pad?: boolean; render?: boolean } = {}): Promise<Page> {
     const page = await browser!.newPage();
-    const url = appUrl(origin, BASE, '#/', { render: opts.render ?? false, manualClock: true });
+    const url = appUrl(origin, BASE, '#/', { render: opts.render ?? false, manualClock: true, seed: SEED });
     await page.goto(url);
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(opts.seed ?? {})}; for (const k in seed) localStorage.setItem(k, seed[k]); })()`);
     await page.addInitScript(PAGE_INIT);

@@ -18,12 +18,14 @@ import { fieldOfView } from '../../src/render/fov';
 import { parseMap, type MapData } from '../../src/sim/map';
 import { replayRecording } from '../../src/sim/practice';
 import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
-import { findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const chromium = findChromium();
 const rad = (d: number) => (d * Math.PI) / 180;
 
@@ -218,9 +220,9 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     const { origin = staticOrigin, width = 1280, height = 800 } = options;
     const page = await browser!.newPage();
     await page.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
-    await page.goto(`${origin}${BASE}`);
+    await page.goto(appUrl(origin, BASE, '', { seed: SEED }));
     await page.evaluate('localStorage.clear()');
-    await page.goto(`${origin}${BASE}#/settings`);
+    await page.goto(appUrl(origin, BASE, '#/settings', { seed: SEED }));
     // 読み込み直す前の文書に印を付け、印のない（読み込み直した）文書で設定画面の入力欄が埋まるまで待つ。
     await page.evaluate('window.__beforeReload = true; location.reload()');
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && document.getElementById('setting-fov') && document.getElementById('setting-fov').value !== ''`);

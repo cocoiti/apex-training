@@ -10,12 +10,14 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer, type ViteDevServer } from 'vite';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const chromium = findChromium();
@@ -30,7 +32,7 @@ async function screenshot(page: Page): Promise<Image> {
 
 /** トップ画面から「開始」でプレイ画面に入る。 */
 async function enterPlay(page: Page, origin: string) {
-  await page.goto(`${origin}${BASE}`);
+  await page.goto(appUrl(origin, BASE, '', { seed: SEED }));
   await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
   await page.clickSelector('[data-screen="top"] a[href="#/play"]');
   await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden`);
@@ -103,7 +105,7 @@ describe.skipIf(NESTED || !chromium)('画面の 3D の表示とクロスヘア',
   describe('UI-6: HTML の画面の後ろにウィンドウ全体を覆うキャンバスが描画され、プレイ画面では壁と中心の的が見える', () => {
     it('トップ画面を開くと、ウィンドウ全体を覆うキャンバスが HTML の画面の後ろにあり、3D のシーンが描画されている', async () => {
       const page = await browser!.newPage();
-      await page.goto(`${staticOrigin}${BASE}`);
+      await page.goto(appUrl(staticOrigin, BASE, '', { seed: SEED }));
       await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden && document.querySelector('#weapon').options.length > 0`);
       await page.frames(5);
       const state = await page.evaluate<{ full: boolean; behind: boolean }>(`(() => {

@@ -12,12 +12,14 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type AppUrlOptions, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type PageQuery, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const chromium = findChromium();
@@ -89,7 +91,7 @@ const FAKE_PAD = `
 `;
 
 /** newPage で開いたページの URL のクエリ（render=off・clock=manual）。 */
-const urlOptions = new WeakMap<Page, AppUrlOptions>();
+const urlOptions = new WeakMap<Page, PageQuery>();
 
 async function screenshot(page: Page): Promise<Image> {
   return decodePng(await page.screenshot());
@@ -144,7 +146,7 @@ async function choose(page: Page, selector: string, label: string) {
 
 /** トップ画面を開き、武器とモードを選んで「開始」を押し、プレイ画面になるまで待つ。 */
 async function start(page: Page, origin: string, weapon: string, mode: string) {
-  await page.goto(appUrl(origin, BASE, '#/', urlOptions.get(page)));
+  await page.goto(appUrl(origin, BASE, '#/', { ...urlOptions.get(page), seed: SEED }));
   await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden && document.querySelector('#weapon').options.length > 0 && document.querySelector('#mode').options.length > 0`);
   await choose(page, '#weapon', weapon);
   await choose(page, '#mode', mode);
@@ -217,7 +219,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     symlinkSync(dir, site, 'dir');
   };
   /** 新しいタブ。options は start で開く URL のクエリ（既定は描画し、実時間で進む）。 */
-  const newPage = async (options: AppUrlOptions = {}) => {
+  const newPage = async (options: PageQuery = {}) => {
     const page = await browser!.newPage();
     await page.addInitScript(FAKE_PAD);
     urlOptions.set(page, options);
@@ -289,7 +291,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     it('WPN-3: 武器の選択肢が category ごとにまとめて表示され、一覧のすべての武器（L-STAR と C.A.R. SMG の 2 つだけ）が選択肢に出る', async () => {
       serveDist(mainDist);
       const page = await newPage();
-      await page.goto(`${origin}${BASE}#/`);
+      await page.goto(appUrl(origin, BASE, '#/', { seed: SEED }));
       await page.waitFor(`document.querySelector('#weapon').options.length > 0`);
       const groups = await page.evaluate<{ label: string; names: string[] }[]>(`[...document.querySelector('#weapon').children].map((g) => ({
         label: g.tagName === 'OPTGROUP' ? g.label : '', names: g.tagName === 'OPTGROUP' ? [...g.children].map((o) => o.textContent.trim()) : [g.textContent.trim()] }))`);
@@ -338,7 +340,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     it('MODE-5: 足したモードで、ほかのファイルを変えずにモードの選択肢が出て、反復練習と足したモードが並び順の順に並ぶ', async () => {
       serveDist(copyDist);
       const page = await newPage();
-      await page.goto(`${origin}${BASE}#/`);
+      await page.goto(appUrl(origin, BASE, '#/', { seed: SEED }));
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
       expect(modes).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック', '受け入れの追加モード']);
@@ -354,7 +356,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       expect(firstCopyBuild.status, firstCopyBuild.output).toBe(0);
       serveDist(firstCopyDist);
       const page = await newPage();
-      await page.goto(`${origin}${BASE}#/`);
+      await page.goto(appUrl(origin, BASE, '#/', { seed: SEED }));
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
       expect(modes).toEqual(['受け入れの追加モード', '反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック']);
@@ -370,7 +372,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     it('WPN-1 / WPN-2: 足した武器はその category の下に出て、rpm が欠けた武器は出ず、ファイル名と rpm がコンソールに出る', async () => {
       serveDist(copyDist);
       const page = await newPage();
-      await page.goto(`${origin}${BASE}#/`);
+      await page.goto(appUrl(origin, BASE, '#/', { seed: SEED }));
       await page.waitFor(`document.querySelector('#weapon').options.length > 0`);
       // rpm が欠けた武器の知らせがコンソールに出るまで待つ。
       await waitUntil(() => page.errors.some((e) => e.includes('acceptance-no-rpm')), 'rpm が欠けた武器のファイル名がコンソールに出る');
