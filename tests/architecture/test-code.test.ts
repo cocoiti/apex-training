@@ -1,4 +1,5 @@
-// テストの実行（docs/spec/architecture.md「テストの実行」、ARC-18・ARC-21・ARC-22・ARC-32・ARC-33・ARC-35）の確認。
+// テストの実行（docs/spec/architecture.md「テストの実行」、ARC-18・ARC-21・ARC-22・ARC-32・ARC-33）の確認。
+// ARC-35（CLAUDE.md の書き方）は tests/acceptance/parallel-browser-qa.acceptance.test.ts だけで確かめる。
 // このファイルは決まったポート番号や sleep の書き方を例として持つので、ARC-18 の確認の対象から外す。
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -128,7 +129,7 @@ describe('ARC-21: ブラウザを使うテストとそれ以外を分けて流�
   }, 120_000);
 });
 
-describe('ARC-32・ARC-33・ARC-35: ブラウザを使うテストのファイルを同時に流す数', () => {
+describe('ARC-32・ARC-33: ブラウザを使うテストのファイルを同時に流す数', () => {
   it('既定の数は 2〜4 で、環境変数がない・空のときは既定の数になる', () => {
     expect(DEFAULT_BROWSER_WORKERS).toBeGreaterThanOrEqual(2);
     expect(DEFAULT_BROWSER_WORKERS).toBeLessThanOrEqual(4);
@@ -152,12 +153,6 @@ describe('ARC-32・ARC-33・ARC-35: ブラウザを使うテストのファイ�
     expect(browser?.maxWorkers).toBe(browserWorkers(process.env));
     expect(browser?.fileParallelism).toBeUndefined();
     expect(browser?.sequence?.groupOrder).not.toBe(byName.get('unit')?.sequence?.groupOrder);
-  });
-
-  it('CLAUDE.md のテストのコマンドに、既定の数と APEX_BROWSER_WORKERS での変え方（1 で 1 ファイルずつ）が書いてある', () => {
-    const text = readFileSync(join(ROOT, 'CLAUDE.md'), 'utf8');
-    expect(text).toContain(`既定で ${DEFAULT_BROWSER_WORKERS} ファイルずつ並行に流す`);
-    expect(text).toContain('`APEX_BROWSER_WORKERS=1 npm run test:browser` で 1 ファイルずつ');
   });
 });
 

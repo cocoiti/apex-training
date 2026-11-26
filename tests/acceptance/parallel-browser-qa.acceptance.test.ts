@@ -1,8 +1,10 @@
 // docs/spec/architecture.md「テストの実行」（#67: ブラウザを使うテストのファイルを並行に流す）の受け入れテスト（QA）。
-// ARC-28・ARC-30〜ARC-35 と、振る舞い（既定で 2〜4 の決まった数を並行に流し、npm test と npm run test:browser で同じ数）を確かめる。
+// ARC-27・ARC-28・ARC-30〜ARC-35 と、振る舞い（既定で 2〜4 の決まった数を並行に流し、npm test と npm run test:browser で同じ数）を確かめる。
+// npm run test:browser を実際に流して確かめる受け入れ条件は、このファイルだけで確かめる（ARC-26・ARC-29 は browser-tests-qa）。
 // 公開された入口（CLAUDE.md、package.json の scripts、vitest の JSON の報告、流れている Chromium のプロセスの引数と環境変数）だけを使う。
 //
 // - ARC-33・ARC-35: いつも流す。設定を読むところで止まる・文書を読むだけなので速い。
+//   ARC-33 は入れ子の npm test（APEX_ACCEPTANCE_NESTED=1）の中では流さない。
 // - それ以外: npm run test:browser を何度も流すため 40 分ほどかかる。APEX_ACCEPTANCE_PARALLEL=1 のときだけ流す。
 //   ほかの作業ツリーでテストを流していないときに、次のように流す。
 //   APEX_ACCEPTANCE_PARALLEL=1 npx vitest run --project unit tests/acceptance/parallel-browser-qa.acceptance.test.ts
@@ -184,9 +186,20 @@ const twoRun = () => once('two', () => run(BROWSER, { [WORKERS_ENV]: '2' }, 'two
 
 const HOUR = 3_600_000;
 
-// ---------------------------------------------------------------- ARC-33（いつも流す）
+// ---------------------------------------------------------------- 数え方の確認（いつも流す）
 
-describe('ARC-33: APEX_BROWSER_WORKERS が 1 以上の整数でないとき、ブラウザを使うテストが 1 つも流れず、その名前を示す誤りで終わる', () => {
+describe('調べ方の確認: 同時に流れていたファイルの数を、開始と終了の時刻から数える', () => {
+  const at = (start: number, end: number): FileResult => ({ file: 'x', start, end, status: 'passed', durations: [] });
+  it('終わった時刻に始まったファイルは重ならず、入れ子や部分的な重なりは数える', () => {
+    expect(maxOverlap([at(0, 10), at(10, 20)])).toBe(1);
+    expect(maxOverlap([at(0, 10), at(5, 20), at(6, 7)])).toBe(3);
+    expect(maxOverlap([])).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------- ARC-33（いつも流す。入れ子の npm test の中では流さない）
+
+describe.skipIf(NESTED)('ARC-33: APEX_BROWSER_WORKERS が 1 以上の整数でないとき、ブラウザを使うテストが 1 つも流れず、その名前を示す誤りで終わる', () => {
   it.each(['0', 'abc'])('APEX_BROWSER_WORKERS=%s', async (value) => {
     const r = await run(BROWSER, { [WORKERS_ENV]: value }, `bad-${value}`);
     expect(r.status, r.output.slice(-3000)).not.toBe(0);
@@ -240,6 +253,19 @@ describe.skipIf(!HEAVY)('振る舞い（テストの実行）: 既定で 2〜4 �
     expect(maxOverlap(browserInAll), summary(a)).toBe(n);
     expect(a.failed, summary(a)).toEqual([]);
   }, 2 * HOUR);
+});
+
+describe.skipIf(!HEAVY)('ARC-27: ほかの作業ツリーでテストを流していないとき、既定の並行数の npm run test:browser が 415 秒以下で終わり、全件が通る', () => {
+  it('既定の並行数の npm run test:browser が 415 秒以下で終わり、終了コード 0 で失敗したテストがない', async () => {
+    const others = await otherWorktreeVitest();
+    const r = await defaultRun(1);
+    const report = `${summary(r)}\nほかの作業ツリーの vitest: ${others.length}`;
+    console.log(`ARC-27: ${report}`);
+    expect(r.numPassed, report).toBeGreaterThan(0);
+    expect(r.failed, report).toEqual([]);
+    expect(r.status, report).toBe(0);
+    expect(r.wallMs / 1000, report).toBeLessThanOrEqual(415);
+  }, HOUR);
 });
 
 describe.skipIf(!HEAVY)('ARC-32: APEX_BROWSER_WORKERS=1 ではファイルが同時に 2 つ以上流れず全件が通り、=2 では同時に 2 つ以下', () => {

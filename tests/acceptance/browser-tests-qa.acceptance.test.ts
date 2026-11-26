@@ -1,25 +1,16 @@
-// docs/spec/architecture.md「テストの実行」「テストの網羅の分担」（ARC-26〜ARC-34）の受け入れテスト（QA）。
-// 公開された入口（package.json の scripts、vite.config.ts が公開する browserTestFiles、tests/ のテストのコード、
-// tests/acceptance/README.md の表、vitest の JSON の報告）だけを使う。
+// docs/spec/architecture.md「テストの実行」「テストの網羅の分担」（ARC-26・ARC-29）の受け入れテスト（QA）。
+// 公開された入口（vite.config.ts が公開する browserTestFiles、tests/ のテストのコード、tests/acceptance/README.md の表）だけを使う。
 //
 // - ARC-26・ARC-29: いつも流す。ブラウザを使うテストのファイルを TypeScript の構文木で調べる。
-// - ARC-33: いつも流す。設定を読むところで止まるので速い。
-// - ARC-27・ARC-28・ARC-30・ARC-32・ARC-34: npm run test:browser を既定の並行数・APEX_BROWSER_WORKERS=1・2 で 1 回ずつ流すため
-//   15 分ほどかかる。環境変数 APEX_ACCEPTANCE_TIMING=1 のときだけ流す。ARC-31（既定の並行数で 3 回）は APEX_ACCEPTANCE_REPEAT=1 のときだけ流す。
-//   ほかの作業ツリーでテストを流していないときに、次のように流す。
-//   APEX_ACCEPTANCE_TIMING=1 npx vitest run --project unit tests/acceptance/browser-tests-qa.acceptance.test.ts
-import { spawn } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { basename, join, relative, resolve } from 'node:path';
+// - npm run test:browser を実際に流して確かめる ARC-27・ARC-28・ARC-30〜ARC-34 と、ARC-35 は、
+//   tests/acceptance/parallel-browser-qa.acceptance.test.ts にまとめている（流す道具と重なりの数え方を 1 か所にするため）。
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import ts from 'typescript';
-import { afterAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { browserTestFiles } from '../../vite.config';
 
 const ROOT = resolve(__dirname, '../..');
-const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
-const TIMING = process.env.APEX_ACCEPTANCE_TIMING === '1' && !NESTED;
-const REPEAT = process.env.APEX_ACCEPTANCE_REPEAT === '1' && !NESTED;
 const read = (file: string) => readFileSync(join(ROOT, file), 'utf8');
 const parse = (file: string, source: string) => ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
 const lineOf = (sf: ts.SourceFile, node: ts.Node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
@@ -278,176 +269,4 @@ describe('ARC-29: tests/acceptance/README.md の表の ID は、表が示すフ�
     expect(tableRows('| ID | SPEC | ファイル |\n|--|--|--|\n| UI-1 | [s](x) | `tests/acceptance/a.acceptance.test.ts` |\n| 説明 | x | y |'))
       .toEqual([{ id: 'UI-1', file: 'tests/acceptance/a.acceptance.test.ts' }]);
   });
-});
-
-// ---------------------------------------------------------------- ARC-33（設定を読むところで止まるので、いつも流す）
-
-/** npm run test:browser を env を足して流した結果（終了コードと出力）。 */
-function runQuick(extra: Record<string, string>): Promise<{ code: number; output: string }> {
-  return new Promise((ok) => {
-    let output = '';
-    const child = spawn('npm', ['run', 'test:browser'], { cwd: ROOT, env: { ...process.env, ...extra, APEX_ACCEPTANCE_TIMING: '', FORCE_COLOR: '0' } });
-    child.stdout.on('data', (d) => (output += String(d)));
-    child.stderr.on('data', (d) => (output += String(d)));
-    child.on('close', (c) => ok({ code: c ?? 1, output }));
-  });
-}
-
-describe('ARC-33: APEX_BROWSER_WORKERS が 1 以上の整数でないと、ブラウザを使うテストを 1 つも流さず、その名前を示して失敗する', () => {
-  it.each(['0', 'abc'])('APEX_BROWSER_WORKERS=%s', async (value) => {
-    const { code, output } = await runQuick({ APEX_BROWSER_WORKERS: value });
-    expect(code, output).not.toBe(0);
-    expect(output).toMatch(/APEX_BROWSER_WORKERS/);
-    // テストのファイルを 1 つも流していない（ファイルの結果の行や、テストの件数のまとめが出ない）。
-    expect(output).not.toMatch(/\.test\.ts/);
-    expect(output).not.toMatch(/Tests\s+\d+ (?:passed|failed)/);
-  }, 120_000);
-});
-
-// ---------------------------------------------------------------- ARC-27・ARC-28・ARC-30〜ARC-32・ARC-34（実際に流す）
-
-interface JsonReport {
-  testResults: { name: string; startTime: number; endTime: number; status: string; assertionResults: { duration?: number | null; status: string }[] }[];
-  numFailedTests: number;
-  numTotalTests: number;
-}
-
-interface Run {
-  code: number;
-  elapsed: number;
-  report: JsonReport;
-  output: string;
-  /** 同時にあった Chromium の一時ディレクトリ（acceptance-chromium-*）の数の最大と、見えたディレクトリの名前。 */
-  chromiumMax: number;
-  chromiumSeen: Set<string>;
-  /** 流し終わったあとに、流すあいだの一時ディレクトリ（TMPDIR）に残っていたもの。 */
-  leftovers: string[];
-}
-
-/** 同時に流れていたファイルの数の最大（ファイルの開始と終了の時刻から数える。終わった時刻に始まったファイルは重ならない）。 */
-function maxConcurrent(intervals: { startTime: number; endTime: number }[]): number {
-  const events = intervals.flatMap((r) => [[r.startTime, 1], [r.endTime, -1]] as const).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  let now = 0;
-  let max = 0;
-  for (const [, d] of events) max = Math.max(max, (now += d));
-  return max;
-}
-
-/** npm run test:browser を流す。TMPDIR を空の一時ディレクトリにして、ファイルが作った一時ディレクトリを見張り、残りを調べる。 */
-async function runBrowserTests(work: string, label: string, extra: Record<string, string>): Promise<Run> {
-  const out = join(work, `${label}.json`);
-  const temp = mkdtempSync(join(work, `${label}-tmp-`));
-  const chromiumSeen = new Set<string>();
-  let chromiumMax = 0;
-  const watch = setInterval(() => {
-    const now = readdirSync(temp).filter((f) => f.startsWith('acceptance-chromium-'));
-    for (const d of now) chromiumSeen.add(d);
-    chromiumMax = Math.max(chromiumMax, now.length);
-  }, 200);
-  let output = '';
-  const started = Date.now();
-  const code = await new Promise<number>((ok) => {
-    const child = spawn('npm', ['run', 'test:browser', '--', '--reporter=json', `--outputFile=${out}`], {
-      cwd: ROOT,
-      env: { ...process.env, APEX_BROWSER_WORKERS: '', ...extra, APEX_ACCEPTANCE_TIMING: '', FORCE_COLOR: '0', TMPDIR: temp, TMP: temp, TEMP: temp },
-    });
-    child.stdout.on('data', (d) => (output += String(d)));
-    child.stderr.on('data', (d) => (output += String(d)));
-    child.on('close', (c) => ok(c ?? 1));
-  });
-  clearInterval(watch);
-  const elapsed = (Date.now() - started) / 1000;
-  const report = JSON.parse(readFileSync(out, 'utf8')) as JsonReport;
-  // node-compile-cache は Node.js（npm・tsc・vite の起動）が作り、次の起動でも使い回すコンパイルの置き場で、テストのファイルが作るものではない。
-  const leftovers = readdirSync(temp).filter((f) => f !== 'node-compile-cache');
-  console.log(`${label}: ${elapsed.toFixed(1)} 秒、終了コード ${code}、失敗 ${report.numFailedTests} 件、同時に流れたファイル ${maxConcurrent(report.testResults)}、` +
-    `同時の Chromium ${chromiumMax}、残り ${JSON.stringify(leftovers)}`);
-  return { code, elapsed, report, output, chromiumMax, chromiumSeen, leftovers };
-}
-
-const allPassed = (r: Run) => r.code === 0 && r.report.numFailedTests === 0 && r.report.numTotalTests > 0 &&
-  r.report.testResults.length === browserFiles.length && r.report.testResults.every((t) => t.status === 'passed');
-
-describe.skipIf(!TIMING)('ARC-27・ARC-28・ARC-30・ARC-32・ARC-34: npm run test:browser を既定の並行数・1・2 で流す', () => {
-  let work = '';
-  const runs = new Map<string, Promise<Run>>();
-  const once = (label: string, extra: Record<string, string>) => {
-    work ||= mkdtempSync(join(tmpdir(), 'browser-tests-qa-'));
-    if (!runs.has(label)) runs.set(label, runBrowserTests(work, label, extra));
-    return runs.get(label)!;
-  };
-  const byDefault = () => once('default', {});
-  const serial = () => once('workers-1', { APEX_BROWSER_WORKERS: '1' });
-  const two = () => once('workers-2', { APEX_BROWSER_WORKERS: '2' });
-  afterAll(() => {
-    if (work) rmSync(work, { recursive: true, force: true });
-  });
-
-  it('ARC-27: 既定の並行数で npm run test:browser が 415 秒以下で終わり、全件が通る', async () => {
-    const r = await byDefault();
-    expect(allPassed(r), r.output.slice(-4000)).toBe(true);
-    expect(r.elapsed).toBeLessThanOrEqual(415);
-  }, 900_000);
-
-  it('ARC-34: 既定の並行数では、同時に流れるファイルの Chromium の一時ディレクトリがファイルごとに別で、終わったあとに何も残らない', async () => {
-    const r = await byDefault();
-    expect(maxConcurrent(r.report.testResults)).toBeGreaterThanOrEqual(2);
-    expect(r.chromiumMax, '同時に流れるファイルごとに別の Chromium の一時ディレクトリがある').toBeGreaterThanOrEqual(2);
-    expect(r.chromiumSeen.size).toBeGreaterThanOrEqual(r.chromiumMax);
-    expect(r.leftovers).toEqual([]);
-  }, 900_000);
-
-  it('ARC-28: APEX_BROWSER_WORKERS=1 で、retry-sets-qa 61 秒・ghost-follow-qa 45 秒・pad-navigation-qa 39 秒・result-qa 37 秒・measured-weapons-qa 30 秒以下', async () => {
-    const r = await serial();
-    const limits: Record<string, number> = { 'retry-sets-qa': 61, 'ghost-follow-qa': 45, 'pad-navigation-qa': 39, 'result-qa': 37, 'measured-weapons-qa': 30 };
-    const sumOf = (t: JsonReport['testResults'][number]) => t.assertionResults.reduce((s, a) => s + (a.duration ?? 0), 0) / 1000;
-    const sums = Object.fromEntries(Object.keys(limits).map((k) => {
-      const file = r.report.testResults.find((t) => basename(t.name) === `${k}.acceptance.test.ts`);
-      return [k, file ? sumOf(file) : NaN];
-    }));
-    console.log(`ARC-28 テストの時間の合計（秒）: ${JSON.stringify(sums)}`);
-    console.log(`ARC-28 全ファイル: ${r.report.testResults.map((t) => `${relative(ROOT, t.name)}=${sumOf(t).toFixed(1)}`).join(', ')}`);
-    const over = Object.entries(limits).filter(([k, limit]) => !(sums[k]! <= limit)).map(([k, limit]) => `${k}: ${sums[k]} > ${limit}`);
-    expect(over).toEqual([]);
-  }, 900_000);
-
-  it('ARC-30: 既定の並行数で流したときは、APEX_BROWSER_WORKERS=1 で流したときより所要時間が短い', async () => {
-    const d = await byDefault();
-    const s = await serial();
-    expect(d.elapsed).toBeLessThan(s.elapsed);
-  }, 1_800_000);
-
-  it('ARC-32: APEX_BROWSER_WORKERS=1 では全件が通り、ファイルが同時に 2 つ以上流れない。2 では同時に流れるファイルが 2 つ以下', async () => {
-    const s = await serial();
-    expect(allPassed(s), s.output.slice(-4000)).toBe(true);
-    expect(maxConcurrent(s.report.testResults)).toBe(1);
-    expect(s.chromiumMax).toBeLessThanOrEqual(1);
-    const t = await two();
-    expect(allPassed(t), t.output.slice(-4000)).toBe(true);
-    expect(maxConcurrent(t.report.testResults)).toBeLessThanOrEqual(2);
-    expect(t.chromiumMax).toBeLessThanOrEqual(2);
-  }, 1_800_000);
-
-  it('調べ方の確認: 同時に流れていたファイルの数を、開始と終了の時刻から数える', () => {
-    expect(maxConcurrent([{ startTime: 0, endTime: 10 }, { startTime: 10, endTime: 20 }])).toBe(1);
-    expect(maxConcurrent([{ startTime: 0, endTime: 10 }, { startTime: 5, endTime: 20 }, { startTime: 6, endTime: 7 }])).toBe(3);
-    expect(maxConcurrent([])).toBe(0);
-  });
-});
-
-describe.skipIf(!REPEAT)('ARC-31: 既定の並行数で npm run test:browser を 3 回続けて流すと、3 回とも全件が通る', () => {
-  let work = '';
-  afterAll(() => {
-    if (work) rmSync(work, { recursive: true, force: true });
-  });
-
-  it('3 回とも全件が通る', async () => {
-    work = mkdtempSync(join(tmpdir(), 'browser-tests-qa-repeat-'));
-    const failures: string[] = [];
-    for (const i of [1, 2, 3]) {
-      const r = await runBrowserTests(work, `repeat-${i}`, {});
-      if (!allPassed(r)) failures.push(`${i} 回目: 失敗 ${r.report.numFailedTests} 件\n${r.output.slice(-2000)}`);
-    }
-    expect(failures).toEqual([]);
-  }, 2_700_000);
 });

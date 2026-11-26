@@ -34,4 +34,4 @@
 
 - spec/architecture.md（テストの実行、ARC-28, ARC-30〜ARC-35）
 - vite.config.ts, CLAUDE.md, tests/helpers/browser.ts, tests/architecture/test-code.test.ts,
-  tests/acceptance/browser-tests-qa.acceptance.test.ts, tests/acceptance/{screens,mouse-qa,wall-target-scope-qa}.acceptance.test.ts
+  tests/acceptance/parallel-browser-qa.acceptance.test.ts, tests/acceptance/{screens,mouse-qa,wall-target-scope-qa}.acceptance.test.ts
