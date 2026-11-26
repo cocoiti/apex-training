@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { modes } from '../../src/modes/registry';
+import { setLanguage } from '../../src/ui/i18n';
 import { fillModeChoice, fillModeSelect } from '../../src/ui/mode-choices';
 import { createFakeSelect } from './fake-select';
+
+afterEach(() => setLanguage('ja'));
 
 describe('fillModeSelect', () => {
   it('モードを渡した順に option にし、最初のモードを選ぶ', () => {
@@ -37,7 +40,30 @@ describe('fillModeSelect', () => {
     fillModeSelect(select, [{ id: 'b', name: { ja: 'B', en: 'B' } }]);
     expect(element.children.map((o) => o.value)).toEqual(['b']);
   });
+
+  it('keep が true なら、言語を選び直して入れ直しても選んでいたモードのままで、名前は新しい言語になる', () => {
+    const { select, element } = createFakeSelect();
+    fillModeSelect(select, modes);
+    element.value = 'flick';
+    setLanguage('en');
+    fillModeSelect(select, modes, true);
+    expect(element.children.map((o) => o.textContent)).toEqual(['Recoil Drill', 'Tracking', 'Tracking + Recoil', 'Flick']);
+    expect(element.value).toBe('flick');
+  });
+
+  it('keep が true でも、選んでいたモードが選択肢になければ最初のモードを選ぶ。keep が false なら最初のモードに戻す', () => {
+    const { select, element } = createFakeSelect();
+    fillModeSelect(select, modes);
+    element.value = 'flick';
+    fillModeSelect(select, modes);
+    expect(element.value).toBe('ghost');
+    element.value = 'flick';
+    fillModeSelect(select, [{ id: 'ghost', name: { ja: '反復練習', en: 'Recoil Drill' } }], true);
+    expect(element.value).toBe('ghost');
+  });
 });
+
+const mode = (id: string) => modes.find((m) => m.id === id)!;
 
 function choiceElements() {
   const { select, element } = createFakeSelect();
@@ -73,5 +99,18 @@ describe('fillModeChoice', () => {
     expect(elements.only.hidden).toBe(true);
     expect(element.children.map((o) => o.textContent)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック']);
     expect(element.value).toBe('ghost');
+  });
+
+  it('keep が true なら、言語を選び直して作り直しても選んでいたモードのままで、名前だけの欄も新しい言語になる', () => {
+    const { element, elements } = choiceElements();
+    fillModeChoice(elements, modes);
+    element.value = 'tracking';
+    setLanguage('en');
+    fillModeChoice(elements, modes, true);
+    expect(element.value).toBe('tracking');
+    expect(element.children.map((o) => o.textContent)).toEqual(['Recoil Drill', 'Tracking', 'Tracking + Recoil', 'Flick']);
+    const single = choiceElements();
+    fillModeChoice(single.elements, [mode('ghost')], true);
+    expect(single.elements.name.textContent).toBe('Recoil Drill');
   });
 });

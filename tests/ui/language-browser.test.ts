@@ -208,6 +208,55 @@ describe.skipIf(NESTED || !chromium)('表示の言語', () => {
     expect(await shown(page)).toMatchObject({ lang: 'en' });
   });
 
+  it('言語を選び直しても、トップ画面で選んだモード・練習の選択肢・回数は変わらず、名前だけが新しい言語になる', async () => {
+    const page = await open('ja-JP', { seed: { 'apex-training:analytics-consent': 'denied' } });
+    await choose(page, '#mode', 'flick');
+    await choose(page, '#flick-range', 'far');
+    await choose(page, '#flick-size', 'small');
+    await choose(page, '#count', '5');
+    const top = () =>
+      page.evaluate<{ mode: string; card: string; range: string; size: string; count: string; countText: string; rangeText: string; shown: string[] }>(`(() => {
+        const text = (s) => s.options[s.selectedIndex].textContent;
+        const range = document.querySelector('#flick-range');
+        const count = document.querySelector('#count');
+        return { mode: document.querySelector('#mode').value, card: document.querySelector('#mode-cards .card.selected')?.dataset.value ?? '',
+          range: range.value, size: document.querySelector('#flick-size').value, count: count.value, countText: text(count), rangeText: text(range),
+          shown: [...document.querySelectorAll('#mode-options .choice')].filter((c) => window.__vis(c)).map((c) => c.querySelector('select').id) }; })()`);
+
+    await page.evaluate(`location.hash = '#/settings'`);
+    await page.waitFor(`window.__vis(document.querySelector('[data-screen="settings"]'))`);
+    await choose(page, '#setting-language', 'en');
+    await page.evaluate(`location.hash = '#/'`);
+    await page.waitFor(`window.__vis(document.querySelector('[data-screen="top"]'))`);
+    expect(await top()).toEqual({ mode: 'flick', card: 'flick', range: 'far', size: 'small', count: '5', countText: '5', rangeText: 'Far', shown: ['flick-range', 'flick-size'] });
+
+    await page.evaluate(`location.hash = '#/settings'`);
+    await page.waitFor(`window.__vis(document.querySelector('[data-screen="settings"]'))`);
+    await choose(page, '#setting-language', 'ja');
+    await page.evaluate(`location.hash = '#/'`);
+    await page.waitFor(`window.__vis(document.querySelector('[data-screen="top"]'))`);
+    expect(await top()).toEqual({ mode: 'flick', card: 'flick', range: 'far', size: 'small', count: '5', countText: '5 回', rangeText: '遠い', shown: ['flick-range', 'flick-size'] });
+  });
+
+  it('武器のデータを読み込めなかった知らせは、言語を選び直すと新しい言語の同じ知らせになり、「読み込み中」に戻らない', async () => {
+    // マップ（range）のほかの JSON（武器のデータ）を読み込めなくする。
+    const failing = `const original = window.fetch;
+      window.fetch = (input, init) => { const url = String(input instanceof Request ? input.url : input);
+        return url.endsWith('.json') && !url.includes('/range-') ? Promise.reject(new TypeError('blocked')) : original(input, init); };`;
+    const page = await browser!.newPage({ language: 'ja-JP' });
+    await page.addInitScript(PAGE_INIT);
+    await page.addInitScript(failing);
+    await page.goto(appUrl(origin, BASE, '#/settings', APP));
+    const status = () => textOf(page, '#status');
+    await page.waitFor(`document.querySelector('#status').textContent === '武器またはモードのデータを読み込めない（コンソールを見る）'`, 15_000);
+    await page.waitFor(`window.__vis(document.querySelector('[data-screen="settings"]'))`);
+    await choose(page, '#setting-language', 'en');
+    expect(await textOf(page, '[data-screen="settings"] h2')).toBe('Settings');
+    expect(await status()).toBe("Couldn't load the weapon or mode data (see the console)");
+    await choose(page, '#setting-language', 'ja');
+    expect(await status()).toBe('武器またはモードのデータを読み込めない（コンソールを見る）');
+  });
+
   it('UI-130: パッドだけでトップ画面から設定画面を開き、言語の欄を English に変えると英語になり、再読み込みしても英語のまま', async () => {
     const page = await open('ja-JP', { seed: { 'apex-training:analytics-consent': 'denied' } });
     // 十字キーの下で「設定」のリンクまで移り、A / × で開く。

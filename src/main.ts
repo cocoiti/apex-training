@@ -33,6 +33,7 @@ import { CorrectionPanel, correctionPanelShown, type CorrectionPanelElements } f
 import { DirectionSound, ShotSounds, soundBlockedReason, SoundPreview } from './ui/direction-sound';
 import { fullscreenLabel, toggleFullscreen } from './ui/fullscreen';
 import { loadLanguage, localize, onLanguageChange, t } from './ui/i18n';
+import { StatusMessage } from './ui/status-message';
 import { bindHistoryView, initialHistorySelection, type HistoryElements } from './ui/history-view';
 import { renderHud, type HudElements } from './ui/hud';
 import { renderCalibration, calibrationRadii, type CalibrationElements } from './ui/pad-calibration';
@@ -118,12 +119,21 @@ const appReady = new Promise<App>((resolve) => {
 });
 
 /** 画面の切替とフッターの表示を始める。3D の読み込みに失敗しても画面は出るよう、先に同期で行う。 */
+/** プレイ画面の状態の行（#status）。startShell で言語を決めたあとに作る。 */
+let statusLine: StatusMessage | undefined;
+
 function startShell(): void {
   // 表示の言語（docs/spec/screens.md「表示の言語」）。保存した言語か、なければブラウザの言語で、最初に画面を表示する前に決める。
   // 選び直したら、index.html の文言・<html lang>・タイトルをすぐに書き直す。画面ごとの文言は、それぞれが登録した関数で書き直す。
   loadLanguage(appStorage, navigator.language);
   applyPageLanguage(document);
   onLanguageChange(() => applyPageLanguage(document));
+  // プレイ画面の状態の行は最後に出した文言を覚え、言語を選び直したらその文言を今の言語で書き直す（読み込みの失敗の知らせを残す）。
+  const statusElement = document.querySelector<HTMLElement>('#status');
+  if (statusElement) {
+    statusLine = new StatusMessage(statusElement);
+    statusLine.show('play.loading');
+  }
   const languageField = document.querySelector<HTMLSelectElement>('#setting-language');
   if (languageField) bindLanguageField(languageField, appStorage);
 
@@ -593,7 +603,7 @@ async function start(): Promise<void> {
 
   const parsed = parseMap(await fetchMapJson('range'));
   if (!parsed.ok) {
-    status.textContent = t('play.mapError', { errors: parsed.errors.map((e) => `${e.path} ${e.message}`).join(' / ') });
+    statusLine?.show('play.mapError', { errors: parsed.errors.map((e) => `${e.path} ${e.message}`).join(' / ') });
     return;
   }
   const map: MapData = parsed.map;
@@ -601,7 +611,7 @@ async function start(): Promise<void> {
   // 武器の選択肢は一覧から category ごとに分けて出す（WPN-13、UI-10）。
   const weapons = await loadWeapons();
   if (weapons.length === 0 || modes.length === 0) {
-    status.textContent = t('play.dataError');
+    statusLine?.show('play.dataError');
     return;
   }
   fillWeaponSelect(weaponSelect, weapons);
@@ -1098,7 +1108,7 @@ async function start(): Promise<void> {
           panel.hide();
         }
       }
-      status.textContent = t('play.hint');
+      statusLine?.show('play.hint');
       // 最後の弾の弾痕を記録・表示したあとにリザルト画面へ移る。
       if (session.result) finish(current);
     } else {
@@ -1129,6 +1139,5 @@ async function start(): Promise<void> {
 
 startShell();
 void start().catch((error: unknown) => {
-  const status = document.querySelector<HTMLElement>('#status');
-  if (status) status.textContent = String(error);
+  statusLine?.showText(String(error));
 });

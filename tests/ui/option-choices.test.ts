@@ -1,9 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { FLICK_RANGE_OPTION, FLICK_SIZE_OPTION } from '../../src/modes/aim/flick';
 import { modes } from '../../src/modes/registry';
 import { SPEED_OPTION } from '../../src/modes/tracking';
 import type { ModeOption } from '../../src/modes/types';
-import { buildOptionFields, fillOptionSelect, modeOptionsOf, optionFieldValues, showOptionChoice, showOptionFields } from '../../src/ui/option-choices';
+import { setLanguage } from '../../src/ui/i18n';
+import {
+  buildOptionFields,
+  fillOptionSelect,
+  modeOptionsOf,
+  optionFieldValues,
+  relabelOptionFields,
+  showOptionChoice,
+  showOptionFields,
+} from '../../src/ui/option-choices';
 import { createFakeDocument, createFakeSelect, type FakeElement } from './fake-select';
 
 const mode = (id: string) => modes.find((m) => m.id === id)!;
@@ -21,6 +30,8 @@ function fields(prefix = '') {
   const shown = () => built.filter((f) => !f.choice.hidden).map((f) => f.id);
   return { container, built, select, shown };
 }
+
+afterEach(() => setLanguage('ja'));
 
 describe('練習の選択肢の欄', () => {
   it('登録されたモードの練習の選択肢は、id ごとに 1 つずつ、速さ・出る範囲・的の大きさの順', () => {
@@ -96,5 +107,25 @@ describe('練習の選択肢の欄', () => {
     expect(elements.name.textContent).toBe('大きさ');
     showOptionChoice(elements, undefined);
     expect(elements.choice.hidden).toBe(true);
+  });
+
+  it('言語を選び直して書き直すと、見出しと値の名前が新しい言語になり、選んでいた値と欄の出し隠しは変わらない', () => {
+    const page = fields();
+    showOptionFields(page.built, mode('flick'));
+    page.select('flick-range').value = 'far';
+    page.select('flick-size').value = 'small';
+    page.select('speed').value = 'fast';
+    setLanguage('en');
+    relabelOptionFields(page.built);
+    expect(page.built.map((f) => f.name?.textContent)).toEqual(['Speed', 'Spawn range', 'Target size']);
+    expect(page.select('speed').children.map((o) => o.textContent)).toEqual(['Slow', 'Normal', 'Fast']);
+    expect(page.select('flick-range').children.map((o) => o.textContent)).toEqual(['Near', 'Normal', 'Far']);
+    expect(page.select('flick-size').children.map((o) => o.textContent)).toEqual(['Large', 'Medium', 'Small']);
+    expect(optionFieldValues(page.built)).toEqual({ speed: 'fast', 'flick-range': 'far', 'flick-size': 'small' });
+    expect(page.shown()).toEqual(['flick-range', 'flick-size']);
+    setLanguage('ja');
+    relabelOptionFields(page.built);
+    expect(page.built.map((f) => f.name?.textContent)).toEqual(['速さ', '出る範囲', '的の大きさ']);
+    expect(optionFieldValues(page.built)).toEqual({ speed: 'fast', 'flick-range': 'far', 'flick-size': 'small' });
   });
 });

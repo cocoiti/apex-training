@@ -4,6 +4,8 @@
 export interface FakeElement {
   readonly tagName: string;
   readonly children: FakeElement[];
+  /** select の option（子の要素と同じ並び）。 */
+  readonly options: FakeElement[];
   readonly ownerDocument: FakeDocument;
   label: string;
   value: string;
@@ -22,6 +24,9 @@ export function createFakeDocument(): FakeDocument {
       const element: FakeElement = {
         tagName: tagName.toUpperCase(),
         children: [],
+        get options() {
+          return element.children;
+        },
         ownerDocument: doc,
         label: '',
         value: '',
