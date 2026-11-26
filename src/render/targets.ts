@@ -33,6 +33,11 @@ export class TargetMarks {
     for (const target of targets) {
       seen.add(target.id);
       let mesh = this.meshes.get(target.id);
+      // 同じ識別子で大きさの違う的が足し直された（remove のあと add した）ときは、箱を作り直す。
+      if (mesh && !sameSize(mesh.userData.targetSize as Vec3, target.size)) {
+        this.dispose(target.id, mesh);
+        mesh = undefined;
+      }
       if (!mesh) {
         mesh = createMesh(target);
         this.meshes.set(target.id, mesh);
@@ -72,5 +77,10 @@ function createMesh(target: PracticeTarget): THREE.Mesh {
   );
   mesh.name = PRACTICE_TARGET_NAME;
   mesh.userData.targetId = target.id;
+  mesh.userData.targetSize = { x: target.size.x, y: target.size.y, z: target.size.z };
   return mesh;
+}
+
+function sameSize(a: Vec3, b: Vec3): boolean {
+  return a.x === b.x && a.y === b.y && a.z === b.z;
 }

@@ -71,6 +71,23 @@ describe('練習の的の表示', () => {
     expect(meshes(view)).toEqual([]);
   });
 
+  it('同じ識別子の的を大きさを変えて足し直すと、表示の箱も新しい大きさで作り直す', () => {
+    const w = world();
+    w.targets.add({ id: 't', size: vec3(1, 1, 1), position: vec3(0, 1.6, -10) });
+    w.targets.update(1 / 120);
+    const view = new ViewScene(w);
+    const marks = new TargetMarks(view.layer);
+    marks.update(w.targets.all, 0);
+    w.targets.remove('t');
+    w.targets.add({ id: 't', size: vec3(0.4, 0.6, 0.2), position: vec3(1, 1.6, -10) });
+    w.targets.update(1 / 120);
+    marks.update(w.targets.all, 0);
+    const shown = meshes(view);
+    expect(shown).toHaveLength(1);
+    const params = (shown[0]!.geometry as THREE.BoxGeometry).parameters;
+    expect([params.width, params.height, params.depth]).toEqual([0.4, 0.6, 0.2]);
+  });
+
   it('ARC-37: 練習の的を描画しても、シミュレーションの的の位置・出現と照準の当たりは描画しないときと変わらない', () => {
     const run = (draw: boolean) => {
       const w = world();
