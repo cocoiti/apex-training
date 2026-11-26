@@ -186,8 +186,8 @@ async function padStart(page: Page, weapon: WeaponJson) {
   await tap(page, DOWN); // 最初の項目（武器）にフォーカスを置くだけ
   expect(await focused(page)).toBe('weapon');
   await chooseByPad(page, '#weapon', weapon.name);
-  await tap(page, DOWN);
-  expect(await focused(page), 'モードにフォーカスが移った').toBe('count');
+  // 武器の次は「パターンの音を聞く」（screens.md「トップ画面」）、その次が回数（モードは反復練習だけで、モードの欄はない）。
+  await focusDownTo(page, 'count');
   await focusDownTo(page, 'start');
   await button(page, A, 1);
   await page.waitFor(`location.hash === '#/play' && ${screenVisible('play')} && window.__ammo() === ${weapon.magSize}`, 10_000);
@@ -468,7 +468,9 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     const weaponRect = await rectOf(page, '#weapon');
     expect(ringDiff(noFocus, weaponFocused, weaponRect), '武器の欄の周りに、フォーカスがないときと見分けられる枠が出る').toBeGreaterThan(20);
 
-    // 次の項目は回数（モードは反復練習だけで、モードの欄はない）。
+    // 武器の次の項目は「パターンの音を聞く」、その次が回数（モードは反復練習だけで、モードの欄はない）。
+    await tap(page, DOWN);
+    expect(await focused(page)).toBe('preview-sound');
     await tap(page, DOWN);
     expect(await focused(page)).toBe('count');
     expect(await value(page, '#weapon')).toBe(weaponBefore);

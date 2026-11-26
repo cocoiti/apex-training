@@ -57,6 +57,10 @@ describe('数の入力欄の左右', () => {
     expect(stepNumber('495', step('setting-pad-ads-yaw'), 1)).toBe('500');
     expect(stepNumber('5', step('setting-pad-ads-pitch'), -1)).toBe('0');
     expect(stepNumber('0', step('calibration-deadzone-input'), -1)).toBe('0');
+    expect(stepNumber('50', step('setting-volume'), 1)).toBe('60');
+    expect(stepNumber('95', step('setting-volume'), 1)).toBe('100');
+    expect(stepNumber('10', step('setting-volume'), -1)).toBe('0');
+    expect(stepNumber('0', step('setting-volume'), -1)).toBe('0');
   });
 
   it('数として読めない値は変えない', () => {

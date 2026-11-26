@@ -14,7 +14,7 @@ function rangeWorld(): World {
 }
 
 function shot(n: number, position: Vec3 | null): ShotRecord {
-  return { shot: n, time: n * 0.1, angles: { yaw: 0, pitch: 0 }, position, deviation: position ? { yaw: 0, pitch: 0 } : null };
+  return { shot: n, patternShot: n, time: n * 0.1, angles: { yaw: 0, pitch: 0 }, position, deviation: position ? { yaw: 0, pitch: 0 } : null };
 }
 
 const eye = vec3(0, 1.6, 0);

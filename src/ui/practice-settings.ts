@@ -22,6 +22,9 @@ export interface PracticeSettings {
   readonly pad: PadSettings;
   /** パッドの振動（ON/OFF）。 */
   readonly vibration: boolean;
+  /** 向きの音（ON/OFF）と音量（docs/spec/screens.md「音」）。弾痕・採点・入力の記録は変えない。 */
+  readonly sound: boolean;
+  readonly volume: number;
 }
 
 /**
@@ -39,5 +42,7 @@ export function applyPracticeSettings(storage: Pick<SafeStorage, 'get'>, targets
     mouse: loadMouseSettings(storage),
     pad: effectivePadSettings(pad),
     vibration: pad.vibration,
+    sound: common.sound,
+    volume: common.volume,
   };
 }

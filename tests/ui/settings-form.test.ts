@@ -42,6 +42,7 @@ function setup(initial: Record<string, string> = {}, storageFor?: (backing: Stor
       ghost: new FakeField(),
       patternDisplay: new FakeField(),
       sound: new FakeField(),
+      volume: new FakeField(),
       dpi: new FakeField(),
       sensitivity: new FakeField(),
       adsMultiplier: new FakeField(),
@@ -65,6 +66,7 @@ describe('設定画面', () => {
     expect(form).not.toHaveProperty('correctionPanel');
     expect(form.patternDisplay.value).toBe('detailed');
     expect(form.sound.checked).toBe(true);
+    expect(form.volume.value).toBe('50');
     expect(form.dpi.value).toBe('800');
     expect(form.sensitivity.value).toBe('1.5');
     expect(form.adsMultiplier.value).toBe('1.0');
@@ -93,7 +95,7 @@ describe('設定画面', () => {
     expect(app.open().dpi.value).toBe('1200');
   });
 
-  it('UI-11: FOV・クロスヘアの色と形・ゴースト表示・パターンの表示を変えると読み直しても残っている', () => {
+  it('UI-11: FOV・クロスヘアの色と形・ゴースト表示・パターンの表示・音・音量を変えると読み直しても残っている', () => {
     const app = setup();
     const form = app.open();
     form.fov.type('100');
@@ -109,6 +111,7 @@ describe('設定画面', () => {
     form.inputMethod.fire('change');
     form.sound.checked = false;
     form.sound.fire('change');
+    form.volume.type('80');
 
     const reopened = app.open();
     expect(reopened.fov.value).toBe('100');
@@ -118,6 +121,7 @@ describe('設定画面', () => {
     expect(reopened.patternDisplay.value).toBe('simple');
     expect(reopened.inputMethod.value).toBe('pad');
     expect(reopened.sound.checked).toBe(false);
+    expect(reopened.volume.value).toBe('80');
   });
 
   it('UI-12: 範囲の外の数は端の値で保存し、欄の表示も揃える', () => {
@@ -132,6 +136,15 @@ describe('設定画面', () => {
     form.dpi.type('50');
     expect(form.dpi.value).toBe('100');
     expect(app.open().dpi.value).toBe('100');
+    // 音量は 0〜100 の整数。
+    form.volume.type('150');
+    expect(form.volume.value).toBe('100');
+    form.volume.type('-5');
+    expect(app.open().volume.value).toBe('0');
+    form.volume.type('33.6');
+    expect(form.volume.value).toBe('34');
+    form.volume.type('abc');
+    expect(form.volume.value).toBe('34');
   });
 
   it('整数の項目に小数を入力すると四捨五入して保存する', () => {

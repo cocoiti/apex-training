@@ -516,6 +516,10 @@ p.choice {
   font-size: 12px;
 }
 
+.sound-preview .note {
+  margin: 4px 0 0;
+}
+
 .note[hidden] {
   display: none;
 }

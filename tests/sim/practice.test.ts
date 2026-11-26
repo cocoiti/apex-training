@@ -8,7 +8,7 @@ import { vec3 } from '../../src/sim/vec3';
 import type { WeaponData } from '../../src/sim/weapon';
 
 const dt = DEFAULT_FIXED_STEP;
-const shot = { shot: 1, time: 0, angles: { yaw: 0, pitch: 0 }, position: null, deviation: null };
+const shot = { shot: 1, patternShot: 1, time: 0, angles: { yaw: 0, pitch: 0 }, position: null, deviation: null };
 
 /** fire の状態と残弾・撃った数を与えて steps ステップ進め、終わった理由と何ステップ目かを返す。 */
 function run(rule: PracticeEndRule, steps: number, state: { fire: boolean; ammo: number; shots: number }) {

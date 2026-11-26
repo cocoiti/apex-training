@@ -57,6 +57,8 @@
 | MODE-27 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/remove-pattern-mode-qa.acceptance.test.ts` |
 | MODE-28 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/remove-pattern-mode-qa.acceptance.test.ts` |
 | MODE-29 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/remove-pattern-mode-qa.acceptance.test.ts` |
+| MODE-30 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
+| MODE-31 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
 | MOU-2 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-3 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-4 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
@@ -188,6 +190,15 @@
 | UI-73 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/simple-pattern-panel-qa.acceptance.test.ts` |
 | UI-75 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/remove-pattern-mode-qa.acceptance.test.ts` |
 | UI-76 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/recoil-view-qa.acceptance.test.ts` |
+| UI-77 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
+| UI-78 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
+| UI-79 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
+| UI-80 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
+| UI-81 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
+| UI-82 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
+| UI-83 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
+| UI-84 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
+| UI-85 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
 | WPN-1 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-2 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-3 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |

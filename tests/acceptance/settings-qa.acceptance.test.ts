@@ -88,6 +88,7 @@ interface Shown {
   crosshairShape: string;
   ghost: boolean;
   sound: boolean;
+  volume: string;
   dpi: string;
   sensitivity: string;
   adsMultiplier: string;
@@ -105,6 +106,7 @@ const shown = (page: Page) =>
       crosshairShape: v('setting-crosshair-shape'),
       ghost: document.getElementById('setting-ghost').checked,
       sound: document.getElementById('setting-sound').checked,
+      volume: v('setting-volume'),
       dpi: v('setting-dpi'),
       sensitivity: v('setting-sensitivity'),
       adsMultiplier: v('setting-ads-multiplier'),
@@ -233,7 +235,7 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
   });
 
   describe('UI-13: 設定を一度も変えずに開くと既定値が表示される', () => {
-    it('入力方式は自動、FOV 90、クロスヘアは点と #77ccff、ゴースト表示は OFF、音は ON、DPI 800、感度 1.5、ADS 倍率 1.0', async () => {
+    it('入力方式は自動、FOV 90、クロスヘアは点と #77ccff、ゴースト表示は OFF、音は ON、音量 50、DPI 800、感度 1.5、ADS 倍率 1.0', async () => {
       const s = await shown(page);
       expect(s.inputMethod).toBe('auto');
       expect(await page.evaluate<string>(`document.getElementById('setting-input-method').selectedOptions[0].textContent.trim()`)).toBe('自動');
@@ -243,6 +245,8 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       expect(s.crosshairColor).toBe('#77ccff');
       expect(s.ghost).toBe(false);
       expect(s.sound).toBe(true);
+      expect(s.volume).toBe('50');
+      expect(await page.evaluate<string>(`document.getElementById('setting-volume').closest('label')?.textContent.trim() ?? ''`)).toContain('音量');
       expect(s.dpi).toBe('800');
       expect(Number(s.sensitivity)).toBe(1.5);
       expect(s.sensitivity).toMatch(/^1\.5/);
@@ -303,6 +307,22 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       expect(await patternDisplayLabel(page)).toBe('簡易');
       expect((await shown(page)).fov).toBe('105');
       expect(await correctionPanelToggles(page)).toBe(0);
+      noExceptions(page);
+    });
+
+    it('音 OFF・音量 30 も、音 ON・音量 100 も残る', async () => {
+      await page.clickSelector('#setting-sound');
+      await page.waitFor(`!document.getElementById('setting-sound').checked`);
+      await typeInto(page, 'setting-volume', '30', 'enter');
+      await reload(page);
+      let s = await shown(page);
+      expect([s.sound, s.volume]).toEqual([false, '30']);
+      await page.clickSelector('#setting-sound');
+      await page.waitFor(`document.getElementById('setting-sound').checked`);
+      await typeInto(page, 'setting-volume', '100', 'enter');
+      await reload(page);
+      s = await shown(page);
+      expect([s.sound, s.volume]).toEqual([true, '100']);
       noExceptions(page);
     });
 
@@ -387,6 +407,7 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
         crosshairShape: 'dot',
         ghost: false,
         sound: true,
+        volume: '50',
         dpi: '800',
         sensitivity: s.sensitivity,
         adsMultiplier: s.adsMultiplier,

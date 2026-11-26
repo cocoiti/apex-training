@@ -36,7 +36,10 @@ export interface CommonSettings {
   ghost: boolean;
   /** パターンの表示。補正のパネルの理想の線に使う。補正のパネルを出すか消すかの項目はない（docs/spec/screens.md「設定項目」）。 */
   patternDisplay: PatternDisplay;
+  /** 音（docs/spec/screens.md「音」）。練習中と試聴の向きの音を鳴らすか。 */
   sound: boolean;
+  /** 音量（0〜100 の整数）。音の大きさは音量に比例し、0 のときは鳴らさない。 */
+  volume: number;
 }
 
 export const DEFAULT_COMMON_SETTINGS: Readonly<CommonSettings> = {
@@ -47,6 +50,7 @@ export const DEFAULT_COMMON_SETTINGS: Readonly<CommonSettings> = {
   ghost: false,
   patternDisplay: 'detailed',
   sound: true,
+  volume: 50,
 };
 
 /** 数の項目の入力できる範囲。integer なら四捨五入する。 */
@@ -57,6 +61,7 @@ export interface NumberRange {
 }
 
 export const FOV_RANGE: NumberRange = { min: 70, max: 110, integer: true };
+export const VOLUME_RANGE: NumberRange = { min: 0, max: 100, integer: true };
 export const DPI_RANGE: NumberRange = { min: 100, max: 32000, integer: true };
 export const SENSITIVITY_RANGE: NumberRange = { min: 0.1, max: 10, integer: false };
 export const ADS_MULTIPLIER_RANGE: NumberRange = { min: 0.1, max: 5, integer: false };
@@ -188,6 +193,7 @@ export function sanitizeCommonSettings(record: Readonly<Record<string, unknown>>
     ghost: booleanOr(record.ghost, d.ghost),
     patternDisplay: oneOf(record.patternDisplay, PATTERN_DISPLAYS, d.patternDisplay),
     sound: booleanOr(record.sound, d.sound),
+    volume: numberOr(record.volume, VOLUME_RANGE, d.volume),
   };
 }
 

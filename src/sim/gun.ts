@@ -16,6 +16,8 @@ const EPSILON = 1e-9;
 export interface ShotRecord {
   /** 発の番号（練習の開始からの通し番号、1 始まり）。 */
   readonly shot: number;
+  /** pattern の何発目（1 始まり）を使って撃ったか。戻りの時間がたつ前に押し直すと、続きの番号になる。 */
+  readonly patternShot: number;
   /** 発射の時刻（秒）。発射間隔から求めた時刻で、ステップの刻みには丸めない。 */
   readonly time: number;
   /** 弾の向き = 利用者の照準 + リコイルの累積 + その発のブレ。 */
@@ -108,6 +110,7 @@ export class Gun {
     const player = world.player;
     const kick = this.weapon.pattern[this.patternIndex] ?? { dx: 0, dy: 0 };
     addRecoilOffset(player, { yaw: kick.dx, pitch: kick.dy });
+    const patternShot = this.patternIndex + 1;
     this.patternIndex += 1;
     this.ammoLeft -= 1;
 
@@ -117,6 +120,7 @@ export class Gun {
     const hit = raycastBoxes(player.position, directionFromAngles(angles), world.boxes);
     this.shots.push({
       shot: this.shots.length + 1,
+      patternShot,
       time,
       angles,
       position: hit ? hit.position : null,

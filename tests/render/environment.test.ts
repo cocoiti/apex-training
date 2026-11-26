@@ -348,7 +348,7 @@ describe('見た目と練習の結果', () => {
     expect(form).toContain('setting-fov');
     expect(form).not.toMatch(/視点の跳ね|カメラ|跳ね|リコイルの(表示|見せ方)|固定/);
     expect(Object.keys(DEFAULT_COMMON_SETTINGS).sort()).toEqual(
-      ['crosshairColor', 'crosshairShape', 'fov', 'ghost', 'inputMethod', 'patternDisplay', 'sound'].sort(),
+      ['crosshairColor', 'crosshairShape', 'fov', 'ghost', 'inputMethod', 'patternDisplay', 'sound', 'volume'].sort(),
     );
   });
 
