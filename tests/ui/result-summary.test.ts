@@ -25,9 +25,10 @@ describe('リザルトの要約', () => {
   });
 
   it('練習の選択肢を持つモードは、モードのあとに選んだ値を書く', () => {
-    const option = { id: 'fast', name: '速い', label: '速さ' };
-    expect(resultSummaryText({ weapon: undefined, mode: { id: 'tracking', name: '追いエイム', category: 'aim' }, shots: [], option })).toBe('追いエイム / 速さ: 速い — 0 発');
-    expect(optionText(option)).toBe('速さ: 速い');
+    const option = { id: 'fast', name: '速い', optionId: 'speed', label: '速さ' };
+    expect(resultSummaryText({ weapon: undefined, mode: { id: 'tracking', name: '追いエイム', category: 'aim' }, shots: [], options: [option] })).toBe('追いエイム / 速さ: 速い — 0 発');
+    expect(optionText([option])).toBe('速さ: 速い');
+    expect(optionText([])).toBeUndefined();
     expect(optionText(undefined)).toBeUndefined();
   });
 });

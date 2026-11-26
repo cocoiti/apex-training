@@ -51,7 +51,7 @@ describe('履歴のキー', () => {
   it('apex-training:history:<入力方式>:<武器の id>:<モードの id>', () => {
     expect(historyKey(LSTAR_CENTER)).toBe(KEY);
     expect(historyKey({ input: 'pad', weaponId: 'car', modeId: 'ghost' })).toBe('apex-training:history:pad:car:ghost');
-    expect(historyKey({ input: 'mouse', weaponId: '-', modeId: 'tracking', option: 'normal' })).toBe('apex-training:history:mouse:-:tracking:normal');
+    expect(historyKey({ input: 'mouse', weaponId: '-', modeId: 'tracking', options: ['normal'] })).toBe('apex-training:history:mouse:-:tracking:normal');
   });
 });
 

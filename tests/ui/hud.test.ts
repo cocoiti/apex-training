@@ -112,7 +112,7 @@ describe('HUD', () => {
     expect(elements.ammo).toEqual({ textContent: '残弾 28 / 28', hidden: false });
   });
 
-  it('MODE-36: モードが出すもの（フリックの「的: 0 / 20」）を表示し、武器名と残弾は隠す。出さないモードではその要素を隠す', () => {
+  it('MODE-46: モードが出すもの（フリックの「的: 0 / 20」）を表示し、武器名と残弾は隠す。出さないモードではその要素を隠す', () => {
     const elements = {
       weapon: { textContent: '', hidden: false },
       ammo: { textContent: '', hidden: false },

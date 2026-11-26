@@ -1,5 +1,5 @@
-// docs/spec/modes.md「フリック」（MODE-36・MODE-43・MODE-45）、docs/spec/scoring.md「フリックの採点」「自己ベスト」「練習の履歴」
-// （SCO-46〜SCO-50）、docs/spec/screens.md「トップ画面」「履歴の画面」「結果のシェア」「セットのまとめ」（UI-101〜UI-105）の
+// docs/spec/modes.md「フリック」（MODE-46・MODE-53・MODE-55）、docs/spec/scoring.md「フリックの採点」「自己ベスト」「練習の履歴」
+// （SCO-56〜SCO-60）、docs/spec/screens.md「トップ画面」「履歴の画面」「結果のシェア」「セットのまとめ」（UI-107〜UI-111）の
 // ブラウザで確かめる受け入れテスト。QA が SPEC だけから書いたもの。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、SPEC に書かれた localStorage のキーと値の形、画面写し）だけを使う。
 // ブラウザを使わないフリックの受け入れテストは flick-qa.acceptance.test.ts にある。
@@ -35,7 +35,7 @@ const REPEAT = '反復練習';
 const FLICK = 'フリック';
 const BEST_UPDATED = '自己ベスト更新';
 const LSTAR = 'L-STAR';
-const key = (kind: 'best' | 'history', input: 'mouse' | 'pad', range: string, size: string) => `apex-training:${kind}:${input}:-:flick-${range}-${size}`;
+const key = (kind: 'best' | 'history', input: 'mouse' | 'pad', range: string, size: string) => `apex-training:${kind}:${input}:-:flick:${range}:${size}`;
 const FAR_SMALL_BEST = key('best', 'mouse', 'far', 'small');
 const FAR_SMALL_HISTORY = key('history', 'mouse', 'far', 'small');
 
@@ -433,7 +433,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
 
   // -------------------------------------------------------------------------
   describe('トップ画面', () => {
-    it('UI-101: フリックを選ぶと出る範囲と的の大きさの欄が出て「ふつう」「中」が選ばれ、武器の欄と試聴は隠れる。選び直すと前の設定が残る', async () => {
+    it('UI-107: フリックを選ぶと出る範囲と的の大きさの欄が出て「ふつう」「中」が選ばれ、武器の欄と試聴は隠れる。選び直すと前の設定が残る', async () => {
       const page = await openFresh();
       const first = await topState(page);
       expect(first.mode).toBe(REPEAT);
@@ -470,7 +470,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       noExceptions(page);
     });
 
-    it('UI-102: パッドだけでフリック・遠い・小を選んで開始するとその設定で始まる。反復練習のときは設定の欄にフォーカスが移らない', async () => {
+    it('UI-108: パッドだけでフリック・遠い・小を選んで開始するとその設定で始まる。反復練習のときは設定の欄にフォーカスが移らない', async () => {
       // 反復練習のとき: 十字キーの上下で回っても、出る範囲と的の大きさの欄にフォーカスが移らない。
       const page = await openFresh({ pad: true });
       const seen: string[] = [];
@@ -516,7 +516,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       }
       await page2.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`);
       const r = await resultState(page2);
-      expect(r.text).toMatch(/遠い\s*・\s*小/);
+      expect(r.text).toMatch(/出る範囲: 遠い \/ 的の大きさ: 小|出る範囲\s*遠い[\s\S]*的の大きさ\s*小/);
       noExceptions(page);
       noExceptions(page2);
     });
@@ -524,7 +524,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
 
   // -------------------------------------------------------------------------
   describe('練習', () => {
-    it('MODE-36: 開始から 1 秒後に的が出て HUD が「的: 0 / 20」（武器名・残弾なし）、当てると次の的が出て「1 / 20」、20 個目でリザルトに移る', { timeout: 240_000 }, async () => {
+    it('MODE-46: 開始から 1 秒後に的が出て HUD が「的: 0 / 20」（武器名・残弾なし）、当てると次の的が出て「1 / 20」、20 個目でリザルトに移る', { timeout: 240_000 }, async () => {
       const page = await openFresh({ render: true });
       const { startedAt, m } = await startFlick(page);
       await advanceTo(page, startedAt + 0.5);
@@ -561,7 +561,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       noExceptions(page);
     });
 
-    it('MODE-43: パッドだけでフリックを選んで開始し、右スティックで照準を動かして R2 で 20 個撃つとリザルトに移り、入力方式がパッドになる', async () => {
+    it('MODE-53: パッドだけでフリックを選んで開始し、右スティックで照準を動かして R2 で 20 個撃つとリザルトに移り、入力方式がパッドになる', async () => {
       const page = await openFresh({ pad: true });
       await padFocus(page, 'mode');
       await padChoose(page, '#mode', FLICK);
@@ -595,7 +595,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       noExceptions(page);
     });
 
-    it('MODE-45: 遠い・小で練習し、「もう一度」・やり直し・回数 5 のセットの 2 回目でも同じ遠い・小で始まり、的の角度の距離が 14 度以上 20 度未満', { timeout: 240_000 }, async () => {
+    it('MODE-55: 遠い・小で練習し、「もう一度」・やり直し・回数 5 のセットの 2 回目でも同じ遠い・小で始まり、的の角度の距離が 14 度以上 20 度未満', { timeout: 240_000 }, async () => {
       const page = await openFresh({ render: true });
       const firstDistance = async (startedAt: number, m: Mouse) => {
         await waitFirstTarget(page, startedAt);
@@ -612,7 +612,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       inFar(await firstDistance(startedAt, m), '1 回目');
       await shootBlind(page, m, startedAt);
       await untilResult(page);
-      expect((await resultState(page)).text).toMatch(/遠い\s*・\s*小/);
+      expect((await resultState(page)).text).toMatch(/出る範囲: 遠い \/ 的の大きさ: 小|出る範囲\s*遠い[\s\S]*的の大きさ\s*小/);
       await page.clickSelector('#retry');
       await page.waitFor(`location.hash === '#/play'`);
       startedAt = await now(page);
@@ -628,7 +628,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       inFar(await firstDistance(startedAt, m), 'やり直し');
       await shootBlind(page, m, startedAt);
       await untilResult(page);
-      expect((await resultState(page)).text).toMatch(/遠い\s*・\s*小/);
+      expect((await resultState(page)).text).toMatch(/出る範囲: 遠い \/ 的の大きさ: 小|出る範囲\s*遠い[\s\S]*的の大きさ\s*小/);
 
       // 回数 5 のセットの 2 回目。
       ({ startedAt, m } = await startFlick(page, { range: '遠い', size: '小', count: 5 }));
@@ -646,14 +646,14 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       await pressKey(page, 'q', 'KeyQ', 81);
       await page.evaluate('document.pointerLockElement && document.exitPointerLock()');
       await page.waitFor(`window.__vis('[data-screen="set-result"]')`);
-      expect(await page.evaluate<string>(`document.querySelector('[data-screen="set-result"]').innerText`)).toMatch(/遠い\s*・\s*小/);
+      expect(await page.evaluate<string>(`document.querySelector('[data-screen="set-result"]').innerText`)).toMatch(/出る範囲: 遠い \/ 的の大きさ: 小|出る範囲\s*遠い[\s\S]*的の大きさ\s*小/);
       noExceptions(page);
     });
   });
 
   // -------------------------------------------------------------------------
   describe('採点・リザルト・自己ベスト・履歴', () => {
-    it('SCO-46: 1 個も命中しなかったとき、命中 1 回あたりの時間は「なし」で、自己ベストも履歴も保存しない', async () => {
+    it('SCO-56: 1 個も命中しなかったとき、命中 1 回あたりの時間は「なし」で、自己ベストも履歴も保存しない', async () => {
       const page = await openFresh();
       const { startedAt, m } = await startFlick(page);
       await shootBlind(page, m, startedAt);
@@ -669,15 +669,15 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       noExceptions(page);
     });
 
-    it('SCO-47・SCO-48: 遠い・小を終えると、リザルトに設定・指標・自己ベストが出て散布図などは出ず、best と history の flick-far-small に結果が保存される', { timeout: 240_000 }, async () => {
+    it('SCO-57・SCO-58: 遠い・小を終えると、リザルトに設定・指標・自己ベストが出て散布図などは出ず、best と history の flick:far:small に結果が保存される', { timeout: 240_000 }, async () => {
       const page = await openFresh({ render: true });
       const { startedAt, m } = await startFlick(page, { range: '遠い', size: '小' });
       await waitFirstTarget(page, startedAt);
       await shootTargets(page, m, startedAt + 1, allHits(0.5));
       await untilResult(page);
       const r = await resultState(page);
-      // SCO-47
-      expect(r.text).toMatch(/遠い\s*・\s*小/);
+      // SCO-57
+      expect(r.text).toMatch(/出る範囲: 遠い \/ 的の大きさ: 小|出る範囲\s*遠い[\s\S]*的の大きさ\s*小/);
       expect(metric(r, '命中 1 回あたりの時間')).toBe('0.500 秒');
       expect(metric(r, '時間の平均')).toBe('0.500 秒');
       expect(metric(r, '命中率')).toBe('100.0%');
@@ -689,7 +689,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       expect(r.text).not.toContain('平均ズレ');
       expect(r.text).not.toContain('苦手な区間');
       expect(r.svgs, '散布図・照準の軌道の図').toBe(0);
-      // SCO-48
+      // SCO-58
       const s = await storage(page);
       expect(Object.keys(s).sort()).toEqual([FAR_SMALL_BEST, FAR_SMALL_HISTORY].sort());
       const best = JSON.parse(s[FAR_SMALL_BEST]!) as Record<string, unknown>;
@@ -710,7 +710,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       noExceptions(page);
     });
 
-    it('SCO-49: 自己ベスト 0.6 秒のとき 0.5 秒で更新して 0.5 になり、続けて 0.5 秒（等しい）と 0.7 秒では更新しない', { timeout: 240_000 }, async () => {
+    it('SCO-59: 自己ベスト 0.6 秒のとき 0.5 秒で更新して 0.5 になり、続けて 0.5 秒（等しい）と 0.7 秒では更新しない', { timeout: 240_000 }, async () => {
       const seed = {
         [FAR_SMALL_BEST]: JSON.stringify({ version: 1, timePerHit: 0.6, meanTime: 0.6, hitRate: 100, hits: 20, targets: 20, meanError: 0.1, achievedAt: '2026-01-01T00:00:00.000Z' }),
       };
@@ -742,7 +742,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       noExceptions(page);
     });
 
-    it('SCO-50: 遠い・小の自己ベストと履歴があるとき、近い・大（と反復練習）を初めて終えると「自己ベスト更新」で、遠い・小の値は変わらない', { timeout: 240_000 }, async () => {
+    it('SCO-60: 遠い・小の自己ベストと履歴があるとき、近い・大（と反復練習）を初めて終えると「自己ベスト更新」で、遠い・小の値は変わらない', { timeout: 240_000 }, async () => {
       const best = JSON.stringify({ version: 1, timePerHit: 0.45, meanTime: 0.45, hitRate: 100, hits: 20, targets: 20, meanError: 0.1, achievedAt: '2026-01-01T00:00:00.000Z' });
       const history = JSON.stringify({ version: 1, entries: [{ at: '2026-01-01T00:00:00.000Z', timePerHit: 0.45, meanTime: 0.45, hitRate: 100, hits: 20, targets: 20, meanError: 0.1 }] });
       const page = await openFresh({ seed: { [FAR_SMALL_BEST]: best, [FAR_SMALL_HISTORY]: history }, render: true });
@@ -751,7 +751,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       await shootTargets(page, m, startedAt + 1, firstHitOnly(0.4));
       await untilResult(page);
       const r = await resultState(page);
-      expect(r.text).toMatch(/近い\s*・\s*大/);
+      expect(r.text).toMatch(/出る範囲: 近い \/ 的の大きさ: 大|出る範囲\s*近い[\s\S]*的の大きさ\s*大/);
       expect(num(metric(r, '命中数'))).toBeGreaterThanOrEqual(1);
       expect(r.best).toContain(BEST_UPDATED);
       let s = await storage(page);
@@ -783,7 +783,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
 
   // -------------------------------------------------------------------------
   describe('履歴の画面・シェア・セットのまとめ', () => {
-    it('UI-103: 履歴の画面でフリック・マウスを選ぶと武器の欄が隠れて設定の欄が出て、遠い・小と近い・大の組ごとに推移と一覧を表示する', async () => {
+    it('UI-109: 履歴の画面でフリック・マウスを選ぶと武器の欄が隠れて設定の欄が出て、遠い・小と近い・大の組ごとに推移と一覧を表示する', async () => {
       const entry = (n: number, tph: number) => ({ at: new Date(Date.UTC(2026, 0, 1, 0, n)).toISOString(), timePerHit: tph, meanTime: tph * 0.9, hitRate: 90, hits: 18, targets: 20, meanError: 0.4 });
       const far = [entry(1, 0.61), entry(2, 0.55), entry(3, 0.52)];
       const near = [entry(4, 0.41), entry(5, 0.38)];
@@ -795,7 +795,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       });
       await page.evaluate(`location.hash = '#/history'`);
       await page.waitFor(`window.__vis('[data-screen="history"]') && document.querySelectorAll('#history-mode option').length > 0`);
-      expect(await page.evaluate<string[]>(`[...document.querySelector('#history-mode').options].map((o) => o.textContent.trim())`)).toEqual([REPEAT, FLICK]);
+      expect(await page.evaluate<string[]>(`[...document.querySelector('#history-mode').options].map((o) => o.textContent.trim())`)).toEqual([REPEAT, '追いエイム', '追いエイム＋リコイル', FLICK]);
       await choose(page, '#history-mode', FLICK);
       await choose(page, '#history-input', 'マウス');
       await page.frames(2);
@@ -833,7 +833,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       noExceptions(page);
     });
 
-    it('UI-104: 遠い・小のリザルトのシェアの文は、2 行目が「モード: フリック（遠い・小）」、3 行目が「命中 1 回あたりの時間: <値> 秒 / 命中率: <値>%」', { timeout: 240_000 }, async () => {
+    it('UI-110: 遠い・小のリザルトのシェアの文は、2 行目が「モード: フリック / 出る範囲: 遠い / 的の大きさ: 小」、3 行目が「命中 1 回あたりの時間: <値> 秒 / 命中率: <値>%」', { timeout: 240_000 }, async () => {
       const page = await openFresh({ render: true });
       const { startedAt, m } = await startFlick(page, { range: '遠い', size: '小' });
       await waitFirstTarget(page, startedAt);
@@ -846,14 +846,14 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       const text = (await page.evaluate<string[]>('window.__shareCalls'))[0]!;
       const lines = text.split('\n');
       expect(lines[0]).toBe('リコイル練習（非公式ファンツール）の結果');
-      expect(lines[1]).toBe('モード: フリック（遠い・小）');
+      expect(lines[1]).toBe('モード: フリック / 出る範囲: 遠い / 的の大きさ: 小');
       expect(lines[2]).toMatch(/^命中 1 回あたりの時間: \d+\.\d{3} 秒 \/ 命中率: \d+\.\d%$/);
       expect(lines[2]).toBe(`命中 1 回あたりの時間: ${metric(r, '命中 1 回あたりの時間')} / 命中率: ${metric(r, '命中率')}`);
       expect(lines.at(-1)).toBe('https://cocoiti.github.io/apex-training/');
       noExceptions(page);
     });
 
-    it('UI-105: 3 回のセットを 0.6・0.5・0.7 秒で終えると、セットのまとめに設定と 3 回分が並び、平均 0.600 秒、いちばん良かった回が 2 回目（0.500 秒）', { timeout: 240_000 }, async () => {
+    it('UI-111: 3 回のセットを 0.6・0.5・0.7 秒で終えると、セットのまとめに設定と 3 回分が並び、平均 0.600 秒、いちばん良かった回が 2 回目（0.500 秒）', { timeout: 240_000 }, async () => {
       // 回数の選択肢は 1・5・10・20（screens.md「トップ画面」）で 3 はないので、回数 5 で 3 回終えたところでやめる（Q）。
       // セットのまとめの対象は最後まで終えた回だけ（screens.md「セットのまとめ」）なので、3 回分のセットのまとめになる。
       const page = await openFresh({ render: true });
@@ -880,7 +880,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
         rounds: [...document.querySelectorAll('#set-rounds li')].filter((e) => window.__vis(e)).map((e) => e.textContent.trim()),
         average: document.querySelector('#set-average')?.textContent.trim() ?? '',
         best: document.querySelector('#set-best')?.textContent.trim() ?? '' }))()`);
-      expect(set.summary).toMatch(/ふつう\s*・\s*中/);
+      expect(set.summary).toMatch(/出る範囲: ふつう \/ 的の大きさ: 中|出る範囲\s*ふつう[\s\S]*的の大きさ\s*中/);
       expect(set.rounds).toHaveLength(3);
       set.rounds.forEach((t, i) => expect(t).toContain(`${times[i]!.toFixed(3)} 秒`));
       expect(set.average).toContain('0.600 秒');

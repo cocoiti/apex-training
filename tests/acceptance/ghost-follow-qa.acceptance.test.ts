@@ -809,7 +809,7 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
       expect([...weapons].sort()).toEqual([...LISTED_WEAPONS].sort());
       for (const n of PLACEHOLDER_WEAPONS) expect(weapons).not.toContain(n);
-      expect(modes).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル']);
+      expect(modes).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック']);
       // C.A.R. SMG（#49）は SMG の分類（WPN-13 の optgroup）にある。
       const group = await page.evaluate<string | null>(
         `([...document.querySelector('#weapon').options].find((o) => o.textContent.trim() === 'C.A.R. SMG')?.closest('optgroup')?.label ?? null)`,

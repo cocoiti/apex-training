@@ -32,7 +32,7 @@ const OLD_GHOST = 'ゴースト追従';
 /** セットを最後まで練習して確かめるモード（反復練習）。 */
 const MODES = [GHOST];
 /** 登録されたモード（docs/spec/modes.md「モードの登録」）。 */
-const ALL_MODES = [GHOST, '追いエイム', '追いエイム＋リコイル'];
+const ALL_MODES = [GHOST, '追いエイム', '追いエイム＋リコイル', 'フリック'];
 const PAD_NAME = 'acceptance pad (STANDARD GAMEPAD)';
 const OLD_BEST_KEY = 'apex-training:best:mouse:lstar:pattern';
 const OLD_HISTORY_KEY = 'apex-training:history:mouse:lstar:pattern';
@@ -178,9 +178,9 @@ describe('SPEC: パターン観察の受け入れ条件は欠番になってい�
     for (const id of ['MODE-29', 'UI-75', 'SCO-39']) expect(ids, id).toContain(id);
   });
 
-  it('SPEC のモードは反復練習・追いエイム・追いエイム＋リコイルの 3 つで、パターン観察とセンター維持はモードとして書かれていない', () => {
+  it('SPEC のモードは反復練習・追いエイム・追いエイム＋リコイル・フリックの 4 つで、パターン観察とセンター維持はモードとして書かれていない', () => {
     const modes = SPEC('modes.md');
-    expect(modes).toContain('今のモードは反復練習（リコイル）と、追いエイム・追いエイム＋リコイル（エイム）の 3 つ');
+    expect(modes).toContain('今のモードは反復練習（リコイル）と、追いエイム・追いエイム＋リコイル・フリック（エイム）の 4 つ');
     expect(modes).not.toMatch(/^### パターン観察/m);
     expect(modes).not.toMatch(/^### センター維持/m);
   });

@@ -63,7 +63,7 @@ function run(options: RunOptions = {}) {
   const world = createWorld(map);
   const input = new RecordingInput(seed);
   const weapon = modeUsesWeapon(mode) ? lstar() : undefined;
-  const session = new PracticeSession<WeaponData | undefined>({ world, weapon, mode, input, seed, option: speed });
+  const session = new PracticeSession<WeaponData | undefined>({ world, weapon, mode, input, seed, options: { speed } });
   const motion = expectedMotion(map, speed, seed);
   const offsets: { yaw: number; pitch: number }[] = [];
   let fired = false;
@@ -100,13 +100,13 @@ describe('追いエイムのモードの登録', () => {
     for (const mode of [tracking, recoil]) {
       expect(mode.category).toBe('aim');
       expect(mode.timeLimit).toBe(20);
-      expect(mode.option).toBe(SPEED_OPTION);
-      expect(mode.option?.choices.map((c) => [c.id, c.name])).toEqual([
+      expect(mode.options).toEqual([SPEED_OPTION]);
+      expect(mode.options?.[0]?.choices.map((c) => [c.id, c.name])).toEqual([
         ['slow', '遅い'],
         ['normal', 'ふつう'],
         ['fast', '速い'],
       ]);
-      expect(mode.option?.defaultChoice).toBe('normal');
+      expect(mode.options?.[0]?.defaultChoice).toBe('normal');
       expect(mode.scoring?.compare).toBe(ON_TARGET_RATE_METRIC);
       expect(mode.correctionPanel).toBeUndefined();
       expect(mode.ghost).toBeUndefined();
@@ -150,7 +150,7 @@ describe('追いエイムの練習', () => {
     const positions = (seed: number) => {
       const map = rangeMap();
       const world = createWorld(map);
-      const session = new PracticeSession({ world, weapon: undefined, mode: modeById('tracking'), input: new RecordingInput(seed), seed, option: 'normal' });
+      const session = new PracticeSession({ world, weapon: undefined, mode: modeById('tracking'), input: new RecordingInput(seed), seed, options: { speed: 'normal' } });
       const list = [];
       while (!session.ended) {
         session.step();
@@ -179,14 +179,14 @@ describe('追いエイムの練習', () => {
     const { session, map } = run({ speed: 'fast', seconds: TRACKING_DURATION });
     const base = expectedMotion(map, 'fast').base;
     expect(anglesToPoint(map.spawn.position, base).yaw).toBeCloseTo(map.spawn.aim.yaw, 9);
-    expect(session.result!.option).toEqual({ id: 'fast', name: '速い', label: '速さ' });
-    expect(session.option?.id).toBe('fast');
+    expect(session.result!.options).toEqual([{ id: 'fast', name: '速い', optionId: 'speed', label: '速さ' }]);
+    expect(session.options[0]?.choice.id).toBe('fast');
   });
 
   it('選択肢にない速さを渡したときは、既定の「ふつう」で練習する', () => {
     const world = createWorld(rangeMap());
-    const session = new PracticeSession({ world, weapon: undefined, mode: modeById('tracking'), input: new RecordingInput(1), seed: 1, option: 'warp' });
-    expect(session.option?.id).toBe('normal');
+    const session = new PracticeSession({ world, weapon: undefined, mode: modeById('tracking'), input: new RecordingInput(1), seed: 1, options: { speed: 'warp' } });
+    expect(session.options[0]?.choice.id).toBe('normal');
   });
 
   it('MODE-41: 追いエイム（リコイルなし）で fire を押し続けても、照準のリコイルのオフセットは 0 のままで、弾は 1 発', () => {
@@ -225,7 +225,7 @@ describe('追いエイムの練習', () => {
 
   it('入力の記録を同じモード・速さ・武器で再生すると、的の動き・照準と的の当たり・結果が同じになる', () => {
     const { session, input, mode, weapon } = run({ modeId: 'tracking-recoil', speed: 'slow', aim: atCenter(rangeMap()), fire: (t) => t > 1 && t < 3 });
-    const replayed = replayPracticeSession<WeaponData | undefined>(input.recording(), { world: createWorld(rangeMap()), weapon, mode, option: 'slow' });
+    const replayed = replayPracticeSession<WeaponData | undefined>(input.recording(), { world: createWorld(rangeMap()), weapon, mode, options: { speed: 'slow' } });
     expect(replayed.result!.modeResult).toEqual(session.result!.modeResult);
     expect(replayed.shots).toEqual(session.shots);
   });

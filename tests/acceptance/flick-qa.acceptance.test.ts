@@ -1,4 +1,4 @@
-// docs/spec/modes.md「フリック」（MODE-37〜MODE-42・MODE-44）と docs/spec/scoring.md「フリックの採点」（SCO-45・SCO-46 の採点）の
+// docs/spec/modes.md「フリック」（MODE-47〜MODE-52・MODE-54）と docs/spec/scoring.md「フリックの採点」（SCO-55・SCO-56 の採点）の
 // 受け入れテスト。QA が SPEC だけから書いたもの。ブラウザを使わない。
 // 公開された入口（登録されたモードの一覧 src/modes/registry の modes、練習モードの共通の型、PracticeSession、入力の元 InputQueue、
 // マップの JSON と loadWorld、フリックのモードの結果の形 FlickResult / FlickRecord）だけを使う。
@@ -11,7 +11,7 @@ import { InputQueue } from '../../src/input/queue';
 import type { FlickRecord, FlickResult } from '../../src/modes/aim/flick';
 import { modes } from '../../src/modes/registry';
 import { PracticeSession } from '../../src/modes/session';
-import type { ModeSettingValues, TrainingMode } from '../../src/modes/types';
+import type { ModeOptionValues, TrainingMode } from '../../src/modes/types';
 import type { Vec3 } from '../../src/sim/vec3';
 import { loadWorld, type World } from '../../src/sim/world';
 
@@ -36,12 +36,12 @@ function flickMode(): TrainingMode {
   return m;
 }
 
-/** 練習の設定の値（項目は表示名「出る範囲」「的の大きさ」から探し、値は SPEC の id）。 */
-function settingsOf(range: RangeId, size: SizeId): ModeSettingValues {
+/** 練習の選択肢の値（選択肢は表示名「出る範囲」「的の大きさ」から探し、値は SPEC の id）。 */
+function settingsOf(range: RangeId, size: SizeId): ModeOptionValues {
   const m = flickMode();
   const item = (label: string) => {
-    const s = m.settings?.find((x) => x.label === label);
-    if (!s) throw new Error(`練習の設定に「${label}」がない`);
+    const s = m.options?.find((x) => x.label === label);
+    if (!s) throw new Error(`練習の選択肢に「${label}」がない`);
     return s.id;
   };
   return { [item('出る範囲')]: range, [item('的の大きさ')]: size };
@@ -71,7 +71,7 @@ interface Run {
 function begin(seed: number, range: RangeId = 'normal', size: SizeId = 'medium'): Run {
   const world = newWorld();
   const input = new InputQueue();
-  const session = new PracticeSession({ world, weapon: undefined, mode: flickMode(), input, seed, settings: settingsOf(range, size) });
+  const session = new PracticeSession({ world, weapon: undefined, mode: flickMode(), input, seed, options: settingsOf(range, size) });
   return { session, input, world };
 }
 
@@ -140,8 +140,8 @@ describe('フリックのモードの登録', () => {
     expect(m.name).toBe('フリック');
     expect(m.category).toBe('aim');
     expect(m.usesWeapon).toBe(false);
-    const range = m.settings?.find((s) => s.label === '出る範囲');
-    const size = m.settings?.find((s) => s.label === '的の大きさ');
+    const range = m.options?.find((s) => s.label === '出る範囲');
+    const size = m.options?.find((s) => s.label === '的の大きさ');
     expect(range?.choices.map((c) => [c.id, c.name])).toEqual([
       ['near', '近い'],
       ['normal', 'ふつう'],
@@ -152,12 +152,12 @@ describe('フリックのモードの登録', () => {
       ['medium', '中'],
       ['small', '小'],
     ]);
-    expect(range?.default).toBe('normal');
-    expect(size?.default).toBe('medium');
+    expect(range?.defaultChoice).toBe('normal');
+    expect(size?.defaultChoice).toBe('medium');
   });
 });
 
-describe('MODE-37: 的が出てから 0.3 秒後に的の中心へ照準を向けて撃つ', () => {
+describe('MODE-47: 的が出てから 0.3 秒後に的の中心へ照準を向けて撃つ', () => {
   it('その的の時間が 0.3 秒・命中・ズレ 0 度として記録される', () => {
     const run = begin(1234);
     stepUntil(run, 1 - DT / 2);
@@ -181,7 +181,7 @@ describe('MODE-37: 的が出てから 0.3 秒後に的の中心へ照準を向�
   });
 });
 
-describe('MODE-38: 見込み角より大きくヨーをずらして撃つ', () => {
+describe('MODE-48: 見込み角より大きくヨーをずらして撃つ', () => {
   it('その的は外れとして記録され、その的は消えて次の的が出る（撃ち直さない）', () => {
     const run = begin(99, 'normal', 'medium');
     stepUntil(run, 1 + DT / 2);
@@ -205,7 +205,7 @@ describe('MODE-38: 見込み角より大きくヨーをずらして撃つ', () =
   });
 });
 
-describe('MODE-39: 的の位置の並びは種と練習の設定だけで決まる', () => {
+describe('MODE-49: 的の位置の並びは種と練習の設定だけで決まる', () => {
   const offsets = (seed: number, variant: 'center' | 'aim') => {
     const run = begin(seed, 'normal', 'medium');
     const seen = shootAll(run, (i, c, at) =>
@@ -229,7 +229,7 @@ describe('MODE-39: 的の位置の並びは種と練習の設定だけで決ま�
   });
 });
 
-describe('MODE-40: 出る範囲ごとの角度の距離と、壁の正面の範囲', () => {
+describe('MODE-50: 出る範囲ごとの角度の距離と、壁の正面の範囲', () => {
   const wall = MAP_JSON.boxes.find((b) => b.kind === 'wall')!;
   const front = wall.center[2] + wall.size[2] / 2;
   const nearestBoxFront = Math.max(...MAP_JSON.boxes.map((b) => b.center[2] + b.size[2] / 2));
@@ -266,7 +266,7 @@ describe('MODE-40: 出る範囲ごとの角度の距離と、壁の正面の範�
   }
 });
 
-describe('MODE-41: 的の大きさごとの命中の境目', () => {
+describe('MODE-51: 的の大きさごとの命中の境目', () => {
   for (const size of Object.keys(SIZES) as SizeId[]) {
     it(`「${size}」（見込み角 ${SIZES[size]} 度）: 中心から見込み角の半分よりわずかに内側へヨーをずらすと命中、わずかに外側では外れ`, () => {
       const run = begin(31337, 'normal', size);
@@ -299,7 +299,7 @@ describe('MODE-41: 的の大きさごとの命中の境目', () => {
   });
 });
 
-describe('MODE-42: リコイルをかけず、撃たないあいだも終わらない', () => {
+describe('MODE-52: リコイルをかけず、撃たないあいだも終わらない', () => {
   it('fire を押し続けても撃たなくてもリコイルのオフセットは 0 のままで、的を撃たずに 10 秒たっても練習は終わらない', () => {
     const run = begin(8);
     run.input.push(1.2, { type: 'fire', pressed: true });
@@ -325,7 +325,7 @@ describe('MODE-42: リコイルをかけず、撃たないあいだも終わら�
   });
 });
 
-describe('MODE-44: 1 個目の的が出る前に撃った弾', () => {
+describe('MODE-54: 1 個目の的が出る前に撃った弾', () => {
   it('どの的の弾にも数えられず、HUD の表示は「的: 0 / 20」のまま', () => {
     const run = begin(42);
     expect(status(run)).toBe('的: 0 / 20');
@@ -360,7 +360,7 @@ function score(recs: FlickRecord[]) {
   return { s, row };
 }
 
-describe('SCO-45: 18/20 命中・時間 0.5 秒・ズレ 0.5 度と 3 度', () => {
+describe('SCO-55: 18/20 命中・時間 0.5 秒・ズレ 0.5 度と 3 度', () => {
   it('命中 1 回あたりの時間 ≈ 0.556 秒、時間の平均 0.500 秒、命中率 90.0%、命中数 18 / 20、ズレの平均 0.75 度', () => {
     const recs: FlickRecord[] = Array.from({ length: 20 }, (_, i) => (i < 18 ? { time: 0.5, hit: true, error: 0.5 } : { time: 0.5, hit: false, error: 3 }));
     const { s, row } = score(recs);
@@ -375,7 +375,7 @@ describe('SCO-45: 18/20 命中・時間 0.5 秒・ズレ 0.5 度と 3 度', () =
   });
 });
 
-describe('SCO-46: 命中が 0 のとき', () => {
+describe('SCO-56: 命中が 0 のとき', () => {
   it('命中 1 回あたりの時間は「なし」（比べる指標の値も求まらない）で、時間の平均・命中率 0.0%・ズレの平均は求まる', () => {
     const recs: FlickRecord[] = Array.from({ length: 20 }, () => ({ time: 0.4, hit: false, error: 2 }));
     const { s, row } = score(recs);

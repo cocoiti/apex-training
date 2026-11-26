@@ -7,7 +7,6 @@ import { RecordingInput } from '../../../src/input/recording';
 import flick, { FLICK_SCORING, FLICK_SIZES, flickOffsets, flickPlate, type FlickRecord, type FlickResult } from '../../../src/modes/aim/flick';
 import { modes } from '../../../src/modes/registry';
 import { PracticeSession, replayPracticeSession } from '../../../src/modes/session';
-import type { ModeSettingValues } from '../../../src/modes/types';
 import { createRandom } from '../../../src/core/random';
 import { normalizeYaw, type Angles } from '../../../src/sim/angles';
 import { anglesToPoint } from '../../../src/sim/hit';
@@ -27,8 +26,17 @@ interface Driver {
   readonly input: { push(time: number, action: Action): void };
 }
 
-function start(settings: ModeSettingValues = {}, seed = 1, input: InputQueue | RecordingInput = new InputQueue()): Driver {
-  const session = new PracticeSession({ world: rangeWorld(), weapon: undefined, mode: flick, input, seed, settings });
+/** 出る範囲と的の大きさ（省くと既定の値）。 */
+interface FlickChoice {
+  readonly range?: string;
+  readonly size?: string;
+}
+
+/** 出る範囲と的の大きさを、練習の選択肢の値（選択肢の id → 値の id）にする。 */
+const optionsOf = (choice: FlickChoice) => ({ 'flick-range': choice.range, 'flick-size': choice.size });
+
+function start(choice: FlickChoice = {}, seed = 1, input: InputQueue | RecordingInput = new InputQueue()): Driver {
+  const session = new PracticeSession({ world: rangeWorld(), weapon: undefined, mode: flick, input, seed, options: optionsOf(choice) });
   return { session, input };
 }
 
@@ -94,11 +102,11 @@ function offsetOf(d: Driver, target: PracticeTarget): { distance: number; yaw: n
 }
 
 describe('フリックの練習の流れ', () => {
-  it('MODE-27: フリックは登録されたモードで、反復練習のあとに並ぶ', () => {
-    expect(modes.map((m) => m.id)).toEqual(['ghost', 'flick']);
+  it('MODE-27: フリックは登録されたモードで、反復練習・追いエイム・追いエイム＋リコイルのあとに並ぶ', () => {
+    expect(modes.map((m) => m.id)).toEqual(['ghost', 'tracking', 'tracking-recoil', 'flick']);
   });
 
-  it('MODE-36: 開始から 1 秒後に的が 1 つ出て「的: 0 / 20」。当てると次の的が出て「的: 1 / 20」、20 個目を撃つと練習が終わる', () => {
+  it('MODE-46: 開始から 1 秒後に的が 1 つ出て「的: 0 / 20」。当てると次の的が出て「的: 1 / 20」、20 個目を撃つと練習が終わる', () => {
     const d = start();
     expect(d.session.status).toBe('的: 0 / 20');
     stepUntil(d, 1);
@@ -123,7 +131,7 @@ describe('フリックの練習の流れ', () => {
     expect(modeResult(d).targets.every((r) => r.hit)).toBe(true);
   });
 
-  it('MODE-37: 的が出てから 0.3 秒後のステップで中心へ向けて撃つと、時間 0.3 秒・命中・ズレ 0 度として記録される', () => {
+  it('MODE-47: 的が出てから 0.3 秒後のステップで中心へ向けて撃つと、時間 0.3 秒・命中・ズレ 0 度として記録される', () => {
     const d = start();
     const target = waitVisible(d);
     stepUntil(d, target.appearAt + 0.3 - d.session.sim.dt);
@@ -136,7 +144,7 @@ describe('フリックの練習の流れ', () => {
     expect(record.error).toBeCloseTo(0, 6);
   });
 
-  it('MODE-38: 見込み角より大きくヨーをずらして撃つと外れとして記録され、その的は消えて次の的が出る（撃ち直さない）', () => {
+  it('MODE-48: 見込み角より大きくヨーをずらして撃つと外れとして記録され、その的は消えて次の的が出る（撃ち直さない）', () => {
     const d = start({ size: 'medium' });
     const target = waitVisible(d);
     const angles = targetAngles(d, target);
@@ -154,7 +162,7 @@ describe('フリックの練習の流れ', () => {
     expect(d.session.shots[0]!.position).not.toBeNull();
   });
 
-  it('MODE-39: 同じ種・同じ設定なら入力が違っても 1〜20 個目の位置の並びが一致し、違う種では一致しない', () => {
+  it('MODE-49: 同じ種・同じ設定なら入力が違っても 1〜20 個目の位置の並びが一致し、違う種では一致しない', () => {
     const settings = { range: 'normal', size: 'medium' };
     const a = start(settings, 7);
     const centersA = playThrough(a, 0.2, 0).map((t) => t.center);
@@ -174,7 +182,7 @@ describe('フリックの練習の流れ', () => {
     ['near', 3, 8],
     ['normal', 8, 14],
     ['far', 14, 20],
-  ])('MODE-40: 出る範囲 %s の 20 個の的は、角度の距離が %d 度以上 %d 度未満で、|Δpitch| ≤ 距離 × sin20°、壁の正面の範囲に収まる', (rangeId, min, max) => {
+  ])('MODE-50: 出る範囲 %s の 20 個の的は、角度の距離が %d 度以上 %d 度未満で、|Δpitch| ≤ 距離 × sin20°、壁の正面の範囲に収まる', (rangeId, min, max) => {
     const wall = MAP.boxes.find((b) => b.id === 'wall')!;
     for (const seed of [1, 2, 3, 42]) {
       const d = start({ range: rangeId, size: 'large' }, seed);
@@ -196,14 +204,14 @@ describe('フリックの練習の流れ', () => {
     }
   });
 
-  it('MODE-40: ずれの向きは右向きと左向きの両方に出る', () => {
+  it('MODE-50: ずれの向きは右向きと左向きの両方に出る', () => {
     const offsets = flickOffsets(createRandom(3), 'normal', 200);
     const right = offsets.filter((o) => o.yaw > 0).length;
     expect(right).toBeGreaterThan(60);
     expect(right).toBeLessThan(140);
   });
 
-  it.each(Object.keys(FLICK_SIZES))('MODE-41: 的の大きさ %s で、見込み角の半分よりわずかに内側を撃つと命中、外側を撃つと外れ', (size) => {
+  it.each(Object.keys(FLICK_SIZES))('MODE-51: 的の大きさ %s で、見込み角の半分よりわずかに内側を撃つと命中、外側を撃つと外れ', (size) => {
     const half = FLICK_SIZES[size as keyof typeof FLICK_SIZES].angle / 2;
     for (const [factor, hit] of [
       [0.9, true],
@@ -220,7 +228,7 @@ describe('フリックの練習の流れ', () => {
     }
   });
 
-  it('MODE-41: 的の板の幅は、目から的の中心までの距離 L で 2 × L × tan(見込み角 ÷ 2)', () => {
+  it('MODE-51: 的の板の幅は、目から的の中心までの距離 L で 2 × L × tan(見込み角 ÷ 2)', () => {
     const world = rangeWorld();
     const plate = flickPlate(world, { yaw: 10, pitch: 2 }, 'small');
     const eye = world.player.position;
@@ -231,7 +239,7 @@ describe('フリックの練習の流れ', () => {
     expect(seen.pitch).toBeCloseTo(2, 9);
   });
 
-  it('MODE-42: fire を押し続けても撃たなくてもリコイルのオフセットは 0 のままで、撃たずに 10 秒たっても終わらない', () => {
+  it('MODE-52: fire を押し続けても撃たなくてもリコイルのオフセットは 0 のままで、撃たずに 10 秒たっても終わらない', () => {
     const d = start();
     d.input.push(0.5, { type: 'fire', pressed: true });
     d.input.push(3, { type: 'fire', pressed: false });
@@ -246,7 +254,7 @@ describe('フリックの練習の流れ', () => {
     expect(d.session.shots).toHaveLength(1);
   });
 
-  it('MODE-44: 1 個目の的が出る前に撃った弾はどの的の弾にも数えず、「的: 0 / 20」のまま', () => {
+  it('MODE-54: 1 個目の的が出る前に撃った弾はどの的の弾にも数えず、「的: 0 / 20」のまま', () => {
     const d = start();
     stepUntil(d, 0.5);
     shootAt(d, d.session.world.center);
@@ -261,7 +269,7 @@ describe('フリックの練習の流れ', () => {
     expect(modeResult(d).targets).toHaveLength(20);
   });
 
-  it('MODE-45: 出る範囲「遠い」・的の大きさ「小」で始めると、的の距離は 14 度以上 20 度未満で見込み角は 1 度。結果に練習の設定が入る', () => {
+  it('MODE-55: 出る範囲「遠い」・的の大きさ「小」で始めると、的の距離は 14 度以上 20 度未満で見込み角は 1 度。結果に練習の設定が入る', () => {
     const d = start({ range: 'far', size: 'small' }, 11);
     const targets = playThrough(d);
     for (const target of targets) {
@@ -272,20 +280,23 @@ describe('フリックの練習の流れ', () => {
       const l = Math.hypot(target.center.x - eye.x, target.center.y - eye.y, target.center.z - eye.z);
       expect(target.size.x).toBeCloseTo(2 * l * Math.tan((0.5 * Math.PI) / 180), 12);
     }
-    expect(d.session.result!.settings).toEqual({ range: 'far', size: 'small' });
+    expect(d.session.result!.options.map((o) => [o.optionId, o.id, o.label, o.name])).toEqual([
+      ['flick-range', 'far', '出る範囲', '遠い'],
+      ['flick-size', 'small', '的の大きさ', '小'],
+    ]);
     expect(modeResult(d).settings).toEqual({ range: 'far', size: 'small' });
   });
 
-  it('練習の設定を省くと「ふつう」「中」で始まる', () => {
+  it('練習の選択肢を省くと「ふつう」「中」で始まる', () => {
     const d = start();
-    expect(d.session.settings).toEqual({ range: 'normal', size: 'medium' });
+    expect(d.session.options.map((o) => o.choice.id)).toEqual(['normal', 'medium']);
   });
 
   it('入力の記録を再生すると、同じ的の記録になる', () => {
     const recorded = new RecordingInput(99);
     const d = start({ range: 'far', size: 'large' }, recorded.seed, recorded);
     playThrough(d, 0.25, 0.3);
-    const replay = replayPracticeSession(recorded.recording(), { world: rangeWorld(), weapon: undefined, mode: flick, settings: { range: 'far', size: 'large' } });
+    const replay = replayPracticeSession(recorded.recording(), { world: rangeWorld(), weapon: undefined, mode: flick, options: optionsOf({ range: 'far', size: 'large' }) });
     expect(replay.result!.modeResult).toEqual(d.session.result!.modeResult);
   });
 });
@@ -295,7 +306,7 @@ describe('フリックの採点', () => {
     Array.from({ length: total }, (_, i) => ({ time, hit: i < hits, error: i < hits ? hitError : missError }));
   const score = (targets: readonly FlickRecord[]) => FLICK_SCORING.score({ shots: [], duration: 30, modeResult: { targets } });
 
-  it('SCO-45: 18 / 20 命中・時間がすべて 0.5 秒・ズレ 0.5 度と 3 度なら、0.556 秒・0.500 秒・90.0%・18 / 20・0.75°', () => {
+  it('SCO-55: 18 / 20 命中・時間がすべて 0.5 秒・ズレ 0.5 度と 3 度なら、0.556 秒・0.500 秒・90.0%・18 / 20・0.75°', () => {
     const scored = score(records(18, 20, 0.5, 0.5, 3));
     expect(scored.value).toBeCloseTo(10 / 18, 12);
     expect(scored.metrics).toEqual([
@@ -309,7 +320,7 @@ describe('フリックの採点', () => {
     expect(scored.share).toBe('命中 1 回あたりの時間: 0.556 秒 / 命中率: 90.0%');
   });
 
-  it('SCO-46: 1 個も命中しないと命中 1 回あたりの時間は「なし」で、時間の平均・命中率（0.0%）・ズレの平均は求まる', () => {
+  it('SCO-56: 1 個も命中しないと命中 1 回あたりの時間は「なし」で、時間の平均・命中率（0.0%）・ズレの平均は求まる', () => {
     const scored = score(records(0, 20, 0.4, 0, 2));
     expect(scored.value).toBeNull();
     expect(scored.metrics.map((m) => m.value)).toEqual(['なし', '0.400 秒', '0.0%', '0 / 20', '2.00°']);
@@ -323,7 +334,7 @@ describe('フリックの採点', () => {
     expect(FLICK_SCORING.score({ shots: [], duration: 1, modeResult: { targets: 'broken' } }).value).toBeNull();
   });
 
-  it('SCO-49: 命中 1 回あたりの時間は小さいほど良く、0 より大きい有限の数だけがとりうる値', () => {
+  it('SCO-59: 命中 1 回あたりの時間は小さいほど良く、0 より大きい有限の数だけがとりうる値', () => {
     const { compare } = FLICK_SCORING;
     expect(compare.id).toBe('timePerHit');
     expect(compare.better).toBe('lower');

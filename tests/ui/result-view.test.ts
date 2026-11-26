@@ -21,6 +21,9 @@ import { inputFromTimedActions } from '../../src/input/queue';
 import { anglesToPoint } from '../../src/sim/hit';
 import { vec3 } from '../../src/sim/vec3';
 import { aimMode, TARGET_SIZE } from '../helpers/aim-modes';
+import flick, { type FlickRecord } from '../../src/modes/aim/flick';
+import { modeOptionChoices } from '../../src/modes/types';
+import { resultShare, resultShareText } from '../../src/ui/share';
 import { SafeStorage } from '../../src/ui/storage';
 
 const DATA = resolve(__dirname, '../../src/data');
@@ -581,7 +584,7 @@ describe('追いエイムのリザルト（docs/spec/scoring.md「追いエイ�
       padName: undefined,
       duration: n * dt,
       modeResult: { steps, reversals: [], dt },
-      option: { id: speed, name: SPEEDS[speed], label: '速さ' },
+      options: [{ id: speed, name: SPEEDS[speed], optionId: 'speed', label: '速さ' }],
     };
     return { result, recording: { actions: [] }, world: rangeWorld(), input: 'mouse', dt };
   }
@@ -662,5 +665,103 @@ describe('追いエイムのリザルト（docs/spec/scoring.md「追いエイ�
     const shots: ShotRecord[] = [{ shot: 1, patternShot: 1, time: 0, angles: { yaw: 0, pitch: 0 }, position: null, deviation: null, target: 'tracking' }];
     const view = completePractice(trackingPractice(50, { shots }), memoryStorage(), NOW);
     expect(view.metrics.map((m) => m.label)).toEqual(['乗っていた割合', '外していたときのズレ', '乗り直すまでの時間', '速さ']);
+  });
+});
+
+describe('フリックのリザルト（docs/spec/scoring.md「フリックの採点」）', () => {
+  const FAR_SMALL = { 'flick-range': 'far', 'flick-size': 'small' };
+  const BEST = 'apex-training:best:mouse:-:flick:far:small';
+  const HISTORY = 'apex-training:history:mouse:-:flick:far:small';
+
+  /** 撃った的の記録 targets のフリックの練習の結果。採点は記録だけから決まるので、練習を進めずに作る。 */
+  function flickPractice(targets: readonly FlickRecord[], chosen: Record<string, string> = FAR_SMALL): FinishedPractice {
+    const { id, name, category } = flick;
+    const result: PracticeResult = {
+      weapon: undefined,
+      mode: { id, name, category, usesWeapon: false, scoring: flick.scoring! },
+      shots: [],
+      endReason: 'mode',
+      inputMethod: 'mouse',
+      padName: undefined,
+      duration: 20,
+      modeResult: { targets },
+      options: modeOptionChoices(flick, chosen).map(({ option, choice }) => ({ ...choice, optionId: option.id, label: option.label })),
+    };
+    return { result, recording: { actions: [] }, world: rangeWorld(), input: 'mouse', dt: 1 / 120 };
+  }
+  /** 20 個すべて命中、時間がすべて time 秒の記録（命中 1 回あたりの時間 = time）。 */
+  const allHit = (time: number): FlickRecord[] => Array.from({ length: 20 }, () => ({ time, hit: true, error: 0.2 }));
+
+  it('SCO-57: 各指標・出る範囲・的の大きさ・自己ベストを出し、散布図・照準の軌道・平均ズレ・苦手な区間は出さない', () => {
+    const records = Array.from({ length: 20 }, (_, i) => ({ time: 0.5, hit: i < 18, error: i < 18 ? 0.5 : 3 }));
+    const view = completePractice(flickPractice(records), memoryStorage(), NOW);
+    expect(view.metrics).toEqual([
+      { label: '命中 1 回あたりの時間', value: '0.556 秒' },
+      { label: '時間の平均', value: '0.500 秒' },
+      { label: '命中率', value: '90.0%' },
+      { label: '命中数', value: '18 / 20' },
+      { label: 'ズレの平均', value: '0.75°' },
+      { label: '出る範囲', value: '遠い' },
+      { label: '的の大きさ', value: '小' },
+    ]);
+    expect(view.best).toBe('自己ベスト更新');
+    expect(view.plots).toEqual([]);
+    expect(view.weakSection).toBeNull();
+    expect(view.padTrace).toBeNull();
+    expect(view.summary).toBe('フリック / 出る範囲: 遠い / 的の大きさ: 小 — 0 発');
+    expect(view.metrics.map((m) => m.label)).not.toContain('平均ズレ');
+  });
+
+  it('SCO-58: 自己ベストを -:flick:far:small に version 1 と 8 つの項目で保存し、履歴の最後の件に同じ結果を入れる', () => {
+    const storage = memoryStorage();
+    const records = Array.from({ length: 20 }, (_, i) => ({ time: 0.5, hit: i < 18, error: i < 18 ? 0.5 : 3 }));
+    const view = completePractice(flickPractice(records), storage, NOW);
+    expect(view.best).toBe('自己ベスト更新');
+    const best = JSON.parse(storage.items.get(BEST) ?? '') as Record<string, unknown>;
+    expect(Object.keys(best)).toEqual(['version', 'timePerHit', 'meanTime', 'hitRate', 'hits', 'targets', 'meanError', 'achievedAt']);
+    expect(best).toMatchObject({ version: 1, meanTime: 0.5, hitRate: 90, hits: 18, targets: 20, meanError: 0.75, achievedAt: NOW.toISOString() });
+    expect(best.timePerHit as number).toBeCloseTo(10 / 18, 12);
+    const history = JSON.parse(storage.items.get(HISTORY) ?? '') as { version: number; entries: Record<string, unknown>[] };
+    expect(history.version).toBe(1);
+    const fields = Object.fromEntries(Object.entries(best).filter(([key]) => key !== 'version' && key !== 'achievedAt'));
+    expect(history.entries.at(-1)).toEqual({ at: NOW.toISOString(), ...fields });
+  });
+
+  it('SCO-56: 1 個も命中しないと自己ベストも履歴も更新しない', () => {
+    const storage = memoryStorage();
+    const view = completePractice(flickPractice(Array.from({ length: 20 }, () => ({ time: 0.4, hit: false, error: 2 }))), storage, NOW);
+    expect(view.value).toBeNull();
+    expect(view.best).toBe('自己ベスト 命中 1 回あたりの時間 なし');
+    expect(storage.items.has(BEST)).toBe(false);
+    expect(storage.items.has(HISTORY)).toBe(false);
+  });
+
+  it('SCO-59: 0.6 秒の自己ベストは 0.5 秒で更新し、続く 0.5 秒（等しい）と 0.7 秒では更新しない', () => {
+    const storage = memoryStorage({ [BEST]: JSON.stringify({ version: 1, timePerHit: 0.6, achievedAt: NOW.toISOString() }) });
+    const timePerHit = () => (JSON.parse(storage.items.get(BEST) ?? '') as { timePerHit: number }).timePerHit;
+    expect(completePractice(flickPractice(allHit(0.5)), storage, NOW).best).toBe('自己ベスト更新');
+    expect(timePerHit()).toBeCloseTo(0.5, 12);
+    expect(completePractice(flickPractice(allHit(0.5)), storage, NOW).best).toBe('自己ベスト 命中 1 回あたりの時間 0.500 秒');
+    expect(completePractice(flickPractice(allHit(0.7)), storage, NOW).bestUpdated).toBe(false);
+    expect(timePerHit()).toBeCloseTo(0.5, 12);
+  });
+
+  it('SCO-60: 出る範囲と的の大きさの組ごとに自己ベストと履歴を分け、ほかの組は変わらない', () => {
+    const storage = memoryStorage();
+    completePractice(flickPractice(allHit(0.5)), storage, NOW);
+    const before = [storage.items.get(BEST), storage.items.get(HISTORY)];
+    const view = completePractice(flickPractice(allHit(0.9), { 'flick-range': 'near', 'flick-size': 'large' }), storage, NOW);
+    expect(view.best).toBe('自己ベスト更新');
+    expect(storage.items.has('apex-training:best:mouse:-:flick:near:large')).toBe(true);
+    expect(storage.items.has('apex-training:history:mouse:-:flick:near:large')).toBe(true);
+    expect([storage.items.get(BEST), storage.items.get(HISTORY)]).toEqual(before);
+  });
+
+  it('UI-110: シェアの文の 2 行目は「モード: フリック / 出る範囲: 遠い / 的の大きさ: 小」、3 行目は命中 1 回あたりの時間と命中率', () => {
+    const practiced = flickPractice(Array.from({ length: 20 }, (_, i) => ({ time: 0.5, hit: i < 18, error: 0.5 })));
+    const view = completePractice(practiced, memoryStorage(), NOW);
+    const lines = resultShareText(resultShare(practiced.result, view)).split('\n');
+    expect(lines[1]).toBe('モード: フリック / 出る範囲: 遠い / 的の大きさ: 小');
+    expect(lines[2]).toBe('命中 1 回あたりの時間: 0.556 秒 / 命中率: 90.0%');
   });
 });
