@@ -38,9 +38,11 @@ export interface ShotRecord {
   readonly deviation: Angles | null;
   /**
    * 当たった練習の的の識別子（docs/spec/architecture.md「照準と的の当たり」）。練習の的に当たった弾（命中）だけが持つ。
-   * この弾の弾痕は表示しない。
+   * 弾痕を残さない的に当たった弾の弾痕は表示しない。
    */
   readonly target?: string;
+  /** 弾痕を残す練習の的に当たった弾だけが true を持つ。この弾の弾痕は、当たった点（position）に的の上に表示する。 */
+  readonly impactOnTarget?: true;
 }
 
 /** 弾を撃つもの。ステップごとに step を呼び、撃った弾を shots に足す。 */
@@ -53,14 +55,18 @@ export interface Shooter {
 
 /**
  * 目の位置から angles の向きに撃った弾の当たり。マップの箱と出現している練習の的のうち、目の位置から最も近いものに当たる。
- * 練習の的に当たったときは target にその識別子を入れる。
+ * 練習の的に当たったときは target にその識別子を入れ、弾痕を残す的なら impactOnTarget を入れる。
+ * 角度のズレは、何に当たったかによらず当たった点（弾の向きのレイの上）から求める。
  */
-export function traceShot(world: World, angles: Angles): Pick<ShotRecord, 'position' | 'deviation' | 'target'> {
+export function traceShot(world: World, angles: Angles): Pick<ShotRecord, 'position' | 'deviation' | 'target' | 'impactOnTarget'> {
   const { player } = world;
   const hit = raycastScene(player.position, directionFromAngles(angles), world.boxes, world.targets.visible);
   if (!hit) return { position: null, deviation: null };
   const deviation = angularDeviation(player.position, hit.position, world.center);
-  return hit.target ? { position: hit.position, deviation, target: hit.target.id } : { position: hit.position, deviation };
+  if (!hit.target) return { position: hit.position, deviation };
+  return hit.target.keepsImpacts
+    ? { position: hit.position, deviation, target: hit.target.id, impactOnTarget: true }
+    : { position: hit.position, deviation, target: hit.target.id };
 }
 
 /** Gun の振る舞いの選び方。 */

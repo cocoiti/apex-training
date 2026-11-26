@@ -425,7 +425,7 @@ describe('SCO-47: 乗っていた割合の求め方', () => {
       const still = play(seed, []);
       expect(still.steps).toBe(N);
       expect(still.value!).toBeCloseTo((still.aimedSteps / N) * 100, 9);
-      expect(num(row(still, '乗っていた割合'))).toBeCloseTo((still.aimedSteps / N) * 100, 1);
+      expect(row(still, '乗っていた割合')).toBe(`${((still.aimedSteps / N) * 100).toFixed(1)}%`);
       const m = motion(seed);
       const mixed = play(seed, aimActions(m, (k, c) => (Math.floor(k / 90) % 3 === 0 ? { yaw: 0, pitch: 30 } : anglesTo(m.eye, c))));
       expect(mixed.value!).toBeCloseTo((mixed.aimedSteps / N) * 100, 9);

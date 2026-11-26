@@ -137,6 +137,43 @@ function dipRuns(img: Image, cx: number, cy: number, dir: number, from: number, 
   return runs;
 }
 
+/**
+ * 反復練習の人形（docs/spec/architecture.md「人形の的」、縮尺 1）の部分の箱の正面の縁（地より暗い線）が、画面の中心（人形の中心）から
+ * 角度 dir（度）の向きに進んだどの距離（px）にあるか。pxPerMeter は人形の正面（目から 9.6 m）の 1 m の画素数。
+ * 縁の線はリングと同じく暗いので、リングを探すときにこの距離の近くを除く。
+ */
+const DUMMY_PARTS = [
+  { w: 0.25, h: 0.25, x: 0, y: 0.4 },
+  { w: 0.5, h: 0.55, x: 0, y: 0 },
+  { w: 0.12, h: 0.6, x: 0.35, y: -0.025 },
+  { w: 0.12, h: 0.6, x: -0.35, y: -0.025 },
+  { w: 0.2, h: 1.0, x: 0.13, y: -0.775 },
+  { w: 0.2, h: 1.0, x: -0.13, y: -0.775 },
+];
+const DUMMY_FRONT = 9.6;
+function dummyEdges(dir: number, pxPerMeter: number): number[] {
+  const ux = Math.cos(rad(dir));
+  const uy = Math.sin(rad(dir));
+  const out: number[] = [];
+  for (const p of DUMMY_PARTS) {
+    // 画面の座標（右が +x、下が +y、px）の長方形。
+    const [x0, x1] = [(p.x - p.w / 2) * pxPerMeter, (p.x + p.w / 2) * pxPerMeter];
+    const [y0, y1] = [-(p.y + p.h / 2) * pxPerMeter, -(p.y - p.h / 2) * pxPerMeter];
+    for (const X of [x0, x1]) {
+      if (Math.abs(ux) < 1e-9) continue;
+      const r = X / ux;
+      if (r > 0 && r * uy >= y0 - 1 && r * uy <= y1 + 1) out.push(r);
+    }
+    for (const Y of [y0, y1]) {
+      if (Math.abs(uy) < 1e-9) continue;
+      const r = Y / uy;
+      if (r > 0 && r * ux >= x0 - 1 && r * ux <= x1 + 1) out.push(r);
+    }
+  }
+  return out;
+}
+const nearEdge = (r: number, edges: readonly number[], margin = 2.5) => edges.some((e) => Math.abs(e - r) <= margin);
+
 describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・床と空・ADS 中のスコープの表示（UI-18〜UI-23）', () => {
   const temps: string[] = [];
   const servers: Server[] = [];
@@ -294,12 +331,15 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       // リング: 右・左・下・斜めのどの向きにも、0.5〜3.0 度の 6 本の暗い線が、中心から同じ距離（その角度の投影）にある。
       // 既定の画面（1280x800）では細いリングは 1 px ほどの太さなので、前後より暗い所として拾う。
       // 壁の上ではリングの白い縁取りの間の壁の地も前後より暗く見えるので、本数ではなく、各リングの距離に線があるかを見る。
-      const all = [0, 45, 90, 135, 180].map((dir) => dipRuns(img, cx, cy, dir, 3, 31));
+      // 反復練習では、リングは壁の手前の人形の正面にも描かれる。人形の部分の箱の縁の線（暗い線）と重なるリングは確かめない。
+      const dirs = [0, 45, 90, 135, 180];
+      const all = dirs.map((dir) => dipRuns(img, cx, cy, dir, 3, 31));
       for (const theta of [0.5, 1, 1.5, 2, 2.5, 3]) {
         const expected = k * Math.tan(rad(theta));
-        for (const runs of all) {
+        all.forEach((runs, i) => {
+          if (nearEdge(expected, dummyEdges(dirs[i]!, k / DUMMY_FRONT))) return;
           expect(runs.some((r) => Math.abs(r - expected) <= 1.5), `${theta} 度（${expected} px）: ${JSON.stringify(all)}`).toBe(true);
-        }
+        });
       }
     });
 
@@ -402,10 +442,14 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       // 真上は高さ 2 m の目地（約 61 px）と重なるので避ける。
       const result: Record<number, number[]> = {};
       for (const dir of [0, 45, 90, 135, 180, 225, 315]) {
-        const runs = darkRuns(img, cx, cy, dir, 6, 84, dark);
+        // 人形の部分の箱の縁の線（暗い線）の近くの線は除き、縁と重なるリングは確かめない。
+        const edges = dummyEdges(dir, k / DUMMY_FRONT);
+        const runs = darkRuns(img, cx, cy, dir, 6, 84, dark).filter((r) => !nearEdge(r, edges));
         result[dir] = runs;
-        expect(runs, `向き ${dir} 度: ${JSON.stringify(runs)}`).toHaveLength(6);
-        angles.forEach((theta, i) => {
+        const checked = angles.filter((theta) => !nearEdge(k * Math.tan(rad(theta)), edges));
+        expect(runs, `向き ${dir} 度: ${JSON.stringify(runs)}（縁 ${JSON.stringify(edges)}）`).toHaveLength(checked.length);
+        expect(checked.length, `向き ${dir} 度で確かめられるリング`).toBeGreaterThanOrEqual(3);
+        checked.forEach((theta, i) => {
           // この向きで、リングが板と壁のどちらの面にあるか（板の正面の、照準との交点からの距離 D tan θ が板の内か）。
           const D = 9.9;
           const r = D * Math.tan(rad(theta));

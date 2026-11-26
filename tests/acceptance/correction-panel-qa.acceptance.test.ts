@@ -43,16 +43,20 @@ const chromium = findChromium();
 const settle = (page: Page, frames: number) => page.advanceClock(frames / 60);
 
 const GHOST = '反復練習';
-/** ゴーストもパネルも出さない受け入れテスト用のモード。写しのビルドにだけ足す。ゴーストを見つける対照に使う。 */
+/**
+ * ゴーストもパネルも出さない受け入れテスト用のモード。写しのビルドにだけ足す。ゴーストを見つける対照に使う。
+ * 反復練習と同じ人形（docs/spec/modes.md「反復練習」）は置くよう、反復練習の setup をそのまま使う。
+ */
 const PLAIN = 'QA-ゴーストなし';
-const PLAIN_MODE = `const plain = {
+const PLAIN_MODE = `import drill from './ghost';
+const plain = {
   id: 'qa-plain',
   name: { ja: '${PLAIN}', en: '${PLAIN}' },
   description: { ja: 'QA の補正のパネルを出さないモード', en: 'A QA mode without the correction panel' },
   icon: 'spray',
   category: 'recoil',
   order: 90,
-  setup() {},
+  setup: drill.setup,
   step() {
     return true;
   },

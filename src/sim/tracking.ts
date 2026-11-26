@@ -11,9 +11,6 @@ import { vec3, type Vec3 } from './vec3';
 /** 練習の長さ（秒）。 */
 export const TRACKING_DURATION = 20;
 
-/** 的の大きさ（幅・高さ・奥行き、メートル）。 */
-export const TRACKING_TARGET_SIZE: Vec3 = vec3(0.5, 1.0, 0.2);
-
 /** 目の位置から基準の点までの距離（メートル）。 */
 export const TRACKING_DISTANCE = 8;
 

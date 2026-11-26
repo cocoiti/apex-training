@@ -276,20 +276,42 @@ async function findTarget(page: Page): Promise<{ n: number; x: number; y: number
     clip: { ...CLIP, scale: 1 },
   });
   const img = decodePng(Buffer.from(data, 'base64'));
+  // 的は人形で、画素の重心は脚のあいだの近くに落ちるので、胴を狙う。
+  const color = targetColor;
+  const isTarget = ([r, g, b]: readonly number[]) => Math.abs(r! - color[0]) + Math.abs(g! - color[1]) + Math.abs(b! - color[2]) < 60;
   let n = 0;
-  let sx = 0;
-  let sy = 0;
+  let left = Infinity;
+  let right = -Infinity;
+  let top = Infinity;
+  let bottom = -Infinity;
   for (let y = 0; y < img.height; y += 1) {
     for (let x = 0; x < img.width; x += 1) {
-      const [r, g, b] = img.pixel(x, y);
-      if (Math.abs(r - targetColor[0]) + Math.abs(g - targetColor[1]) + Math.abs(b - targetColor[2]) < 60) {
+      if (isTarget(img.pixel(x, y))) {
         n += 1;
-        sx += CLIP.x + x + 0.5;
-        sy += CLIP.y + y + 0.5;
+        left = Math.min(left, CLIP.x + x);
+        right = Math.max(right, CLIP.x + x + 1);
+        top = Math.min(top, CLIP.y + y);
+        bottom = Math.max(bottom, CLIP.y + y + 1);
       }
     }
   }
-  return n === 0 ? { n, x: NaN, y: NaN } : { n, x: sx / n, y: sy / n };
+  if (n === 0) return { n, x: NaN, y: NaN };
+  // 縦は胴の中心（人形の上端から高さの 0.525 ÷ 1.8）。横は胴の高さの帯（上端から 0.275 ÷ 1.8〜0.825 ÷ 1.8）の的の色の画素の重心
+  // （胴が多くを占める。腕は細く、縁の線で見えたり消えたりするので、外枠の真ん中は使わない）。
+  const height = bottom - top;
+  const y = top + height * (0.525 / 1.8);
+  const [bandTop, bandBottom] = [top + height * (0.275 / 1.8), top + height * (0.825 / 1.8)];
+  let m = 0;
+  let sx = 0;
+  for (let row = Math.max(0, Math.floor(bandTop) - CLIP.y); row < Math.min(img.height, Math.ceil(bandBottom) - CLIP.y); row += 1) {
+    for (let x = 0; x < img.width; x += 1) {
+      if (isTarget(img.pixel(x, row))) {
+        m += 1;
+        sx += CLIP.x + x + 0.5;
+      }
+    }
+  }
+  return m === 0 ? { n, x: (left + right) / 2, y } : { n, x: sx / m, y };
 }
 
 async function learnTargetColor(before: Buffer, after: Buffer) {
@@ -317,8 +339,11 @@ async function aimAtTarget(page: Page, m: Mouse, limit = 10) {
     const t = await findTarget(page);
     if (t.n === 0) throw new Error(`画面に練習の的が見えない（${trail.join(' → ')}）`);
     trail.push(`${(t.x - CX).toFixed(1)},${(t.y - CY).toFixed(1)}`);
-    if (Math.hypot(t.x - CX, t.y - CY) <= 1) return;
-    await moveBy(page, m, countsFor(t.x - CX), countsFor(t.y - CY));
+    // 人形の腕・脚は細く、画素の端で 1〜3 px 跳ぶので、2 px 以内で合ったとする（小さい人形でも胴の幅は約 9 px）。
+    if (Math.hypot(t.x - CX, t.y - CY) <= 2) return;
+    // 近くでは人形の画素が縁の線で 1〜2 px 跳ぶので、半分ずつ詰めて行き過ぎを繰り返さないようにする。
+    const gain = Math.hypot(t.x - CX, t.y - CY) < 6 ? 0.5 : 1;
+    await moveBy(page, m, countsFor((t.x - CX) * gain), countsFor((t.y - CY) * gain));
     await page.advanceClock(1 / 30);
   }
   throw new Error(`${limit} 回動かしても的の中心に合わない: ${trail.join(' → ')}`);

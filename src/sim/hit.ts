@@ -1,6 +1,6 @@
 import { normalizeYaw, type Angles } from './angles';
 import type { Box } from './map';
-import type { PracticeTarget } from './targets';
+import { partCenter, type PracticeTarget, type TargetPart } from './targets';
 import { vec3, type Vec3 } from './vec3';
 
 /** レイと箱の最も近い交点。 */
@@ -58,19 +58,26 @@ export interface SceneHit {
   readonly box: Box | undefined;
   /** 当たった練習の的。マップの箱に当たったときは undefined。 */
   readonly target: PracticeTarget | undefined;
+  /** 当たった練習の的の部分の箱。マップの箱に当たったときは undefined。 */
+  readonly part: TargetPart | undefined;
 }
 
 /**
- * 始点から方向（長さ 1）へ飛ばしたレイが、マップの箱と出現している練習の的のなかで最初に当たるもの
+ * 始点から方向（長さ 1）へ飛ばしたレイが、マップの箱と出現している練習の的（の部分の箱）のなかで最初に当たるもの
  * （docs/spec/architecture.md「照準と的の当たり」）。同じ距離ならマップの箱を先にする。どれにも当たらなければ undefined。
  */
 export function raycastScene(origin: Vec3, dir: Vec3, boxes: readonly Box[], targets: readonly PracticeTarget[]): SceneHit | undefined {
   const boxHit = raycastBoxes(origin, dir, boxes);
-  let best: SceneHit | undefined = boxHit ? { position: boxHit.position, distance: boxHit.distance, box: boxHit.box, target: undefined } : undefined;
+  let best: SceneHit | undefined = boxHit
+    ? { position: boxHit.position, distance: boxHit.distance, box: boxHit.box, target: undefined, part: undefined }
+    : undefined;
   for (const target of targets) {
-    const t = intersectBox(origin, dir, target);
-    if (t === undefined || (best && t >= best.distance)) continue;
-    best = { position: vec3(origin.x + dir.x * t, origin.y + dir.y * t, origin.z + dir.z * t), distance: t, box: undefined, target };
+    // 的の部分の箱のどれかに当たれば、その的に当たる。部分の箱のあいだの空きは、どの部分にも当たらない。
+    for (const part of target.parts) {
+      const t = intersectBox(origin, dir, { center: partCenter(target.center, part), size: part.size });
+      if (t === undefined || (best && t >= best.distance)) continue;
+      best = { position: vec3(origin.x + dir.x * t, origin.y + dir.y * t, origin.z + dir.z * t), distance: t, box: undefined, target, part };
+    }
   }
   return best;
 }
