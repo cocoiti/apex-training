@@ -545,6 +545,8 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
         expect(distance(ads.pixel(x, y), hipCanvas.pixel(x, y)), `(${x}, ${y}) ${ads.pixel(x, y)} シーン ${hipCanvas.pixel(x, y)}`).toBeLessThan(25);
       }
       // 視野は円形: 斜め 4 方向と上下左右で、見える所から暗い所に変わる距離が同じ（直径は短い辺の 80%）。
+      // 比べる相手は HTML の画面も写した腰撃ちの写し。環境によって出る HUD の文（Linux の Chromium では、加速を外した
+      // ポインターロックを使えない旨が視野の上に重なる）は両方に同じく写り、視野の縁だけが違いとして残る。
       const edges: number[] = [];
       for (const dir of [20, 70, 110, 160, 200, 250, 290, 340]) {
         const ux = Math.cos(rad(dir));
@@ -554,7 +556,7 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
           const x = Math.round(cx + ux * r);
           const y = Math.round(cy + uy * r);
           if (x < 0 || y < 0 || x >= W || y >= H) break;
-          if (distance(ads.pixel(x, y), hipCanvas.pixel(x, y)) > 40) {
+          if (distance(ads.pixel(x, y), hip.pixel(x, y)) > 40) {
             edge = r;
             break;
           }

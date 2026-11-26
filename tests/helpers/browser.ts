@@ -326,9 +326,34 @@ export async function launchBrowser(executable: string): Promise<Browser> {
       '--disable-backgrounding-occluded-windows',
       'about:blank',
     ],
-    { stdio: 'ignore', env: { ...process.env, TMPDIR: temp, TMP: temp, TEMP: temp } },
+    // 子のプロセス（GPU・描画・ネットワークなど）ごと止められるよう、Chromium を新しいプロセスグループで起動する。
+    { stdio: 'ignore', detached: true, env: { ...process.env, TMPDIR: temp, TMP: temp, TEMP: temp } },
   );
   const exited = new Promise<void>((ok) => child.once('exit', () => ok()));
+  /**
+   * Chromium のプロセスグループに属するプロセスをすべて止め、いなくなるまで待つ。
+   * 本体だけを止めると、残った子のプロセス（Linux の --no-sandbox ではとくに）がプロファイルに書き続け、
+   * 消す途中に ENOTEMPTY になる。
+   */
+  const stop = async () => {
+    const group = -child.pid!;
+    /** グループにシグナルを送る。グループにもうプロセスがなければ（ESRCH）false。0 は送らずに確かめるだけ。 */
+    const signal = (sig: NodeJS.Signals | 0) => {
+      try {
+        process.kill(group, sig);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const gone = (what: string) => waitUntil(() => !signal(0), what, { timeout: 5_000, interval: 50 });
+    signal('SIGTERM');
+    await gone('Chromium と子のプロセスが終わる').catch(async () => {
+      signal('SIGKILL');
+      await gone('Chromium と子のプロセスが SIGKILL で終わる');
+    });
+    await exited;
+  };
   let endpoint: string;
   try {
     endpoint = await waitUntil(
@@ -346,8 +371,7 @@ export async function launchBrowser(executable: string): Promise<Browser> {
       { timeout: 15_000, interval: 100 },
     );
   } catch (error) {
-    child.kill();
-    await exited;
+    await stop();
     removeRoot();
     throw error;
   }
@@ -377,11 +401,8 @@ export async function launchBrowser(executable: string): Promise<Browser> {
     },
     async close() {
       for (const { socket } of opened.splice(0)) socket.close();
-      // 終わったことを確かめてからプロファイルを消す（決まった時間は待たない）。
-      if (child.exitCode === null && child.signalCode === null) {
-        child.kill();
-        await exited;
-      }
+      // 子のプロセスまで終わったことを確かめてからプロファイルを消す（決まった時間は待たない）。
+      await stop();
       removeRoot();
     },
   };
