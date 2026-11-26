@@ -476,12 +476,12 @@ describe.skipIf(NESTED || !chromium)('QA: 画面の表示の計測', () => {
     const { page } = o;
     await page.waitFor('window.__bannerShown()');
     expect(await page.evaluate<string>('window.__bannerText()')).toContain(BANNER_TEXT);
-    // 画面の内容（武器の欄・「開始」）より上にあり、左が「許可」。
+    // 画面の内容（武器のカードの並び・「開始」）より上にあり、左が「許可」。
     const layout = await page.evaluate<{ grant: number; deny: number; grantLeft: number; denyLeft: number; weapon: number; start: number }>(`(() => {
       const r = (el) => el.getBoundingClientRect();
       const g = r(window.__button(${JSON.stringify(GRANT)})); const d = r(window.__button(${JSON.stringify(DENY)}));
       return { grant: g.bottom, deny: d.bottom, grantLeft: g.left, denyLeft: d.left,
-        weapon: r(document.querySelector('#weapon')).top, start: r(document.querySelector('[data-screen="top"] a[href="#/play"]')).top }; })()`);
+        weapon: r(document.querySelector('#weapon-cards')).top, start: r(document.querySelector('[data-screen="top"] a[href="#/play"]')).top }; })()`);
     expect(layout.grant).toBeLessThanOrEqual(layout.weapon);
     expect(layout.deny).toBeLessThanOrEqual(layout.weapon);
     expect(layout.grant).toBeLessThanOrEqual(layout.start);
@@ -628,9 +628,10 @@ describe.skipIf(NESTED || !chromium)('QA: 画面の表示の計測', () => {
         }
         throw new Error(`十字キーの左右で ${selector} に ${label} を選べない`);
       };
-      const seen = await focusTo('mode');
+      const seen = await focusTo('mode-cards');
       // 案内の 2 つのボタンが項目の順の最初に来て、そのあとに画面の項目が続く。
       expect(seen.slice(1, 3)).toEqual(['consent-grant', 'consent-deny']);
+      // モードのカードの並びは、隠した #mode の選択肢を十字キーの左右で変える。
       await choose('#mode', mode);
       const settingId = await page.evaluate<string>(
         `[...document.querySelectorAll('[data-screen="top"] select')].find((s) => window.__vis(s) && (s.closest('label')?.textContent ?? '').includes(${JSON.stringify(setting)}))?.id ?? ''`,
