@@ -15,7 +15,7 @@ import type { SetSummary } from './set-summary';
 /** シェアの文に入れる公開 URL。開いている URL（開発サーバーなど）によらず、公開先を書く。 */
 export const PUBLIC_URL = 'https://cocoiti.github.io/apex-training/';
 
-const APP_NAME = 'リコイル練習（非公式ファンツール）';
+const APP_NAME = 'Hyper Aim Training（非公式ファンツール）';
 const BEST_UPDATED = '自己ベスト更新！';
 
 /** リザルト画面（回数 1）のシェアの文に入れるもの。 */

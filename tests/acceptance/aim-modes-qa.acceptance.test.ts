@@ -713,7 +713,7 @@ describe.skipIf(NESTED || !chromium)('QA: エイムのモード（src/modes/aim/
       await page.waitFor('window.__shareCalls.length > 0');
       const text = (await page.evaluate<string[]>('window.__shareCalls'))[0]!;
       const lines = text.split('\n');
-      expect(lines[0]).toBe('リコイル練習（非公式ファンツール）の結果');
+      expect(lines[0]).toBe('Hyper Aim Training（非公式ファンツール）の結果');
       expect(lines[1]).toBe(`モード: ${TAP_MODE}`);
       expect(lines[2]).toMatch(/^命中数[:：]\s*3$/);
       expect(text).not.toContain('武器');

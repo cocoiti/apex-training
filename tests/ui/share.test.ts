@@ -21,7 +21,7 @@ import {
 
 /** screens.md「シェアの文」の例（L-STAR を反復練習で 1 回、平均ズレ 0.85 度・命中率 72%、自己ベストを更新）。 */
 const EXAMPLE = [
-  'リコイル練習（非公式ファンツール）の結果',
+  'Hyper Aim Training（非公式ファンツール）の結果',
   '武器: L-STAR / モード: 反復練習',
   '平均ズレ: 0.85° / 命中率: 72.0%',
   '自己ベスト更新！',
@@ -69,7 +69,7 @@ describe('シェアの文（docs/spec/screens.md「シェアの文」）', () =>
     );
     const lines = setShareText(setShare('L-STAR', '反復練習', summary)).split('\n');
     expect(lines).toEqual([
-      'リコイル練習（非公式ファンツール）のセットの結果',
+      'Hyper Aim Training（非公式ファンツール）のセットの結果',
       '武器: L-STAR / モード: 反復練習',
       '回数: 3 / 5 回 / セットの平均ズレ: 1.00°',
       PUBLIC_URL,
@@ -102,7 +102,7 @@ describe('シェアの文（docs/spec/screens.md「シェアの文」）', () =>
   it('UI-100: 武器を使わないモードでは 2 行目が「モード: <モードの名前>」だけで、3 行目がそのモードの比べる指標', () => {
     const aim = { weapon: undefined, mode: { name: 'フリック' } };
     const lines = resultShareText(resultShare(aim, { shareScore: metricShareScore(HIT_COUNT, 13), bestUpdated: false })).split('\n');
-    expect(lines).toEqual(['リコイル練習（非公式ファンツール）の結果', 'モード: フリック', '命中数: 13', PUBLIC_URL]);
+    expect(lines).toEqual(['Hyper Aim Training（非公式ファンツール）の結果', 'モード: フリック', '命中数: 13', PUBLIC_URL]);
   });
 
   it('UI-105: 追いエイムでは 2 行目の最後に「 / 速さ: <速さ>」を足し、3 行目が乗っていた割合', () => {
@@ -152,7 +152,7 @@ describe('シェアの文（docs/spec/screens.md「シェアの文」）', () =>
     const result = { weapon: undefined, mode: { name: 'フリック' }, options: [{ label: '出る範囲', name: '遠い' }, { label: '的の大きさ', name: '小' }] };
     const lines = resultShareText(resultShare(result, { shareScore: '命中 1 回あたりの時間: 0.523 秒 / 命中率: 90.0%', bestUpdated: false })).split('\n');
     expect(lines).toEqual([
-      'リコイル練習（非公式ファンツール）の結果',
+      'Hyper Aim Training（非公式ファンツール）の結果',
       'モード: フリック / 出る範囲: 遠い / 的の大きさ: 小',
       '命中 1 回あたりの時間: 0.523 秒 / 命中率: 90.0%',
       PUBLIC_URL,

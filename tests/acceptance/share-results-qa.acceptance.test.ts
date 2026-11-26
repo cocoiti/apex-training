@@ -78,11 +78,11 @@ const LOW = accWeapon('acc-low', '受け入れ-下外れ', 'ACC', [{ dx: 0, dy: 
 
 /** SPEC の「シェアの文」（リザルト画面）。 */
 const resultText = (weapon: string, mean: string, hit: string, best: boolean) =>
-  [`リコイル練習（非公式ファンツール）の結果`, `武器: ${weapon} / モード: ${MODE}`, `平均ズレ: ${mean} / 命中率: ${hit}`, ...(best ? [BEST_LINE] : []), PUBLIC_URL].join('\n');
+  [`Hyper Aim Training（非公式ファンツール）の結果`, `武器: ${weapon} / モード: ${MODE}`, `平均ズレ: ${mean} / 命中率: ${hit}`, ...(best ? [BEST_LINE] : []), PUBLIC_URL].join('\n');
 /** SPEC の「シェアの文」（セットのまとめ）。 */
 const setText = (weapon: string, done: number, count: number, average: string, best: boolean) =>
   [
-    `リコイル練習（非公式ファンツール）のセットの結果`,
+    `Hyper Aim Training（非公式ファンツール）のセットの結果`,
     `武器: ${weapon} / モード: ${MODE}`,
     `回数: ${done} / ${count} 回 / セットの平均ズレ: ${average}`,
     ...(best ? [BEST_LINE] : []),
@@ -91,7 +91,7 @@ const setText = (weapon: string, done: number, count: number, average: string, b
 
 /** SPEC の文の例（L-STAR を反復練習で 1 回、平均ズレ 0.85 度・命中率 72%、自己ベストを更新）。 */
 const SPEC_EXAMPLE = [
-  'リコイル練習（非公式ファンツール）の結果',
+  'Hyper Aim Training（非公式ファンツール）の結果',
   '武器: L-STAR / モード: 反復練習',
   '平均ズレ: 0.85° / 命中率: 72.0%',
   '自己ベスト更新！',
@@ -663,7 +663,7 @@ describe.skipIf(NESTED || !chromium)('QA: 結果のシェア', () => {
       expect(calls[0]!.hasFiles).toBe(false);
       const text = String(calls[0]!.text);
       const lines = text.split('\n');
-      expect(lines[0]).toBe('リコイル練習（非公式ファンツール）のセットの結果');
+      expect(lines[0]).toBe('Hyper Aim Training（非公式ファンツール）のセットの結果');
       expect(lines).toContain('回数: 3 / 5 回 / セットの平均ズレ: 1.00°');
       expect(lines).toContain(PUBLIC_URL);
       // 文は「シェアの文」の行だけからなる（各回の値は入らない）。
@@ -727,7 +727,7 @@ describe.skipIf(NESTED || !chromium)('QA: 結果のシェア', () => {
       await page.advanceClock(2);
       await page.frames(10);
       expect(await clip(page)).toHaveLength(1);
-      expect((await clip(page))[0]!.split('\n')[0]).toBe('リコイル練習（非公式ファンツール）の結果');
+      expect((await clip(page))[0]!.split('\n')[0]).toBe('Hyper Aim Training（非公式ファンツール）の結果');
       expect((await clip(page))[0]).toContain(`武器: ${LOW.name} / モード: ${MODE}`);
       expect((await clip(page))[0]).toContain(PUBLIC_URL);
       expect(await shareMessage(page, 'result')).toBe(COPIED);
@@ -754,7 +754,7 @@ describe.skipIf(NESTED || !chromium)('QA: 結果のシェア', () => {
       await page.frames(10);
       const copied = await clip(page);
       expect(copied).toHaveLength(2);
-      expect(copied[1]!.split('\n')[0]).toBe('リコイル練習（非公式ファンツール）のセットの結果');
+      expect(copied[1]!.split('\n')[0]).toBe('Hyper Aim Training（非公式ファンツール）のセットの結果');
       expect(copied[1]).toContain('回数: 1 / 5 回 / セットの平均ズレ: 2.00°');
       expect(await shareMessage(page, 'set-result')).toBe(COPIED);
       expect(await page.evaluate<string>('location.hash')).toBe('#/set-result');

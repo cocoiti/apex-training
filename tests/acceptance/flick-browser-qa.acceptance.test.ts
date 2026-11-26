@@ -845,7 +845,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       await page.waitFor('window.__shareCalls.length > 0');
       const text = (await page.evaluate<string[]>('window.__shareCalls'))[0]!;
       const lines = text.split('\n');
-      expect(lines[0]).toBe('リコイル練習（非公式ファンツール）の結果');
+      expect(lines[0]).toBe('Hyper Aim Training（非公式ファンツール）の結果');
       expect(lines[1]).toBe('モード: フリック / 出る範囲: 遠い / 的の大きさ: 小');
       expect(lines[2]).toMatch(/^命中 1 回あたりの時間: \d+\.\d{3} 秒 \/ 命中率: \d+\.\d%$/);
       expect(lines[2]).toBe(`命中 1 回あたりの時間: ${metric(r, '命中 1 回あたりの時間')} / 命中率: ${metric(r, '命中率')}`);
