@@ -118,6 +118,48 @@ const matches = (text: string, patterns: RegExp[], from: number, to: number): nu
   return [...new Set(out)].sort((a, b) => a - b);
 };
 
+/**
+ * ファイルの中で定義した、ページのスクリプトをテンプレートで組み立てる関数（`const axis = (page, pad, a, v) => page.evaluate(\`window.__axis(${pad}, ${a}, ${v})\`)` など）の
+ * 呼び出しで、倒す・押すもの（press）と戻す・離すもの（release）の位置。呼び出しに書いた引数を本体の `${引数の名前}` に入れて決める
+ * （`axis(page, 1, 2, 0.5)` は倒す、`axis(page, 1, 2, 0)` は戻す）。本体だけで倒す・戻すが決まる関数と、倒してすぐ戻す関数は除く。
+ */
+function wrapperCalls(sf: ts.SourceFile, text: string): { press: number[]; release: number[] } {
+  const hit = (patterns: RegExp[], s: string) => patterns.some((p) => p.test(s));
+  const defs = new Map<string, { params: (ts.ParameterDeclaration | undefined)[]; body: string }>();
+  const def = (name: string, fn: ts.FunctionLikeDeclaration) => {
+    if (!fn.body) return;
+    const body = text.slice(fn.body.getStart(sf), fn.body.end);
+    if (!body.includes('${') || hit(PRESS, body) || hit(RELEASE, body)) return;
+    defs.set(name, { params: fn.parameters.map((p) => (ts.isIdentifier(p.name) ? p : undefined)), body });
+  };
+  const collect = (n: ts.Node) => {
+    if (ts.isFunctionDeclaration(n) && n.name) def(n.name.text, n);
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer && (ts.isArrowFunction(n.initializer) || ts.isFunctionExpression(n.initializer))) {
+      def(n.name.text, n.initializer);
+    }
+    ts.forEachChild(n, collect);
+  };
+  collect(sf);
+  const out = { press: [] as number[], release: [] as number[] };
+  const visit = (n: ts.Node) => {
+    const d = ts.isCallExpression(n) && ts.isIdentifier(n.expression) ? defs.get(n.expression.text) : undefined;
+    if (d && ts.isCallExpression(n)) {
+      let body = d.body;
+      d.params.forEach((p, i) => {
+        const v = n.arguments[i]?.getText(sf) ?? p?.initializer?.getText(sf);
+        if (p && v !== undefined) body = body.split(new RegExp(String.raw`\$\{\s*${(p.name as ts.Identifier).text}\s*\}`)).join(v);
+      });
+      const press = hit(PRESS, body);
+      const release = hit(RELEASE, body);
+      if (press && !release) out.press.push(n.getStart(sf));
+      if (release && !press) out.release.push(n.getStart(sf));
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
 interface Hold {
   line: number;
   /** 押している間に時計を進めたか。 */
@@ -132,10 +174,12 @@ export function holds(file: string, source: string): Hold[] {
   const text = blankComments(sf);
   const seqs = sequences(sf);
   const out: Hold[] = [];
-  for (const press of matches(text, PRESS, 0, text.length)) {
+  const wrapped = wrapperCalls(sf, text);
+  const presses = [...new Set([...matches(text, PRESS, 0, text.length), ...wrapped.press])].sort((a, b) => a - b);
+  for (const press of presses) {
     const inner = seqs.filter(([a, b]) => a <= press && press < b).sort((x, y) => x[1] - x[0] - (y[1] - y[0]))[0];
     if (!inner) continue;
-    const release = matches(text, RELEASE, press + 1, inner[1])[0];
+    const release = [...matches(text, RELEASE, press + 1, inner[1]), ...wrapped.release.filter((r) => r > press && r < inner[1])].sort((a, b) => a - b)[0];
     const span = text.slice(press, release ?? inner[1]);
     out.push({
       line: sf.getLineAndCharacterOfPosition(press).line + 1,
@@ -165,6 +209,8 @@ describe('ARC-64（QA）: ブラウザを使うテストは、スティックを
       ['マウスのボタン', `async function f(page) { await page.send('Input.dispatchMouseEvent', { type: 'mousePressed' }); await page.frames(10); await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased' }); }`],
       ['ページの中で待つ', "async function f(page) { await page.evaluate(`window.__fire(true); new Promise((r) => setTimeout(() => { window.__fire(false); r(); }, 300))`); }"],
       ['スティックの軸', `async function f(page) { await page.evaluate('window.__axis(0, 2, 0.8)'); await page.frames(20); await page.evaluate('window.__axis(0, 2, 0)'); }`],
+      ['テンプレートで組み立てる関数のスティック', 'const axis = (page, pad, a, v) => page.evaluate(`window.__axis(${pad}, ${a}, ${v})`);\nasync function f(page) { await axis(page, 1, 2, 0.5); await page.waitFor(\'x\', 3000); await axis(page, 1, 2, 0); }'],
+      ['テンプレートで組み立てる関数の R2', 'const button = (page, pad, b, v) => page.evaluate(`window.__button(${pad}, ${b}, ${v})`);\nasync function f(page) { await button(page, 1, 7, 1); await page.frames(40); await button(page, 1, 7, 0); }'],
     ];
     for (const [why, code] of bad) expect(realTimeHolds('bad.test.ts', code), why).toHaveLength(1);
 
@@ -174,6 +220,8 @@ describe('ARC-64（QA）: ブラウザを使うテストは、スティックを
       ['待ちのないクリック', `async function f(page) { await page.send('Input.dispatchMouseEvent', { type: 'mousePressed' }); await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased' }); await page.frames(2); }`],
       ['メニューの A ボタン', `async function f(page) { await page.evaluate('window.__btn(0, true)'); await page.frames(2); await page.evaluate('window.__btn(0, false)'); }`],
       ['離したあとの待ち', `async function f(page) { await page.evaluate('window.__fire(false)'); await page.frames(5); }`],
+      ['テンプレートで組み立てる関数で、時計を進めてから戻す', 'const axis = (page, pad, a, v) => page.evaluate(`window.__axis(${pad}, ${a}, ${v})`);\nasync function f(page) { await axis(page, 1, 2, 0.5); await page.advanceClock(0.5); await axis(page, 1, 2, 0); await page.frames(5); }'],
+      ['テンプレートで組み立てる関数の A ボタン', 'const button = (page, pad, b, v) => page.evaluate(`window.__button(${pad}, ${b}, ${v})`);\nasync function f(page) { await button(page, 0, 0, 1); await page.waitFor(\'x\'); await button(page, 0, 0, 0); }'],
       ['コメントの中の語', `async function f(page) { await page.evaluate('window.__fire(true)'); // performance.now() で待たない\n await page.advanceClock(1); await page.evaluate('window.__fire(false)'); }`],
     ];
     for (const [why, code] of good) expect(realTimeHolds('good.test.ts', code), why).toEqual([]);

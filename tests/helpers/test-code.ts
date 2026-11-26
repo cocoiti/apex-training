@@ -97,11 +97,11 @@ export function findFixedSleeps(file: string, source: string): TestCodeViolation
  */
 const HOLD_PATTERNS: RegExp[] = [
   /(?<![\w$])(?:__)?btn\(\s*(?:\w+\s*,\s*)?(?:\$\{\s*)?(?:R2|L2|7|6)(?:\s*\})?\s*,\s*(?:true|1)\s*\)/,
-  /__button\(\s*(?:\d+\s*,\s*)?(?:7|6)\s*,\s*(?!0\s*\))[^)]+\)/,
-  /__setR2\(\s*(?!0\s*\))[^)]+\)/,
+  /__button\(\s*(?:\d+\s*,\s*)?(?:7|6)\s*,(?!\s*0\s*\))\s*[^)\s][^)]*\)/,
+  /__setR2\((?!\s*0\s*\))\s*[^)\s][^)]*\)/,
   /__fire\(\s*true\s*\)/,
   /axes\[\s*[23]\s*\]\s*=\s*(?:-?(?:0*[1-9][\d.]*|0?\.\d*[1-9]\d*)|\$\{)/,
-  /__axis\(\s*(?:\d+\s*,\s*)?[23]\s*,\s*(?!0\s*\))[^)]+\)/,
+  /__axis\(\s*(?:\d+\s*,\s*)?[23]\s*,(?!\s*0\s*\))\s*[^)\s][^)]*\)/,
   /__look\(\s*(?!0\s*,\s*0\s*\))(?:-?[\d.]+|\$\{)[^)]*\)/,
   /mouseButton\([^)]*'mousePressed'(?!\s*\|)|\bbutton\(\s*'mousePressed'\s*\)|type:\s*'mousePressed'(?!\s*\|)/,
 ];
@@ -160,6 +160,60 @@ function helpersMatching(source: string, pattern: RegExp, exclude?: RegExp): Set
   return names;
 }
 
+/**
+ * ファイルの中で定義した、ページのスクリプトを組み立てて呼ぶ関数（`const axis = (page, pad, a, v) => page.evaluate(\`window.__axis(${pad}, ${a}, ${v})\`)` など）の呼び出しのうち、
+ * 呼び出しに書いた引数を本体のテンプレートの `${引数の名前}` に入れると倒す・押す書き方か、戻す・離す書き方になるもの。
+ * 本体だけで倒す・押す書き方や戻す・離す書き方になる関数は、本体の行で見るので除く。倒すと戻すの両方になる呼び出し（押してすぐ離す関数）も除く。
+ * 返すのは、行（0 始まり）ごとの、行の中の位置と種類。
+ */
+function wrapperEvents(source: string, code: string): Map<number, { at: number; kind: 'hold' | 'release' }[]> {
+  const sf = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const any = (patterns: RegExp[], text: string) => patterns.some((re) => re.test(text));
+  const wrappers = new Map<string, { params: ({ name: string; init: string | undefined } | undefined)[]; body: string }>();
+  const addWrapper = (name: string, fn: ts.SignatureDeclaration & { body?: ts.Node }) => {
+    if (!fn.body) return;
+    const body = codeOnly(fn.body.getText(sf));
+    if (!/\$\{/.test(body) || any(HOLD_PATTERNS, body) || any(RELEASE_PATTERNS, body)) return;
+    const params = fn.parameters.map((p) => (ts.isIdentifier(p.name) ? { name: p.name.text, init: p.initializer?.getText(sf) } : undefined));
+    wrappers.set(name, { params, body });
+  };
+  const collect = (node: ts.Node) => {
+    if (ts.isFunctionDeclaration(node) && node.name) addWrapper(node.name.text, node);
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      const init = node.initializer;
+      if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) addWrapper(node.name.text, init);
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(sf);
+  const out = new Map<number, { at: number; kind: 'hold' | 'release' }[]>();
+  if (wrappers.size === 0) return out;
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      const w = wrappers.get(node.expression.text);
+      const start = node.getStart(sf);
+      // .each(...) の見本の表の中の呼び出しは見ない（codeOnly で空白になっている）。
+      if (w && code[start] === source[start]) {
+        let expanded = w.body;
+        w.params.forEach((p, i) => {
+          const value = node.arguments[i]?.getText(sf) ?? p?.init;
+          if (!p || value === undefined) return;
+          expanded = expanded.replace(new RegExp(String.raw`\$\{\s*${p.name}\s*\}`, 'g'), value);
+        });
+        const hold = any(HOLD_PATTERNS, expanded);
+        const release = any(RELEASE_PATTERNS, expanded);
+        if (hold !== release) {
+          const { line, character } = sf.getLineAndCharacterOfPosition(start);
+          out.set(line, [...(out.get(line) ?? []), { at: character, kind: hold ? 'hold' : 'release' }]);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
+}
+
 const callOf = (names: Set<string>): RegExp | undefined =>
   names.size === 0 ? undefined : new RegExp(String.raw`(?<![\w$.])(?:${[...names].join('|')})\(`);
 
@@ -170,12 +224,15 @@ const callOf = (names: Set<string>): RegExp | undefined =>
  * 描画や条件を待っているものを、倒す・押す行で示す。
  * 時計を進めている押している間は clock=manual のページなので、間に実時間で待っても長さは進めた秒数だけで決まり、示さない。
  * ファイルの中で定義した関数は、本体に当たる書き方があればその書き方と見なす（clock=manual かどうかで待ち方を変える関数は、
- * 時計を進める関数と見なさない）。
+ * 時計を進める関数と見なさない）。ページのスクリプトをテンプレートで組み立てる関数（`axis(page, 1, 2, 0.5)` など）は、
+ * 呼び出しに書いた引数を本体に入れた書き方で、倒す・押すか戻す・離すかを決める。
  * コードの文字列（ページで評価するスクリプト）も行ごとに見る。コメントと .each(...) の見本の表は見ない。
  */
 export function findRealTimeHolds(file: string, source: string): TestCodeViolation[] {
   const original = source.split('\n');
-  const lines = codeOnly(source).split('\n');
+  const code = codeOnly(source);
+  const lines = code.split('\n');
+  const wrapped = wrapperEvents(source, code);
   // ファイルの中の関数を呼んでいるところは、その本体の書き方と見なす。
   const advanceHelper = callOf(helpersMatching(source, CLOCK_ADVANCE, DEPENDS_ON_CLOCK));
   const realTimeHelper = callOf(helpersMatching(source, REAL_TIME));
@@ -207,6 +264,7 @@ export function findRealTimeHolds(file: string, source: string): TestCodeViolati
       const g = new RegExp(re.source, 'g');
       for (let m = g.exec(text); m; m = g.exec(text)) events.push({ at: m.index, kind: 'release' });
     }
+    events.push(...(wrapped.get(i) ?? []));
     events.sort((a, b) => a.at - b.at);
     let from = 0;
     const scanSpan = (span: string) => {

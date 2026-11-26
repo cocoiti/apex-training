@@ -227,6 +227,18 @@ describe('ARC-64: ブラウザを使うテストは、スティックを倒し�
       "const settle = async (page: Page, n: number) => {\n  if (await page.evaluate<boolean>('!!window.__apexTestClock')) await page.advanceClock(n / 60);\n  else await page.frames(n);\n};\nawait page.evaluate('window.__pad.axes[2] = 0.4');\nawait settle(page, 9);\nawait page.evaluate('window.__pad.axes[2] = 0');",
       5,
     ],
+    // ページのスクリプトをテンプレートで組み立てる関数で倒し、時計を進めずに条件を待つ（呼び出しの引数で倒す・戻すを決める）。
+    [
+      "const axis = (page: Page, pad: number, a: number, v: number) => page.evaluate(`window.__axis(${pad}, ${a}, ${v})`);\nawait axis(page, 1, 2, 0.5);\nawait page.waitFor('x', 3000);\nawait axis(page, 1, 2, 0);",
+      2,
+    ],
+    [
+      "const button = (page: Page, pad: number, b: number, v: number) => page.evaluate(`window.__button(${pad}, ${b}, ${v})`);\nawait button(page, 1, 7, 1);\nawait page.frames(40);\nawait button(page, 1, 7, 0);",
+      2,
+    ],
+    // 既定の引数（pad = 0）を持つ関数と、ボタンの番号を定数で渡す関数。
+    ["const axis = (page: Page, a: number, v: number, pad = 0) => page.evaluate(`window.__axis(${pad}, ${a}, ${v})`);\nawait axis(page, 3, -0.4);\nawait page.frames(10);\nawait axis(page, 3, 0);", 2],
+    ["const btn = (page: Page, b: number, on: boolean) => page.evaluate(`window.__btn(${b}, ${on})`);\nawait btn(page, R2, true);\nawait page.waitFor('x');\nawait btn(page, R2, false);", 2],
   ])('倒している・押している長さを実時間や描画の回数で決めている書き方を見つける: %s', (source, line) => {
     expect(findRealTimeHolds('x.ts', source)).toMatchObject([{ file: 'x.ts', line }]);
   });
@@ -247,6 +259,13 @@ describe('ARC-64: ブラウザを使うテストは、スティックを倒し�
     // パッドの関数の定義（押した値を引数で受け取る）は、押す書き方ではない。
     "window.__setR2 = (v) => { window.__pad.buttons[7] = { value: v, pressed: v >= 0.5, touched: v > 0 }; };\nawait page.frames(2);",
     "const mouseButton = (page: Page, type: 'mousePressed' | 'mouseReleased') =>\n  page.send('Input.dispatchMouseEvent', { type });\nawait page.frames(2);",
+    // テンプレートで組み立てる関数で倒し、時計を進めてから戻す。
+    "const axis = (page: Page, pad: number, a: number, v: number) => page.evaluate(`window.__axis(${pad}, ${a}, ${v})`);\nawait axis(page, 1, 2, 0.5);\nawait page.advanceClock(0.5);\nawait axis(page, 1, 2, 0);\nawait page.frames(5);",
+    // 画面の操作のボタン（A）や照準でない軸（左スティックの軸 0）を倒す呼び出しは見ない。
+    "const button = (page: Page, pad: number, b: number, v: number) => page.evaluate(`window.__button(${pad}, ${b}, ${v})`);\nawait button(page, 0, 0, 1);\nawait page.waitFor('x');\nawait button(page, 0, 0, 0);",
+    "const axis = (page: Page, pad: number, a: number, v: number) => page.evaluate(`window.__axis(${pad}, ${a}, ${v})`);\nawait axis(page, 0, 1, 1);\nawait page.frames(10);\nawait axis(page, 0, 1, 0);",
+    // 戻す呼び出し（値 0）のあとの待ちは、倒している長さに入らない。
+    "const axis = (page: Page, pad: number, a: number, v: number) => page.evaluate(`window.__axis(${pad}, ${a}, ${v})`);\nawait axis(page, 0, 2, 0);\nawait page.frames(10);",
   ])('ページの時計を進めて長さを決める書き方は見つけない: %s', (source) => {
     expect(findRealTimeHolds('x.ts', source)).toEqual([]);
   });
