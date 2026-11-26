@@ -11,7 +11,8 @@
     "sight": "アイアンサイトで ADS",
     "attachments": "すべて紫（レベル 3）",
     "aimInputWhileFiring": "なし（射撃中はスティックに触れない）",
-    "firing": "撃てなくなる（過熱する）まで撃ち続ける。4 回"
+    "firing": "撃てなくなる（過熱する）まで撃ち続ける。4 回",
+    "confirmation": "パッド・FOV 104・壁まで 10 m・アイアンサイトで ADS・射撃中の照準の操作なしは、どれも撮影者に確かめた条件"
   },
   "video": { "durationSeconds": 35, "fps": 60, "gameArea": { "width": 1280, "height": 800, "note": "1920x800 の録画の中央" } },
   "method": [
