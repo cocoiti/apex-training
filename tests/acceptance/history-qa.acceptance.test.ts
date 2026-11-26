@@ -661,8 +661,8 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
         if (c.href !== null) expect(c.href, JSON.stringify(c)).toMatch(/^#/);
         if (c.tag === 'input') expect(c.type, JSON.stringify(c)).not.toBe('file');
       }
-      // 見えている操作は、3 つの選択・「この履歴を消す」・トップ画面へ戻るリンクだけ。
-      expect(h.controls.filter((c) => c.tag === 'select')).toHaveLength(3);
+      // 見えている操作は、武器と入力方式の 2 つの選択（モードの選択肢の欄は出ない: UI-26）・「この履歴を消す」・トップ画面へ戻るリンクだけ。
+      expect(h.controls.filter((c) => c.tag === 'select')).toHaveLength(2);
       expect(h.controls.filter((c) => c.tag === 'button').map((c) => c.text)).toEqual([CLEAR]);
       expect(h.controls.filter((c) => c.tag === 'a')).toHaveLength(1);
       expect(h.controls.filter((c) => !['select', 'button', 'a'].includes(c.tag))).toEqual([]);
