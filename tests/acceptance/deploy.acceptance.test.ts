@@ -16,13 +16,15 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const LIVE = process.env.APEX_ACCEPTANCE_LIVE === '1';
 const LIVE_URL = 'https://cocoiti.github.io/apex-training/';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 
 const temps: string[] = [];
 
@@ -323,7 +325,7 @@ describe.skipIf(NESTED || !chromium)('OVR-8: 公開した #/settings を直接�
     it('#/settings で設定画面が表示され、武器データの読み込みが 404 にならない', async () => {
       expect(published, 'gh-pages ブランチがない').not.toBe('');
       const page = await browser!.newPage();
-      await expectSettingsWithWeapons(page, `${originOf(server!)}${BASE}#/settings`);
+      await expectSettingsWithWeapons(page, appUrl(originOf(server!), BASE, '#/settings', { seed: SEED }));
     }, 60_000);
   });
 

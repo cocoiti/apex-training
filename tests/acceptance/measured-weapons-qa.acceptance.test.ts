@@ -20,9 +20,11 @@ const WEAPONS_DIR = join(ROOT, 'src/data/weapons');
 const MEASUREMENTS_DIR = join(ROOT, 'docs/measurements');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const chromium = findChromium();
 /** 3D を描画せず、ページの時計をテストから進める（docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」）。 */
-const APP = { render: false, manualClock: true };
+const APP = { render: false, manualClock: true, seed: SEED };
 
 /** SPEC の名前と値（実装の定数には依存しない）。 */
 const MEASURED_NAMES = ['C.A.R. SMG', 'L-STAR'];

@@ -294,6 +294,8 @@ describe('ARC-3: ブラウザなしで、入力の記録だけから発射・弾
 
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const chromium = findChromium();
 
 /** 保存・コピー・外部への送信の API の呼び出しを記録する（ページのスクリプトより先に実行する）。 */
@@ -392,7 +394,7 @@ describe.skipIf(NESTED || !chromium)('INP-8: 練習とリザルトの画面に�
   it('練習中とリザルトで、保存・コピー・送信の操作がなく、練習しても保存・コピー・送信の API が呼ばれない', async () => {
     const page = await browser!.newPage();
     await page.addInitScript(SPY);
-    await page.goto(appUrl(origin, BASE, '', { render: false }));
+    await page.goto(appUrl(origin, BASE, '', { render: false, seed: SEED }));
     await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden`);

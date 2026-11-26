@@ -1,4 +1,4 @@
-# CI（docs/spec/architecture.md「継続的インテグレーション（CI）」、ARC-44〜ARC-48）。
+# CI（docs/spec/architecture.md「継続的インテグレーション（CI）」、ARC-52〜ARC-56）。
 # PR を作ったとき・PR のブランチに push したときと、main に push したときに、ubuntu-latest の 1 つのジョブで
 # lint・テスト（ブラウザを使うものを含む）・ビルド・配布物の検査を順に流す。どれかが失敗したら後の段は流さない。
 # GitHub Pages への公開はここでは行わず、今までどおり手元から手動で行う。
@@ -9,7 +9,7 @@ on:
   push:
     branches: [main]
 
-# 同じブランチ（同じ PR）で新しい push があったら、走っている古い実行を取り消す（ARC-46）。
+# 同じブランチ（同じ PR）で新しい push があったら、走っている古い実行を取り消す（ARC-54）。
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -58,7 +58,7 @@ jobs:
         run: npx --yes playwright@${{ env.PLAYWRIGHT_VERSION }} install --with-deps chromium
 
       - name: ブラウザを使うテスト
-        # Chromium が見つからなければ、テストを飛ばして成功にせず失敗にする（ARC-47）。
+        # Chromium が見つからなければ、テストを飛ばして成功にせず失敗にする（ARC-55）。
         run: npm run test:browser
         # runner の CPU は 4 つで、ソフトウェアの WebGL で描く Chromium を 3 つ並べると実時間で動くテストが待ちの上限に当たる。
         # CI では同時に流すファイルを 2 つにする。

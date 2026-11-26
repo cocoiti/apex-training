@@ -32,6 +32,8 @@ import { decodePng, type Image } from '../helpers/png';
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const WIDTH = 1280;
 const HEIGHT = 800;
 const CX = WIDTH / 2;
@@ -417,7 +419,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
     const page = await browser!.newPage();
     opened.push(page);
     await page.addInitScript(PAGE_INIT + init);
-    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock: true }));
+    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock: true, seed: SEED }));
     await page.evaluate('localStorage.clear()');
     await page.evaluate('window.__beforeReload = true');
     await page.send('Page.reload', { ignoreCache: false });

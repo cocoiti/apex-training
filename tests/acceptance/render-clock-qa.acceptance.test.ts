@@ -10,11 +10,13 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type AppUrlOptions, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type PageQuery, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const chromium = findChromium();
 
 /** canvas の getContext に求められた種類と、WebGL の描画の呼び出しの回数を記録する（ページのスクリプトより先に入れる）。 */
@@ -91,11 +93,11 @@ describe.skipIf(NESTED || !chromium)('render=off と clock=manual（QA）', () =
   });
 
   /** 新しいページで、保存のない状態のトップ画面を options のクエリを付けて開く。 */
-  async function openTop(options: AppUrlOptions, extra: string[] = []): Promise<Page> {
+  async function openTop(options: PageQuery, extra: string[] = []): Promise<Page> {
     const page = await browser!.newPage();
     for (const script of [PAGE_INIT, ...extra]) await page.addInitScript(script);
     await page.addInitScript(`if (!sessionStorage.getItem('__qa')) { localStorage.clear(); sessionStorage.setItem('__qa', '1'); }`);
-    await page.goto(appUrl(origin, BASE, '#/', options));
+    await page.goto(appUrl(origin, BASE, '#/', { ...options, seed: SEED }));
     await page.waitFor(`window.__shown('[data-screen="top"]') && document.querySelector('#weapon').options.length > 0`, 15_000);
     return page;
   }

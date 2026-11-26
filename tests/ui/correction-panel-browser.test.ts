@@ -15,10 +15,12 @@ import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browse
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const chromium = findChromium();
 const R2 = 7;
 /** 3D は描画せず（render=off）、ページの時計はテストから進める（clock=manual）。 */
-const APP = { render: false, manualClock: true };
+const APP = { render: false, manualClock: true, seed: SEED };
 
 const parsed = parseWeapon(JSON.parse(readFileSync(join(ROOT, 'src/data/weapons/lstar.json'), 'utf8')));
 if (!parsed.ok) throw new Error('lstar.json を読めない');

@@ -20,6 +20,8 @@ import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browse
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const CX = 640;
 const CY = 400;
 const chromium = findChromium();
@@ -267,7 +269,7 @@ describe.skipIf(NESTED || !chromium)('QA: 画面の表示の計測', () => {
     if (opts.pad) await page.addInitScript(FAKE_PAD);
     for (const s of opts.init ?? []) await page.addInitScript(s);
     requests.length = 0;
-    await page.goto(appUrl(origin, BASE, hash, { render: false, manualClock: opts.manualClock ?? false }));
+    await page.goto(appUrl(origin, BASE, hash, { render: false, manualClock: opts.manualClock ?? false, seed: SEED }));
     await page.waitFor(`window.__vis('[data-screen="${screen}"]')`, 15_000);
     await page.frames(3);
     return { page, requests };

@@ -19,6 +19,8 @@ import { decodePng, type Image } from '../helpers/png';
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const CX = 640;
 const CY = 400;
 const chromium = findChromium();
@@ -321,7 +323,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
    */
   async function openFresh(opts: { pad?: boolean; render?: boolean } = {}): Promise<Page> {
     const page = await browser!.newPage();
-    await page.goto(appUrl(origin, BASE, '#/', { render: opts.render ?? false, manualClock: true }));
+    await page.goto(appUrl(origin, BASE, '#/', { render: opts.render ?? false, manualClock: true, seed: SEED }));
     await page.evaluate('localStorage.clear()');
     await page.addInitScript(PAGE_INIT);
     if (opts.pad) await page.addInitScript(FAKE_PAD);
@@ -398,7 +400,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
 
     it('UI-36: 終えたセットがない状態で #/set-result を直接開いたとき、トップ画面が表示される', async () => {
       const page = await openFresh();
-      await page.goto(`${origin}${BASE}#/set-result`);
+      await page.goto(appUrl(origin, BASE, '#/set-result', { seed: SEED }));
       await page.waitFor(`window.__screens().length > 0`);
       await page.frames(5);
       expect(await screens(page)).toEqual(['top']);

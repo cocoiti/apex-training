@@ -28,6 +28,8 @@ import { oracleSimplePattern } from '../helpers/simple-pattern-oracle';
 const ROOT = resolve(__dirname, '../..');
 const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
+/** ページを開く練習の乱数の種（docs/spec/architecture.md「テストのための乱数の種の固定」）。テストが失敗したときのメッセージにも出る。 */
+const SEED = 12345;
 const chromium = findChromium();
 
 const PREVIEW_LABEL = 'パターンの音を聞く';
@@ -365,7 +367,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
     const page = await browser!.newPage();
     opened.push(page);
     await page.addInitScript(init + PAGE_INIT);
-    await page.goto(appUrl(origin, BASE, '#/', { render: false, manualClock }));
+    await page.goto(appUrl(origin, BASE, '#/', { render: false, manualClock, seed: SEED }));
     await page.evaluate('localStorage.clear()');
     await page.evaluate('window.__beforeReload = true');
     await page.send('Page.reload', { ignoreCache: false });

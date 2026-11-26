@@ -78,8 +78,9 @@ interface App {
   control(control: ScreenControl): boolean;
 }
 
-// URL の render=off で 3D を描画せず、clock=manual でページの時計をテストから進める
-// （docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」）。付けないときは描画し、実時間で進む。
+// URL の render=off で 3D を描画せず、clock=manual でページの時計をテストから進め、seed=<数> で練習の乱数の種を固定する
+// （docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」「テストのための乱数の種の固定」）。
+// 付けないときは描画し、実時間で進み、練習ごとに種を選ぶ。
 const pageOptions = parsePageOptions(location.search);
 const scheduleFrame = (run: (time: number) => void) => requestAnimationFrame(run);
 /** ページの時計。ループの経過時間・短いリザルトの残り時間・パッドの方向の繰り返しはこの時計で決め、描画もこれで頼む。 */
@@ -790,7 +791,8 @@ async function start(): Promise<void> {
     inputPreference = loadCommonSettings(appStorage).inputMethod;
     inputs.resetHeld();
     // 練習ごとに種を 1 つ決め、積んだ入力を記録する（docs/spec/input.md「入力の記録と再生」）。記録はメモリの中だけで持つ。
-    const input = new RecordingInput(createSeed());
+    // URL の seed で種を固定したときは、やり直し・連続練習の各回も含めてその種にする。
+    const input = new RecordingInput(pageOptions.seed ?? createSeed());
     const world = createWorld(map);
     const session = new PracticeSession({
       world,

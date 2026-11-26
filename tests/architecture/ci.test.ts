@@ -1,4 +1,4 @@
-// 継続的インテグレーション（docs/spec/architecture.md「継続的インテグレーション（CI）」、ARC-44〜ARC-49）の確認。
+// 継続的インテグレーション（docs/spec/architecture.md「継続的インテグレーション（CI）」、ARC-52〜ARC-57）の確認。
 // GitHub の上での実行は手元で再現できないので、ワークフローの設定（.github/workflows/ci.yml）・CLAUDE.md と、
 // Chromium が見つからないときのブラウザを使うテストの振る舞い（入れ子に流す Vitest）を確かめる。
 import { spawnSync } from 'node:child_process';
@@ -73,14 +73,14 @@ describe('CI のワークフロー', () => {
   const steps = workflowSteps(text);
   const runs = steps.flatMap((s) => (s.run ? [s.run] : []));
 
-  it(`ARC-44: ${WORKFLOW} が 1 つだけあり、PR（作成・更新）と main への push で走る`, () => {
+  it(`ARC-52: ${WORKFLOW} が 1 つだけあり、PR（作成・更新）と main への push で走る`, () => {
     expect(text, `${WORKFLOW} がない`).not.toBe('');
     const workflows = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '.github/workflows'], { cwd: ROOT, encoding: 'utf8' });
     expect(workflows.stdout.split('\n').filter(Boolean)).toEqual([WORKFLOW]);
     expect(text).toMatch(/^on:\s*\n\s+pull_request:\s*\n\s+push:\s*\n\s+branches:\s*\[main\]\s*$/m);
   });
 
-  it('ARC-44: ubuntu-latest の 1 つのジョブで、npm ci・lint・単体のテスト・Chromium の導入・ブラウザのテスト・ビルド・検査をこの順に流す', () => {
+  it('ARC-52: ubuntu-latest の 1 つのジョブで、npm ci・lint・単体のテスト・Chromium の導入・ブラウザのテスト・ビルド・検査をこの順に流す', () => {
     expect(text.match(/^\s+runs-on:/gm)).toHaveLength(1);
     expect(text).toMatch(/^\s+runs-on:\s*ubuntu-latest\s*$/m);
     const install = runs.findIndex((r) => /playwright@[\w.${}\s]+ install\b.*\bchromium\b/.test(r));
@@ -98,7 +98,7 @@ describe('CI のワークフロー', () => {
     ]);
   });
 
-  it('ARC-44: Node.js は CLAUDE.md の版（22 系）を npm のキャッシュ付きで使い、Chromium はブラウザのテストが探すキャッシュに置いてキャッシュする', () => {
+  it('ARC-52: Node.js は CLAUDE.md の版（22 系）を npm のキャッシュ付きで使い、Chromium はブラウザのテストが探すキャッシュに置いてキャッシュする', () => {
     const node = steps.find((s) => s.uses?.startsWith('actions/setup-node@'));
     expect(node?.lines).toContain('node-version: 22');
     expect(node?.lines).toContain('cache: npm');
@@ -109,22 +109,22 @@ describe('CI のワークフロー', () => {
     expect(steps.indexOf(cache!)).toBeLessThan(steps.findIndex((s) => s.run?.includes(' install ')));
   });
 
-  it('ARC-45: どのステップも失敗を飛ばさない（continue-on-error や || true がない）', () => {
+  it('ARC-53: どのステップも失敗を飛ばさない（continue-on-error や || true がない）', () => {
     expect(text).not.toMatch(/continue-on-error/);
     expect(runs.filter((r) => /\|\|\s*(true|:|exit 0)/.test(r))).toEqual([]);
     expect(text).not.toMatch(/^\s+if:/m);
   });
 
-  it('ARC-46: 同じブランチ（同じ PR）の新しい push で、走っている古い実行を取り消す', () => {
+  it('ARC-54: 同じブランチ（同じ PR）の新しい push で、走っている古い実行を取り消す', () => {
     expect(text).toMatch(/^concurrency:\s*\n\s+group:\s*.*github\.event\.pull_request\.number \|\| github\.ref.*\n\s+cancel-in-progress:\s*true\s*$/m);
   });
 
-  it('ARC-47: ブラウザを使うテストのステップで APEX_REQUIRE_CHROMIUM を 1 にする', () => {
+  it('ARC-55: ブラウザを使うテストのステップで APEX_REQUIRE_CHROMIUM を 1 にする', () => {
     const browser = steps.find((s) => s.run === 'npm run test:browser');
     expect(browser?.lines).toContain("APEX_REQUIRE_CHROMIUM: '1'");
   });
 
-  it('ARC-48: runner は ubuntu-latest だけで、gh-pages への push や GitHub Pages への公開の手順がない', () => {
+  it('ARC-56: runner は ubuntu-latest だけで、gh-pages への push や GitHub Pages への公開の手順がない', () => {
     expect(text).not.toMatch(/macos|windows/i);
     expect([...text.matchAll(/runs-on:\s*(\S+)/g)].map((m) => m[1])).toEqual(['ubuntu-latest']);
     expect(text).not.toMatch(/gh-pages|deploy|pages: write|actions\/(deploy|upload)-pages|configure-pages|git push/i);
@@ -132,7 +132,7 @@ describe('CI のワークフロー', () => {
   });
 });
 
-describe.skipIf(NESTED)('ARC-47: Chromium が見つからないときのブラウザを使うテスト', () => {
+describe.skipIf(NESTED)('ARC-55: Chromium が見つからないときのブラウザを使うテスト', () => {
   const dirs: string[] = [];
   afterAll(() => {
     for (const d of dirs) rmSync(d, { recursive: true, force: true });
@@ -168,7 +168,7 @@ describe.skipIf(NESTED)('ARC-47: Chromium が見つからないときのブラ�
   }, 120_000);
 });
 
-describe('ARC-49: CLAUDE.md の CI と GitHub Actions の記述', () => {
+describe('ARC-57: CLAUDE.md の CI と GitHub Actions の記述', () => {
   // リポジトリの一部だけを写して流すテストもあるので、ファイルは集めるときでなくテストの中で読む。
   const claude = () => read('CLAUDE.md');
 
