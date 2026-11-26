@@ -139,6 +139,25 @@ src/
 
 - セットアップ・開発サーバー・テスト・ビルドのコマンドはリポジトリの `CLAUDE.md`（技術スタック）に書いてある。
 - ビルドの結果は、サブパス `/apex-training/` に置いて配信したときにすべてのファイルを読み込める。
+- 全部のテスト（ブラウザを使うテストを含む）・lint・ビルド・配布物の検査は、下の「継続的インテグレーション（CI）」で流す。
+  CI があることと、GitHub Actions の今の状態（有効で、GitHub がホストする標準の Linux の runner だけを使う）は `CLAUDE.md` に書いてある。
+
+### 継続的インテグレーション（CI）
+
+- リポジトリの GitHub Actions に CI のワークフローが 1 つある。PR を作ったとき・PR のブランチに push したとき（PR の更新）と、
+  `main` に push したときに走る。
+- CI は GitHub がホストする `ubuntu-latest` の runner の 1 つのジョブで動き、次を順に実行する。
+  1. 依存の導入（`npm ci`）。Node.js は `CLAUDE.md` に書いた版を使い、npm のキャッシュを使う。
+  2. lint・型の確認（`npm run lint`）
+  3. ブラウザを使わないテスト（`npm run test:unit`）
+  4. ブラウザを使うテストが探す場所（Playwright が置く Chromium のキャッシュ）への Chromium の導入。導入した Chromium はキャッシュして次の実行で使う。
+  5. ブラウザを使うテスト（`npm run test:browser`）
+  6. ビルド（`npm run build`）
+  7. サブパスでの配信の確認（`npm run check:subpath`）と、配布物が素材の一覧に載っていることの確認（`npm run check:assets`）
+- どれかの段が失敗したら、それより後の段は実行せず、ジョブ（PR のチェック）は失敗になる。すべての段が成功したときだけ成功になる。
+- CI では、Chromium が見つからないときにブラウザを使うテストを飛ばして成功にしない。Chromium が見つからなければ、ブラウザを使うテストの段より前か、その段で失敗になる。
+- 同じブランチ（同じ PR）で新しい push があったら、そのブランチで走っている古い実行は取り消し、新しい実行だけを残す。
+- CI は macOS・Windows の runner を使わない。GitHub Pages への公開（`gh-pages` ブランチへの push）は CI では行わず、今までどおり手動（`npm run deploy`）で行う。
 
 ### テストの実行
 
@@ -228,3 +247,9 @@ src/
   `fire` を 3 回押し直したときは 3 発になる
 - **ARC-42**: 練習の的を置いた練習の入力の記録を再生したとき、各ステップの的の位置・出現・「乗っている」の判定が記録したときと一致する
 - **ARC-43**: 練習の的を描画したとき、シミュレーションの的の位置・出現と照準の当たりの判定は描画しないときと変わらない
+- **ARC-44**: PR を作ったとき、PR のブランチに push したとき、`main` に push したときのそれぞれで、GitHub の CI のチェックが `ubuntu-latest` の runner で走り、`npm ci`・`npm run lint`・`npm run test:unit`・Chromium の導入・`npm run test:browser`・`npm run build`・`npm run check:subpath`・`npm run check:assets` がこの順に実行され、すべて成功したときチェックが成功になる
+- **ARC-45**: テストを 1 件わざと失敗させた状態で PR のブランチに push したとき、CI のチェックが失敗になる。lint の誤りを入れた状態で push したときも失敗になる
+- **ARC-46**: CI の実行が走っている途中で同じブランチに新しい push をしたとき、古い実行が取り消され、新しい push の実行だけが結果を残す
+- **ARC-47**: CI で Chromium が見つからない状態になったとき、ブラウザを使うテストが飛ばされて成功になるのではなく、CI のチェックが失敗になる。Chromium を導入できたときは、CI の実行の記録で、ブラウザを使うテストのファイルが飛ばされずに流れている
+- **ARC-48**: CI のワークフローの設定を調べたとき、使う runner は `ubuntu-latest` だけで（macOS・Windows の runner がない）、`gh-pages` ブランチへの push や GitHub Pages への公開の手順がない
+- **ARC-49**: `CLAUDE.md` を読んだとき、CI があること（走るきっかけと実行する内容）と、GitHub Actions が有効で標準の Linux の runner だけを使うことが書いてあり、Actions を止めている・ワークフローを足しても動かない、という記述がない
