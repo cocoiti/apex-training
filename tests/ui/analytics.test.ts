@@ -166,7 +166,7 @@ describe('許可でないあいだ', () => {
 });
 
 describe('同意の案内を出す画面', () => {
-  it('UI-101: トップ・設定・履歴・パッドの画面で出し、プレイ・リザルト・セットのまとめでは出さない', () => {
+  it('UI-112: トップ・設定・履歴・パッドの画面で出し、プレイ・リザルト・セットのまとめでは出さない', () => {
     expect([...CONSENT_SCREENS].sort()).toEqual(['history', 'settings', 'settings-pad', 'settings-pad-mapping', 'top']);
     const { analytics } = setup();
     expect(analytics.bannerVisible('play')).toBe(false);
@@ -203,7 +203,7 @@ describe('許可のあいだ', () => {
     expect(host.dataLayer).toEqual([{ 'gtm.start': 1234, event: 'gtm.js' }, pageView('top', BASE)]);
   });
 
-  it('UI-105: 表示する画面が変わらないあいだは積まない', () => {
+  it('UI-116: 表示する画面が変わらないあいだは積まない', () => {
     const { host, analytics } = setup({ saved: 'granted' });
     analytics.enter('top');
     analytics.enter('play');
@@ -212,7 +212,7 @@ describe('許可のあいだ', () => {
     expect(views(host).map((v) => v.screen_name)).toEqual(['top', 'play', 'result']);
   });
 
-  it('UI-103: 設定画面で許可すると、設定画面の表示を 1 件積み、続けて同じ画面に入っても積まない', () => {
+  it('UI-114: 設定画面で許可すると、設定画面の表示を 1 件積み、続けて同じ画面に入っても積まない', () => {
     const { host, analytics } = setup({ saved: 'denied' });
     analytics.enter('settings');
     analytics.grant();
@@ -223,7 +223,7 @@ describe('許可のあいだ', () => {
     expect(host.scripts).toHaveLength(1);
   });
 
-  it('UI-104: 取り消すと許可しないを保存し、Cookie を消してページを読み込み直す', () => {
+  it('UI-115: 取り消すと許可しないを保存し、Cookie を消してページを読み込み直す', () => {
     const { storage, host, analytics } = setup({ saved: 'granted' });
     analytics.enter('settings');
     analytics.revoke();

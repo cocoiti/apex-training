@@ -1,7 +1,7 @@
 // 画面の表示の計測（docs/spec/overview.md「画面の表示の計測」、docs/spec/screens.md「計測の同意の案内」「計測の設定」）を、
 // コンテナ ID を設定したビルドと空のビルドで確かめる。googletagmanager.com への要求は DevTools の Fetch で止めて数え、
 // 外へは出さずに GA の Cookie を作るだけのスクリプトを返す（GTM の代わり。dataLayer には何も積まない）。
-// 受け入れ条件（OVR-21〜OVR-27、UI-101〜UI-105）の確認の表（tests/acceptance/README.md）には載せず、実装の確かめとして持つ。
+// 受け入れ条件（OVR-21〜OVR-27、UI-112〜UI-116）の確認の表（tests/acceptance/README.md）には載せず、実装の確かめとして持つ。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';

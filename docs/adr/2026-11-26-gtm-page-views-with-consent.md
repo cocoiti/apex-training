@@ -31,5 +31,5 @@
 
 ## 影響
 
-- docs/spec/overview.md（画面の表示の計測、練習の範囲、OVR-21〜OVR-27）, docs/spec/screens.md（計測の同意の案内、計測の設定、UI-101〜UI-105）
+- docs/spec/overview.md（画面の表示の計測、練習の範囲、OVR-21〜OVR-27）, docs/spec/screens.md（計測の同意の案内、計測の設定、UI-112〜UI-116）
 - index.html, src/main.ts, src/ui/（同意の案内・計測の設定・dataLayer への積み込み）

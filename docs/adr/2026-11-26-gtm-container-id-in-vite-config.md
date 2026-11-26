@@ -7,7 +7,7 @@
 SPEC（overview.md「画面の表示の計測」）は、コンテナ ID をビルドの設定の 1 か所に置き、空なら計測に関わることを何もしないことを求める。
 公開するビルドの ID は `GTM-MNFCCG6N`。受け入れ条件には ID を設定したビルド（OVR-21〜24, 26, 27）と空のビルド（OVR-25）の両方がある。
 一方、既存のブラウザのテストは同意の状態を保存せずに開くので、ID のあるビルドでは同意の案内が出て、パッドで最初にフォーカスする項目が
-「許可」に変わる（UI-102）。テストから googletagmanager.com へ要求が出ることも避けたい。
+「許可」に変わる（UI-113）。テストから googletagmanager.com へ要求が出ることも避けたい。
 
 ## 決定
 
@@ -25,5 +25,5 @@ SPEC（overview.md「画面の表示の計測」）は、コンテナ ID をビ�
 
 ## 影響
 
-- docs/spec/overview.md（画面の表示の計測、OVR-21〜OVR-27）, docs/spec/screens.md（UI-101〜UI-105）
+- docs/spec/overview.md（画面の表示の計測、OVR-21〜OVR-27）, docs/spec/screens.md（UI-112〜UI-116）
 - vite.config.ts, src/env.d.ts, src/main.ts, src/ui/analytics.ts, tests/ui/analytics-browser.test.ts

@@ -1,4 +1,4 @@
-// docs/spec/overview.md「画面の表示の計測」（OVR-21〜OVR-27）と docs/spec/screens.md「計測の同意の案内」「計測の設定」（UI-101〜UI-105）の
+// docs/spec/overview.md「画面の表示の計測」（OVR-21〜OVR-27）と docs/spec/screens.md「計測の同意の案内」「計測の設定」（UI-112〜UI-116）の
 // QA の受け入れテスト。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、SPEC の localStorage のキー、ビルドのコンテナ ID を置き換える環境変数
 // APEX_GTM_CONTAINER_ID（docs/adr/2026-11-26-gtm-container-id-in-vite-config.md）、window.dataLayer、ネットワークの要求、document.cookie）だけを使い、
@@ -468,7 +468,7 @@ describe.skipIf(NESTED || !chromium)('QA: 画面の表示の計測', () => {
   }
 
   // -------------------------------------------------------------------------
-  it('UI-101: 未選択でトップ画面を開くと、内容の上に案内の文と「許可」「許可しない」が出て、練習中とリザルト画面では出ず、トップ画面に戻るとまた出る', async () => {
+  it('UI-112: 未選択でトップ画面を開くと、内容の上に案内の文と「許可」「許可しない」が出て、練習中とリザルト画面では出ず、トップ画面に戻るとまた出る', async () => {
     const o = await open(withId, '#/', 'top', { manualClock: true });
     const { page } = o;
     await page.waitFor('window.__bannerShown()');
@@ -495,7 +495,7 @@ describe.skipIf(NESTED || !chromium)('QA: 画面の表示の計測', () => {
     noExceptions(page);
   }, 120_000);
 
-  it('UI-102: 案内を出したトップ画面で、パッドの十字キーの下を 2 回押して A を押すと「許可しない」が押され、再読み込みしても案内も GTM の要求も出ない', async () => {
+  it('UI-113: 案内を出したトップ画面で、パッドの十字キーの下を 2 回押して A を押すと「許可しない」が押され、再読み込みしても案内も GTM の要求も出ない', async () => {
     const o = await open(withId, '#/', 'top', { pad: true });
     const { page } = o;
     await page.waitFor('window.__bannerShown()');
@@ -511,7 +511,7 @@ describe.skipIf(NESTED || !chromium)('QA: 画面の表示の計測', () => {
     noExceptions(page);
   }, 60_000);
 
-  it('UI-102: 案内を出したトップ画面で、パッドの十字キーの下を 1 回押して A を押すと「許可」が押され、GTM が読み込まれる', async () => {
+  it('UI-113: 案内を出したトップ画面で、パッドの十字キーの下を 1 回押して A を押すと「許可」が押され、GTM が読み込まれる', async () => {
     const o = await open(withId, '#/', 'top', { pad: true });
     const { page } = o;
     await page.waitFor('window.__bannerShown()');
@@ -525,7 +525,7 @@ describe.skipIf(NESTED || !chromium)('QA: 画面の表示の計測', () => {
   }, 60_000);
 
   for (const state of [null, 'denied'] as const) {
-    it(`UI-103: 同意の状態が${state === null ? '未選択' : '許可しない'}で設定画面を開くと、計測の区分に説明と OFF の欄があり、ON にすると GTM が読み込まれて設定画面の表示が積まれ、再読み込みしても ON`, async () => {
+    it(`UI-114: 同意の状態が${state === null ? '未選択' : '許可しない'}で設定画面を開くと、計測の区分に説明と OFF の欄があり、ON にすると GTM が読み込まれて設定画面の表示が積まれ、再読み込みしても ON`, async () => {
       const o = await open(withId, '#/settings', 'settings', { seed: state ? { [CONSENT_KEY]: state } : {} });
       const { page } = o;
       expect(await page.evaluate<boolean>(`(() => { const t = window.__analyticsToggle(); return !!t && window.__vis(t); })()`)).toBe(true);
@@ -551,7 +551,7 @@ describe.skipIf(NESTED || !chromium)('QA: 画面の表示の計測', () => {
     }, 60_000);
   }
 
-  it('UI-104: 許可した状態で設定画面の計測の欄を OFF にすると、読み込み直した設定画面で OFF になり、GTM の要求も画面の表示も出ず、_ga・_gid の Cookie が残らない', async () => {
+  it('UI-115: 許可した状態で設定画面の計測の欄を OFF にすると、読み込み直した設定画面で OFF になり、GTM の要求も画面の表示も出ず、_ga・_gid の Cookie が残らない', async () => {
     const o = await open(withId, '#/settings', 'settings', { seed: { [CONSENT_KEY]: 'granted' } });
     const { page } = o;
     await page.waitFor('window.__gtmStubRuns === 1');
@@ -578,7 +578,7 @@ describe.skipIf(NESTED || !chromium)('QA: 画面の表示の計測', () => {
     noExceptions(page);
   }, 60_000);
 
-  it('UI-105: 許可した状態で練習を始め、やり直しを 2 回してから終えると、プレイ画面の表示は 1 件だけで、次にリザルト画面の表示が 1 件積まれる', async () => {
+  it('UI-116: 許可した状態で練習を始め、やり直しを 2 回してから終えると、プレイ画面の表示は 1 件だけで、次にリザルト画面の表示が 1 件積まれる', async () => {
     const o = await open(withId, '#/', 'top', { seed: { [CONSENT_KEY]: 'granted' }, manualClock: true });
     const { page } = o;
     await page.waitFor('window.__gtmStubRuns === 1');
