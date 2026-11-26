@@ -1,6 +1,3 @@
-/** 保存できないときにフッターに出す文言（docs/spec/overview.md「保存」）。 */
-export const STORAGE_UNAVAILABLE_MESSAGE = 'この環境では設定と記録を保存できません。練習はそのまま続けられます。';
-
 const PROBE_KEY = 'apex-training:probe';
 
 /**

@@ -3,6 +3,7 @@ import type { Angles } from '../sim/angles';
 import { SHOT_SECTION_SIZE } from '../sim/scoring';
 import { simplePattern, type SimpleSegment } from '../sim/simple-pattern';
 import { idealCorrection, type WeaponData } from '../sim/weapon';
+import { t } from './i18n';
 import { plotExtent } from './result-plot';
 import type { PatternDisplay } from './settings';
 
@@ -99,12 +100,21 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/** 区切りの言葉（例: 「1〜8 発: ↓ 下」、英語は `Shots 1-8: ↓ down`）。1 発だけの区切りは「1 発: ↓ 下」。 */
+export function segmentLabel(segment: Pick<SimpleSegment, 'from' | 'to' | 'arrow' | 'direction'>): string {
+  const direction = t(`direction.${segment.direction}`);
+  const { arrow } = segment;
+  return segment.from + 1 === segment.to
+    ? t('segment.shot', { shot: segment.to, arrow, direction })
+    : t('segment.shots', { from: segment.from + 1, to: segment.to, arrow, direction });
+}
+
 /** 区切りの言葉の一覧の中身。強調する言葉には class="current" と aria-current を付ける。 */
 export function segmentListHtml(segments: readonly SimpleSegment[], current: number | undefined): string {
   return segments
     .map((s, i) => {
       const mark = i === current ? ' class="current" aria-current="step"' : '';
-      return `<li data-from="${s.from + 1}" data-to="${s.to}"${mark}>${escapeHtml(s.label)}</li>`;
+      return `<li data-from="${s.from + 1}" data-to="${s.to}"${mark}>${escapeHtml(segmentLabel(s))}</li>`;
     })
     .join('');
 }
@@ -207,7 +217,7 @@ export class CorrectionPanel {
     this.set(this.elements.idealWeak, 'data-start', weak.length > 0 ? String(weakStart) : '');
     this.set(this.elements.idealWeak, 'visibility', weak.length > 0 ? 'inherit' : 'hidden');
     this.elements.weakLegend.hidden = weak.length === 0;
-    const legend = display === 'simple' ? '理想（簡易）' : '理想';
+    const legend = display === 'simple' ? t('panel.idealSimple') : t('panel.ideal');
     if (this.elements.idealLegend.textContent !== legend) this.elements.idealLegend.textContent = legend;
     const simple = display === 'simple';
     if (this.elements.segments.hidden === simple) this.elements.segments.hidden = !simple;

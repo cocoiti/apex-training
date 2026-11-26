@@ -9,7 +9,8 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { ANALYTICS_CONSENT_KEY, CONSENT_MESSAGE } from '../../src/ui/analytics';
+import { t } from '../../src/ui/i18n';
+import { ANALYTICS_CONSENT_KEY } from '../../src/ui/analytics';
 import { GTM_CONTAINER_ID, GTM_CONTAINER_ID_ENV } from '../../vite.config';
 import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
 
@@ -166,7 +167,7 @@ describe.skipIf(NESTED || !chromium)('画面の表示の計測', () => {
   it('未選択では案内を出し、選ぶ前は GTM を読み込まず、Cookie・dataLayer・noscript の iframe もない', async () => {
     const { page, requests } = await open();
     expect(await bannerShown(page)).toBe(true);
-    expect(await page.evaluate<string>(`document.querySelector('#consent-message').textContent`)).toBe(CONSENT_MESSAGE);
+    expect(await page.evaluate<string>(`document.querySelector('#consent-message').textContent`)).toBe(t('consent.message'));
     expect(await page.evaluate<string[]>(`[...document.querySelectorAll('#consent-banner button')].map((b) => b.textContent)`)).toEqual(['許可', '許可しない']);
     // 案内は画面の内容より上にある。
     const above = await page.evaluate<boolean>(

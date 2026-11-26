@@ -11,7 +11,8 @@ import {
   type TrackingSpeedId,
   type TrackingStep,
 } from '../sim/tracking';
-import type { CompareMetric, MetricSpec, ModeOption, ModeResult, ModeScoring, ScoreRow, TrainingMode } from './types';
+import { t } from '../ui/i18n';
+import type { CompareMetric, Localized, MetricSpec, ModeOption, ModeResult, ModeScoring, ScoreRow, TrainingMode } from './types';
 
 /**
  * 追いエイム（docs/spec/modes.md「追いエイム」）の 2 つのモード（リコイルなし・あり）の共通の作り。
@@ -25,11 +26,11 @@ export const TRACKING_TARGET_ID = 'tracking';
 /** 速さの選択肢（docs/spec/modes.md「追いエイム」）。2 つのモードで同じものを使い、トップ画面と履歴の画面で選んだ値を共有する。 */
 export const SPEED_OPTION: ModeOption = {
   id: 'speed',
-  label: '速さ',
+  label: { ja: '速さ', en: 'Speed' },
   choices: [
-    { id: 'slow', name: '遅い' },
-    { id: 'normal', name: 'ふつう' },
-    { id: 'fast', name: '速い' },
+    { id: 'slow', name: { ja: '遅い', en: 'Slow' } },
+    { id: 'normal', name: { ja: 'ふつう', en: 'Normal' } },
+    { id: 'fast', name: { ja: '速い', en: 'Fast' } },
   ],
   defaultChoice: 'normal',
 };
@@ -37,17 +38,52 @@ export const SPEED_OPTION: ModeOption = {
 /** 乗っていた割合（%、0〜100）。大きいほど良い比べる指標。 */
 export const ON_TARGET_RATE_METRIC: CompareMetric = {
   id: 'onTargetRate',
-  label: '乗っていた割合',
+  get label() {
+    return t('metric.onTargetRate');
+  },
   unit: '%',
   better: 'higher',
+  get averageLabel() {
+    return t('metric.onTargetRateAverage');
+  },
   format: (value) => `${value.toFixed(1)}%`,
   valid: (value) => value >= 0 && value <= 100,
 };
 
-export const OFF_TARGET_ERROR_METRIC: MetricSpec = { id: 'offTargetError', label: '外していたときのズレ', unit: '°', format: (value) => `${value.toFixed(2)}°` };
-export const REACQUIRE_TIME_METRIC: MetricSpec = { id: 'reacquireTime', label: '乗り直すまでの時間', unit: '秒', format: (value) => `${value.toFixed(2)} 秒` };
-export const TRACKING_HIT_RATE_METRIC: MetricSpec = { id: 'hitRate', label: '命中率', unit: '%', format: (value) => `${value.toFixed(1)}%` };
-export const TRACKING_SHOTS_METRIC: MetricSpec = { id: 'shots', label: '撃った弾数', unit: '', format: (value) => String(Math.round(value)) };
+export const OFF_TARGET_ERROR_METRIC: MetricSpec = {
+  id: 'offTargetError',
+  get label() {
+    return t('metric.offTargetError');
+  },
+  unit: '°',
+  format: (value) => `${value.toFixed(2)}°`,
+};
+export const REACQUIRE_TIME_METRIC: MetricSpec = {
+  id: 'reacquireTime',
+  get label() {
+    return t('metric.reacquireTime');
+  },
+  get unit() {
+    return t('unit.seconds');
+  },
+  format: (value) => t('unit.secondsValue', { value: value.toFixed(2) }),
+};
+export const TRACKING_HIT_RATE_METRIC: MetricSpec = {
+  id: 'hitRate',
+  get label() {
+    return t('metric.hitRate');
+  },
+  unit: '%',
+  format: (value) => `${value.toFixed(1)}%`,
+};
+export const TRACKING_SHOTS_METRIC: MetricSpec = {
+  id: 'shots',
+  get label() {
+    return t('metric.shots');
+  },
+  unit: '',
+  format: (value) => String(Math.round(value)),
+};
 
 /** 追いエイムのモードの結果。採点に渡す。 */
 export interface TrackingResult extends ModeResult {
@@ -69,7 +105,7 @@ function trackingRecord(result: ModeResult): TrackingResult {
   return { steps, reversals, dt };
 }
 
-const row = (metric: MetricSpec, value: number | null): ScoreRow => ({ label: metric.label, value: value === null ? 'なし' : metric.format(value) });
+const row = (metric: MetricSpec, value: number | null): ScoreRow => ({ label: metric.label, value: value === null ? t('none') : metric.format(value) });
 
 /** 追いエイムの採点（docs/spec/scoring.md「追いエイムの採点」）。withShots はリコイルありのモードで、命中率と撃った弾数を足す。 */
 export function trackingScoring(withShots: boolean): ModeScoring {
@@ -108,9 +144,10 @@ export function trackingSpeed(id: string | undefined): number {
 
 export interface TrackingModeSpec {
   readonly id: string;
-  readonly name: string;
-  /** トップ画面のモードのカードに出すひとこと説明。 */
-  readonly description: string;
+  /** 表示名（日本語と英語）。 */
+  readonly name: Localized;
+  /** トップ画面のモードのカードに出すひとこと説明（日本語と英語）。 */
+  readonly description: Localized;
   readonly order: number;
   /** リコイルをかけるか。かけるモードは武器を使い、撃ち切ったあと fire を離すと残弾を戻す。 */
   readonly recoil: boolean;

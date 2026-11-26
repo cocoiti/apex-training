@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { t } from '../../src/ui/i18n';
 import {
   choosePad,
   layoutFor,
   MappingCapture,
-  PAD_MISSING_MESSAGE,
-  PAD_NONSTANDARD_MESSAGE,
-  UNKNOWN_PAD_NAME,
   padDisplayName,
   padName,
   padStatusText,
@@ -40,17 +38,16 @@ describe('入力に使うパッド', () => {
   it('PAD-2: 接続しているパッドが 1 つもなければ「見つからない」', () => {
     const status = choosePad([null, fakePad(1, 'standard', 'gone', false)], () => undefined);
     expect(status).toEqual({ kind: 'missing' });
-    expect(padStatusText(status)).toBe(PAD_MISSING_MESSAGE);
-    expect(PAD_MISSING_MESSAGE).toBe('パッドが見つかりません。パッドのボタンを押してください');
+    expect(padStatusText(status)).toBe(t('pad.missing'));
+    expect(t('pad.missing')).toBe('パッドが見つかりません。パッドのボタンを押してください');
   });
 
   it('PAD-24: 標準配置でない割り当てのないパッドだけなら「標準配置でない」と、そのパッドの名前', () => {
     const odd = fakePad(0, '', 'Generic USB Joystick (Vendor: 0079 Product: 0006)');
     const status = choosePad([odd], () => undefined);
     expect(status).toEqual({ kind: 'nonstandard', pad: odd });
-    expect(padStatusText(status)).toBe(`${PAD_NONSTANDARD_MESSAGE}: Generic USB Joystick (Vendor: 0079 Product: 0006)`);
-    expect(padStatusText(status, true)).toBe(`${PAD_NONSTANDARD_MESSAGE}: Generic USB Joystick`);
-    expect(PAD_NONSTANDARD_MESSAGE).toBe('標準配置でないパッドです（ボタン割り当てが必要）');
+    expect(padStatusText(status)).toBe('標準配置でないパッドです（ボタン割り当てが必要）: Generic USB Joystick (Vendor: 0079 Product: 0006)');
+    expect(padStatusText(status, true)).toBe('標準配置でないパッドです（ボタン割り当てが必要）: Generic USB Joystick');
   });
 
   it('PAD-25: 番号 0 が標準配置でなく割り当てなし、番号 1 が標準配置なら、番号 1 を使う', () => {
@@ -88,9 +85,9 @@ describe('パッドの名前（docs/spec/pad.md「パッドの名前」）', () 
   it('PAD-31: id が空文字なら名前は分からず、どこでも「パッド」と表示する', () => {
     expect(padName('')).toBeUndefined();
     expect(padName(undefined)).toBeUndefined();
-    expect(padDisplayName('')).toBe(UNKNOWN_PAD_NAME);
-    expect(padDisplayName('', true)).toBe(UNKNOWN_PAD_NAME);
-    expect(padStatusText({ kind: 'using', pad: { id: '' }, layout: STANDARD_PAD_LAYOUT }, true)).toBe(UNKNOWN_PAD_NAME);
+    expect(padDisplayName('')).toBe('パッド');
+    expect(padDisplayName('', true)).toBe('パッド');
+    expect(padStatusText({ kind: 'using', pad: { id: '' }, layout: STANDARD_PAD_LAYOUT }, true)).toBe('パッド');
   });
 
   it('PAD-31: HUD だけ縮め、ほかは id を省略しない', () => {

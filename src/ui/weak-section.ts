@@ -1,4 +1,5 @@
 import { BIAS_THRESHOLD, SHOT_SECTION_SIZE } from '../sim/scoring';
+import { t } from './i18n';
 import { entrySections, type HistoryEntry } from './practice-history';
 
 /**
@@ -45,11 +46,11 @@ export interface WeakSectionSummary {
 /** 苦手な区間の向き（docs/spec/scoring.md の表）。縦・横の順。 */
 export function weakDirections(meanH: number, meanV: number): string[] {
   const directions: string[] = [];
-  if (meanV >= BIAS_THRESHOLD - EPSILON) directions.push('上に外しがち（下げ不足）');
-  else if (meanV <= -BIAS_THRESHOLD + EPSILON) directions.push('下に外しがち（下げすぎ）');
-  if (meanH >= BIAS_THRESHOLD - EPSILON) directions.push('右に外しがち');
-  else if (meanH <= -BIAS_THRESHOLD + EPSILON) directions.push('左に外しがち');
-  if (directions.length === 0) directions.push('向きが定まらない');
+  if (meanV >= BIAS_THRESHOLD - EPSILON) directions.push(t('weak.missHigh'));
+  else if (meanV <= -BIAS_THRESHOLD + EPSILON) directions.push(t('weak.missLow'));
+  if (meanH >= BIAS_THRESHOLD - EPSILON) directions.push(t('weak.missRight'));
+  else if (meanH <= -BIAS_THRESHOLD + EPSILON) directions.push(t('weak.missLeft'));
+  if (directions.length === 0) directions.push(t('weak.unsteady'));
   return directions;
 }
 
@@ -98,10 +99,10 @@ export function weakSection(entries: readonly Pick<HistoryEntry, 'sections'>[]):
 
 /** 発の番号の範囲（例: 「11〜15」）。 */
 export function sectionRangeText(section: Pick<SectionAverage, 'start' | 'end'>): string {
-  return `${section.start}〜${section.end}`;
+  return t('weak.range', { start: section.start, end: section.end });
 }
 
 /** 「11〜15 発目、右に外しがち」の形。 */
 export function weakSectionText(weak: WeakSection): string {
-  return `${sectionRangeText(weak)} 発目、${weak.directions.join('・')}`;
+  return t('weak.text', { range: sectionRangeText(weak), directions: weak.directions.join(t('weak.separator')) });
 }

@@ -97,7 +97,7 @@ describe('武器の一覧', () => {
       { file: 'b.json', json: { ...validJson(), id: 'b' } },
     ]);
     expect(list.weapons.map((w) => w.id)).toEqual(['a', 'b']);
-    expect(list.rejected).toEqual([{ file: 'broken.json', errors: [{ path: 'rpm', message: '必須の項目がない' }] }]);
+    expect(list.rejected).toEqual([{ file: 'broken.json', errors: [{ path: 'rpm', message: 'required field is missing' }] }]);
   });
 
   it('WPN-12: pattern の要素数が magSize より少ない JSON は一覧から外れ、ファイル名と pattern の誤りが返る', () => {
@@ -146,9 +146,9 @@ describe('武器の一覧', () => {
     expect(list.weapons).toEqual([]);
     expect(list.placeholders).toEqual([]);
     expect(list.rejected).toEqual([
-      { file: 'missing.json', errors: [{ path: 'measured', message: '必須の項目がない' }] },
-      { file: 'string.json', errors: [{ path: 'measured', message: '真偽値ではない' }] },
-      { file: 'number.json', errors: [{ path: 'measured', message: '真偽値ではない' }] },
+      { file: 'missing.json', errors: [{ path: 'measured', message: 'required field is missing' }] },
+      { file: 'string.json', errors: [{ path: 'measured', message: 'not a boolean' }] },
+      { file: 'number.json', errors: [{ path: 'measured', message: 'not a boolean' }] },
     ]);
   });
 

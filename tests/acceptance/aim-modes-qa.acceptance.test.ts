@@ -52,8 +52,8 @@ const WEAPON_AIM_MODE = `import type { TrainingMode } from '../types';
 
 const mode: TrainingMode = {
   id: 'qa-weapon',
-  name: ${JSON.stringify(WEAPON_MODE)},
-  description: 'QA の武器を使うエイムのモード',
+  name: { ja: ${JSON.stringify(WEAPON_MODE)}, en: ${JSON.stringify(WEAPON_MODE)} },
+  description: { ja: 'QA の武器を使うエイムのモード', en: 'A QA aim mode with a weapon' },
   icon: 'track-spray',
   category: 'aim',
   order: -100000,
@@ -78,8 +78,8 @@ const TAP_AIM_MODE = `import type { TrainingMode } from '../types';
 
 const mode: TrainingMode = {
   id: ${JSON.stringify(TAP_ID)},
-  name: ${JSON.stringify(TAP_MODE)},
-  description: 'QA の武器を使わないエイムのモード',
+  name: { ja: ${JSON.stringify(TAP_MODE)}, en: ${JSON.stringify(TAP_MODE)} },
+  description: { ja: 'QA の武器を使わないエイムのモード', en: 'A QA aim mode without a weapon' },
   icon: 'flick',
   category: 'aim',
   order: 100000,

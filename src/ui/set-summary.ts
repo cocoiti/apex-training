@@ -1,4 +1,5 @@
 import type { CompareMetric } from '../modes/types';
+import { t } from './i18n';
 import { formatMetric, isBetter, SHOT_DEVIATION_METRIC } from './mode-scoring';
 import type { InputMethod } from './personal-best';
 import type { RoundRecord } from './practice-set';
@@ -50,25 +51,23 @@ export function summarizeSet(rounds: readonly RoundRecord[], count: number, metr
   };
 }
 
-const INPUT_LABELS: Readonly<Record<InputMethod, string>> = { mouse: 'マウス', pad: 'パッド' };
-
 /**
  * 見出しの 1 行。武器・モード・入力方式と、終えた回の数と選んだ回数（例: 「L-STAR / 反復練習 / マウス — 3 / 5 回」）。
  * 武器を使わないモードでは武器の名前を undefined にし、モード・入力方式から書く。練習の選択肢を持つモードでは、モードのあとに
  * option（例: 「速さ: ふつう」）を書く。
  */
 export function setSummaryHeading(weaponName: string | undefined, modeName: string, input: InputMethod, summary: SetSummary, option?: string): string {
-  const names = [...(weaponName === undefined ? [] : [weaponName]), modeName, ...(option === undefined ? [] : [option]), INPUT_LABELS[input]].join(' / ');
-  return `${names} — ${summary.rounds.length} / ${summary.count} 回`;
+  const names = [...(weaponName === undefined ? [] : [weaponName]), modeName, ...(option === undefined ? [] : [option]), t(input === 'mouse' ? 'input.mouse' : 'input.pad')].join(' / ');
+  return t('set.heading', { names, rounds: summary.rounds.length, count: summary.count });
 }
 
 export function setAverageText(summary: SetSummary): string {
-  return `セットの平均 ${formatMetric(summary.metric, summary.average)}`;
+  return t('set.average', { value: formatMetric(summary.metric, summary.average) });
 }
 
 export function setBestText(summary: SetSummary): string {
   const best = summary.best;
-  return best === null ? 'いちばん良かった回 なし' : `いちばん良かった回 ${best.round} 回目（${formatMetric(summary.metric, best.value)}）`;
+  return best === null ? t('set.bestNone') : t('set.best', { round: best.round, value: formatMetric(summary.metric, best.value) });
 }
 
 /** 各回の比べる指標の一覧の HTML（li の並び）。いちばん良かった回に印（data-best と「★」）を付ける。 */
@@ -77,7 +76,7 @@ export function setRoundsHtml(summary: SetSummary): string {
     .map((r) => {
       const mark = r.best ? ' data-best="true"' : '';
       const star = r.best ? ' <span class="set-best-mark">★</span>' : '';
-      return `<li data-round="${r.round}"${mark}><span class="set-round-number">${r.round} 回目</span> ${escapeHtml(formatMetric(summary.metric, r.value))}${star}</li>`;
+      return `<li data-round="${r.round}"${mark}><span class="set-round-number">${escapeHtml(t('set.round', { round: r.round }))}</span> ${escapeHtml(formatMetric(summary.metric, r.value))}${star}</li>`;
     })
     .join('');
 }
@@ -122,7 +121,7 @@ export function setTrendPlotHtml(summary: SetSummary): string {
   parts.push(`<polyline class="plot-series plot-trend" points="${coords.join(' ')}" />`);
   const dots = points.map((p) => `<circle cx="${num(x(p.round))}" cy="${num(y(p.value))}" r="4" data-round="${p.round}" />`).join('');
   parts.push(`<g class="plot-series plot-trend" data-series="mean" data-count="${points.length}">${dots}</g>`);
-  const title = escapeHtml(`${summary.metric.label}の推移`);
+  const title = escapeHtml(t('plot.trend', { metric: summary.metric.label }));
   return (
     `<figure class="plot plot-set" data-plot="trend">` +
     `<figcaption>${title}</figcaption>` +

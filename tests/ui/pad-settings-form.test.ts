@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { ja } from '../../src/ui/messages/ja';
 import type { PadSettings } from '../../src/input/pad-curve';
 import { bindCalibrationDeadzone, bindPadSettingsForm, type LockableField } from '../../src/ui/pad-settings-form';
 import { loadMouseSettings, loadPadSettings, saveMouseSettings, SETTINGS_KEYS } from '../../src/ui/settings';
@@ -216,10 +217,14 @@ describe('パッドの画面の文言とリンク（index.html）', () => {
   };
 
   it('PAD-9: 設定画面のパッドの区分に、エイムアシストを再現しないことと完全一致ではないことを出す', () => {
-    const pad = section('settings').slice(section('settings').indexOf('<legend>パッド</legend>'));
-    expect(pad).toContain('エイムアシストは再現しません。エイムアシストなしの素のリコイル制御を練習します');
-    expect(pad).toContain('ゲームと完全に一致するものではなく、近い感覚で練習できます');
-    expect(pad).toContain('このパッドまたはブラウザは振動に対応していません');
+    // 文言は辞書から出す（index.html は辞書のキーを持つ。docs/spec/architecture.md「画面の文言の辞書」）。
+    const pad = section('settings').slice(section('settings').indexOf('<legend data-i18n="input.pad"></legend>'));
+    expect(pad).toContain('data-i18n="settings.padNoAimAssist"');
+    expect(pad).toContain('data-i18n="settings.padNotExact"');
+    expect(pad).toContain('data-i18n="settings.padNoVibration"');
+    expect(ja['settings.padNoAimAssist']).toBe('エイムアシストは再現しません。エイムアシストなしの素のリコイル制御を練習します');
+    expect(ja['settings.padNotExact']).toBe('ゲームと完全に一致するものではなく、近い感覚で練習できます');
+    expect(ja['settings.padNoVibration']).toBe('このパッドまたはブラウザは振動に対応していません');
   });
 
   it('UI-42: パッドの区分からキャリブレーションとボタン割り当てを開け、どちらからも設定画面に戻れる', () => {

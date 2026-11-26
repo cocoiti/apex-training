@@ -47,7 +47,7 @@ class FrameQueue {
       }
     }
     if (errors.length === 1) throw errors[0];
-    if (errors.length > 1) throw new AggregateError(errors, '描画の呼び出しで例外が出た');
+    if (errors.length > 1) throw new AggregateError(errors, 'frame callbacks threw');
   }
 }
 
@@ -139,7 +139,7 @@ export class ManualFrameClock implements FrameClock {
    * この描画の中では draws が false になり、3D は描かない（画面に出るのは、次の実際の描画で描く最後の状態）。
    */
   advance(seconds: number, frameSeconds = MANUAL_FRAME_SECONDS): number {
-    if (!(frameSeconds > 0 && frameSeconds <= MAX_FRAME_TIME)) throw new Error(`描画の間隔は 0 より大きく ${MAX_FRAME_TIME} 秒以下にする`);
+    if (!(frameSeconds > 0 && frameSeconds <= MAX_FRAME_TIME)) throw new Error(`the frame interval must be greater than 0 and at most ${MAX_FRAME_TIME} s`);
     if (!(seconds > 0)) return 0;
     const end = this.current + seconds;
     let frames = 0;

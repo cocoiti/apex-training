@@ -28,8 +28,11 @@ export interface ShotSection {
   readonly meanError: number;
 }
 
-/** 採点のコメント。縦と横で 1 つずつ、縦・横の順に並ぶ。 */
-export type ScoreComment = '下げすぎ' | '下げ不足' | '横の補正不足' | 'よくまとまっている';
+/**
+ * 採点のコメントの識別子。縦と横で 1 つずつ、縦・横の順に並ぶ。over-pull は下げすぎ、under-pull は下げ不足、horizontal は横の補正不足、
+ * grouped はよくまとまっている。言葉にするのは画面の側（src/ui/result-view.ts）。
+ */
+export type ScoreComment = 'over-pull' | 'under-pull' | 'horizontal' | 'grouped';
 
 /** 採点の結果。null は「なし」。 */
 export interface ScoreResult {
@@ -92,10 +95,10 @@ function groupingRadius(deviations: readonly Angles[]): number {
 
 function selectComments(meanVertical: number, horizontalSpread: number): ScoreComment[] {
   const comments: ScoreComment[] = [];
-  if (meanVertical <= -BIAS_THRESHOLD) comments.push('下げすぎ');
-  else if (meanVertical >= BIAS_THRESHOLD) comments.push('下げ不足');
-  if (horizontalSpread >= BIAS_THRESHOLD) comments.push('横の補正不足');
-  if (comments.length === 0) comments.push('よくまとまっている');
+  if (meanVertical <= -BIAS_THRESHOLD) comments.push('over-pull');
+  else if (meanVertical >= BIAS_THRESHOLD) comments.push('under-pull');
+  if (horizontalSpread >= BIAS_THRESHOLD) comments.push('horizontal');
+  if (comments.length === 0) comments.push('grouped');
   return comments;
 }
 

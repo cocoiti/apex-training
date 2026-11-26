@@ -1,4 +1,5 @@
 import type { ModeOption, TrainingMode } from '../modes/types';
+import { localize } from './i18n';
 
 /**
  * 練習の選択肢（追いエイムの速さ、フリックの出る範囲と的の大きさなど、docs/spec/screens.md「トップ画面」「履歴の画面」）の欄。
@@ -31,7 +32,7 @@ export function fillOptionSelect(select: HTMLSelectElement, option: ModeOption):
     ...option.choices.map((choice) => {
       const element = doc.createElement('option');
       element.value = choice.id;
-      element.textContent = choice.name;
+      element.textContent = localize(choice.name);
       return element;
     }),
   );
@@ -52,7 +53,8 @@ export interface OptionChoiceElements {
 export function showOptionChoice(elements: OptionChoiceElements, option: ModeOption | undefined): void {
   elements.choice.hidden = option === undefined;
   if (!option) return;
-  if (elements.name && elements.name.textContent !== option.label) elements.name.textContent = option.label;
+  const label = localize(option.label);
+  if (elements.name && elements.name.textContent !== label) elements.name.textContent = label;
   fillOptionSelect(elements.select, option);
 }
 
@@ -77,7 +79,7 @@ export function buildOptionFields(container: HTMLElement, options: readonly Mode
     choice.hidden = true;
     const name = doc.createElement('span');
     name.id = `${prefix}${option.id}-label`;
-    name.textContent = option.label;
+    name.textContent = localize(option.label);
     const select = doc.createElement('select');
     select.id = `${prefix}${option.id}`;
     fillOptionSelect(select, option);
@@ -96,4 +98,15 @@ export function showOptionFields(fields: readonly OptionField[], mode: Pick<Trai
 /** 欄で選んでいる値（選択肢の id → 値の id）。 */
 export function optionFieldValues(fields: readonly Pick<OptionField, 'id' | 'select'>[]): Record<string, string> {
   return Object.fromEntries(fields.map((f) => [f.id, f.select.value]));
+}
+
+/** 欄の見出しと値の名前を今の表示の言語で書き直す。選んでいる値は変えない。 */
+export function relabelOptionFields(fields: readonly OptionField[]): void {
+  for (const field of fields) {
+    if (field.name) field.name.textContent = localize(field.option.label);
+    for (const element of field.select.options) {
+      const choice = field.option.choices.find((c) => c.id === element.value);
+      if (choice) element.textContent = localize(choice.name);
+    }
+  }
 }

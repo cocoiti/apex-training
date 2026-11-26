@@ -20,6 +20,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+/** 両方の言語の文言の形（docs/spec/modes.md「モードの登録」）。どちらも文字列。 */
+function isLocalized(value: unknown): boolean {
+  return isRecord(value) && typeof value.ja === 'string' && typeof value.en === 'string';
+}
+
 function isMetric(value: unknown): boolean {
   return (
     isRecord(value) &&
@@ -48,10 +53,10 @@ const OPTION_ID = /^[a-z0-9-]+$/;
 
 /** 練習の選択肢の 1 つの形。値の id は重ならず、既定の値は値のどれか。 */
 function isOption(value: unknown): boolean {
-  if (!isRecord(value) || typeof value.id !== 'string' || value.id === '' || typeof value.label !== 'string') return false;
+  if (!isRecord(value) || typeof value.id !== 'string' || value.id === '' || !isLocalized(value.label)) return false;
   const { choices, defaultChoice } = value;
   if (!Array.isArray(choices) || choices.length === 0) return false;
-  const ids = choices.map((c: unknown) => (isRecord(c) && typeof c.name === 'string' && typeof c.id === 'string' && OPTION_ID.test(c.id) ? c.id : undefined));
+  const ids = choices.map((c: unknown) => (isRecord(c) && isLocalized(c.name) && typeof c.id === 'string' && OPTION_ID.test(c.id) ? c.id : undefined));
   if (ids.some((id) => id === undefined) || new Set(ids).size !== ids.length) return false;
   return typeof defaultChoice === 'string' && ids.includes(defaultChoice);
 }
@@ -70,8 +75,8 @@ function isTrainingMode(value: unknown): value is TrainingMode {
   const mode = value as Record<string, unknown>;
   return (
     typeof mode.id === 'string' &&
-    typeof mode.name === 'string' &&
-    typeof mode.description === 'string' &&
+    isLocalized(mode.name) &&
+    isLocalized(mode.description) &&
     MODE_ICONS.includes(mode.icon as ModeIcon) &&
     CATEGORIES.includes(mode.category as ModeCategory) &&
     typeof mode.order === 'number' &&
@@ -100,9 +105,9 @@ export function buildModeList(modules: readonly ModeModule[], log: (message: str
   for (const { file, module } of sorted) {
     const mode = module.default;
     if (!isTrainingMode(mode)) {
-      log(`モードのファイル ${file} の default が練習モードの形でないので一覧から外す`);
+      log(`mode file ${file}: the default export is not a training mode, so it is left out of the list`);
     } else if (seen.has(mode.id)) {
-      log(`モードのファイル ${file} のモードの ID "${mode.id}" が重複しているので一覧から外す`);
+      log(`mode file ${file}: the mode id "${mode.id}" is a duplicate, so it is left out of the list`);
     } else {
       seen.add(mode.id);
       modes.push({ file, mode });

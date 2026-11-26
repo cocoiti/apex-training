@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hyper Aim Training（非公式）</title>
+    <title>Hyper Aim Training</title>
   </head>
   <body>
     <!-- 3D のキャンバスを画面いっぱいに置き、その上に各画面の HTML を重ねる（docs/spec/overview.md「公開」）。 -->
@@ -11,11 +11,11 @@
     <div id="ui">
       <!-- 計測の同意の案内（docs/spec/screens.md「計測の同意の案内」）。コンテナ ID があり未選択のとき、トップ・設定・履歴・パッドの画面の上に出す。
            GTM の断片と noscript の iframe は置かない。許可したときだけ src/ui/analytics.ts が gtm.js を読み込む。 -->
-      <div id="consent-banner" class="consent-banner" role="region" aria-label="計測の同意" hidden>
+      <div id="consent-banner" class="consent-banner" role="region" data-i18n-aria-label="consent.region" hidden>
         <p id="consent-message"></p>
         <div class="menu menu-row consent-actions">
-          <button type="button" id="consent-grant">許可</button>
-          <button type="button" id="consent-deny">許可しない</button>
+          <button type="button" id="consent-grant" data-i18n="consent.grant"></button>
+          <button type="button" id="consent-deny" data-i18n="consent.deny"></button>
         </div>
       </div>
       <section class="screen" data-screen="top">
@@ -24,192 +24,202 @@
           <!-- 武器のカードの並び（docs/spec/screens.md「武器の選択」）。選んでいる武器は隠した select が持ち、カードはその選択肢から作る
                （src/ui/card-choices.ts）。武器を使わないモードを選んでいるあいだは、見出しを含めて並びと試聴を隠す。 -->
           <div class="top-section" id="weapon-choice">
-            <h2 class="top-label" id="weapon-label">武器</h2>
+            <h2 class="top-label" id="weapon-label" data-i18n="top.weapon"></h2>
             <select id="weapon" hidden aria-labelledby="weapon-label"></select>
             <div id="weapon-cards" class="card-choice"></div>
           </div>
           <!-- 選んでいる武器の簡易版のパターンを向きの音だけで流す（docs/spec/screens.md「音」の「試聴」）。 -->
           <div class="choice sound-preview" id="preview-sound-choice">
-            <button type="button" id="preview-sound">パターンの音を聞く</button>
+            <button type="button" id="preview-sound" data-i18n="top.previewSound"></button>
             <p class="note" id="preview-sound-note" hidden></p>
           </div>
           <!-- モードのカードの並び（docs/spec/screens.md「モードの選択」）。登録されたモードが 1 つのときは、そのカードを選べない形で 1 枚だけ出す。 -->
           <div class="top-section" id="mode-choice">
-            <h2 class="top-label" id="mode-label">モード</h2>
+            <h2 class="top-label" id="mode-label" data-i18n="top.mode"></h2>
             <select id="mode" hidden aria-labelledby="mode-label"></select>
             <div id="mode-cards" class="card-choice card-choice-modes"></div>
           </div>
           <!-- 練習の選択肢（追いエイムの速さ、フリックの出る範囲と的の大きさ）の欄を選択肢ごとに入れる（src/ui/option-choices.ts）。
                持つモードを選んでいるときだけ出す（docs/spec/screens.md「トップ画面」）。 -->
           <div id="mode-options" class="option-list"></div>
-          <label class="choice">回数 <select id="count"></select></label>
+          <label class="choice"><span data-i18n="top.count"></span> <select id="count"></select></label>
           <!-- 「開始」はトップ画面でいちばん大きく、アクセント色で塗る。「設定」「履歴」は控えめなリンクにする（docs/spec/screens.md「並びと見た目」）。 -->
-          <a href="#/play" id="start" class="start-button">開始</a>
+          <a href="#/play" id="start" class="start-button" data-i18n="top.start"></a>
           <nav class="menu menu-row top-links">
-            <a href="#/settings" id="open-settings">設定</a>
-            <a href="#/history" id="open-history">履歴</a>
+            <a href="#/settings" id="open-settings" data-i18n="nav.settings"></a>
+            <a href="#/history" id="open-history" data-i18n="nav.history"></a>
           </nav>
         </div>
       </section>
       <section class="screen" data-screen="settings" hidden>
         <div class="panel">
-          <h2>設定</h2>
+          <h2 data-i18n="settings.title"></h2>
           <form id="settings-form" class="settings panel-scroll" autocomplete="off">
+            <!-- 言語（docs/spec/screens.md「表示の言語」）。区分と欄の名前、選択肢の名前は、選んでいる言語によらず同じ表記にする。 -->
+            <fieldset id="settings-language">
+              <legend>言語 / Language</legend>
+              <label class="setting">言語 / Language
+                <select id="setting-language">
+                  <option value="ja" lang="ja">日本語</option>
+                  <option value="en" lang="en">English</option>
+                </select>
+              </label>
+            </fieldset>
             <fieldset>
-              <legend>共通</legend>
-              <label class="setting">入力方式
+              <legend data-i18n="settings.common"></legend>
+              <label class="setting"><span data-i18n="settings.inputMethod"></span>
                 <select id="setting-input-method">
-                  <option value="auto">自動</option>
-                  <option value="mouse">マウス</option>
-                  <option value="pad">パッド</option>
+                  <option value="auto" data-i18n="input.auto"></option>
+                  <option value="mouse" data-i18n="input.mouse"></option>
+                  <option value="pad" data-i18n="input.pad"></option>
                 </select>
               </label>
               <label class="setting">FOV <input id="setting-fov" type="text" inputmode="numeric" size="5" /></label>
-              <label class="setting">クロスヘアの色 <input id="setting-crosshair-color" type="color" /></label>
-              <label class="setting">クロスヘアの形
+              <label class="setting"><span data-i18n="settings.crosshairColor"></span> <input id="setting-crosshair-color" type="color" /></label>
+              <label class="setting"><span data-i18n="settings.crosshairShape"></span>
                 <select id="setting-crosshair-shape">
-                  <option value="dot">点</option>
-                  <option value="cross">十字</option>
-                  <option value="circle">輪</option>
+                  <option value="dot" data-i18n="settings.shapeDot"></option>
+                  <option value="cross" data-i18n="settings.shapeCross"></option>
+                  <option value="circle" data-i18n="settings.shapeCircle"></option>
                 </select>
               </label>
-              <label class="setting">ゴースト表示（反復練習の 3D） <input id="setting-ghost" type="checkbox" /></label>
-              <label class="setting">パターンの表示（補正のパネル）
+              <label class="setting"><span data-i18n="settings.ghost"></span> <input id="setting-ghost" type="checkbox" /></label>
+              <label class="setting"><span data-i18n="settings.patternDisplay"></span>
                 <select id="setting-pattern-display">
-                  <option value="detailed">詳細</option>
-                  <option value="simple">簡易</option>
+                  <option value="detailed" data-i18n="settings.patternDetailed"></option>
+                  <option value="simple" data-i18n="settings.patternSimple"></option>
                 </select>
               </label>
-              <label class="setting">音 <input id="setting-sound" type="checkbox" /></label>
-              <label class="setting">音量 <input id="setting-volume" type="text" inputmode="numeric" size="5" /></label>
+              <label class="setting"><span data-i18n="settings.sound"></span> <input id="setting-sound" type="checkbox" /></label>
+              <label class="setting"><span data-i18n="settings.volume"></span> <input id="setting-volume" type="text" inputmode="numeric" size="5" /></label>
             </fieldset>
             <fieldset>
-              <legend>マウス</legend>
+              <legend data-i18n="input.mouse"></legend>
               <label class="setting">DPI <input id="setting-dpi" type="text" inputmode="numeric" size="7" /></label>
-              <label class="setting">感度 <input id="setting-sensitivity" type="text" inputmode="decimal" size="7" /></label>
-              <label class="setting">ADS 倍率 <input id="setting-ads-multiplier" type="text" inputmode="decimal" size="7" /></label>
+              <label class="setting"><span data-i18n="settings.sensitivity"></span> <input id="setting-sensitivity" type="text" inputmode="decimal" size="7" /></label>
+              <label class="setting"><span data-i18n="settings.adsMultiplier"></span> <input id="setting-ads-multiplier" type="text" inputmode="decimal" size="7" /></label>
               <p class="setting">cm/360 <output id="setting-cm-per-360"></output></p>
             </fieldset>
             <fieldset class="pad-settings">
-              <legend>パッド</legend>
-              <p class="note">エイムアシストは再現しません。エイムアシストなしの素のリコイル制御を練習します</p>
-              <p class="note">ゲームと完全に一致するものではなく、近い感覚で練習できます</p>
-              <p class="setting">入力に使うパッド <output id="settings-pad-status" class="pad-status"></output></p>
+              <legend data-i18n="input.pad"></legend>
+              <p class="note" data-i18n="settings.padNoAimAssist"></p>
+              <p class="note" data-i18n="settings.padNotExact"></p>
+              <p class="setting"><span data-i18n="settings.padInUse"></span> <output id="settings-pad-status" class="pad-status"></output></p>
               <nav class="menu pad-links">
-                <a href="#/settings/pad/mapping" id="link-pad-mapping">ボタン割り当て</a>
-                <a href="#/settings/pad" id="link-pad-calibration">パッドのキャリブレーション</a>
+                <a href="#/settings/pad/mapping" id="link-pad-mapping" data-i18n="settings.padMapping"></a>
+                <a href="#/settings/pad" id="link-pad-calibration" data-i18n="settings.padCalibration"></a>
               </nav>
-              <label class="setting">設定の方式
+              <label class="setting"><span data-i18n="settings.padMode"></span>
                 <select id="setting-pad-mode">
-                  <option value="advanced">詳細設定</option>
-                  <option value="simple">簡易設定</option>
+                  <option value="advanced" data-i18n="settings.padAdvanced"></option>
+                  <option value="simple" data-i18n="settings.padSimple"></option>
                 </select>
               </label>
               <fieldset class="pad-group">
-                <legend>簡易設定</legend>
-                <label class="setting">視点感度
+                <legend data-i18n="settings.padSimple"></legend>
+                <label class="setting"><span data-i18n="settings.padLook"></span>
                   <select id="setting-pad-simple-look">
                     <option value="1">1</option><option value="2">2</option><option value="3">3</option>
                     <option value="4">4</option><option value="5">5</option><option value="6">6</option>
                   </select>
                 </label>
-                <label class="setting">ADS 感度
+                <label class="setting"><span data-i18n="settings.padAds"></span>
                   <select id="setting-pad-simple-ads">
                     <option value="1">1</option><option value="2">2</option><option value="3">3</option>
                     <option value="4">4</option><option value="5">5</option><option value="6">6</option>
                   </select>
                 </label>
-                <label class="setting">カーブ
+                <label class="setting"><span data-i18n="settings.padCurve"></span>
                   <select id="setting-pad-simple-curve">
-                    <option value="classic">クラシック</option>
-                    <option value="linear">リニア</option>
+                    <option value="classic" data-i18n="settings.curveClassic"></option>
+                    <option value="linear" data-i18n="settings.curveLinear"></option>
                   </select>
                 </label>
               </fieldset>
               <fieldset class="pad-group">
-                <legend>詳細設定</legend>
-                <label class="setting">デッドゾーン（%） <input id="setting-pad-deadzone" type="text" inputmode="numeric" size="5" /></label>
-                <label class="setting">外側しきい値（%） <input id="setting-pad-outer-threshold" type="text" inputmode="numeric" size="5" /></label>
-                <label class="setting">レスポンスカーブ <input id="setting-pad-response-curve" type="text" inputmode="numeric" size="5" /></label>
-                <label class="setting">ヨー速度 <input id="setting-pad-yaw" type="text" inputmode="numeric" size="5" /></label>
-                <label class="setting">ピッチ速度 <input id="setting-pad-pitch" type="text" inputmode="numeric" size="5" /></label>
-                <label class="setting">ADS ヨー速度 <input id="setting-pad-ads-yaw" type="text" inputmode="numeric" size="5" /></label>
-                <label class="setting">ADS ピッチ速度 <input id="setting-pad-ads-pitch" type="text" inputmode="numeric" size="5" /></label>
+                <legend data-i18n="settings.padAdvanced"></legend>
+                <label class="setting"><span data-i18n="settings.padDeadzone"></span> <input id="setting-pad-deadzone" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting"><span data-i18n="settings.padOuterThreshold"></span> <input id="setting-pad-outer-threshold" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting"><span data-i18n="settings.padResponseCurve"></span> <input id="setting-pad-response-curve" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting"><span data-i18n="settings.padYaw"></span> <input id="setting-pad-yaw" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting"><span data-i18n="settings.padPitch"></span> <input id="setting-pad-pitch" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting"><span data-i18n="settings.padAdsYaw"></span> <input id="setting-pad-ads-yaw" type="text" inputmode="numeric" size="5" /></label>
+                <label class="setting"><span data-i18n="settings.padAdsPitch"></span> <input id="setting-pad-ads-pitch" type="text" inputmode="numeric" size="5" /></label>
               </fieldset>
               <p class="setting">
-                <label>振動 <input id="setting-pad-vibration" type="checkbox" /></label>
-                <span id="settings-pad-vibration-notice" class="note" hidden>このパッドまたはブラウザは振動に対応していません</span>
+                <label><span data-i18n="settings.padVibration"></span> <input id="setting-pad-vibration" type="checkbox" /></label>
+                <span id="settings-pad-vibration-notice" class="note" data-i18n="settings.padNoVibration" hidden></span>
               </p>
             </fieldset>
             <!-- 計測の区分（docs/spec/screens.md「計測の設定」）。コンテナ ID が空のビルドでは隠したままにする。 -->
             <fieldset id="settings-analytics" class="analytics-settings" hidden>
-              <legend>計測</legend>
-              <label class="setting">画面の表示の計測（Google Analytics） <input id="setting-analytics" type="checkbox" /></label>
+              <legend data-i18n="analytics.section"></legend>
+              <label class="setting"><span data-i18n="analytics.toggle"></span> <input id="setting-analytics" type="checkbox" /></label>
               <p class="note" id="settings-analytics-note"></p>
             </fieldset>
           </form>
           <nav class="menu">
-            <a href="#/">トップへ戻る</a>
+            <a href="#/" data-i18n="nav.backToTop"></a>
           </nav>
         </div>
       </section>
       <section class="screen" data-screen="settings-pad" hidden>
         <div class="panel">
-          <h2>パッドのキャリブレーション</h2>
+          <h2 data-i18n="settings.padCalibration"></h2>
           <div class="panel-scroll">
-            <p>入力に使うパッド <output id="calibration-status" class="pad-status"></output></p>
+            <p><span data-i18n="settings.padInUse"></span> <output id="calibration-status" class="pad-status"></output></p>
             <p id="calibration-empty" hidden></p>
             <table id="calibration-table" class="pad-list" hidden>
               <thead>
-                <tr><th>番号</th><th>名前</th><th>配置</th><th>標準配置</th><th>割り当て</th><th>接続</th><th>入力</th></tr>
+                <tr><th data-i18n="calibration.number"></th><th data-i18n="calibration.name"></th><th data-i18n="calibration.mapping"></th><th data-i18n="calibration.standard"></th><th data-i18n="calibration.assigned"></th><th data-i18n="calibration.connected"></th><th data-i18n="calibration.input"></th></tr>
               </thead>
               <tbody id="calibration-list"></tbody>
             </table>
             <div class="calibration">
               <!-- 右スティックの位置。半径 1 を傾き 1 とし、デッドゾーンと外側しきい値の境目の円を重ねる。 -->
-              <svg id="calibration-stick" class="stick-view" viewBox="-1.1 -1.1 2.2 2.2" role="img" aria-label="右スティックの位置">
+              <svg id="calibration-stick" class="stick-view" viewBox="-1.1 -1.1 2.2 2.2" role="img" data-i18n-aria-label="calibration.stick">
                 <circle class="stick-edge" cx="0" cy="0" r="1" />
                 <circle id="calibration-outer" class="stick-outer" cx="0" cy="0" r="0.98" />
                 <circle id="calibration-deadzone" class="stick-deadzone" cx="0" cy="0" r="0.1" />
                 <circle id="calibration-dot" class="stick-dot" cx="0" cy="0" r="0.05" />
               </svg>
               <div>
-                <h3>軸</h3>
+                <h3 data-i18n="calibration.axes"></h3>
                 <ol id="calibration-axes" class="pad-values"></ol>
               </div>
               <div>
-                <h3>ボタン</h3>
+                <h3 data-i18n="calibration.buttons"></h3>
                 <ol id="calibration-buttons" class="pad-values"></ol>
               </div>
             </div>
-            <label class="setting">デッドゾーン（%） <input id="calibration-deadzone-input" type="text" inputmode="numeric" size="5" /></label>
+            <label class="setting"><span data-i18n="settings.padDeadzone"></span> <input id="calibration-deadzone-input" type="text" inputmode="numeric" size="5" /></label>
           </div>
           <nav class="menu">
-            <a href="#/settings">設定へ戻る</a>
+            <a href="#/settings" data-i18n="nav.backToSettings"></a>
           </nav>
         </div>
       </section>
       <section class="screen" data-screen="settings-pad-mapping" hidden>
         <div class="panel">
-          <h2>パッドのボタン割り当て</h2>
+          <h2 data-i18n="mapping.title"></h2>
           <div class="panel-scroll">
-            <p id="mapping-empty" hidden>標準配置でないパッドがつながっていません</p>
+            <p id="mapping-empty" data-i18n="mapping.noPad" hidden></p>
             <div id="mapping-body" hidden>
-              <p>対象のパッド <output id="mapping-target"></output></p>
+              <p><span data-i18n="mapping.target"></span> <output id="mapping-target"></output></p>
               <table class="pad-mapping">
                 <tbody>
-                  <tr><th>射撃（fire）</th><td><output id="mapping-fire"></output></td><td><button type="button" data-assign="fire">割り当てる</button></td></tr>
-                  <tr><th>ADS（ads）</th><td><output id="mapping-ads"></output></td><td><button type="button" data-assign="ads">割り当てる</button></td></tr>
-                  <tr><th>右スティックの左右</th><td><output id="mapping-lookX"></output></td><td><button type="button" data-assign="lookX">割り当てる</button></td></tr>
-                  <tr><th>右スティックの上下</th><td><output id="mapping-lookY"></output></td><td><button type="button" data-assign="lookY">割り当てる</button></td></tr>
+                  <tr><th data-i18n="mapping.fire"></th><td><output id="mapping-fire"></output></td><td><button type="button" data-assign="fire" data-i18n="mapping.assign"></button></td></tr>
+                  <tr><th data-i18n="mapping.ads"></th><td><output id="mapping-ads"></output></td><td><button type="button" data-assign="ads" data-i18n="mapping.assign"></button></td></tr>
+                  <tr><th data-i18n="mapping.lookX"></th><td><output id="mapping-lookX"></output></td><td><button type="button" data-assign="lookX" data-i18n="mapping.assign"></button></td></tr>
+                  <tr><th data-i18n="mapping.lookY"></th><td><output id="mapping-lookY"></output></td><td><button type="button" data-assign="lookY" data-i18n="mapping.assign"></button></td></tr>
                 </tbody>
               </table>
               <p id="mapping-saved" role="status"></p>
-              <button type="button" id="mapping-clear">割り当てを消す</button>
+              <button type="button" id="mapping-clear" data-i18n="mapping.clear"></button>
             </div>
           </div>
           <nav class="menu">
-            <a href="#/settings">設定へ戻る</a>
+            <a href="#/settings" data-i18n="nav.backToSettings"></a>
           </nav>
         </div>
       </section>
@@ -229,7 +239,7 @@
           <p class="hud-input" data-hud="input"></p>
           <p class="hud-round" data-hud="round"></p>
           <p class="hud-pad" data-hud="pad" hidden></p>
-          <p id="status">読み込み中</p>
+          <p id="status"></p>
           <p id="pointer-lock-notice" class="pointer-lock-notice" role="status" hidden></p>
         </div>
         <!-- パッド向けのスティック型のガイド（docs/spec/pad.md「練習中のガイド」）。反復練習でパッドのあいだだけ出す。 -->
@@ -242,7 +252,7 @@
         </div>
         <!-- 補正のパネル（docs/spec/screens.md「補正のパネル」）。反復練習では必ず、センター維持では設定が ON のとき、練習中に右端に出す。 -->
         <figure class="correction-panel" hidden>
-          <svg class="correction-panel-plot" viewBox="-1 -1 2 2" role="img" aria-label="理想の補正軌道と自分の軌道">
+          <svg class="correction-panel-plot" viewBox="-1 -1 2 2" role="img" data-i18n-aria-label="panel.label">
             <line class="plot-axis" data-panel="axis-x" x1="-1" y1="0" x2="1" y2="0" />
             <line class="plot-axis" data-panel="axis-y" x1="0" y1="-1" x2="0" y2="1" />
             <polyline class="plot-series plot-ideal" data-series="ideal" points="" />
@@ -254,7 +264,7 @@
             <path class="correction-panel-aim" data-panel="aim" d="" />
           </svg>
           <p class="plot-legends">
-            <span class="plot-legend plot-ideal" data-legend="ideal">理想</span><span class="plot-legend plot-weak correction-panel-legend-weak" hidden>苦手な区間</span><span class="plot-legend plot-aim">自分</span><span class="plot-legend correction-panel-legend-current">次の発</span><span class="plot-legend correction-panel-legend-aim">今の照準</span>
+            <span class="plot-legend plot-ideal" data-legend="ideal"></span><span class="plot-legend plot-weak correction-panel-legend-weak" data-i18n="panel.weak" hidden></span><span class="plot-legend plot-aim" data-i18n="panel.own"></span><span class="plot-legend correction-panel-legend-current" data-i18n="panel.next"></span><span class="plot-legend correction-panel-legend-aim" data-i18n="panel.aim"></span>
           </p>
           <!-- 区切りの言葉の一覧。パターンの表示が簡易のときだけ出す。 -->
           <ol class="correction-panel-segments" hidden></ol>
@@ -266,20 +276,20 @@
           <p id="interlude-score" class="interlude-score"></p>
           <p id="interlude-best" class="interlude-best"></p>
           <p id="interlude-countdown" class="interlude-countdown"></p>
-          <p class="controls-hint">次へ <kbd>R</kbd>・<kbd>Space</kbd> / <kbd>A / ×</kbd>　やめる <kbd>Q</kbd> / <kbd>B / ○</kbd></p>
+          <p class="controls-hint"><span data-i18n="play.next"></span> <kbd>R</kbd><span data-i18n="play.keySeparator"></span><kbd>Space</kbd> / <kbd>A / ×</kbd>　<span data-i18n="play.quit"></span> <kbd>Q</kbd> / <kbd>B / ○</kbd></p>
         </div>
         <!-- 練習中の操作のキーとボタン（docs/spec/screens.md「画面の操作」）。やめるは連続練習のときだけ出す。 -->
         <p id="play-controls" class="controls-hint play-controls">
-          やり直し <kbd>R</kbd> / <kbd>A / ×</kbd><span id="play-controls-quit" hidden>　やめる <kbd>Q</kbd> / <kbd>B / ○</kbd></span>
+          <span data-i18n="play.restart"></span> <kbd>R</kbd> / <kbd>A / ×</kbd><span id="play-controls-quit" hidden>　<span data-i18n="play.quit"></span> <kbd>Q</kbd> / <kbd>B / ○</kbd></span>
         </p>
         <div class="play-actions">
-          <button id="fullscreen" type="button">全画面</button>
-          <a href="#/">トップへ戻る</a>
+          <button id="fullscreen" type="button"></button>
+          <a href="#/" data-i18n="nav.backToTop"></a>
         </div>
       </section>
       <section class="screen" data-screen="result" hidden>
         <div class="panel panel-result">
-          <h2>リザルト</h2>
+          <h2 data-i18n="result.title"></h2>
           <p id="result-summary"></p>
           <!-- 指標・コメント・自己ベスト（docs/spec/scoring.md「リザルト画面」）。 -->
           <div id="result-score" class="result-score">
@@ -295,21 +305,21 @@
           <!-- 結果のシェア（docs/spec/screens.md「結果のシェア」）。渡すのは成績の要約の文だけ。 -->
           <div class="share" data-share>
             <div class="menu menu-row">
-              <button type="button" id="result-share">結果をシェア</button> <span class="controls-hint"><kbd>Y / △</kbd></span>
-              <a id="result-share-post" href="https://x.com/intent/post" target="_blank" rel="noopener noreferrer">X に投稿</a>
+              <button type="button" id="result-share" data-i18n="share.button"></button> <span class="controls-hint"><kbd>Y / △</kbd></span>
+              <a id="result-share-post" href="https://x.com/intent/post" target="_blank" rel="noopener noreferrer" data-i18n="share.post"></a>
             </div>
             <p id="result-share-message" class="share-message" role="status" hidden></p>
-            <textarea id="result-share-text" class="share-text" rows="5" readonly hidden aria-label="シェアの文"></textarea>
+            <textarea id="result-share-text" class="share-text" rows="5" readonly hidden data-i18n-aria-label="share.textLabel"></textarea>
           </div>
           <nav class="menu menu-row">
-            <a href="#/play" id="retry">もう一度</a> <span class="controls-hint"><kbd>R</kbd>・<kbd>Space</kbd> / <kbd>A / ×</kbd></span>
-            <a href="#/" id="change-weapon">武器変更</a> <span class="controls-hint"><kbd>B / ○</kbd></span>
+            <a href="#/play" id="retry" data-i18n="result.retry"></a> <span class="controls-hint"><kbd>R</kbd><span data-i18n="play.keySeparator"></span><kbd>Space</kbd> / <kbd>A / ×</kbd></span>
+            <a href="#/" id="change-weapon" data-i18n="result.changeWeapon"></a> <span class="controls-hint"><kbd>B / ○</kbd></span>
           </nav>
         </div>
       </section>
       <section class="screen" data-screen="set-result" hidden>
         <div class="panel panel-result">
-          <h2>セットのまとめ</h2>
+          <h2 data-i18n="set.title"></h2>
           <p id="set-summary"></p>
           <div class="set-result">
             <ol id="set-rounds" class="set-rounds"></ol>
@@ -320,33 +330,33 @@
           <!-- 結果のシェア（docs/spec/screens.md「結果のシェア」）。渡すのは成績の要約の文だけ。 -->
           <div class="share" data-share>
             <div class="menu menu-row">
-              <button type="button" id="set-share">結果をシェア</button> <span class="controls-hint"><kbd>Y / △</kbd></span>
-              <a id="set-share-post" href="https://x.com/intent/post" target="_blank" rel="noopener noreferrer">X に投稿</a>
+              <button type="button" id="set-share" data-i18n="share.button"></button> <span class="controls-hint"><kbd>Y / △</kbd></span>
+              <a id="set-share-post" href="https://x.com/intent/post" target="_blank" rel="noopener noreferrer" data-i18n="share.post"></a>
             </div>
             <p id="set-share-message" class="share-message" role="status" hidden></p>
-            <textarea id="set-share-text" class="share-text" rows="5" readonly hidden aria-label="シェアの文"></textarea>
+            <textarea id="set-share-text" class="share-text" rows="5" readonly hidden data-i18n-aria-label="share.textLabel"></textarea>
           </div>
           <nav class="menu menu-row">
-            <a href="#/play" id="set-retry">もう一度</a> <span class="controls-hint"><kbd>R</kbd>・<kbd>Space</kbd> / <kbd>A / ×</kbd></span>
-            <a href="#/" id="set-change-weapon">武器変更</a> <span class="controls-hint"><kbd>B / ○</kbd></span>
+            <a href="#/play" id="set-retry" data-i18n="result.retry"></a> <span class="controls-hint"><kbd>R</kbd><span data-i18n="play.keySeparator"></span><kbd>Space</kbd> / <kbd>A / ×</kbd></span>
+            <a href="#/" id="set-change-weapon" data-i18n="result.changeWeapon"></a> <span class="controls-hint"><kbd>B / ○</kbd></span>
           </nav>
         </div>
       </section>
       <section class="screen" data-screen="history" hidden>
         <div class="panel panel-result">
-          <h2>履歴</h2>
+          <h2 data-i18n="history.title"></h2>
           <!-- 書き出しや外部へ送る操作は置かない（docs/spec/screens.md「履歴の画面」、UI-30）。 -->
           <p id="history-unavailable" class="history-unavailable" role="status" hidden></p>
           <div id="history-body">
             <div class="history-choices">
-              <label class="choice" id="history-weapon-choice">武器 <select id="history-weapon"></select></label>
-              <label class="choice" id="history-mode-choice">モード <select id="history-mode"></select></label>
-              <p class="choice" id="history-mode-only" hidden>モード <span id="history-mode-name" class="mode-name"></span></p>
+              <label class="choice" id="history-weapon-choice"><span data-i18n="top.weapon"></span> <select id="history-weapon"></select></label>
+              <label class="choice" id="history-mode-choice"><span data-i18n="top.mode"></span> <select id="history-mode"></select></label>
+              <p class="choice" id="history-mode-only" hidden><span data-i18n="top.mode"></span> <span id="history-mode-name" class="mode-name"></span></p>
               <div id="history-mode-options" class="option-list"></div>
-              <label class="choice">入力方式
+              <label class="choice"><span data-i18n="settings.inputMethod"></span>
                 <select id="history-input">
-                  <option value="mouse">マウス</option>
-                  <option value="pad">パッド</option>
+                  <option value="mouse" data-i18n="input.mouse"></option>
+                  <option value="pad" data-i18n="input.pad"></option>
                 </select>
               </label>
             </div>
@@ -357,8 +367,8 @@
             <p id="history-empty" class="history-empty" hidden></p>
             <div id="history-list" class="history-list"></div>
             <nav class="menu menu-row">
-              <button id="history-clear" type="button">この履歴を消す</button>
-              <a href="#/">トップへ戻る</a>
+              <button id="history-clear" type="button" data-i18n="history.clear"></button>
+              <a href="#/" data-i18n="nav.backToTop"></a>
             </nav>
           </div>
           <!-- 消してよいかの確認。ブラウザの確認のダイアログは使わず、画面の中に出す（docs/spec/screens.md「履歴の画面」）。
@@ -367,8 +377,8 @@
             <div class="history-confirm-box">
               <p id="history-confirm-message"></p>
               <div class="menu menu-row">
-                <button id="history-confirm-ok" type="button">消す</button>
-                <button id="history-confirm-cancel" type="button" data-pad-default data-pad-cancel>取りやめる</button>
+                <button id="history-confirm-ok" type="button" data-i18n="history.delete"></button>
+                <button id="history-confirm-cancel" type="button" data-pad-default data-pad-cancel data-i18n="history.cancel"></button>
               </div>
             </div>
           </div>
@@ -376,7 +386,7 @@
       </section>
       <footer class="footer">
         <p id="storage-notice" class="storage-notice" role="status" hidden></p>
-        <p class="unofficial">非公式ファンツールであり、EA / Respawn とは無関係です。</p>
+        <p class="unofficial" data-i18n="footer.unofficial"></p>
       </footer>
     </div>
     <script type="module" src="/src/main.ts"></script>

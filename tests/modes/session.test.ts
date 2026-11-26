@@ -83,7 +83,7 @@ describe('練習', () => {
     // 20 発目は 19 × 0.1 秒の時刻のステップで撃たれ、そのステップの終わりで終わる。
     expect(result.duration).toBeCloseTo(1.9 + s.sim.dt, 9);
     expect(result.weapon).toBe(weapon);
-    expect(result.mode).toEqual({ id: 'ghost', name: '反復練習', category: 'recoil' });
+    expect(result.mode).toEqual({ id: 'ghost', name: { ja: '反復練習', en: 'Recoil Drill' }, category: 'recoil' });
     expect(result.modeResult).toEqual({});
   });
 
@@ -136,8 +136,8 @@ describe('練習', () => {
     let steps = 0;
     const mode: TrainingMode = {
       id: 'stub',
-      name: 'stub',
-      description: 'stub',
+      name: { ja: 'stub', en: 'stub' },
+      description: { ja: 'stub', en: 'stub' },
       icon: 'spray',
       category: 'recoil',
       order: 0,

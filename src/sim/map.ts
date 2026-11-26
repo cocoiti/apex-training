@@ -52,38 +52,38 @@ export function parseMap(json: unknown): MapParseResult {
 
   const readString = (obj: Record<string, unknown>, key: string, path: string): string | undefined => {
     const value = obj[key];
-    if (value === undefined) return fail(path, '必須の項目がない');
-    if (typeof value !== 'string') return fail(path, '文字列ではない');
+    if (value === undefined) return fail(path, 'required field is missing');
+    if (typeof value !== 'string') return fail(path, 'not a string');
     return value;
   };
 
   const readNumber = (obj: Record<string, unknown>, key: string, path: string): number | undefined => {
     const value = obj[key];
-    if (value === undefined) return fail(path, '必須の項目がない');
-    if (!isFiniteNumber(value)) return fail(path, '数ではない');
+    if (value === undefined) return fail(path, 'required field is missing');
+    if (!isFiniteNumber(value)) return fail(path, 'not a number');
     return value;
   };
 
   const readVec3 = (obj: Record<string, unknown>, key: string, path: string): Vec3 | undefined => {
     const value = obj[key];
-    if (value === undefined) return fail(path, '必須の項目がない');
+    if (value === undefined) return fail(path, 'required field is missing');
     if (!Array.isArray(value) || value.length !== 3 || !value.every(isFiniteNumber)) {
-      return fail(path, '数 3 つの配列ではない');
+      return fail(path, 'not an array of 3 numbers');
     }
     const [x, y, z] = value as [number, number, number];
     return vec3(x, y, z);
   };
 
   if (!isRecord(json)) {
-    return { ok: false, errors: [{ path: '', message: 'オブジェクトではない' }] };
+    return { ok: false, errors: [{ path: '', message: 'not an object' }] };
   }
 
   const id = readString(json, 'id', 'id');
   const name = readString(json, 'name', 'name');
 
   let spawn: MapData['spawn'] | undefined;
-  if (json.spawn === undefined) fail('spawn', '必須の項目がない');
-  else if (!isRecord(json.spawn)) fail('spawn', 'オブジェクトではない');
+  if (json.spawn === undefined) fail('spawn', 'required field is missing');
+  else if (!isRecord(json.spawn)) fail('spawn', 'not an object');
   else {
     const position = readVec3(json.spawn, 'position', 'spawn.position');
     const yaw = readNumber(json.spawn, 'yaw', 'spawn.yaw');
@@ -94,32 +94,32 @@ export function parseMap(json: unknown): MapParseResult {
   }
 
   const boxes: Box[] = [];
-  if (json.boxes === undefined) fail('boxes', '必須の項目がない');
-  else if (!Array.isArray(json.boxes)) fail('boxes', '配列ではない');
+  if (json.boxes === undefined) fail('boxes', 'required field is missing');
+  else if (!Array.isArray(json.boxes)) fail('boxes', 'not an array');
   else {
     const seen = new Set<string>();
     json.boxes.forEach((raw: unknown, i: number) => {
       const at = `boxes[${i}]`;
       if (!isRecord(raw)) {
-        fail(at, 'オブジェクトではない');
+        fail(at, 'not an object');
         return;
       }
       const boxId = readString(raw, 'id', `${at}.id`);
       if (boxId !== undefined) {
-        if (seen.has(boxId)) fail(`${at}.id`, `箱の識別子 "${boxId}" が重複している`);
+        if (seen.has(boxId)) fail(`${at}.id`, `box id "${boxId}" is a duplicate`);
         seen.add(boxId);
       }
 
       let kind: BoxKind | undefined;
-      if (raw.kind === undefined) fail(`${at}.kind`, '必須の項目がない');
+      if (raw.kind === undefined) fail(`${at}.kind`, 'required field is missing');
       else if (!BOX_KINDS.includes(raw.kind as BoxKind)) {
-        fail(`${at}.kind`, `"wall" または "target" ではない（${JSON.stringify(raw.kind)}）`);
+        fail(`${at}.kind`, `not "wall" or "target" (${JSON.stringify(raw.kind)})`);
       } else kind = raw.kind as BoxKind;
 
       const center = readVec3(raw, 'center', `${at}.center`);
       let size = readVec3(raw, 'size', `${at}.size`);
       if (size && !(size.x > 0 && size.y > 0 && size.z > 0)) {
-        size = fail(`${at}.size`, '0 以下の値がある');
+        size = fail(`${at}.size`, 'has a value of 0 or less');
       }
 
       if (boxId !== undefined && kind && center && size) boxes.push({ id: boxId, kind, center, size });

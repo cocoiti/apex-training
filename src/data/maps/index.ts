@@ -12,8 +12,8 @@ export const mapUrls: Readonly<Record<string, string>> = Object.fromEntries(
 /** マップの JSON の中身を取得する。 */
 export async function fetchMapJson(id: string): Promise<unknown> {
   const url = mapUrls[id];
-  if (url === undefined) throw new Error(`マップ "${id}" がない`);
+  if (url === undefined) throw new Error(`no map "${id}"`);
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`マップ "${id}" を取得できない（${response.status}）`);
+  if (!response.ok) throw new Error(`can't fetch map "${id}" (${response.status})`);
   return response.json();
 }

@@ -1,5 +1,6 @@
 import { modeOptionChoices, modeUsesWeapon, type TrainingMode } from '../modes/types';
 import { cardName } from './card-choices';
+import { localize, t } from './i18n';
 import { createModeIcon } from './mode-icons';
 import { compareMetric, NO_WEAPON_ID } from './mode-scoring';
 import { parseStoredBest, personalBestKey, type InputMethod } from './personal-best';
@@ -18,9 +19,6 @@ export interface BestSummarySelection {
   readonly options: Readonly<Record<string, string | undefined>>;
 }
 
-/** 自己ベストがないときの要約。 */
-export const NO_BEST_SUMMARY = '自己ベスト: まだ記録なし';
-
 /**
  * モードのカードの自己ベストの要約。そのモードの、選んでいる武器（武器を使うモード）・練習の選択肢の値（持つモード）・入力方式の組の自己ベストの
  * 比べる指標を、リザルト画面と同じ書き方で「自己ベスト: <値>」にする。その組の自己ベストがない（読めない）ときは「自己ベスト: まだ記録なし」。
@@ -34,19 +32,19 @@ export function modeBestSummary(
   const optionIds = modeOptionChoices(mode, selection.options).map((s) => s.choice.id);
   const weaponId = modeUsesWeapon(mode) ? selection.weaponId : NO_WEAPON_ID;
   const best = parseStoredBest(storage.get(personalBestKey(selection.input, weaponId, mode.id, optionIds)), metric);
-  return best ? `自己ベスト: ${metric.format(best.value)}` : NO_BEST_SUMMARY;
+  return best ? t('best.summary', { value: metric.format(best.value) }) : t('best.noRecord');
 }
 
 /** モードのカードの中身。自己ベストの要約の欄（`.card-best`）は空で作り、setModeBest で書く。 */
 export function modeCardContent(doc: Document, mode: Pick<TrainingMode, 'name' | 'description' | 'icon'>): Node[] {
   const description = doc.createElement('span');
   description.className = 'card-description';
-  description.textContent = mode.description;
+  description.textContent = localize(mode.description);
   const best = doc.createElement('span');
   best.className = 'card-best';
   const title = doc.createElement('span');
   title.className = 'card-title';
-  title.append(createModeIcon(doc, mode.icon), cardName(doc, mode.name));
+  title.append(createModeIcon(doc, mode.icon), cardName(doc, localize(mode.name)));
   return [title, description, best];
 }
 
