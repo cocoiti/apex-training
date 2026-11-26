@@ -455,6 +455,11 @@ p.choice {
   margin-top: 0;
 }
 
+/* モードが 1 つのときは選択肢（label.choice）を hidden で隠す。display: block が hidden を上書きしないようにする。 */
+.choice[hidden] {
+  display: none;
+}
+
 /*
  * 設定画面・キャリブレーション画面・ボタン割り当て画面は項目が多いので、項目の部分だけをパネルの中で縦にスクロールし、
  * 戻るリンクはいつも見えるところに置く。
