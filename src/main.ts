@@ -659,6 +659,20 @@ async function start(): Promise<void> {
   modeSelect.addEventListener('change', refreshWeaponChoice);
   refreshWeaponChoice();
 
+  // モードのカードの自己ベストの要約（docs/spec/screens.md「モードの選択」）。選んでいる武器・練習の選択肢の値・入力方式の組で読む。
+  // 3D の描画の準備（WebGL）より前に一度書く。描画の準備が失敗する環境でも、トップ画面の要約は出す。
+  const writeModeBests = (input: InputMethod) => {
+    if (!modeCards) return;
+    const selection = { input, weaponId: weaponSelect.value, options: optionFieldValues(optionFields) };
+    for (const mode of modes) {
+      const card = modeCards.card(mode.id);
+      if (card) setModeBest(card, modeBestSummary(appStorage, mode, selection));
+    }
+  };
+  // まだどちらのデバイスも操作していないので、自動のときはマウス（InputSwitch の最初の入力方式と同じ）。
+  const savedInput = loadCommonSettings(appStorage).inputMethod;
+  writeModeBests(savedInput === 'auto' ? 'mouse' : savedInput);
+
   // 履歴の画面（docs/spec/screens.md「履歴の画面」）。武器は一覧のすべて、モードは登録されたモードを選択肢にする。
   // 登録されていないモードの id の保存（以前のパターン観察・センター維持など）は選択肢に出さず、消さない。
   // このページで最後に終えた練習の組を、開いたときに選ぶ。
@@ -726,16 +740,9 @@ async function start(): Promise<void> {
   // 今の入力方式のデバイスのアクションだけを積む。今の入力方式はページを開いている間、練習をまたいで引き継ぐ。
   const inputs = new InputSwitch({ preference: () => inputPreference, emit: push });
 
-  // モードのカードの自己ベストの要約（docs/spec/screens.md「モードの選択」）。選んでいる武器・練習の選択肢の値・今の入力方式の組で読む。
-  // 武器と練習の選択肢を変えたとき、トップ画面に入ったとき（設定の入力方式と、練習で変わった今の入力方式を読み直す）に書き直す。
-  const refreshModeBests = () => {
-    if (!modeCards) return;
-    const selection = { input: inputs.current, weaponId: weaponSelect.value, options: optionFieldValues(optionFields) };
-    for (const mode of modes) {
-      const card = modeCards.card(mode.id);
-      if (card) setModeBest(card, modeBestSummary(appStorage, mode, selection));
-    }
-  };
+  // モードのカードの自己ベストの要約は、今の入力方式で読む。武器と練習の選択肢を変えたとき、トップ画面に入ったとき
+  // （設定の入力方式と、練習で変わった今の入力方式を読み直す）に書き直す。
+  const refreshModeBests = () => writeModeBests(inputs.current);
   weaponSelect.addEventListener('change', refreshModeBests);
   for (const field of optionFields) field.select.addEventListener('change', refreshModeBests);
   refreshModeBests();

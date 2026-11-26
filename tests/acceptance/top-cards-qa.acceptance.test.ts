@@ -204,16 +204,17 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
   const noExceptions = (page: Page) => expect(exceptions(page), page.errors.join('\n')).toEqual([]);
 
   /** 新しいタブで localStorage を空にし（seed を入れ）、読み込み直したトップ画面を開く。 */
-  async function openFresh(opts: { seed?: Record<string, string>; pad?: boolean; width?: number; at?: string } = {}): Promise<Page> {
+  async function openFresh(opts: { seed?: Record<string, string>; pad?: boolean; width?: number; at?: string; render?: boolean; init?: string } = {}): Promise<Page> {
     const page = await browser!.newPage();
     if (opts.width) {
       await page.send('Emulation.setDeviceMetricsOverride', { width: opts.width, height: 800, deviceScaleFactor: 1, mobile: false });
     }
-    const url = appUrl(opts.at ?? origin, BASE, '#/', { render: false });
+    const url = appUrl(opts.at ?? origin, BASE, '#/', { render: opts.render ?? false });
     await page.goto(url);
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(opts.seed ?? {})}; for (const k in seed) localStorage.setItem(k, seed[k]); })()`);
     await page.addInitScript(PAGE_INIT);
     if (opts.pad) await page.addInitScript(FAKE_PAD);
+    if (opts.init) await page.addInitScript(opts.init);
     await page.evaluate(`window.__beforeReload = true`);
     await page.send('Page.reload', { ignoreCache: false });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && ${TOP_READY}`, 15_000);
@@ -376,6 +377,15 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     await page.waitFor(`window.__cards('モード')[0].textContent.includes(${JSON.stringify(NO_RECORD)})`);
     expect((await cards(page, 'モード'))[0]!.text).not.toContain('0.85');
     noExceptions(page);
+  });
+
+  it('UI-114: 3D の描画（WebGL）が使えない環境でも、モードのカードに自己ベストの要約が出る', async () => {
+    // GPU のないヘッドレスの Chromium のように、WebGL のコンテキストが作れない状態にする。
+    const noWebGL = `(() => { const get = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (type, ...rest) { return /webgl/.test(String(type)) ? null : get.call(this, type, ...rest); }; })()`;
+    const page = await openFresh({ render: true, init: noWebGL });
+    await page.waitFor(`window.__cards('モード').every((c) => c.textContent.includes(${JSON.stringify(NO_RECORD)}))`);
+    for (const c of await cards(page, 'モード')) expect(c.text, c.text).toContain(NO_RECORD);
   });
 
   it('UI-115: パッドだけでモードの並びにフォーカスを移すと並び全体を囲む枠が出て、右で 1 枚ずつ移って最後で止まり、下で次の項目に移る', async () => {
