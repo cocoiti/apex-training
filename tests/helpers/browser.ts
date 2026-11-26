@@ -3,7 +3,7 @@
 // Chromium は環境変数 CHROMIUM_PATH か、~/Library/Caches/ms-playwright（Linux は ~/.cache/ms-playwright）から探す。
 // ポインターロックが使えるよう、chrome-headless-shell より通常の Chromium（Chrome for Testing）を先に選ぶ。
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { homedir, tmpdir } from 'node:os';
 import { extname, join, normalize } from 'node:path';
@@ -270,10 +270,18 @@ export interface Browser {
 
 /**
  * ヘッドレスの Chromium を起動する。DevTools のポートは Chromium に空いているものを選ばせ（--remote-debugging-port=0）、
- * プロファイルの DevToolsActivePort から読む（ARC-18, ARC-19）。プロファイルは起動ごとに一時ディレクトリに作る。
+ * プロファイルの DevToolsActivePort から読む（ARC-18, ARC-19）。
+ * プロファイルと Chromium の一時ディレクトリ（TMPDIR）は、起動ごとに作る 1 つの一時ディレクトリの下に分けて置き、
+ * 閉じるときにまとめて消す。並行に流すほかのファイルの Chromium と取り合わず、終わったあとに残さない（ARC-34）。
  */
 export async function launchBrowser(executable: string): Promise<Browser> {
-  const profile = mkdtempSync(join(tmpdir(), 'acceptance-chromium-'));
+  const root = mkdtempSync(join(tmpdir(), 'acceptance-chromium-'));
+  const profile = join(root, 'profile');
+  const temp = join(root, 'tmp');
+  mkdirSync(profile);
+  mkdirSync(temp);
+  // Chromium の子のプロセスが終わり際に書いたファイルで、消す途中に ENOTEMPTY になることがあるので何度か消し直す。
+  const removeRoot = () => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   const child: ChildProcess = spawn(
     executable,
     [
@@ -292,7 +300,7 @@ export async function launchBrowser(executable: string): Promise<Browser> {
       '--disable-backgrounding-occluded-windows',
       'about:blank',
     ],
-    { stdio: 'ignore' },
+    { stdio: 'ignore', env: { ...process.env, TMPDIR: temp, TMP: temp, TEMP: temp } },
   );
   const exited = new Promise<void>((ok) => child.once('exit', () => ok()));
   let endpoint: string;
@@ -314,7 +322,7 @@ export async function launchBrowser(executable: string): Promise<Browser> {
   } catch (error) {
     child.kill();
     await exited;
-    rmSync(profile, { recursive: true, force: true });
+    removeRoot();
     throw error;
   }
   const opened: { id: string; socket: WebSocket }[] = [];
@@ -348,7 +356,7 @@ export async function launchBrowser(executable: string): Promise<Browser> {
         child.kill();
         await exited;
       }
-      rmSync(profile, { recursive: true, force: true });
+      removeRoot();
     },
   };
 }
