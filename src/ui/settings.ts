@@ -34,9 +34,7 @@ export interface CommonSettings {
   /** `#rrggbb` の色。 */
   crosshairColor: string;
   ghost: boolean;
-  /** 補正のパネル（docs/spec/screens.md「補正のパネル」）。センター維持だけが使う。反復練習では設定によらず出す。 */
-  correctionPanel: boolean;
-  /** パターンの表示。反復練習とセンター維持の補正のパネルの理想の線に使う。 */
+  /** パターンの表示。補正のパネルの理想の線に使う。補正のパネルを出すか消すかの項目はない（docs/spec/screens.md「設定項目」）。 */
   patternDisplay: PatternDisplay;
   sound: boolean;
 }
@@ -47,7 +45,6 @@ export const DEFAULT_COMMON_SETTINGS: Readonly<CommonSettings> = {
   crosshairShape: DEFAULT_CROSSHAIR.shape,
   crosshairColor: DEFAULT_CROSSHAIR.color,
   ghost: false,
-  correctionPanel: true,
   patternDisplay: 'detailed',
   sound: true,
 };
@@ -176,7 +173,10 @@ function oneOf<T extends string>(value: unknown, choices: readonly T[], fallback
   return choices.find((c) => c === value) ?? fallback;
 }
 
-/** 保存された値から共通の区分を作る。読めない項目だけを範囲に収めた値か既定値にする。 */
+/**
+ * 保存された値から共通の区分を作る。読めない項目だけを範囲に収めた値か既定値にする。
+ * 今の項目にない項目（以前の補正のパネルの `correctionPanel` など）は読み飛ばし、返す区分に入れない（docs/spec/screens.md「設定の保存と読み出し」）。
+ */
 export function sanitizeCommonSettings(record: Readonly<Record<string, unknown>>): CommonSettings {
   const d = DEFAULT_COMMON_SETTINGS;
   const color = typeof record.crosshairColor === 'string' ? normalizeColor(record.crosshairColor) : undefined;
@@ -186,7 +186,6 @@ export function sanitizeCommonSettings(record: Readonly<Record<string, unknown>>
     crosshairShape: oneOf(record.crosshairShape, CROSSHAIR_SHAPES, d.crosshairShape),
     crosshairColor: color ?? d.crosshairColor,
     ghost: booleanOr(record.ghost, d.ghost),
-    correctionPanel: booleanOr(record.correctionPanel, d.correctionPanel),
     patternDisplay: oneOf(record.patternDisplay, PATTERN_DISPLAYS, d.patternDisplay),
     sound: booleanOr(record.sound, d.sound),
   };

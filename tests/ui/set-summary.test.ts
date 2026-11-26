@@ -65,8 +65,8 @@ describe('セットのまとめ', () => {
   });
 
   it('見出しに武器・モード・入力方式と、終えた回の数と選んだ回数を出す', () => {
-    expect(setSummaryHeading('L-STAR', 'センター維持', 'mouse', summarizeSet(rounds([1, 2, 3]), 5))).toBe(
-      'L-STAR / センター維持 / マウス — 3 / 5 回',
+    expect(setSummaryHeading('L-STAR', '反復練習', 'mouse', summarizeSet(rounds([1, 2, 3]), 5))).toBe(
+      'L-STAR / 反復練習 / マウス — 3 / 5 回',
     );
   });
 

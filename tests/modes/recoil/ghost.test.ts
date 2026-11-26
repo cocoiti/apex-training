@@ -47,24 +47,31 @@ function expected(weapon: WeaponData, n: number, world: World) {
 }
 
 describe('反復練習のモード', () => {
-  it('登録されたモードに入り、センター維持の前に並ぶ', () => {
+  it('登録されたモードの最初に並ぶ', () => {
     const ids = modes.map((m) => m.id);
     expect(ids.indexOf('ghost')).toBe(0);
-    expect(ids.indexOf('ghost')).toBeLessThan(ids.indexOf('center'));
     expect(ghostMode.name).toBe('反復練習');
   });
 
-  it('補正のパネルは反復練習では必ず出し、センター維持では設定で出す（MODE-24）', () => {
+  it('補正のパネルは反復練習では設定によらず必ず出す（MODE-24）', () => {
     expect(ghostMode.correctionPanel).toBe('always');
-    expect(modes.find((m) => m.id === 'center')?.correctionPanel).toBe('setting');
   });
 
-  it('ほかのモードはゴーストを持たない', () => {
-    expect(modes.find((m) => m.id === 'center')?.ghost).toBeUndefined();
+  it('ゴーストを持たないモードでは、セッションのゴーストがない', () => {
+    const withoutGhost: TrainingMode = {
+      id: 'plain',
+      name: 'ゴーストなし',
+      category: 'recoil',
+      order: 0,
+      setup() {},
+      step: () => true,
+      result: () => ({}),
+      teardown() {},
+    };
     const s = new PracticeSession({
       world: wallWorld(),
       weapon: makeWeapon(),
-      mode: modes.find((m) => m.id === 'center') as TrainingMode,
+      mode: withoutGhost,
       input: inputFromTimedActions([]),
       seed: 1,
     });

@@ -40,7 +40,6 @@ const chromium = findChromium();
 const settle = (page: Page, frames: number) => page.advanceClock(frames / 60);
 
 const GHOST = '反復練習';
-const CENTER = 'センター維持';
 const DETAILED = '詳細';
 const SIMPLE = '簡易';
 type Display = typeof DETAILED | typeof SIMPLE;
@@ -197,7 +196,6 @@ async function setCheck(page: Page, id: string, on: boolean) {
 interface Opts {
   input?: '自動' | 'マウス' | 'パッド';
   ghost?: boolean;
-  panel?: boolean;
   display?: Display;
 }
 async function configure(page: Page, opts: Opts) {
@@ -205,7 +203,6 @@ async function configure(page: Page, opts: Opts) {
   await page.waitFor(`window.__vis('[data-screen="settings"]')`);
   if (opts.input) await choose(page, '#setting-input-method', opts.input);
   if (opts.ghost !== undefined) await setCheck(page, 'setting-ghost', opts.ghost);
-  if (opts.panel !== undefined) await setCheck(page, 'setting-correction-panel', opts.panel);
   if (opts.display) await choose(page, '#setting-pattern-display', opts.display);
   await settle(page, 3);
   await page.evaluate(`location.hash = '#/'`);
@@ -390,7 +387,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
         const c = (id) => document.getElementById(id).checked;
         const t = (id) => document.getElementById(id).selectedOptions[0].textContent.trim();
         return { input: t('setting-input-method'), fov: v('setting-fov'), color: v('setting-crosshair-color').toLowerCase(), shape: t('setting-crosshair-shape'),
-          ghost: c('setting-ghost'), panel: c('setting-correction-panel'), display: t('setting-pattern-display'), sound: c('setting-sound'),
+          ghost: c('setting-ghost'), display: t('setting-pattern-display'), sound: c('setting-sound'),
           dpi: v('setting-dpi'), sens: v('setting-sensitivity'), ads: v('setting-ads-multiplier'),
           displayLabel: document.getElementById('setting-pattern-display').closest('label')?.textContent.trim() ?? '' }; })()`);
       expect(s.display).toBe('詳細');
@@ -400,7 +397,6 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
       expect(s.color).toBe('#77ccff');
       expect(s.shape).toBe('点');
       expect(s.ghost).toBe(false);
-      expect(s.panel).toBe(true);
       expect(s.sound).toBe(true);
       expect(s.dpi).toBe('800');
       expect(Number(s.sens)).toBe(1.5);
@@ -408,7 +404,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('FOV・クロスヘアの色と形・ゴースト表示・補正のパネル・パターンの表示を変えて再読み込みすると、変えた値が残る', async () => {
+    it('FOV・クロスヘアの色と形・ゴースト表示・パターンの表示を変えて再読み込みすると、変えた値が残る', async () => {
       const page = await openFresh();
       await page.evaluate(`location.hash = '#/settings'`);
       await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
@@ -427,7 +423,6 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
           el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); })()`);
       }
       await setCheck(page, 'setting-ghost', true);
-      await setCheck(page, 'setting-correction-panel', false);
       await choose(page, '#setting-pattern-display', SIMPLE);
       await settle(page, 3);
 
@@ -436,15 +431,14 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
         page.evaluate<Record<string, string | boolean>>(`(() => ({
         fov: document.getElementById('setting-fov').value, color: document.getElementById('setting-crosshair-color').value.toLowerCase(),
         shape: document.getElementById('setting-crosshair-shape').value, ghost: document.getElementById('setting-ghost').checked,
-        panel: document.getElementById('setting-correction-panel').checked,
         display: document.getElementById('setting-pattern-display').selectedOptions[0].textContent.trim() }))()`);
-      expect(await read()).toEqual({ fov: '104', color: '#33cc66', shape: 'circle', ghost: true, panel: false, display: '簡易' });
+      expect(await read()).toEqual({ fov: '104', color: '#33cc66', shape: 'circle', ghost: true, display: '簡易' });
 
       // パターンの表示を詳細に戻して再読み込みしても、その値が残る（ほかの変えた値もそのまま）。
       await choose(page, '#setting-pattern-display', DETAILED);
       await settle(page, 3);
       await reloadSettings(page);
-      expect(await read()).toEqual({ fov: '104', color: '#33cc66', shape: 'circle', ghost: true, panel: false, display: '詳細' });
+      expect(await read()).toEqual({ fov: '104', color: '#33cc66', shape: 'circle', ghost: true, display: '詳細' });
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
   });
@@ -494,7 +488,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
 
   // -------------------------------------------------------------------------
   describe('UI-70: 簡易では次の発の点が簡易版での位置にあり、次の発を受け持つ区切りの言葉が強調される', () => {
-    for (const mode of [GHOST, CENTER]) {
+    for (const mode of [GHOST]) {
       it(`${ZIG.name}（rpm 60）・${mode}・パッド: 撃つ前・i 発撃つごと・撃ち切ったあと`, async () => {
         const w = ZIG;
         const page = await openFresh();
@@ -595,7 +589,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
       expect(simple).toEqual(detailed);
     }, 120_000);
 
-    it('L-STAR・センター維持・パッド（乱数の元を決まった値にして同じ種で始める）: 撃ち切ったときの弾痕と採点', async () => {
+    it('L-STAR・反復練習・パッド（乱数の元を決まった値にして同じ種で始める）: 撃ち切ったときの弾痕と採点', async () => {
       const fixedRandom = `
         (() => { let s = 12345; const next = () => { s = (s * 1103515245 + 12345) >>> 0; return s; };
           Math.random = () => next() / 4294967296;
@@ -605,7 +599,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
       const run = async (display: Display) => {
         const page = await openFresh(fixedRandom);
         await configure(page, { input: 'パッド', display: display });
-        await start(page, LSTAR, CENTER);
+        await start(page, LSTAR, GHOST);
         expect((await panel(page)).visible).toBe(true);
         await padFireAll(page);
         await page.advanceClockUntil(`location.hash === '#/result'`, { limit: 15 });
@@ -626,7 +620,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
   // -------------------------------------------------------------------------
   describe('UI-72: 同じ武器で詳細と簡易のパネルの表示の範囲が同じ', () => {
     for (const w of [LSTAR, CAR, ZIG, NEW]) {
-      for (const mode of [GHOST, CENTER]) {
+      for (const mode of [GHOST]) {
         it(`${w.name}・${mode}`, async () => {
           const page = await openFresh();
           await configure(page, { input: 'パッド', display: DETAILED });
@@ -697,7 +691,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネルのパターンの�
 
   // -------------------------------------------------------------------------
   describe('WPN-29: measured が true の新しい武器の JSON を足してビルドすると、コードを変えずに補正のパネルにその武器の簡易版が表示される', () => {
-    for (const mode of [GHOST, CENTER]) {
+    for (const mode of [GHOST]) {
       it(`${NEW.name}・${mode}・簡易`, async () => {
         const page = await openFresh();
         await configure(page, { input: 'パッド', display: SIMPLE });

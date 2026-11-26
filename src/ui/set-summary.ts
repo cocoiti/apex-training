@@ -41,7 +41,7 @@ export function summarizeSet(rounds: readonly RoundRecord[], count: number): Set
 
 const INPUT_LABELS: Readonly<Record<InputMethod, string>> = { mouse: 'マウス', pad: 'パッド' };
 
-/** 見出しの 1 行。武器・モード・入力方式と、終えた回の数と選んだ回数（例: 「L-STAR / センター維持 / マウス — 3 / 5 回」）。 */
+/** 見出しの 1 行。武器・モード・入力方式と、終えた回の数と選んだ回数（例: 「L-STAR / 反復練習 / マウス — 3 / 5 回」）。 */
 export function setSummaryHeading(weaponName: string, modeName: string, input: InputMethod, summary: SetSummary): string {
   return `${weaponName} / ${modeName} / ${INPUT_LABELS[input]} — ${summary.rounds.length} / ${summary.count} 回`;
 }

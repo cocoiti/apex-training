@@ -34,7 +34,6 @@ export interface SettingsFormElements {
   readonly crosshairShape: FieldElement;
   readonly crosshairColor: FieldElement;
   readonly ghost: CheckElement;
-  readonly correctionPanel: CheckElement;
   readonly patternDisplay: FieldElement;
   readonly sound: CheckElement;
   readonly dpi: FieldElement;
@@ -65,7 +64,6 @@ export function bindSettingsForm(elements: SettingsFormElements, storage: Storag
     elements.crosshairShape.value = common.crosshairShape;
     elements.crosshairColor.value = common.crosshairColor;
     elements.ghost.checked = common.ghost;
-    elements.correctionPanel.checked = common.correctionPanel;
     elements.patternDisplay.value = common.patternDisplay;
     elements.sound.checked = common.sound;
   };
@@ -108,7 +106,7 @@ export function bindSettingsForm(elements: SettingsFormElements, storage: Storag
   };
   elements.crosshairColor.addEventListener('input', saveColor);
   elements.crosshairColor.addEventListener('change', saveColor);
-  for (const key of ['ghost', 'correctionPanel', 'sound'] as const) {
+  for (const key of ['ghost', 'sound'] as const) {
     elements[key].addEventListener('change', () => showCommon(saveCommonSettings(storage, { [key]: elements[key].checked })));
   }
 

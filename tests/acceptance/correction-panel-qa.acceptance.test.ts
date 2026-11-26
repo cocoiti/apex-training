@@ -1,4 +1,4 @@
-// docs/spec/screens.md「補正のパネル」と設定（UI-55〜UI-63）、docs/spec/modes.md の MODE-24・MODE-25 の QA の受け入れテスト。
+// docs/spec/screens.md「補正のパネル」と設定（UI-55〜UI-63。UI-58・UI-61 は欠番）、docs/spec/modes.md の MODE-24・MODE-25 の QA の受け入れテスト。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（トップ・設定・プレイ・リザルト）、index.html の要素、
 // 武器とマップの JSON。画面はヘッドレスの Chromium で開く（tests/helpers/browser.ts）。
 //
@@ -8,12 +8,13 @@
 // 理想の線の点を SPEC の理想の補正軌道（weapons.md）に「原点 + 同じ縮尺 s × (ヨー, −ピッチ)」で合わせて求め、
 // その当てはまり（縦横同じ縮尺・右と上が正・原点が開始時の照準）も確かめる。
 //
-// UI-57・UI-61 は randomness 0 の武器が要るため、リポジトリの写しに受け入れテスト用の武器（randomness 0・rpm 30・装弾数 5、
-// pattern はマウスの 1 カウントの角度の整数倍）を足してビルドした画面で確かめる（ghost-follow-qa と同じ方法）。
+// UI-57 は randomness 0 の武器が要るため、リポジトリの写しに受け入れテスト用の武器（randomness 0・rpm 30・装弾数 5、
+// pattern はマウスの 1 カウントの角度の整数倍）と、ゴーストを出さない受け入れテスト用のモード（QA-ゴーストなし）を足して
+// ビルドした画面で確かめる（ghost-follow-qa と同じ方法）。
 // 照準はポインターロック中のマウスの移動（DevTools の mouseMoved の座標の差が movementX / movementY になる）で動かす。
 // パッドは Gamepad API（navigator.getGamepads）の形で与え、R2 で撃つ。ゴーストはキャンバスだけの画面写しを、
-// ゴーストを出さないセンター維持の、HTML を隠したキャンバスだけの画面写しと比べて見つける（違う画素がなければゴーストは出ていない）。
-// 補正のパネルは、反復練習では設定によらず必ず、センター維持では設定の補正のパネルが ON（既定）のとき出す。
+// ゴーストを出さない受け入れテスト用のモードの、HTML を隠したキャンバスだけの画面写しと比べて見つける（違う画素がなければゴーストは出ていない）。
+// 補正のパネルは、反復練習では設定によらず必ず出す（パネルを消す設定の項目はない）。
 // ゴースト表示（3D の中のゴースト）の既定は OFF。
 // 画面は clock=manual で開き、練習の時間（撃つ・離して待つ・短いリザルト）はページの時計を進めて決める。
 // 3D は、キャンバスの画面写しでゴーストを確かめるテストのほかは描画しない（render=off）。
@@ -40,7 +41,24 @@ const chromium = findChromium();
 const settle = (page: Page, frames: number) => page.advanceClock(frames / 60);
 
 const GHOST = '反復練習';
-const CENTER = 'センター維持';
+/** ゴーストもパネルも出さない受け入れテスト用のモード。写しのビルドにだけ足す。ゴーストを見つける対照に使う。 */
+const PLAIN = 'QA-ゴーストなし';
+const PLAIN_MODE = `const plain = {
+  id: 'qa-plain',
+  name: '${PLAIN}',
+  category: 'recoil',
+  order: 90,
+  setup() {},
+  step() {
+    return true;
+  },
+  result() {
+    return {};
+  },
+  teardown() {},
+};
+export default plain;
+`;
 
 /** SPEC の値（実装の定数には依存しない）。 */
 const DEG_PER_COUNT = 1.5 * 0.022; // 既定の感度 1.5 での 1 カウントの角度（mouse.md）
@@ -239,13 +257,12 @@ async function setCheck(page: Page, id: string, on: boolean) {
   await page.waitFor(`document.getElementById(${JSON.stringify(id)}).checked === ${on}`);
 }
 
-/** 設定画面で入力方式・ゴースト表示・補正のパネルを選び、トップ画面に戻る。 */
-async function configure(page: Page, opts: { input?: '自動' | 'マウス' | 'パッド'; ghost?: boolean; panel?: boolean }) {
+/** 設定画面で入力方式・ゴースト表示を選び、トップ画面に戻る。 */
+async function configure(page: Page, opts: { input?: '自動' | 'マウス' | 'パッド'; ghost?: boolean }) {
   await page.evaluate(`location.hash = '#/settings'`);
   await page.waitFor(`window.__vis('[data-screen="settings"]')`);
   if (opts.input) await choose(page, '#setting-input-method', opts.input);
   if (opts.ghost !== undefined) await setCheck(page, 'setting-ghost', opts.ghost);
-  if (opts.panel !== undefined) await setCheck(page, 'setting-correction-panel', opts.panel);
   await settle(page, 3);
   await page.evaluate(`location.hash = '#/'`);
   await page.waitFor(`window.__vis('[data-screen="top"]')`);
@@ -418,13 +435,14 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
   beforeAll(async () => {
     const work = mkdtempSync(join(tmpdir(), 'correction-panel-qa-'));
     temps.push(work);
-    // リポジトリの写しに randomness 0 の武器を足してビルドする（ほかの武器はそのまま入る）。
+    // リポジトリの写しに randomness 0 の武器とゴーストを出さないモードを足してビルドする（ほかの武器とモードはそのまま入る）。
     const repo = join(work, 'copy');
     for (const entry of ['src', 'index.html', 'package.json', 'tsconfig.json', 'vite.config.ts', 'eslint.config.js', 'scripts', 'public']) {
       if (existsSync(join(ROOT, entry))) cpSync(join(ROOT, entry), join(repo, entry), { recursive: true });
     }
     symlinkSync(join(ROOT, 'node_modules'), join(repo, 'node_modules'), 'dir');
     writeFileSync(join(repo, 'src/data/weapons/qa-panel-zero.json'), JSON.stringify(ZERO_WEAPON, null, 2));
+    writeFileSync(join(repo, 'src/modes/recoil/qa-plain.ts'), PLAIN_MODE);
     const dist = join(work, 'dist');
     const r = spawnSync(`npm run build -- --outDir "${dist}" --emptyOutDir`, {
       cwd: repo,
@@ -451,7 +469,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
 
   // -------------------------------------------------------------------------
   describe('補正のパネルの設定の保存と既定値（設定画面の受け入れ条件は settings-qa が確かめる）', () => {
-    it('設定を一度も変えずに設定画面を開くと、ゴースト表示は OFF、補正のパネルは ON を含む既定値が表示される', async () => {
+    it('設定を一度も変えずに設定画面を開くと、ゴースト表示は OFF を含む既定値が表示され、補正のパネルを消す項目はない', async () => {
       const page = await openFresh();
       await page.evaluate(`location.hash = '#/settings'`);
       await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
@@ -460,19 +478,19 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
         const c = (id) => document.getElementById(id).checked;
         return { input: document.getElementById('setting-input-method').selectedOptions[0].textContent.trim(), fov: v('setting-fov'),
           color: v('setting-crosshair-color').toLowerCase(), shape: document.getElementById('setting-crosshair-shape').selectedOptions[0].textContent.trim(),
-          ghost: c('setting-ghost'), panel: c('setting-correction-panel'), sound: c('setting-sound'),
+          ghost: c('setting-ghost'), sound: c('setting-sound'),
           dpi: v('setting-dpi'), sens: v('setting-sensitivity'), ads: v('setting-ads-multiplier'),
           ghostLabel: document.getElementById('setting-ghost').closest('label')?.textContent.trim() ?? '',
-          panelLabel: document.getElementById('setting-correction-panel').closest('label')?.textContent.trim() ?? '' }; })()`);
+          panelChecks: [...document.querySelectorAll('#settings-form input[type="checkbox"]')]
+            .filter((i) => (i.closest('label')?.textContent ?? '').includes('補正のパネル')).length }; })()`);
       expect(s.input).toBe('自動');
       expect(s.fov).toBe('90');
       expect(s.shape).toBe('点');
       expect(s.color).toBe('#77ccff');
       expect(s.ghost, 'ゴースト表示は OFF').toBe(false);
-      expect(s.panel, '補正のパネルは ON').toBe(true);
-      // 項目に使うモードを添えて表示する（screens.md「設定画面」）。
+      // 項目に使うモードを添えて表示する（screens.md「設定画面」）。補正のパネルを出すか消すかの項目はない。
       expect(s.ghostLabel).toContain('ゴースト表示（反復練習の 3D）');
-      expect(s.panelLabel).toContain('補正のパネル（センター維持）');
+      expect(s.panelChecks, '補正のパネルの ON/OFF の項目がある').toBe(0);
       expect(s.sound).toBe(true);
       expect(s.dpi).toBe('800');
       expect(Number(s.sens)).toBe(1.5);
@@ -480,7 +498,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('FOV・クロスヘアの色と形・ゴースト表示・補正のパネルを既定と違う値に変えて再読み込みすると、変えた値が残る', async () => {
+    it('FOV・クロスヘアの色と形・ゴースト表示を既定と違う値に変えて再読み込みすると、変えた値が残る', async () => {
       const page = await openFresh();
       await page.evaluate(`location.hash = '#/settings'`);
       await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
@@ -499,30 +517,23 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
         await page.evaluate(`(() => { const el = document.getElementById(${JSON.stringify(id)}); el.value = ${JSON.stringify(value)};
           el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); })()`);
       }
-      // 既定と違う値: ゴースト表示は ON（既定は OFF）、補正のパネルは OFF（既定は ON）。
+      // 既定と違う値: ゴースト表示は ON（既定は OFF）。
       await setCheck(page, 'setting-ghost', true);
-      await setCheck(page, 'setting-correction-panel', false);
 
       await reloadSettings(page);
       const s = await page.evaluate<Record<string, string | boolean>>(`(() => ({
         fov: document.getElementById('setting-fov').value, color: document.getElementById('setting-crosshair-color').value.toLowerCase(),
         shape: document.getElementById('setting-crosshair-shape').value, ghost: document.getElementById('setting-ghost').checked,
-        panel: document.getElementById('setting-correction-panel').checked, sound: document.getElementById('setting-sound').checked }))()`);
-      expect(s).toEqual({ fov: '104', color: '#33cc66', shape: 'circle', ghost: true, panel: false, sound: true });
-
-      // 補正のパネルだけを ON に戻して再読み込みしても、その値が残る（ほかの変えた値もそのまま）。
-      await setCheck(page, 'setting-correction-panel', true);
-      await reloadSettings(page);
-      expect(await page.evaluate<boolean>(`document.getElementById('setting-correction-panel').checked`)).toBe(true);
-      expect(await page.evaluate<boolean>(`document.getElementById('setting-ghost').checked`)).toBe(true);
+        sound: document.getElementById('setting-sound').checked }))()`);
+      expect(s).toEqual({ fov: '104', color: '#33cc66', shape: 'circle', ghost: true, sound: true });
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
   });
 
   // -------------------------------------------------------------------------
   describe('UI-55: 撃つ前から理想の線と次の発の点が表示され、1 発ごとに次の発の点が次の発へ進む', () => {
-    // センター維持は設定を変えずに（補正のパネルは既定の ON）、反復練習は設定によらず出る。入力方式だけをパッドにする。
-    for (const mode of [CENTER, GHOST]) {
+    // 反復練習は設定によらず出る。入力方式だけをパッドにする。
+    for (const mode of [GHOST]) {
       it(`L-STAR（${mode}・パッド）: 撃つ前の理想の線と 1 発目の点、右端・大きさ・凡例、撃っている間の次の発の点`, async () => {
         const w = byId('lstar');
         const page = await openFresh();
@@ -584,7 +595,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
       }, 90_000);
     }
 
-    for (const mode of [CENTER, GHOST]) {
+    for (const mode of [GHOST]) {
       it(`${ZERO_WEAPON.name}（rpm 30・${mode}）: i 発目を撃ったあと、次の発の点が i+1 発目の理想の補正軌道の位置に進む`, async () => {
         const w = ZERO_WEAPON;
         const page = await openFresh();
@@ -614,7 +625,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
     const w = byId('lstar');
     const page = await openFresh();
     await configure(page, { input: 'パッド' });
-    await start(page, w, CENTER);
+    await start(page, w, GHOST);
     await padFire(page, 5);
     await settle(page, 3);
     const p = await panel(page);
@@ -640,7 +651,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
     const w = ZERO_WEAPON;
     const page = await openFresh();
     await configure(page, { input: 'マウス' });
-    await start(page, w, CENTER);
+    await start(page, w, GHOST);
     const mouse = new Mouse(page);
     await mouse.lock();
     expect(await ammo(page), 'ポインターロックのクリックで撃った').toBe(w.magSize);
@@ -676,42 +687,13 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
   }, 90_000);
 
   // -------------------------------------------------------------------------
-  describe('UI-58: 補正のパネルを OFF にすると、マウスとパッドのどちらでもセンター維持の練習中に表示されず、反復練習では表示される', () => {
+  describe('UI-59: マウスとパッドのそれぞれで、反復練習を練習するとパネルが表示され、入力方式が変わっても表示され続ける', () => {
     for (const input of ['mouse', 'pad'] as const) {
-      it(`${input === 'mouse' ? 'マウス' : 'パッド'}・${CENTER}: 表示されない`, async () => {
-        const w = byId('lstar');
-        const page = await openFresh();
-        await configure(page, { input: input === 'mouse' ? 'マウス' : 'パッド', panel: false });
-        await start(page, w, CENTER);
-        const r = await sampleWhilePractising(page, input, w);
-        expect(r.fired, '撃てている').toBeGreaterThan(0);
-        expect(r.hashes).toEqual(['#/play']);
-        expect(r.seen.some(Boolean), 'パネルが表示された').toBe(false);
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      }, 60_000);
-
-      it(`${input === 'mouse' ? 'マウス' : 'パッド'}・${GHOST}: 同じ設定でも表示される`, async () => {
-        const w = byId('lstar');
-        const page = await openFresh();
-        await configure(page, { input: input === 'mouse' ? 'マウス' : 'パッド', panel: false });
-        await start(page, w, GHOST);
-        const r = await sampleWhilePractising(page, input, w);
-        expect(r.fired, '撃てている').toBeGreaterThan(0);
-        expect(r.hashes).toEqual(['#/play']);
-        expect(r.seen.every(Boolean), `パネルが表示されないときがあった: ${r.seen.join(',')}`).toBe(true);
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      }, 60_000);
-    }
-  });
-
-  // -------------------------------------------------------------------------
-  describe('UI-59: マウスとパッドのそれぞれで、反復練習と（補正のパネルが ON の）センター維持を練習するとパネルが表示され、入力方式が変わっても表示され続ける', () => {
-    for (const input of ['mouse', 'pad'] as const) {
-      for (const mode of [GHOST, CENTER]) {
+      for (const mode of [GHOST]) {
         it(`${input === 'mouse' ? 'マウス' : 'パッド'}・${mode}`, async () => {
           const w = byId('lstar');
           const page = await openFresh();
-          await configure(page, { input: input === 'mouse' ? 'マウス' : 'パッド', panel: true });
+          await configure(page, { input: input === 'mouse' ? 'マウス' : 'パッド' });
           await start(page, w, mode);
           const r = await sampleWhilePractising(page, input, w);
           expect(r.fired, '撃てている').toBeGreaterThan(0);
@@ -722,11 +704,11 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
       }
     }
 
-    for (const mode of [CENTER, GHOST]) {
+    for (const mode of [GHOST]) {
       it(`入力方式「自動」で、マウスで撃ってからパッドで撃つと、入力方式の表示が変わってもパネルが表示され続ける（${mode}）`, async () => {
         const w = byId('lstar');
         const page = await openFresh();
-        await configure(page, { input: '自動', panel: true });
+        await configure(page, { input: '自動' });
         await start(page, w, mode);
         const seen: boolean[] = [];
         const inputs: string[] = [];
@@ -761,11 +743,11 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
 
   // -------------------------------------------------------------------------
   describe('UI-60: リザルト画面と短いリザルトの表示中は表示されず、やり直しで自分の線が消えて次の発の点が 1 発目に戻る', () => {
-    for (const mode of [CENTER, GHOST]) {
+    for (const mode of [GHOST]) {
       it(`撃ち切ってリザルト画面に移ると、パネルは表示されない（${mode}）`, async () => {
         const w = byId('lstar');
         const page = await openFresh();
-        await configure(page, { input: 'パッド', panel: true });
+        await configure(page, { input: 'パッド' });
         await start(page, w, mode);
         expect(await panelVisible(page)).toBe(true);
         await padFireAll(page);
@@ -778,11 +760,11 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
       }, 60_000);
     }
 
-    for (const mode of [CENTER, GHOST]) {
+    for (const mode of [GHOST]) {
       it(`連続練習の短いリザルトの表示中は表示されず、次の回で自分の線が消えて次の発の点が 1 発目に戻る（${mode}）`, async () => {
         const w = byId('lstar');
         const page = await openFresh();
-        await configure(page, { input: 'パッド', panel: true });
+        await configure(page, { input: 'パッド' });
         await start(page, w, mode, 5);
         await padFireAll(page);
         await page.advanceClockUntil('window.__interlude()', { limit: 5 });
@@ -806,11 +788,11 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
       }, 60_000);
     }
 
-    for (const mode of [CENTER, GHOST]) {
+    for (const mode of [GHOST]) {
       it(`やり直し（R）で練習を始め直すと、自分の線が消え、次の発の点が 1 発目の位置に戻る（${mode}）`, async () => {
         const w = byId('lstar');
         const page = await openFresh();
-        await configure(page, { input: 'パッド', panel: true });
+        await configure(page, { input: 'パッド' });
         await start(page, w, mode);
         // 5 発撃ち（次の発の点は 6 発目）、離してからやり直す。
         await padFire(page, 5);
@@ -833,98 +815,15 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
   });
 
   // -------------------------------------------------------------------------
-  describe('UI-61: 同じ入力を補正のパネルが ON と OFF で与えると、弾痕の位置と採点結果が一致する', () => {
-    /** リザルト画面の弾痕（散布図・軌道）と採点結果の表示。 */
-    const resultOf = (page: Page) =>
-      page.evaluate<{ summary: string; metrics: string; comments: string; plots: string }>(`(() => ({
-        summary: document.getElementById('result-summary')?.innerText ?? '',
-        metrics: document.getElementById('result-metrics')?.innerText ?? '',
-        comments: document.getElementById('result-comments')?.innerText ?? '',
-        plots: document.getElementById('result-plots')?.innerHTML ?? '' }))()`);
-
-    it(`${ZERO_WEAPON.name}・センター維持・マウス: 同じ照準の動かし方と撃ち方`, async () => {
-      const w = ZERO_WEAPON;
-      const moves: Pt[] = [
-        [4, 12],
-        [-7, 20],
-        [11, 15],
-        [-3, 25],
-        [6, 9],
-      ];
-      const run = async (on: boolean) => {
-        const page = await openFresh();
-        await configure(page, { input: 'マウス', panel: on });
-        await start(page, w, CENTER);
-        expect(await panelVisible(page)).toBe(on);
-        const mouse = new Mouse(page);
-        await mouse.lock();
-        await mouse.move(...moves[0]!);
-        await settle(page, 4);
-        await mouse.press();
-        for (let i = 1; i < w.magSize; i += 1) {
-          await page.advanceClockUntil(`window.__ammo() === ${w.magSize - i}`, { limit: 10 });
-          await mouse.move(...moves[i]!);
-          await settle(page, 4);
-          expect(await ammo(page)).toBe(w.magSize - i);
-        }
-        await untilResult(page);
-        await mouse.release();
-        await page.waitFor(`document.getElementById('result-metrics').innerText.trim().length > 0`);
-        await settle(page, 3);
-        const r = await resultOf(page);
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-        await page.send('Page.close').catch(() => undefined);
-        opened = opened.filter((x) => x !== page);
-        return r;
-      };
-      const on = await run(true);
-      const off = await run(false);
-      expect(on.metrics.length).toBeGreaterThan(0);
-      expect(on).toEqual(off);
-    }, 90_000);
-
-    // 反復練習では設定によらずパネルを出すので、設定でパネルの有無が変わるセンター維持で比べる。
-    it('L-STAR・センター維持・パッド（乱数の元を決まった値にして同じ種で始める）: 撃ち切ったときの弾痕と採点', async () => {
-      const w = byId('lstar');
-      // 練習の種がページの乱数の元から決まるとき、両方の練習が同じ種になるよう、乱数の元を決まった列にする。
-      const fixedRandom = `
-        (() => { let s = 12345; const next = () => { s = (s * 1103515245 + 12345) >>> 0; return s; };
-          Math.random = () => next() / 4294967296;
-          const orig = crypto.getRandomValues.bind(crypto);
-          crypto.getRandomValues = (a) => { if (a && typeof a.length === 'number') { for (let i = 0; i < a.length; i += 1) a[i] = next() & 0xffffffff; return a; } return orig(a); };
-        })();`;
-      const run = async (on: boolean) => {
-        const page = await openFresh(fixedRandom);
-        await configure(page, { input: 'パッド', panel: on });
-        await start(page, w, CENTER);
-        expect(await panelVisible(page)).toBe(on);
-        await padFireAll(page);
-        await untilResult(page);
-        await page.waitFor(`document.getElementById('result-metrics').innerText.trim().length > 0`, 15_000);
-        await settle(page, 3);
-        const r = await resultOf(page);
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-        await page.send('Page.close').catch(() => undefined);
-        opened = opened.filter((x) => x !== page);
-        return r;
-      };
-      const on = await run(true);
-      const off = await run(false);
-      expect(on.metrics.length).toBeGreaterThan(0);
-      expect(on).toEqual(off);
-    }, 90_000);
-  });
-
-  // -------------------------------------------------------------------------
-  /** センター維持（ゴーストを出さない。パネルは HTML なので写さない）で始めた直後のキャンバス。ゴーストを見つける対照。 */
-  let centerBase: Image | undefined;
+  /** 受け入れテスト用のゴーストを出さないモード（パネルは HTML なので写さない）で始めた直後のキャンバス。ゴーストを見つける対照。 */
+  let plainBase: Image | undefined;
   const baseline = async () => {
-    if (centerBase) return centerBase;
+    if (plainBase) return plainBase;
     const page = await openFresh('', { render: true });
     await configure(page, { input: 'マウス' });
-    await start(page, byId('lstar'), CENTER);
-    centerBase = await canvasOnly(page);
-    return centerBase;
+    await start(page, byId('lstar'), PLAIN);
+    plainBase = await canvasOnly(page);
+    return plainBase;
   };
 
   /** パネルの要素の画面上の箱が、HUD・画面の操作・パッドのガイドの箱と重なるか。見えている要素だけを比べる。 */
@@ -941,56 +840,54 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
       return out; })()`);
 
   // -------------------------------------------------------------------------
-  describe('MODE-24: 反復練習では設定の補正のパネルが ON でも OFF でもパネルが表示され、ゴースト表示を ON にするとゴースト（パッドのときはガイド）と同時に表示される', () => {
-    for (const on of [true, false]) {
-      it(`反復練習・マウス・補正のパネル ${on ? 'ON' : 'OFF'}・ゴースト表示 ON: パネルとゴーストが同時に表示される`, async () => {
-        const base = await baseline();
-        const page = await openFresh('', { render: true });
-        await configure(page, { input: 'マウス', ghost: true, panel: on });
-        await start(page, byId('lstar'), GHOST);
-        const p = await panel(page);
-        expect(p.visible).toBe(true);
-        expect(p.ideal.length).toBe(byId('lstar').magSize + 1);
-        expect(p.current?.visible).toBe(true);
-        const ghostPixels = changedPixels(base, await canvasOnly(page));
-        expect(await panelVisible(page), 'ゴーストを写したあともパネルが表示されている').toBe(true);
-        expect(ghostPixels, 'ゴーストが表示されていない').toBeGreaterThan(0);
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      }, 60_000);
+  describe('MODE-24: 反復練習では設定によらずパネルが表示され、ゴースト表示を ON にするとゴースト（パッドのときはガイド）と同時に表示される', () => {
+    it('反復練習・マウス・ゴースト表示 ON: パネルとゴーストが同時に表示される', async () => {
+      const base = await baseline();
+      const page = await openFresh('', { render: true });
+      await configure(page, { input: 'マウス', ghost: true });
+      await start(page, byId('lstar'), GHOST);
+      const p = await panel(page);
+      expect(p.visible).toBe(true);
+      expect(p.ideal.length).toBe(byId('lstar').magSize + 1);
+      expect(p.current?.visible).toBe(true);
+      const ghostPixels = changedPixels(base, await canvasOnly(page));
+      expect(await panelVisible(page), 'ゴーストを写したあともパネルが表示されている').toBe(true);
+      expect(ghostPixels, 'ゴーストが表示されていない').toBeGreaterThan(0);
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 60_000);
 
-      it(`反復練習・パッド・補正のパネル ${on ? 'ON' : 'OFF'}・ゴースト表示 ON: パネルとゴーストとスティック型のガイドが同時に表示される`, async () => {
-        const base = await baseline();
-        const page = await openFresh('', { render: true });
-        await configure(page, { input: 'パッド', ghost: true, panel: on });
-        await start(page, byId('lstar'), GHOST);
-        await page.waitFor(`window.__vis('.pad-guide')`, 3000);
-        expect(await panelVisible(page)).toBe(true);
-        const ghostPixels = changedPixels(base, await canvasOnly(page));
-        expect(ghostPixels, 'ゴーストが表示されていない').toBeGreaterThan(0);
-        expect(await panelVisible(page)).toBe(true);
-        expect(await page.evaluate<boolean>(`window.__vis('.pad-guide')`)).toBe(true);
-        // パネルとガイドは重ならない。
-        expect((await overlaps(page)).filter((o) => o.startsWith('.pad-guide')), 'パネルとガイドが重なる').toEqual([]);
-        // 撃っている間も 3 つとも表示される。
-        await page.evaluate('window.__btn(7, true)');
-        await page.advanceClockUntil(`window.__ammo() <= ${byId('lstar').magSize - 3}`, { limit: 5 });
-        expect(await panelVisible(page)).toBe(true);
-        expect(await page.evaluate<boolean>(`window.__vis('.pad-guide')`)).toBe(true);
-        await page.evaluate('window.__btn(7, false)');
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      }, 60_000);
-    }
+    it('反復練習・パッド・ゴースト表示 ON: パネルとゴーストとスティック型のガイドが同時に表示される', async () => {
+      const base = await baseline();
+      const page = await openFresh('', { render: true });
+      await configure(page, { input: 'パッド', ghost: true });
+      await start(page, byId('lstar'), GHOST);
+      await page.waitFor(`window.__vis('.pad-guide')`, 3000);
+      expect(await panelVisible(page)).toBe(true);
+      const ghostPixels = changedPixels(base, await canvasOnly(page));
+      expect(ghostPixels, 'ゴーストが表示されていない').toBeGreaterThan(0);
+      expect(await panelVisible(page)).toBe(true);
+      expect(await page.evaluate<boolean>(`window.__vis('.pad-guide')`)).toBe(true);
+      // パネルとガイドは重ならない。
+      expect((await overlaps(page)).filter((o) => o.startsWith('.pad-guide')), 'パネルとガイドが重なる').toEqual([]);
+      // 撃っている間も 3 つとも表示される。
+      await page.evaluate('window.__btn(7, true)');
+      await page.advanceClockUntil(`window.__ammo() <= ${byId('lstar').magSize - 3}`, { limit: 5 });
+      expect(await panelVisible(page)).toBe(true);
+      expect(await page.evaluate<boolean>(`window.__vis('.pad-guide')`)).toBe(true);
+      await page.evaluate('window.__btn(7, false)');
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 60_000);
   });
 
   // -------------------------------------------------------------------------
   describe('MODE-25: 設定を一度も変えずに反復練習を始めると、3D の中にゴーストは表示されず、補正のパネルが表示され、パッドのときはスティック型のガイドも表示される', () => {
-    it('L-STAR: 撃つ前のキャンバスがセンター維持と同じ（ゴーストがない）で、パネルが表示される', async () => {
+    it('L-STAR: 撃つ前のキャンバスがゴーストを出さないモードと同じ（ゴーストがない）で、パネルが表示される', async () => {
       const page = await openFresh('', { render: true });
-      await start(page, byId('lstar'), CENTER);
-      const center = await canvasOnly(page);
+      await start(page, byId('lstar'), PLAIN);
+      const plain = await canvasOnly(page);
       await start(page, byId('lstar'), GHOST);
       expect(await panelVisible(page), 'パネルが表示されない').toBe(true);
-      expect(changedPixels(center, await canvasOnly(page)), 'センター維持と違う画素がある（ゴーストが表示された）').toBe(0);
+      expect(changedPixels(plain, await canvasOnly(page)), 'ゴーストを出さないモードと違う画素がある（ゴーストが表示された）').toBe(0);
       expect(await panelVisible(page)).toBe(true);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
@@ -1012,16 +909,16 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
         return { state, img };
       };
       const page = await openFresh('', { render: true });
-      const center = await afterOneShot(page, CENTER);
+      const plain = await afterOneShot(page, PLAIN);
       const ghost = await afterOneShot(page, GHOST);
       expect(ghost.state.hash).toBe('#/play');
       expect(ghost.state.ammo, '1 発撃った').toBe(w.magSize - 1);
       expect(ghost.state.input, '入力方式がパッドになった').toContain('パッド');
       expect(ghost.state.guide, 'スティック型のガイドが表示されない').toBe(true);
       expect(ghost.state.panel, 'パネルが表示されない').toBe(true);
-      expect(center.state.ammo).toBe(w.magSize - 1);
-      // 同じ撃ち方のセンター維持（ゴーストを出さない）と同じキャンバス。
-      expect(changedPixels(center.img, ghost.img), 'センター維持と違う画素がある（ゴーストが表示された）').toBe(0);
+      expect(plain.state.ammo).toBe(w.magSize - 1);
+      // 同じ撃ち方のゴーストを出さないモードと同じキャンバス。
+      expect(changedPixels(plain.img, ghost.img), 'ゴーストを出さないモードと違う画素がある（ゴーストが表示された）').toBe(0);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
   });

@@ -29,7 +29,6 @@ const APP = { render: false, manualClock: true };
 
 const PAD_NAME = 'acceptance pad (STANDARD GAMEPAD)';
 const GHOST = '反復練習';
-const CENTER = 'センター維持';
 
 /** SPEC のパッドの詳細設定の既定値（pad.md の表）。 */
 const DEFAULT = { deadzone: 0.1, outer: 0.02, curve: 2, yaw: 300, pitch: 260, adsYaw: 90, adsPitch: 78 };
@@ -322,19 +321,6 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
       }, 60_000);
     }
 
-    for (const [mode, ghost] of [[CENTER, true], [CENTER, false]] as const) {
-      it(`${mode}のとき（パッド・ゴースト表示 ${ghost ? 'ON' : 'OFF'}）`, async () => {
-        const page = await openFresh();
-        await configure(page, { input: 'パッド', ghost });
-        const w = byId('lstar');
-        await start(page, w, mode);
-        const { seen, ammo: left } = await neverShownWhileFiring(page, w);
-        expect(left, 'パッドで撃てている').toBeLessThan(w.magSize);
-        expect(seen.some(Boolean)).toBe(false);
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      }, 60_000);
-    }
-
     it('入力方式が「自動」でパッドで練習中にマウスを操作したとき、ガイドが消える（ゴースト表示は既定の OFF）', async () => {
       const page = await openFresh();
       await configure(page, { input: '自動' });
@@ -360,7 +346,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
 
   // -------------------------------------------------------------------------
   describe('PAD-19: リザルト画面の右スティックの入力推移のグラフ', () => {
-    for (const mode of [GHOST, CENTER]) {
+    for (const mode of [GHOST]) {
       it(`パッドで${mode}を練習して終えたとき、左右と上下のグラフ（自分と理想）と、使ったパッドの名前が表示される`, async () => {
         const page = await openFresh();
         await configure(page, { input: 'パッド', ghost: true });
@@ -385,11 +371,11 @@ describe.skipIf(NESTED || !chromium)('QA: パッド向けのガイドとリザ�
       }, 60_000);
     }
 
-    it('マウスで練習して終えたときは表示されない（センター維持）', async () => {
+    it('マウスで練習して終えたときは表示されない（反復練習）', async () => {
       const page = await openFresh();
       await configure(page, { input: 'マウス', ghost: true });
       const w = byId('lstar');
-      await start(page, w, CENTER);
+      await start(page, w, GHOST);
       expect(await lock(page)).toBe(true);
       await mouseButton(page, 'mousePressed');
       await waitResult(page);

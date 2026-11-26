@@ -14,8 +14,6 @@ export interface PracticeSettingTargets {
 export interface PracticeSettings {
   /** ゴースト表示（ON/OFF）。ゴーストを表示するモードだけが使う。 */
   readonly ghost: boolean;
-  /** 補正のパネル（ON/OFF）。モードと入力方式によらず、練習中のプレイ画面に出すか（docs/spec/screens.md「補正のパネル」）。 */
-  readonly correctionPanel: boolean;
   /** パターンの表示（詳細 / 簡易）。補正のパネルの理想の線と次の発の点だけに使い、弾痕・採点・ゴースト・ガイドは変えない。 */
   readonly patternDisplay: PatternDisplay;
   /** マウスの換算に使う DPI・感度・ADS 倍率。 */
@@ -28,7 +26,7 @@ export interface PracticeSettings {
 
 /**
  * 「開始」を押した時点の保存された設定を練習に当てる（docs/spec/screens.md「設定の保存と読み出し」）。
- * FOV はカメラの視野角に、クロスヘアの色と形はプレイ画面のクロスヘアに当て、ゴースト表示・補正のパネル・パターンの表示とマウス・パッドの設定は返す。
+ * FOV はカメラの視野角に、クロスヘアの色と形はプレイ画面のクロスヘアに当て、ゴースト表示・パターンの表示とマウス・パッドの設定は返す。
  */
 export function applyPracticeSettings(storage: Pick<SafeStorage, 'get'>, targets: PracticeSettingTargets): PracticeSettings {
   const common = loadCommonSettings(storage);
@@ -37,7 +35,6 @@ export function applyPracticeSettings(storage: Pick<SafeStorage, 'get'>, targets
   const pad = loadPadSettings(storage);
   return {
     ghost: common.ghost,
-    correctionPanel: common.correctionPanel,
     patternDisplay: common.patternDisplay,
     mouse: loadMouseSettings(storage),
     pad: effectivePadSettings(pad),

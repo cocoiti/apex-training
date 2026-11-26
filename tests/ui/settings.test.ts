@@ -36,7 +36,6 @@ describe('設定の値と範囲', () => {
       crosshairShape: 'dot',
       crosshairColor: '#77ccff',
       ghost: false,
-      correctionPanel: true,
       patternDisplay: 'detailed',
       sound: true,
     });
@@ -72,7 +71,7 @@ describe('設定の値と範囲', () => {
 describe('設定の保存と読み出し', () => {
   it('UI-2・UI-11: 保存した値を読み直しても残っている', () => {
     const { storage, reopen } = memoryStorage();
-    saveCommonSettings(storage, { fov: 104, crosshairShape: 'circle', crosshairColor: '#ff0000', ghost: true, correctionPanel: false, patternDisplay: 'simple' });
+    saveCommonSettings(storage, { fov: 104, crosshairShape: 'circle', crosshairColor: '#ff0000', ghost: true, patternDisplay: 'simple' });
     saveMouseSettings(storage, { sensitivity: 2.2 });
     expect(loadCommonSettings(reopen())).toEqual({
       ...DEFAULT_COMMON_SETTINGS,
@@ -80,7 +79,6 @@ describe('設定の保存と読み出し', () => {
       crosshairShape: 'circle',
       crosshairColor: '#ff0000',
       ghost: true,
-      correctionPanel: false,
       patternDisplay: 'simple',
     });
     expect(loadMouseSettings(reopen())).toEqual({ ...DEFAULT_MOUSE_SETTINGS, sensitivity: 2.2 });
@@ -121,10 +119,21 @@ describe('設定の保存と読み出し', () => {
       crosshairShape: 'dot',
       crosshairColor: '#aabbcc',
       ghost: false,
-      correctionPanel: true,
       patternDisplay: 'detailed',
       sound: false,
     });
     expect(loadMouseSettings(storage)).toEqual({ dpi: 800, sensitivity: 3, adsMultiplier: 1 });
+  });
+
+  it('UI-75・MODE-29: 以前の補正のパネルの項目（OFF）が保存されていても読み飛ばし、ほかの項目はそのまま使う', () => {
+    const { storage, items } = memoryStorage({
+      [SETTINGS_KEYS.common]: JSON.stringify({ fov: 100, correctionPanel: false }),
+    });
+    const common = loadCommonSettings(storage);
+    expect(common).toEqual({ ...DEFAULT_COMMON_SETTINGS, fov: 100 });
+    expect(common).not.toHaveProperty('correctionPanel');
+    // 次に保存すると、今の項目だけの値になる。
+    saveCommonSettings(storage, { sound: false });
+    expect(JSON.parse(items.get(SETTINGS_KEYS.common) ?? '')).toEqual({ ...DEFAULT_COMMON_SETTINGS, fov: 100, sound: false });
   });
 });

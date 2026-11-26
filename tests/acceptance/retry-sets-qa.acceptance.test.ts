@@ -412,7 +412,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
     for (const via of ['キーボードの R', 'パッドの A'] as const) {
       it(`MODE-16: 練習中に 1 発以上撃ったあと、${via}を押すと、プレイ画面のまま同じ武器・モードで練習が始め直され、弾痕が消え、残弾が装弾数に、経過時間が 0.0 に戻る`, async () => {
         const page = await openFresh({ pad: true, render: true });
-        await start(page, LONG, 'センター維持', 1);
+        await start(page, LONG, '反復練習', 1);
         const clean = await canvasShot(page);
         await padFire(page, 4);
         await elapse(page, 700);
@@ -450,7 +450,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
         await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 10_000);
         const summary = await page.evaluate<string>(`document.querySelector('#result-summary')?.textContent ?? ''`);
         expect(summary).toContain(LONG.name);
-        expect(summary).toContain('センター維持');
+        expect(summary).toContain('反復練習');
         expect(exceptions(page), page.errors.join('\n')).toEqual([]);
       }, 90_000);
     }
@@ -460,7 +460,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
   describe('連続練習（セット）', () => {
     it('MODE-17: 回数 5 で 1 回目を撃ち切ると、プレイ画面の上に 1 回目の平均ズレとコメントの短いリザルトが表示され、3 秒後に操作なしで 2 回目が始まり、HUD に「2 / 5」と表示される', async () => {
       const page = await openFresh({ pad: true });
-      await start(page, LOW, 'センター維持', 5);
+      await start(page, LOW, '反復練習', 5);
       expect(await round(page)).toContain('1 / 5');
       await padFireAll(page);
       await page.waitFor('window.__interlude()', 5000);
@@ -492,7 +492,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
 
     it('MODE-18: 回数 5 で 5 回とも撃ち切ると、5 回目のあとにセットのまとめが表示され、5 回分の平均ズレが並ぶ', async () => {
       const page = await openFresh({ pad: true });
-      await start(page, LOW, 'センター維持', 5);
+      await start(page, LOW, '反復練習', 5);
       for (let n = 1; n <= 5; n += 1) {
         expect(await round(page)).toContain(`${n} / 5`);
         await padFireAll(page);
@@ -508,14 +508,14 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
       expect(s.rounds).toHaveLength(5);
       expect(roundValues(s)).toEqual([2, 2, 2, 2, 2]);
       expect(s.summary).toContain(LOW.name);
-      expect(s.summary).toContain('センター維持');
+      expect(s.summary).toContain('反復練習');
       expect(s.summary).toMatch(/5\s*\/\s*5/);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 90_000);
 
     it('MODE-19: 短いリザルトの表示中にキーボードの R・Space、パッドの A を押すと、3 秒を待たずに次の回が始まる', async () => {
       const page = await openFresh({ pad: true });
-      await start(page, ZERO, 'センター維持', 5);
+      await start(page, ZERO, '反復練習', 5);
       const vias = [
         ['R', () => key(page, 'r')],
         ['Space', () => key(page, 'space')],
@@ -539,7 +539,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
 
     it('MODE-20: 回数 5 で 2 回を終え、3 回目の練習中にキーボードの Q を押すと、終えた 2 回分だけが並ぶセットのまとめが表示される', async () => {
       const page = await openFresh({ pad: true });
-      await start(page, LOW, 'センター維持', 5);
+      await start(page, LOW, '反復練習', 5);
       for (let n = 1; n <= 2; n += 1) {
         await padRoundToInterlude(page);
         await key(page, 'space');
@@ -556,7 +556,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
 
     it('MODE-20: 回数 5 で 2 回目のあとの短いリザルトの表示中にパッドの B を押すと、終えた 2 回分だけが並ぶセットのまとめが表示される', async () => {
       const page = await openFresh({ pad: true });
-      await start(page, LOW, 'センター維持', 5);
+      await start(page, LOW, '反復練習', 5);
       await padRoundToInterlude(page);
       await key(page, 'space');
       await waitRoundStart(page, LOW, 2, 5);
@@ -571,7 +571,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
 
     it('MODE-21: 回数 5 のセットの 1 回目の練習中にキーボードの Q を押すと、セットのまとめは表示されず、トップ画面に戻る', async () => {
       const page = await openFresh({ pad: true });
-      await start(page, ZERO, 'センター維持', 5);
+      await start(page, ZERO, '反復練習', 5);
       await padFire(page, 2);
       await key(page, 'q');
       await page.waitFor(`window.__vis('[data-screen="top"]')`, 5000);
@@ -584,7 +584,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
 
     it('MODE-22: 回数 5 の 3 回目の練習中に R でやり直すと、回の表示は「3 / 5」のままで、撃ち切ると短いリザルトのあとに 4 回目が始まり、まとめに並ぶ回は 5 回のまま', async () => {
       const page = await openFresh({ pad: true });
-      await start(page, LONG, 'センター維持', 5);
+      await start(page, LONG, '反復練習', 5);
       for (let n = 1; n <= 2; n += 1) {
         await padRoundToInterlude(page);
         await key(page, 'space');
@@ -613,12 +613,12 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 120_000);
 
-    /** 自己ベストがない状態から、マウスで L-STAR とセンター維持の回数 count のセットを最後まで練習し、保存された自己ベストを確かめる。 */
+    /** 自己ベストがない状態から、マウスで L-STAR と反復練習の回数 count のセットを最後まで練習し、保存された自己ベストを確かめる。 */
     async function bestOfSet(count: number) {
       const page = await openFresh();
-      const KEY = 'apex-training:best:mouse:lstar:center';
+      const KEY = 'apex-training:best:mouse:lstar:ghost';
       expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(KEY)})`)).toBeNull();
-      await start(page, LSTAR, 'センター維持', count);
+      await start(page, LSTAR, '反復練習', count);
       const mouse = new Mouse(page);
       // 回ごとに補正の量を変え、平均ズレが回で違うようにする（補正なし、手前に強く引く、少しだけ引く、…）。
       const pulls = [0, 8, 3, 5, 1];
@@ -661,7 +661,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }
 
-    it('MODE-23: 自己ベストがない状態で、マウスで L-STAR とセンター維持の回数 5 のセットを最後まで練習すると、5 回のうち平均ズレが最も小さい回の平均ズレが自己ベストに保存される', async () => {
+    it('MODE-23: 自己ベストがない状態で、マウスで L-STAR と反復練習の回数 5 のセットを最後まで練習すると、5 回のうち平均ズレが最も小さい回の平均ズレが自己ベストに保存される', async () => {
       await bestOfSet(5);
     }, 150_000);
   });
@@ -670,7 +670,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
   describe('リザルト画面の操作', () => {
     it('UI-32: 回数 1 で練習を終えたリザルト画面で、キーボードの R・Space、パッドの A を押すと、同じ武器・同じモードで新しい練習が始まり、前の練習の弾痕は消えている', async () => {
       const page = await openFresh({ pad: true, render: true });
-      await start(page, ZERO, 'センター維持', 1);
+      await start(page, ZERO, '反復練習', 1);
       const clean = await canvasShot(page);
       const vias = [
         ['R', () => key(page, 'r')],
@@ -683,7 +683,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
         await page.frames(5);
         const summary = await page.evaluate<string>(`document.querySelector('#result-summary')?.textContent ?? ''`);
         expect(summary, label).toContain(ZERO.name);
-        expect(summary, label).toContain('センター維持');
+        expect(summary, label).toContain('反復練習');
         await press();
         await waitRoundStart(page, ZERO, 0, 1, 5000);
         expect(await screens(page), label).toEqual(['play']);
@@ -696,13 +696,13 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
       await page.waitFor(`location.hash === '#/result'`, 10_000);
       const summary = await page.evaluate<string>(`document.querySelector('#result-summary')?.textContent ?? ''`);
       expect(summary).toContain(ZERO.name);
-      expect(summary).toContain('センター維持');
+      expect(summary).toContain('反復練習');
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 120_000);
 
     it('UI-33: リザルト画面でパッドの B を押すと、トップ画面に戻る', async () => {
       const page = await openFresh({ pad: true });
-      await start(page, ZERO, 'センター維持', 1);
+      await start(page, ZERO, '反復練習', 1);
       await padFireAll(page);
       await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 10_000);
       await page.frames(5);
@@ -716,7 +716,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
 
     it('UI-37: リザルト画面でパッドの A を押して新しい練習が始まったあと、押し続けてもやり直されず、一度離して押し直すとやり直される', async () => {
       const page = await openFresh({ pad: true });
-      await start(page, LONG, 'センター維持', 1);
+      await start(page, LONG, '反復練習', 1);
       await padFireAll(page);
       await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
       await page.frames(5);
@@ -747,7 +747,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
       await page.evaluate(`(() => { const s = document.querySelector('#setting-input-method'); s.value = 'mouse';
         s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
       await page.frames(2);
-      await start(page, ZERO, 'センター維持', 1);
+      await start(page, ZERO, '反復練習', 1);
       const mouse = new Mouse(page);
       await mouse.lock();
       await mouse.fireAll();
@@ -763,10 +763,12 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
 
     it('UI-39: リザルト画面で武器変更を選んでトップ画面に戻ったとき、直前の練習の武器・モード・回数が選ばれている', async () => {
       const page = await openFresh({ pad: true });
-      const weapon = WEAPONS.find((w) => w.id === 'lstar')!;
-      // 開いたときに選ばれているのと違うモード（並び順の最初でないもの）を選ぶ。
-      const MODE = await page.evaluate<string>(`[...document.querySelector('#mode').options].at(-1).textContent.trim()`);
-      expect(MODE).not.toBe(await selectedText(page, '#mode'));
+      // 開いたときに選ばれているのと違う武器（一覧の最初でないもの）を選ぶ。モードは反復練習だけ。
+      const initialWeapon = await selectedText(page, '#weapon');
+      const weapon = WEAPONS.find((w) => w.measured !== false && w.name !== initialWeapon)!;
+      expect(weapon, '一覧の最初でない武器がない').toBeDefined();
+      const MODE = '反復練習';
+      expect(await selectedText(page, '#mode')).toBe(MODE);
       for (const [label, back] of [
         ['「武器変更」のボタン', () => clickButton(page, '#change-weapon')],
         ['パッドの B', () => padTap(page, 1)],
@@ -809,7 +811,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
       const SENS = 0.2;
       await setSetting(page, 'setting-sensitivity', String(SENS));
       const targets = [1.0, 0.8, 1.2, 0.6, 0.9];
-      await start(page, ZERO, 'センター維持', 5);
+      await start(page, ZERO, '反復練習', 5);
       const mouse = new Mouse(page);
       for (let n = 1; n <= 5; n += 1) {
         await mouse.lock();
@@ -846,7 +848,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
     for (const via of ['キーボードの R', 'パッドの A'] as const) {
       it(`UI-35: セットのまとめで${via}を押すと、同じ武器・モード・回数の新しいセットが 1 回目から始まり、HUD に「1 / 5」と表示される`, async () => {
         const page = await openFresh({ pad: true });
-        await start(page, LOW, 'センター維持', 5);
+        await start(page, LOW, '反復練習', 5);
         for (let n = 1; n <= 5; n += 1) {
           await padFireAll(page);
           if (n < 5) {

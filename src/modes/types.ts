@@ -6,10 +6,10 @@ import type { World } from '../sim/world';
 export type ModeCategory = 'recoil' | 'movement' | 'combined';
 
 /**
- * 補正のパネル（docs/spec/screens.md「補正のパネル」）の出し方。`always` は設定によらず必ず出し、
- * `setting` は設定の補正のパネルが ON のときだけ出す。持たないモードは出さない。
+ * 補正のパネル（docs/spec/screens.md「補正のパネル」）の出し方。`always` は設定によらず必ず出す。持たないモードは出さない。
+ * パネルを消す設定の項目はない（決定の理由は docs/adr/2026-11-26-remove-center-mode-and-panel-setting.md）。
  */
-export type CorrectionPanelUse = 'always' | 'setting';
+export type CorrectionPanelUse = 'always';
 
 /** 練習モードに渡すもの。シミュレーションの状態、その練習の武器（残弾・弾痕の記録）、種付きの乱数。 */
 export interface ModeContext {

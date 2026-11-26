@@ -16,10 +16,10 @@ describe('リザルトの要約', () => {
     const shots = [shot(1, { x: 0, y: 1.5, z: -10 }), shot(2, { x: 3, y: 2, z: -10 }), shot(3, null)];
     const text = resultSummaryText({
       weapon: { name: 'L-STAR' } as WeaponData,
-      mode: { id: 'center-hold', name: 'センター維持', category: 'recoil' },
+      mode: { id: 'ghost', name: '反復練習', category: 'recoil' },
       shots,
     });
-    expect(text).toBe('L-STAR / センター維持 — 3 発');
+    expect(text).toBe('L-STAR / 反復練習 — 3 発');
     expect(text).not.toContain('当たり');
   });
 });

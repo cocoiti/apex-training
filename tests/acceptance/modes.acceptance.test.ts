@@ -1,4 +1,4 @@
-// docs/spec/modes.md（MODE-4 のゴーストの部分・MODE-5〜MODE-11）、docs/spec/screens.md（UI-1・UI-10）と
+// docs/spec/modes.md（MODE-5〜MODE-11）、docs/spec/screens.md（UI-1・UI-10）と
 // docs/spec/weapons.md（WPN-1・WPN-2・WPN-3 のトップ画面の部分）の受け入れテスト。WPN-21 は measured-weapons-qa が確かめる。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、武器の JSON、モードの共通の型）だけを使い、実装の内部には依存しない。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、パッドは Gamepad API（navigator.getGamepads）の形で与える。
@@ -197,33 +197,6 @@ function changedPixels(a: Image, b: Image, tol = 40): [number, number][] {
   return out;
 }
 
-/**
- * 照準の向きから (yaw, pitch) 度ずれた方向の、画面上の位置（ピクセル）。FOV 90（既定）・幅 1280・高さ 800 の透視投影。
- * SPEC の換算: 縦の視野角の半分の tan は tan(45°) × 3/4、水平は それ × 縦横比。
- */
-function project(yaw: number, pitch: number): [number, number] {
-  const r = Math.PI / 180;
-  const dx = Math.cos(pitch * r) * Math.sin(yaw * r);
-  const dy = Math.sin(pitch * r);
-  const dz = Math.cos(pitch * r) * Math.cos(yaw * r);
-  const tanV = 0.75;
-  const tanH = tanV * (WIDTH / HEIGHT);
-  return [WIDTH / 2 + ((dx / dz) / tanH) * (WIDTH / 2), HEIGHT / 2 - ((dy / dz) / tanV) * (HEIGHT / 2)];
-}
-
-/** 照準を動かさずに n 発撃ったときの、各弾の角度（1〜i 発目の pattern の合計）。 */
-function patternAngles(w: WeaponJson, n: number) {
-  const out: { yaw: number; pitch: number }[] = [];
-  let yaw = 0;
-  let pitch = 0;
-  for (let i = 0; i < n; i += 1) {
-    yaw += w.pattern[i]!.dx;
-    pitch += w.pattern[i]!.dy;
-    out.push({ yaw, pitch });
-  }
-  return out;
-}
-
 // ---------------------------------------------------------------------------
 
 describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
@@ -326,11 +299,11 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-1: 武器とモードを選んで「開始」を押すと、プレイ画面になり、選んだ武器名が HUD に表示される（すべての武器とモードの組）', async () => {
+    it('UI-1: 武器を選んで「開始」を押すと、プレイ画面になり、選んだ武器名が HUD に表示される（すべての武器）', async () => {
       serveDist(mainDist);
       const page = await newPage();
       for (const w of WEAPONS) {
-        for (const mode of ['反復練習', 'センター維持']) {
+        for (const mode of ['反復練習']) {
           await start(page, origin, w.name, mode);
           expect(await hash(page)).toBe('#/play');
           expect(await hudText(page, 'weapon'), `${w.name} / ${mode}`).toContain(w.name);
@@ -349,17 +322,15 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       expect(copyBuild.status, copyBuild.output).toBe(0);
     });
 
-    it('MODE-5: 足したモードが、ほかのファイルを変えずにモードの選択肢に出る（並び順のとおり最後に）', async () => {
+    it('MODE-5: 足したモードで、ほかのファイルを変えずにモードの選択肢が出て、反復練習と足したモードが並び順の順に並ぶ', async () => {
       serveDist(copyDist);
       const page = await newPage();
       await page.goto(`${origin}${BASE}#/`);
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
-      expect(modes).toContain('受け入れの追加モード');
-      expect(modes).toContain('反復練習');
-      expect(modes).not.toContain('パターン観察');
-      expect(modes).toContain('センター維持');
-      expect(modes[modes.length - 1]).toBe('受け入れの追加モード');
+      expect(modes).toEqual(['反復練習', '受け入れの追加モード']);
+      // モードが 2 つになったので、選択肢の欄が見えている。
+      expect(await page.evaluate<boolean>(`document.querySelector('#mode').getClientRects().length > 0 && !document.querySelector('#mode').closest('[hidden]')`)).toBe(true);
       // 足したモードで練習を始められる。
       await start(page, origin, 'L-STAR', '受け入れの追加モード');
       expect(await hash(page)).toBe('#/play');
@@ -392,7 +363,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     it.each(WEAPONS.map((w) => [w.name, w] as const))('MODE-6: %s で 1 マガジンを撃ち切ると、リザルト画面に移る', async (_name, w) => {
       serveDist(mainDist);
       const page = await newPage(MANUAL);
-      await start(page, origin, w.name, 'センター維持');
+      await start(page, origin, w.name, '反復練習');
       const t0 = await clockNow(page);
       // R2 を押し続ける。残弾 0 になってもそのまま。
       await page.evaluate(`window.__setR2(1)`);
@@ -411,7 +382,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       serveDist(mainDist);
       const page = await newPage(MANUAL);
       const w = byName('L-STAR');
-      await start(page, origin, w.name, 'センター維持');
+      await start(page, origin, w.name, '反復練習');
       const left = await holdUntil(page, 3);
       expect(left).toBeGreaterThan(0);
       expect(await hash(page)).toBe('#/play');
@@ -422,7 +393,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       const page = await newPage(MANUAL);
       // 発射間隔が長め（600 rpm）の武器。離した描画のあいだに次の弾が出にくい。
       const w = byName('L-STAR');
-      await start(page, origin, w.name, 'センター維持');
+      await start(page, origin, w.name, '反復練習');
       const first = await holdUntil(page, w.magSize - 5);
       expect(first).toBeLessThan(w.magSize);
       // 離してから 1.5 秒（2 秒たつ前）。ページの時計で測る。
@@ -451,7 +422,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       serveDist(mainDist);
       const page = await newPage(MANUAL);
       const w = byName('L-STAR');
-      for (const mode of ['反復練習', 'センター維持']) {
+      for (const mode of ['反復練習']) {
         await start(page, origin, w.name, mode);
         // 始めてから（練習の時計で）撃たない時間 + 2 秒たつまで待つ。
         await until(page, `window.__simTime() >= ${IDLE_END + 2}`, 20_000);
@@ -471,7 +442,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
     it.each(WEAPONS.map((w) => [w.name, w] as const))('MODE-9: %s で始めると HUD の残弾が装弾数で、1 発撃つごとに 1 減る', async (_name, w) => {
       serveDist(mainDist);
       const page = await newPage(MANUAL);
-      await start(page, origin, w.name, 'センター維持');
+      await start(page, origin, w.name, '反復練習');
       // 画面写しを使わないので、描画を軽くして 1 回の描画の間隔（押していた時間）を短くする。マシンが混んでいても 1 発で離しやすい。
       await page.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 200, deviceScaleFactor: 1, mobile: false });
       await page.waitFor(`document.querySelector('canvas').getBoundingClientRect().width === 320`);
@@ -500,7 +471,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       serveDist(mainDist);
       const page = await newPage(MANUAL);
       const w = byName('L-STAR');
-      await start(page, origin, w.name, 'センター維持');
+      await start(page, origin, w.name, '反復練習');
       const seen = await page.evaluate<number[]>(`(async () => {
         const seen = [window.__ammo()]; window.__setR2(1); const t0 = window.__now();
         while (window.__now() - t0 < 1500) { const a = window.__ammo(); if (a !== seen[seen.length - 1]) seen.push(a); await window.__frame(); }
@@ -521,7 +492,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       serveDist(mainDist);
       const page = await newPage();
       const w = byName('C.A.R. SMG');
-      await start(page, origin, w.name, 'センター維持');
+      await start(page, origin, w.name, '反復練習');
       await hideHtml(page);
       const base = await screenshot(page);
       const target = base.pixel(WIDTH / 2, HEIGHT / 2);
@@ -552,40 +523,11 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('MODE-4: センター維持ではゴーストが表示されない（画面に出るのは弾痕だけ）', async () => {
-      serveDist(mainDist);
-      // 対照として、ゴースト表示が OFF（既定）の反復練習の、撃つ前の画面写しを撮る（補正のパネルは HTML なので写さない）。
-      const ref = await newPage();
-      await start(ref, origin, 'C.A.R. SMG', '反復練習');
-      await hideHtml(ref);
-      const referenceBase = await screenshot(ref);
-
-      const page = await newPage();
-      const w = byName('C.A.R. SMG');
-      await start(page, origin, w.name, 'センター維持');
-      // HTML の中にもゴーストの要素がない。
-      expect(await page.evaluate<number>(`[...document.querySelectorAll('[class*="ghost" i], [data-ghost], [id*="ghost" i]')].filter((e) => e.offsetParent !== null).length`)).toBe(0);
-      await hideHtml(page);
-      const base = await screenshot(page);
-      // 撃つ前: ゴーストを出さない反復練習と同じ画面（ゴーストの点がない）。
-      expect(changedPixels(referenceBase, base).length).toBe(0);
-      // 撃ったあと: 変わった画素はどれも弾痕の位置の近く（ゴーストは理想の補正軌道＝パターンの反転の位置に出るはず）。
-      const left = await holdUntil(page, w.magSize - 10);
-      const shots = w.magSize - left;
-      const changed = changedPixels(base, await afterRecovery(page));
-      expect(await hash(page)).toBe('#/play');
-      expect(changed.length).toBeGreaterThan(0);
-      const expected = patternAngles(w, shots).map((a) => project(a.yaw, a.pitch));
-      const tol = 3 + 8.5 * w.randomness * 1.5;
-      const stray = changed.filter((p) => !expected.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) <= MARK_RADIUS + tol));
-      expect(stray.length, `弾痕でない画素 ${JSON.stringify(stray.slice(0, 10))}`).toBe(0);
-    }, 60_000);
-
-    it('MODE-11: パッドで L-STAR とセンター維持を選んで開始し、右スティックで照準を動かして R2 を押し続けると、弾痕が壁に残り、撃ち切るとリザルト画面に移る', async () => {
+    it('MODE-11: パッドで L-STAR を選んで（モードは反復練習）開始し、右スティックで照準を動かして R2 を押し続けると、弾痕が壁に残り、撃ち切るとリザルト画面に移る', async () => {
       serveDist(mainDist);
       const page = await newPage();
       const w = byName('L-STAR');
-      await start(page, origin, w.name, 'センター維持');
+      await start(page, origin, w.name, '反復練習');
       await hideHtml(page);
       const base = await screenshot(page);
       const wall = base.pixel(WIDTH / 2 + 80, HEIGHT / 2);
@@ -633,10 +575,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
   });
 });
 
-/** 弾痕の画素が、弾の位置からどれだけ離れてよいか（ピクセル）。弾痕の大きさは SPEC にないので、目安の値。 */
-const MARK_RADIUS = 8;
-
-/** MODE-5: 足すモードのファイル（共通の型 TrainingMode を default で export する）。並び順は最後。 */
+/** MODE-5: 足すモードのファイル（共通の型 TrainingMode を default で export する）。並び順は反復練習のあと。 */
 const EXTRA_MODE = `import type { TrainingMode } from '../types';
 
 const mode: TrainingMode = {

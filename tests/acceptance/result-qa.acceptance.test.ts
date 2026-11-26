@@ -387,7 +387,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
     it('SCO-1: 全弾が中心に当たったとき、平均ズレ 0・グルーピング半径 0・命中率 100% と表示される', async () => {
       serveDist(copyDist);
       const page = await openFresh();
-      const r = await practice(page, '受け入れ-跳ねなし', 'センター維持');
+      const r = await practice(page, '受け入れ-跳ねなし', '反復練習');
       expect(num(metric(r, '平均ズレ'))).toBe(0);
       expect(num(metric(r, 'グルーピング半径'))).toBe(0);
       expect(num(metric(r, '命中率'))).toBe(100);
@@ -398,7 +398,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
     it('SCO-2: 前半の弾だけを中心に当て、後半の弾を大きく外したとき、区間ごとのズレで後半が最も大きく表示される', async () => {
       serveDist(copyDist);
       const page = await openFresh();
-      const r = await practice(page, '受け入れ-後半外れ', 'センター維持');
+      const r = await practice(page, '受け入れ-後半外れ', '反復練習');
       const [front, middle, back] = segments(metric(r, '区間'));
       expect(front).toBe(0);
       expect(middle).toBe(0);
@@ -409,7 +409,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
     it('SCO-3: 弾がすべて中心より下に外れたとき、「下げすぎ」のコメントが表示される', async () => {
       serveDist(copyDist);
       const page = await openFresh();
-      const r = await practice(page, '受け入れ-下外れ', 'センター維持');
+      const r = await practice(page, '受け入れ-下外れ', '反復練習');
       expect(commentsIn(r.text)).toEqual(['下げすぎ']);
       expect(num(metric(r, '平均ズレ'))).toBeCloseTo(2, 1);
       // 散布図の点はすべて中心より下（画面上で下）に描かれる。
@@ -425,9 +425,9 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       serveDist(copyDist);
       const page = await openFresh();
       const w = byId('car');
-      const first = await practice(page, w.name, 'センター維持');
+      const first = await practice(page, w.name, '反復練習');
       expect(first.summary).toContain(w.name);
-      expect(first.summary).toContain('センター維持');
+      expect(first.summary).toContain('反復練習');
       await clickResultButton(page, 'もう一度');
       await page.waitFor(`location.hash === '#/play' && !document.querySelector('[data-screen="play"]').hidden`);
       // 新しい練習の HUD（残弾が装弾数）になるまで待つ（切り替わる直前は前の練習の HUD が一瞬残ることがある）。
@@ -440,7 +440,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       await fireAll(page);
       const second = await resultState(page);
       expect(second.summary).toContain(w.name);
-      expect(second.summary).toContain('センター維持');
+      expect(second.summary).toContain('反復練習');
       expect(num(metric(second, '平均ズレ'))).not.toBeNull();
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 90_000);
@@ -448,7 +448,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
     it('SCO-15: リザルト画面で「武器変更」を押したとき、トップ画面に戻る', async () => {
       serveDist(copyDist);
       const page = await openFresh();
-      for (const mode of ['センター維持', '反復練習']) {
+      for (const mode of ['反復練習']) {
         await practice(page, byId('car').name, mode);
         await clickResultButton(page, '武器変更');
         await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
@@ -463,11 +463,11 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
 
   // -------------------------------------------------------------------------
   describe('採点するモードのリザルト', () => {
-    it('SCO-16: センター維持で照準を動かさずに撃ち切ると、指標とコメント、弾痕の散布図、自分の照準と理想の軌道の重ね描きが表示される', async () => {
+    it('SCO-16: 反復練習で照準を動かさずに撃ち切ると、指標とコメント、弾痕の散布図、自分の照準と理想の軌道の重ね描きが表示される', async () => {
       serveDist(copyDist);
       const page = await openFresh();
       const w = byId('lstar');
-      const r = await practice(page, w.name, 'センター維持');
+      const r = await practice(page, w.name, '反復練習');
       expect(r.visibleScreens).toEqual(['result']);
       // 指標（5 つ）とコメント。
       for (const label of ['平均ズレ', 'グルーピング半径', '命中率', '区間', '横ブレ']) expect(() => metric(r, label), label).not.toThrow();
@@ -523,7 +523,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       serveDist(copyDist);
       const page = await openFresh();
       const w = byId('car');
-      await start(page, w.name, 'センター維持');
+      await start(page, w.name, '反復練習');
       await fireAll(page, { dy: 6, steps: 20 });
       const r = await resultState(page);
       const trajectory = plotWith(r, 'aim', 'ideal');
@@ -564,15 +564,15 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
 
   // -------------------------------------------------------------------------
   describe('自己ベスト', () => {
-    it('SCO-18: 自己ベストがない状態で、マウスで L-STAR とセンター維持を練習して終えると「自己ベスト更新」が表示され、その結果が保存される', async () => {
+    it('SCO-18: 自己ベストがない状態で、マウスで L-STAR と反復練習を練習して終えると「自己ベスト更新」が表示され、その結果が保存される', async () => {
       serveDist(copyDist);
       const page = await openFresh();
       expect(await storedBests(page)).toEqual({});
       const w = byId('lstar');
-      const r = await practice(page, w.name, 'センター維持');
+      const r = await practice(page, w.name, '反復練習');
       expect(r.text).toContain(UPDATED);
       const stored = await storedBests(page);
-      const key = bestKey('mouse', 'lstar', 'center');
+      const key = bestKey('mouse', 'lstar', 'ghost');
       expect(Object.keys(stored)).toEqual([key]);
       const best = JSON.parse(stored[key]!) as Best;
       expect(best.version).toBe(1);
@@ -587,10 +587,10 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
 
     it('SCO-5: 自己ベストより平均ズレが小さい結果で練習を終えると、更新が表示され、再読み込みしても新しい自己ベストが残っている', async () => {
       serveDist(copyDist);
-      const key = bestKey('mouse', 'lstar', 'center');
+      const key = bestKey('mouse', 'lstar', 'ghost');
       const old: Best = { version: 1, meanError: 90, groupingRadius: 90, hitRate: 0, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' };
       const page = await openFresh({ [key]: JSON.stringify(old) });
-      const r = await practice(page, byId('lstar').name, 'センター維持');
+      const r = await practice(page, byId('lstar').name, '反復練習');
       expect(r.text).toContain(UPDATED);
       const saved = JSON.parse((await storedBests(page))[key]!) as Best;
       expect(saved.meanError).toBeLessThan(90);
@@ -600,7 +600,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       const afterReload = JSON.parse((await storedBests(page))[key]!) as Best;
       expect(afterReload).toEqual(saved);
       // 再読み込みのあと、平均ズレが大きい結果では更新されず、新しい自己ベストの平均ズレが表示される。
-      const worse = await practice(page, '受け入れ-下外れ', 'センター維持');
+      const worse = await practice(page, '受け入れ-下外れ', '反復練習');
       expect(worse.text).toContain(UPDATED); // 別の武器なので更新（L-STAR の値は変わらない）
       expect(JSON.parse((await storedBests(page))[key]!) as Best).toEqual(saved);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
@@ -608,11 +608,11 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
 
     it('SCO-19: 保存してある自己ベストより平均ズレが大きい結果では「自己ベスト更新」が表示されず、保存してある平均ズレが表示され、値は変わらない', async () => {
       serveDist(copyDist);
-      const key = bestKey('mouse', 'acc-low', 'center');
+      const key = bestKey('mouse', 'acc-low', 'ghost');
       // 受け入れ-下外れの平均ズレは 2 度。それより小さい 1.23 度を保存しておく。
       const old = JSON.stringify({ version: 1, meanError: 1.23, groupingRadius: 0.5, hitRate: 40, shots: 6, achievedAt: '2026-01-01T00:00:00.000Z' });
       const page = await openFresh({ [key]: old });
-      const r = await practice(page, '受け入れ-下外れ', 'センター維持');
+      const r = await practice(page, '受け入れ-下外れ', '反復練習');
       expect(num(metric(r, '平均ズレ'))).toBeCloseTo(2, 1);
       expect(r.text).not.toContain(UPDATED);
       expect(r.text).toContain('1.23');
@@ -622,10 +622,10 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
 
     it('SCO-19: 保存してある自己ベストと平均ズレが等しい結果では「自己ベスト更新」が表示されず、値は変わらない', async () => {
       serveDist(copyDist);
-      const key = bestKey('mouse', 'acc-low', 'center');
+      const key = bestKey('mouse', 'acc-low', 'ghost');
       const page = await openFresh();
       // 1 回目: 自己ベストがないので保存される。
-      const first = await practice(page, '受け入れ-下外れ', 'センター維持');
+      const first = await practice(page, '受け入れ-下外れ', '反復練習');
       expect(first.text).toContain(UPDATED);
       const saved = (await storedBests(page))[key];
       expect(saved).toBeDefined();
@@ -635,7 +635,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       // （達成日時が秒までしか書かれない実装でも見分けられる）。
       const savedAt = Date.parse((JSON.parse(saved!) as Best).achievedAt);
       await page.waitFor(`Date.now() >= ${savedAt} + 1000`, 5_000);
-      const second = await practice(page, '受け入れ-下外れ', 'センター維持');
+      const second = await practice(page, '受け入れ-下外れ', '反復練習');
       expect(metric(second, '平均ズレ')).toBe(metric(first, '平均ズレ'));
       expect(second.text).not.toContain(UPDATED);
       expect(second.text).toContain(savedMean.toFixed(2));
@@ -643,44 +643,29 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 90_000);
 
-    it('SCO-20: L-STAR とセンター維持の自己ベストがある状態で、別の武器とセンター維持を初めて練習すると「自己ベスト更新」が表示され、L-STAR の自己ベストは変わらない', async () => {
+    it('SCO-20: マウスで L-STAR と反復練習の自己ベストがある状態で、マウスで C.A.R. SMG と反復練習を初めて練習すると「自己ベスト更新」が表示され、L-STAR の自己ベストは変わらない', async () => {
       serveDist(copyDist);
-      const key = bestKey('mouse', 'lstar', 'center');
+      const key = bestKey('mouse', 'lstar', 'ghost');
       const old = JSON.stringify({ version: 1, meanError: 0.01, groupingRadius: 0.01, hitRate: 100, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
       const page = await openFresh({ [key]: old });
-      const r = await practice(page, byId('car').name, 'センター維持');
+      const r = await practice(page, byId('car').name, '反復練習');
       expect(r.text).toContain(UPDATED);
       const stored = await storedBests(page);
       expect(stored[key]).toBe(old);
-      expect(Object.keys(stored).sort()).toEqual([bestKey('mouse', 'car', 'center'), key].sort());
+      expect(Object.keys(stored).sort()).toEqual([bestKey('mouse', 'car', 'ghost'), key].sort());
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-    }, 60_000);
-
-    it('SCO-20: L-STAR とセンター維持の自己ベストがある状態で、L-STAR と反復練習を初めて練習すると「自己ベスト更新」が表示され、センター維持の自己ベストは変わらない', async (ctx) => {
-      serveDist(copyDist);
-      const key = bestKey('mouse', 'lstar', 'center');
-      const old = JSON.stringify({ version: 1, meanError: 0.01, groupingRadius: 0.01, hitRate: 100, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
-      const page = await openFresh({ [key]: old });
-      const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
-      if (!modes.includes('反復練習')) {
-        console.warn(`反復練習がモードの選択肢にない（${modes.join(', ')}）。この確認は飛ばす`);
-        ctx.skip();
-      }
-      const r = await practice(page, byId('lstar').name, '反復練習');
-      expect(r.text).toContain(UPDATED);
-      expect((await storedBests(page))[key]).toBe(old);
     }, 60_000);
 
     it('SCO-20 / 入力方式: パッドの自己ベストだけがある状態でマウスで練習すると、マウスのキーに保存され、パッドの値は混ざらない', async () => {
       serveDist(copyDist);
-      const padKey = bestKey('pad', 'lstar', 'center');
+      const padKey = bestKey('pad', 'lstar', 'ghost');
       const old = JSON.stringify({ version: 1, meanError: 0.01, groupingRadius: 0.01, hitRate: 100, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
       const page = await openFresh({ [padKey]: old });
-      const r = await practice(page, byId('lstar').name, 'センター維持');
+      const r = await practice(page, byId('lstar').name, '反復練習');
       expect(r.text).toContain(UPDATED);
       const stored = await storedBests(page);
       expect(stored[padKey]).toBe(old);
-      expect(stored[bestKey('mouse', 'lstar', 'center')]).toBeDefined();
+      expect(stored[bestKey('mouse', 'lstar', 'ghost')]).toBeDefined();
     }, 60_000);
 
     const broken: Record<string, string> = {
@@ -691,9 +676,9 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
     for (const [label, value] of Object.entries(broken)) {
       it(`SCO-21: 自己ベストのキーに${label}が入っているとき、エラーで止まらずにリザルト画面が表示され、その結果が自己ベストとして保存される`, async () => {
         serveDist(copyDist);
-        const key = bestKey('mouse', 'lstar', 'center');
+        const key = bestKey('mouse', 'lstar', 'ghost');
         const page = await openFresh({ [key]: value });
-        const r = await practice(page, byId('lstar').name, 'センター維持');
+        const r = await practice(page, byId('lstar').name, '反復練習');
         expect(r.visibleScreens).toEqual(['result']);
         expect(r.text).toContain(UPDATED);
         const saved = JSON.parse((await storedBests(page))[key]!) as Best;
@@ -716,7 +701,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
       it(`${name}: エラーで止まらずにリザルト画面が表示され、フッターに保存できない旨が表示される`, async () => {
         serveDist(copyDist);
         const page = await openFresh({}, init);
-        const r = await practice(page, '受け入れ-下外れ', 'センター維持');
+        const r = await practice(page, '受け入れ-下外れ', '反復練習');
         expect(r.visibleScreens).toEqual(['result']);
         expect(num(metric(r, '平均ズレ'))).toBeCloseTo(2, 1);
         expect(r.footer).toContain(NOTICE);

@@ -40,7 +40,6 @@ function setup(initial: Record<string, string> = {}, storageFor?: (backing: Stor
       crosshairShape: new FakeField(),
       crosshairColor: new FakeField(),
       ghost: new FakeField(),
-      correctionPanel: new FakeField(),
       patternDisplay: new FakeField(),
       sound: new FakeField(),
       dpi: new FakeField(),
@@ -63,13 +62,21 @@ describe('設定画面', () => {
     expect(form.crosshairShape.value).toBe('dot');
     expect(form.crosshairColor.value).toBe('#77ccff');
     expect(form.ghost.checked).toBe(false);
-    expect(form.correctionPanel.checked).toBe(true);
+    expect(form).not.toHaveProperty('correctionPanel');
     expect(form.patternDisplay.value).toBe('detailed');
     expect(form.sound.checked).toBe(true);
     expect(form.dpi.value).toBe('800');
     expect(form.sensitivity.value).toBe('1.5');
     expect(form.adsMultiplier.value).toBe('1.0');
     expect(form.cmPer360.textContent).toBe('34.6');
+  });
+
+  it('UI-75: 以前の補正のパネルの項目（OFF）と FOV 100 が保存されていても、FOV 100 を表示する', () => {
+    const app = setup();
+    app.items.set(SETTINGS_KEYS.common, JSON.stringify({ fov: 100, correctionPanel: false }));
+    const form = app.open();
+    expect(form.fov.value).toBe('100');
+    expect(form.ghost.checked).toBe(false);
   });
 
   it('UI-2: 感度を変えて確定すると、保存の操作なしで読み直しても残っている', () => {
@@ -86,7 +93,7 @@ describe('設定画面', () => {
     expect(app.open().dpi.value).toBe('1200');
   });
 
-  it('UI-11: FOV・クロスヘアの色と形・ゴースト表示・補正のパネル・パターンの表示を変えると読み直しても残っている', () => {
+  it('UI-11: FOV・クロスヘアの色と形・ゴースト表示・パターンの表示を変えると読み直しても残っている', () => {
     const app = setup();
     const form = app.open();
     form.fov.type('100');
@@ -96,8 +103,6 @@ describe('設定画面', () => {
     form.crosshairShape.fire('change');
     form.ghost.checked = true;
     form.ghost.fire('change');
-    form.correctionPanel.checked = false;
-    form.correctionPanel.fire('change');
     form.patternDisplay.value = 'simple';
     form.patternDisplay.fire('change');
     form.inputMethod.value = 'pad';
@@ -110,7 +115,6 @@ describe('設定画面', () => {
     expect(reopened.crosshairColor.value).toBe('#ff8800');
     expect(reopened.crosshairShape.value).toBe('cross');
     expect(reopened.ghost.checked).toBe(true);
-    expect(reopened.correctionPanel.checked).toBe(false);
     expect(reopened.patternDisplay.value).toBe('simple');
     expect(reopened.inputMethod.value).toBe('pad');
     expect(reopened.sound.checked).toBe(false);

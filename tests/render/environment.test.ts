@@ -43,9 +43,9 @@ function recoilWeapon(): WeaponData {
   return { id: 'r', name: 'リコイル', category: 'AR', version: 'v', source: '仮データ', rpm: 600, magSize: 12, pattern, randomness: 0.3, measured: true };
 }
 
-const centerMode = () => {
-  const mode = modes.find((m) => m.id === 'center');
-  if (!mode) throw new Error('center のモードがない');
+const repeatMode = () => {
+  const mode = modes.find((m) => m.id === 'ghost');
+  if (!mode) throw new Error('反復練習のモードがない');
   return mode;
 };
 
@@ -278,7 +278,7 @@ describe('見た目と練習の結果', () => {
     const impacts = new ImpactMarks(view.layer);
     const input = new RecordingInput(7);
     input.push(0, { type: 'fire', pressed: true });
-    const session = new PracticeSession({ world, weapon: zeroWeapon(), mode: centerMode(), input, seed: input.seed });
+    const session = new PracticeSession({ world, weapon: zeroWeapon(), mode: repeatMode(), input, seed: input.seed });
     for (let i = 0; i < 120 && session.gun.shots.length < 3; i += 1) session.step();
     impacts.sync(session.gun.shots, world.player.position);
     const [group] = byName(view.scene, 'target-rings-target');
@@ -306,7 +306,7 @@ describe('見た目と練習の結果', () => {
     const input = new RecordingInput(1);
     input.push(0.05, { type: 'ads', pressed: true });
     input.push(0.3, { type: 'ads', pressed: false });
-    const session = new PracticeSession({ world, weapon: zeroWeapon(), mode: centerMode(), input, seed: 1 });
+    const session = new PracticeSession({ world, weapon: zeroWeapon(), mode: repeatMode(), input, seed: 1 });
     const seen = new Set<boolean>();
     for (let i = 0; i < 30; i += 1) {
       session.step();
@@ -327,7 +327,7 @@ describe('見た目と練習の結果', () => {
     input.push(0.02, { type: 'fire', pressed: true });
     for (let i = 1; i <= 20; i += 1) input.push(0.02 + i * 0.05, { type: 'look', yaw: 0.05, pitch: -0.3 });
     const weapon = recoilWeapon();
-    const session = new PracticeSession({ world, weapon, mode: centerMode(), input, seed: input.seed });
+    const session = new PracticeSession({ world, weapon, mode: repeatMode(), input, seed: input.seed });
     for (let i = 0; i < 600 && !session.ended; i += 1) {
       const before = session.previousViewAngles;
       session.step();
@@ -335,7 +335,7 @@ describe('見た目と練習の結果', () => {
       view.update(world, interpolateAngles(before, viewAngles(world.player), 0.5));
     }
     expect(session.result).toBeDefined();
-    const replayed = replayPracticeSession(input.recording(), { world: rangeWorld(), weapon, mode: centerMode() });
+    const replayed = replayPracticeSession(input.recording(), { world: rangeWorld(), weapon, mode: repeatMode() });
     expect(replayed.result?.shots).toEqual(session.result?.shots);
     expect(replayed.result?.modeResult).toEqual(session.result?.modeResult);
     expect(session.result!.shots.length).toBe(12);

@@ -12,9 +12,9 @@ import type { PatternDisplay } from './settings';
  * パターンの表示が簡易のときは、理想の線と次の発の点を簡易版のパターン（src/sim/simple-pattern.ts）で描き、区切りの言葉を並べる。
  */
 
-/** そのモードの練習でパネルを出すか。反復練習は設定によらず出し、センター維持は設定が ON のとき出す（docs/spec/modes.md「共通」）。 */
-export function correctionPanelShown(use: CorrectionPanelUse | undefined, setting: boolean): boolean {
-  return use === 'always' || (use === 'setting' && setting);
+/** そのモードの練習でパネルを出すか。パネルを出すモード（反復練習）は設定によらず出す（docs/spec/modes.md「共通」）。 */
+export function correctionPanelShown(use: CorrectionPanelUse | undefined): boolean {
+  return use === 'always';
 }
 
 const ORIGIN: Angles = { yaw: 0, pitch: 0 };
