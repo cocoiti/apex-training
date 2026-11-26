@@ -1,14 +1,13 @@
 import type { Random } from '../../core/random';
-import { addAngles, directionFromAngles, normalizeYaw, type Angles } from '../../sim/angles';
+import { addAngles, normalizeYaw, type Angles } from '../../sim/angles';
 import { anglesToPoint } from '../../sim/hit';
-import type { Box } from '../../sim/map';
-import { vec3, type Vec3 } from '../../sim/vec3';
+import { humanoidParts, placeHumanoidSubtending, type HumanoidPlacement } from '../../sim/humanoid';
 import type { World } from '../../sim/world';
 import { t } from '../../ui/i18n';
 import type { CompareMetric, MetricSpec, ModeContext, ModeOption, ModeOptionValues, ModeScore, ModeScoring, ScoringInput, TrainingMode } from '../types';
 
 /**
- * フリック（docs/spec/modes.md「フリック」）。壁の上のランダムな位置に的が 1 つずつ出て、照準を素早く合わせて 1 発撃つことを繰り返す。
+ * フリック（docs/spec/modes.md「フリック」）。壁の手前のランダムな位置に人形の的が 1 つずつ出て、照準を素早く合わせて 1 発撃つことを繰り返す。
  * 武器を使わないモードで、的の位置の並びは練習の始めに種付きの乱数と練習の選択肢の値だけから決める。
  * 採点は docs/spec/scoring.md「フリックの採点」。決定の理由は docs/adr/2026-11-26-flick-targets-planned-at-setup.md。
  */
@@ -29,7 +28,7 @@ export const FLICK_RANGES = {
   far: { name: { ja: '遠い', en: 'Far' }, min: 14, max: 20 },
 } as const;
 
-/** 的の大きさ（見込み角、度。幅と高さ）。 */
+/** 的の大きさ（人形の胴の幅の見込み角、度）。 */
 export const FLICK_SIZES = {
   large: { name: { ja: '大', en: 'Large' }, angle: 3 },
   medium: { name: { ja: '中', en: 'Medium' }, angle: 2 },
@@ -58,11 +57,6 @@ export const FLICK_SIZE_OPTION: ModeOption = {
 /** 練習の選択肢（出る範囲、的の大きさの順。保存のキーにもこの順に値の id を足す）。 */
 export const FLICK_OPTIONS: readonly ModeOption[] = [FLICK_RANGE_OPTION, FLICK_SIZE_OPTION];
 
-/** 的の板の奥行き（メートル）。 */
-const PLATE_DEPTH = 0.02;
-/** マップの箱のいちばん手前の面と、的の板の奥の面のあいだ（メートル）。 */
-const PLATE_GAP = 0.05;
-
 /** 練習の選択肢の値から出る範囲と的の大きさを読む。選べない値は既定の値。 */
 export function flickSettings(values: ModeOptionValues): { readonly range: FlickRange; readonly size: FlickSize } {
   const rangeId = values[FLICK_RANGE_OPTION.id];
@@ -88,24 +82,13 @@ export function flickOffsets(random: Random, range: FlickRange, count: number = 
   return offsets;
 }
 
-/** マップの箱のいちばん手前（目の側、+Z）の面の Z。開始時の照準は -Z を向く（src/data/maps/range.json）。 */
-function frontZ(boxes: readonly Box[]): number {
-  return Math.max(...boxes.map((b) => b.center.z + b.size.z / 2));
-}
-
 /**
- * 照準の中心からのずれ offset の向きに置く的の板の中心と大きさ。目の位置からその向きのレイ上で、マップの箱（壁と的の箱）の
- * いちばん手前の面より手前に、壁の正面と平行な正方形の板として置く。幅と高さは 2 × L × tan(見込み角 ÷ 2)（L は目から的の中心まで）。
+ * 照準の中心からのずれ offset の向きに置く人形の中心と縮尺（docs/spec/modes.md「フリック」）。目の位置からその向きのレイの上に、
+ * 人形の後ろの面がマップの箱（壁と的の箱）のいちばん手前の面より 0.05 メートル手前になるように、正面を壁の正面と同じ向きにして置く。
+ * 縮尺は、胴の幅が 2 × L × tan(見込み角 ÷ 2)（L は目の位置から人形の中心まで）になる値。
  */
-export function flickPlate(world: Pick<World, 'boxes' | 'center' | 'player'>, offset: Angles, size: FlickSize): { readonly center: Vec3; readonly size: Vec3 } {
-  const eye = world.player.position;
-  const dir = directionFromAngles(addAngles(world.center, offset));
-  const plateZ = frontZ(world.boxes) + PLATE_GAP + PLATE_DEPTH / 2;
-  const t = (plateZ - eye.z) / dir.z;
-  const center = vec3(eye.x + dir.x * t, eye.y + dir.y * t, plateZ);
-  const distance = Math.hypot(center.x - eye.x, center.y - eye.y, center.z - eye.z);
-  const width = 2 * distance * Math.tan((FLICK_SIZES[size].angle * Math.PI) / 360);
-  return { center, size: vec3(width, width, PLATE_DEPTH) };
+export function flickDummy(world: Pick<World, 'boxes' | 'center' | 'player'>, offset: Angles, size: FlickSize): HumanoidPlacement {
+  return placeHumanoidSubtending(world, addAngles(world.center, offset), FLICK_SIZES[size].angle);
 }
 
 /** 撃った的 1 つの記録（docs/spec/modes.md「フリック」）。 */
@@ -114,7 +97,7 @@ export interface FlickRecord {
   readonly time: number;
   /** その的に当たったか。 */
   readonly hit: boolean;
-  /** 撃ったときの照準の向きと、目の位置から的の中心への向きの角度の距離（度）。 */
+  /** 撃ったときの照準の向きと、目の位置から的の中心（人形の中心）への向きの角度の距離（度）。 */
   readonly error: number;
 }
 
@@ -151,9 +134,9 @@ const targetId = (index: number) => `flick-${index + 1}`;
 function placeTarget(context: ModeContext, state: FlickState, index: number, appearAt: number): void {
   const offset = state.offsets[index];
   if (!offset) return;
-  const plate = flickPlate(context.world, offset, state.size);
+  const dummy = flickDummy(context.world, offset, state.size);
   const id = targetId(index);
-  context.targets.add({ id, size: plate.size, position: plate.center, appearAt });
+  context.targets.add({ id, parts: humanoidParts(dummy.scale), position: dummy.center, appearAt });
   state.current = { id, index, appearAt };
 }
 

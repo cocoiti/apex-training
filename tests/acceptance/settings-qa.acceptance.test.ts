@@ -57,7 +57,10 @@ function blobCenter(img: Image, axis: 'row' | 'column', at: number, c: RGB): num
     else group = [i, i, 1];
     if (!best || group[2] > best[2]) best = group;
   }
-  return best && (best[0] + best[1]) / 2;
+  if (!best) return undefined;
+  // 反復練習では中心に人形（docs/spec/architecture.md「人形の的」）が見え、中心を通る列では頭の上端（+0.525 m）から胴の下端（-0.275 m）までが
+  // 人形の色になる（その下は脚のあいだの空き）。的の中心（人形の中心）はその上端から 0.525 ÷ 0.8 の所。
+  return axis === 'column' ? best[0] + (best[1] - best[0]) * (0.525 / 0.8) : (best[0] + best[1]) / 2;
 }
 
 /** 的の板の色。中心の近くで、壁（中心から 80 px 右）と違う色のうち、いちばん多い色（リングの線の間に見える板の色）。 */

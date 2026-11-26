@@ -283,7 +283,7 @@ export function ringBands(distance: number): RingBand[] {
  * 1 つの面に的のリングと中心点を描く。暗い線の下に、少し太い白に近い縁取りを敷く。
  * 描画を軽くするため、縁取りと暗い線をそれぞれ 1 つの形にまとめる。
  */
-function targetMarks(target: TargetFace): THREE.Group {
+export function ringMarks(target: TargetFace): THREE.Group {
   const { face, center, distance } = target;
   const cu = center[face.u];
   const cv = center[face.v];
@@ -462,6 +462,6 @@ export function createEnvironment(world: EnvironmentSource): THREE.Group {
     if (box.kind !== 'wall') return;
     for (const face of boxFaces(box).filter((f) => facesEye(f, eye))) group.add(wallPanels(face, index));
   });
-  for (const target of targetFaces(eye, world.center, world.boxes)) group.add(targetMarks(target));
+  for (const target of targetFaces(eye, world.center, world.boxes)) group.add(ringMarks(target));
   return group;
 }

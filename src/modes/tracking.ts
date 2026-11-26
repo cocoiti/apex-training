@@ -1,3 +1,4 @@
+import { humanoidParts } from '../sim/humanoid';
 import { viewAngles } from '../sim/player';
 import {
   angleToPoint,
@@ -5,7 +6,6 @@ import {
   scoreTracking,
   TRACKING_DURATION,
   TRACKING_SPEEDS,
-  TRACKING_TARGET_SIZE,
   trackingHitRate,
   type TrackingMotion,
   type TrackingSpeedId,
@@ -178,7 +178,8 @@ export function createTrackingMode(spec: TrackingModeSpec): TrainingMode<Trackin
       const current = motion;
       steps = [];
       dt = 0;
-      context.targets.add({ id: TRACKING_TARGET_ID, size: TRACKING_TARGET_SIZE, position: (time) => current.positionAt(time), highlightAimed: true });
+      // 的は縮尺 1 の人形で、的の中心（人形の中心 = 胴の中心）が動きの位置にある。
+      context.targets.add({ id: TRACKING_TARGET_ID, parts: humanoidParts(1), position: (time) => current.positionAt(time), highlightAimed: true });
     },
     step(context, stepDt) {
       dt = stepDt;

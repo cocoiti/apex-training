@@ -6,11 +6,10 @@ import { PadInput, type GamepadLike } from '../../src/input/pad';
 import { DEFAULT_PAD_SETTINGS, stickPosition, type PadSettings } from '../../src/input/pad-curve';
 import { RecordingInput } from '../../src/input/recording';
 import { modes } from '../../src/modes/registry';
-import { PracticeSession, type PracticeResult } from '../../src/modes/session';
+import { PracticeSession, replayPracticeSession, type PracticeResult } from '../../src/modes/session';
 import type { TrainingMode } from '../../src/modes/types';
 import type { ShotRecord } from '../../src/sim/gun';
 import { parseMap, type MapData } from '../../src/sim/map';
-import { replayRecording } from '../../src/sim/practice';
 import { score, scoreShots, targetRadius } from '../../src/sim/scoring';
 import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
 import { createWorld, type World } from '../../src/sim/world';
@@ -342,7 +341,9 @@ describe('リザルト画面と再生の採点', () => {
 
     const storage = memoryStorage();
     const view = completePractice(finished, storage, NOW);
-    const replayed = replayRecording(recording, { map: rangeMap(), weapon });
+    // 反復練習の人形（練習の的）も置くよう、同じモードで再生する。
+    const session = replayPracticeSession(recording, { world: rangeWorld(), weapon, mode: modeById('ghost') });
+    const replayed = { shots: session.shots, score: scoreShots(session.shots, session.world) };
     expect(replayed.shots).toEqual(shots);
     expect(view.metrics).toEqual(metricRows(replayed.score));
     expect(view.comments).toEqual(replayed.score.comments.map(commentText));

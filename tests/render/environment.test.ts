@@ -24,6 +24,7 @@ import {
 } from '../../src/render/environment';
 import { fieldOfView } from '../../src/render/fov';
 import { ImpactMarks } from '../../src/render/impacts';
+import { TargetMarks } from '../../src/render/targets';
 import { interpolateAngles, ViewScene } from '../../src/render/scene';
 import { viewAngles } from '../../src/sim/player';
 import { DEFAULT_COMMON_SETTINGS } from '../../src/ui/settings';
@@ -280,28 +281,32 @@ describe('切り取り', () => {
 });
 
 describe('見た目と練習の結果', () => {
-  it('照準を動かさずに randomness 0・pattern がすべて 0 の武器で撃つと、弾痕は的の中心点の上にある（UI-20）', () => {
+  it('照準を動かさずに randomness 0・pattern がすべて 0 の武器で撃つと、弾痕は人形の正面の中心点の上にある（UI-20・MODE-63）', () => {
     const world = rangeWorld();
     const view = new ViewScene(world);
     const impacts = new ImpactMarks(view.layer);
+    const marks = new TargetMarks(view.layer);
     const input = new RecordingInput(7);
     input.push(0, { type: 'fire', pressed: true });
     const session = new PracticeSession({ world, weapon: zeroWeapon(), mode: repeatMode(), input, seed: input.seed });
     for (let i = 0; i < 120 && session.gun.shots.length < 3; i += 1) session.step();
     impacts.sync(session.gun.shots, world.player.position);
-    const [group] = byName(view.scene, 'target-rings-target');
+    marks.update(world.targets.all, 0, undefined, world);
+    // 反復練習では、開始時の照準の向きのいちばん手前の面は人形の胴の正面。リングと中心点はそこに描く。
+    const [group] = byName(view.scene, 'target-rings-dummy-torso');
     const center = group!.userData.center as { x: number; y: number; z: number };
-    const dot = ringRadius(9.9, CENTER_DOT_ANGLE);
+    const dot = ringRadius(group!.userData.distance as number, CENTER_DOT_ANGLE);
     expect(session.gun.shots.length).toBeGreaterThanOrEqual(3);
     for (const shot of session.gun.shots) {
       expect(shot.position).toBeDefined();
+      expect(shot.target).toBe('dummy');
       expect(Math.hypot(shot.position!.x - center.x, shot.position!.y - center.y)).toBeLessThan(dot);
       expect(shot.position!.z).toBeCloseTo(center.z, 9);
     }
     // 弾痕の表示物も中心点の上（リングより手前）にある。
-    const marks = view.layer.group.children.filter((o) => o.name === 'impact');
-    expect(marks).toHaveLength(session.gun.shots.length);
-    for (const m of marks) {
+    const shown = view.layer.group.children.filter((o) => o.name === 'impact');
+    expect(shown).toHaveLength(session.gun.shots.length);
+    for (const m of shown) {
       expect(Math.hypot(m.position.x - center.x, m.position.y - center.y)).toBeLessThan(dot);
       expect(m.position.z).toBeGreaterThan(center.z + 0.004);
     }

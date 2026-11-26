@@ -4,14 +4,16 @@ import range from '../../../src/data/maps/range.json';
 import type { Action } from '../../../src/input/actions';
 import { InputQueue } from '../../../src/input/queue';
 import { RecordingInput } from '../../../src/input/recording';
-import flick, { FLICK_SCORING, FLICK_SIZES, flickOffsets, flickPlate, type FlickRecord, type FlickResult } from '../../../src/modes/aim/flick';
+import flick, { FLICK_SCORING, FLICK_SIZES, flickDummy, flickOffsets, type FlickRecord, type FlickResult } from '../../../src/modes/aim/flick';
 import { modes } from '../../../src/modes/registry';
 import { PracticeSession, replayPracticeSession } from '../../../src/modes/session';
 import { createRandom } from '../../../src/core/random';
 import { normalizeYaw, type Angles } from '../../../src/sim/angles';
 import { anglesToPoint } from '../../../src/sim/hit';
 import { parseMap } from '../../../src/sim/map';
-import type { PracticeTarget } from '../../../src/sim/targets';
+import { HUMANOID_DEPTH, HUMANOID_HEIGHT, humanoidParts } from '../../../src/sim/humanoid';
+import { partCenter, type PracticeTarget, type TargetPart } from '../../../src/sim/targets';
+import { vec3, type Vec3 } from '../../../src/sim/vec3';
 import { createWorld, type World } from '../../../src/sim/world';
 
 const parsed = parseMap(range);
@@ -91,6 +93,22 @@ function playThrough(d: Driver, delay = 0.2, yawOffset = 0): PracticeTarget[] {
 }
 
 const modeResult = (d: Driver) => d.session.result!.modeResult as FlickResult;
+
+/** 人形の部分の箱。 */
+const part = (target: PracticeTarget, id: string): TargetPart => target.parts.find((p) => p.id === id)!;
+
+/** 人形の部分の箱をすべて囲む範囲（メートル）。 */
+function bounds(target: PracticeTarget): { min: Vec3; max: Vec3 } {
+  const lo = (axis: 'x' | 'y' | 'z') => Math.min(...target.parts.map((p) => partCenter(target.center, p)[axis] - p.size[axis] / 2));
+  const hi = (axis: 'x' | 'y' | 'z') => Math.max(...target.parts.map((p) => partCenter(target.center, p)[axis] + p.size[axis] / 2));
+  return { min: vec3(lo('x'), lo('y'), lo('z')), max: vec3(hi('x'), hi('y'), hi('z')) };
+}
+
+/** 目の位置から的の中心までの距離。 */
+const distanceTo = (d: Driver, target: PracticeTarget) => {
+  const eye = d.session.world.player.position;
+  return Math.hypot(target.center.x - eye.x, target.center.y - eye.y, target.center.z - eye.z);
+};
 
 /** 照準の中心（マップの開始時の照準）からの角度の距離と、ずれ。 */
 function offsetOf(d: Driver, target: PracticeTarget): { distance: number; yaw: number; pitch: number } {
@@ -193,13 +211,14 @@ describe('フリックの練習の流れ', () => {
         expect(distance).toBeGreaterThanOrEqual(min - 1e-9);
         expect(distance).toBeLessThan(max);
         expect(Math.abs(pitch)).toBeLessThanOrEqual(distance * Math.sin((20 * Math.PI) / 180) + 1e-9);
-        const half = target.size.x / 2;
-        expect(Math.abs(target.center.x - wall.center.x) + half).toBeLessThanOrEqual(wall.size.x / 2);
-        expect(Math.abs(target.center.y - wall.center.y) + half).toBeLessThanOrEqual(wall.size.y / 2);
-        // 壁と的の箱より手前に、壁の正面と平行な正方形の板として置く。
+        // 人形の左右の端と頭の上端は壁の正面の範囲に収まる（脚の下端は床より下に出てもよい）。
+        const box = bounds(target);
+        expect(box.min.x).toBeGreaterThanOrEqual(wall.center.x - wall.size.x / 2);
+        expect(box.max.x).toBeLessThanOrEqual(wall.center.x + wall.size.x / 2);
+        expect(box.max.y).toBeLessThanOrEqual(wall.center.y + wall.size.y / 2);
+        // 人形の後ろの面は、壁と的の箱のいちばん手前の面より 0.05 メートル手前。
         const front = Math.max(...MAP.boxes.map((b) => b.center.z + b.size.z / 2));
-        expect(target.center.z - target.size.z / 2).toBeGreaterThan(front);
-        expect(target.size.x).toBe(target.size.y);
+        expect(box.min.z).toBeCloseTo(front + 0.05, 9);
       }
     }
   });
@@ -211,32 +230,75 @@ describe('フリックの練習の流れ', () => {
     expect(right).toBeLessThan(140);
   });
 
-  it.each(Object.keys(FLICK_SIZES))('MODE-51: 的の大きさ %s で、見込み角の半分よりわずかに内側を撃つと命中、外側を撃つと外れ', (size) => {
+  it.each(Object.keys(FLICK_SIZES))('MODE-51: 的の大きさ %s で、人形の中心から見込み角の半分よりわずかに小さくずらすと命中（胴の端の内側）、わずかに大きく照準の中心の側へずらすと外れ（脇の下の空き）', (size) => {
     const half = FLICK_SIZES[size as keyof typeof FLICK_SIZES].angle / 2;
-    for (const [factor, hit] of [
-      [0.9, true],
-      [-0.9, true],
-      [1.1, false],
-      [-1.1, false],
-    ] as const) {
-      const d = start({ range: 'near', size }, 5);
-      const target = waitVisible(d);
-      const angles = targetAngles(d, target);
-      shootAt(d, { yaw: angles.yaw + half * factor, pitch: angles.pitch });
-      playThrough(d);
-      expect([factor, modeResult(d).targets[0]!.hit]).toEqual([factor, hit]);
+    // 脇の下の空き（幅は胴の幅の 0.08 倍）は奥行きがあるので、斜めから見るほど狭く見える。照準の中心に近い「近い」の範囲で、
+    // 照準の中心の側（的が右なら左）へずらす。外側へずらすと、側面が見える右腕に当たりやすい。
+    for (const seed of [5, 6, 7]) {
+      for (const [factor, inward, hit] of [
+        [0.95, true, true],
+        [0.95, false, true],
+        [1.08, true, false],
+      ] as const) {
+        const d = start({ range: 'near', size }, seed);
+        const target = waitVisible(d);
+        const angles = targetAngles(d, target);
+        const side = (offsetOf(d, target).yaw > 0 ? 1 : -1) * (inward ? -1 : 1);
+        shootAt(d, { yaw: angles.yaw + side * half * factor, pitch: angles.pitch });
+        playThrough(d);
+        expect([seed, factor, inward, modeResult(d).targets[0]!.hit]).toEqual([seed, factor, inward, hit]);
+      }
     }
   });
 
-  it('MODE-51: 的の板の幅は、目から的の中心までの距離 L で 2 × L × tan(見込み角 ÷ 2)', () => {
+  it.each(Object.keys(FLICK_SIZES))('MODE-62: 的の大きさ %s で、人形の胴の幅の見込み角が見込み角になり（胴の幅 = 2 × L × tan(見込み角 ÷ 2)）、人形の高さは胴の幅に比例する', (size) => {
+    const angle = FLICK_SIZES[size as keyof typeof FLICK_SIZES].angle;
     const world = rangeWorld();
-    const plate = flickPlate(world, { yaw: 10, pitch: 2 }, 'small');
+    const dummy = flickDummy(world, { yaw: 10, pitch: 2 }, size as keyof typeof FLICK_SIZES);
     const eye = world.player.position;
-    const distance = Math.hypot(plate.center.x - eye.x, plate.center.y - eye.y, plate.center.z - eye.z);
-    expect(plate.size.x).toBeCloseTo(2 * distance * Math.tan((0.5 * Math.PI) / 180), 12);
-    const seen = anglesToPoint(eye, plate.center);
+    const distance = Math.hypot(dummy.center.x - eye.x, dummy.center.y - eye.y, dummy.center.z - eye.z);
+    expect(dummy.distance).toBeCloseTo(distance, 12);
+    const parts = humanoidParts(dummy.scale);
+    const torso = parts.find((p) => p.id === 'torso')!;
+    expect(torso.size.x).toBeCloseTo(2 * distance * Math.tan((angle * Math.PI) / 360), 12);
+    expect(2 * Math.atan(torso.size.x / 2 / distance) * (180 / Math.PI)).toBeCloseTo(angle, 9);
+    expect(HUMANOID_HEIGHT * dummy.scale).toBeCloseTo((torso.size.x / 0.5) * 1.8, 12);
+    // 人形の中心は照準の中心 + ずれの向き、後ろの面はマップの箱のいちばん手前の面より 0.05 メートル手前。
+    const seen = anglesToPoint(eye, dummy.center);
     expect(seen.yaw).toBeCloseTo(10, 9);
     expect(seen.pitch).toBeCloseTo(2, 9);
+    const front = Math.max(...MAP.boxes.map((b) => b.center.z + b.size.z / 2));
+    expect(dummy.center.z - (HUMANOID_DEPTH * dummy.scale) / 2).toBeCloseTo(front + 0.05, 12);
+  });
+
+  it('MODE-62: 同じずれなら、大・中・小の順に人形が小さくなる', () => {
+    const world = rangeWorld();
+    const scales = (['large', 'medium', 'small'] as const).map((size) => flickDummy(world, { yaw: -6, pitch: 1 }, size).scale);
+    expect(scales[0]).toBeGreaterThan(scales[1]!);
+    expect(scales[1]).toBeGreaterThan(scales[2]!);
+  });
+
+  it('MODE-61: 出た人形の胴の中心を撃つと命中、人形の右端より外か左右の脚のあいだを撃つと外れ', () => {
+    for (const seed of [5, 6, 7]) {
+      for (const [where, hit] of [
+        ['torso', true],
+        ['right', false],
+        ['legs', false],
+      ] as const) {
+        const d = start({ range: 'near', size: 'large' }, seed);
+        const target = waitVisible(d);
+        const eye = d.session.world.player.position;
+        const torso = partCenter(target.center, part(target, 'torso'));
+        const box = bounds(target);
+        const leg = partCenter(target.center, part(target, 'rightLeg'));
+        const point =
+          where === 'torso' ? torso : where === 'right' ? vec3(box.max.x + 0.2, target.center.y, target.center.z) : vec3(target.center.x, leg.y, target.center.z);
+        shootAt(d, anglesToPoint(eye, point));
+        playThrough(d);
+        expect([seed, where, modeResult(d).targets[0]!.hit]).toEqual([seed, where, hit]);
+        expect(d.session.shots[0]!.target === target.id).toBe(hit);
+      }
+    }
   });
 
   it('MODE-52: fire を押し続けても撃たなくてもリコイルのオフセットは 0 のままで、撃たずに 10 秒たっても終わらない', () => {
@@ -276,9 +338,7 @@ describe('フリックの練習の流れ', () => {
       const { distance } = offsetOf(d, target);
       expect(distance).toBeGreaterThanOrEqual(14);
       expect(distance).toBeLessThan(20);
-      const eye = d.session.world.player.position;
-      const l = Math.hypot(target.center.x - eye.x, target.center.y - eye.y, target.center.z - eye.z);
-      expect(target.size.x).toBeCloseTo(2 * l * Math.tan((0.5 * Math.PI) / 180), 12);
+      expect(part(target, 'torso').size.x).toBeCloseTo(2 * distanceTo(d, target) * Math.tan((0.5 * Math.PI) / 180), 12);
     }
     expect(d.session.result!.options.map((o) => [o.optionId, o.id, o.label.ja, o.name.ja])).toEqual([
       ['flick-range', 'far', '出る範囲', '遠い'],

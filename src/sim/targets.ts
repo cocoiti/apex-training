@@ -1,4 +1,4 @@
-import type { Vec3 } from './vec3';
+import { vec3, type Vec3 } from './vec3';
 
 /**
  * 練習の的（docs/spec/architecture.md「練習の的」）。モードが練習ごとに置く、マップの箱とは別の的。
@@ -9,12 +9,39 @@ import type { Vec3 } from './vec3';
 /** 浮動小数の誤差で、ちょうどステップの境目の出現・消える時刻を 1 ステップずらさないための許容幅（秒）。 */
 const EPSILON = 1e-9;
 
-/** 練習の的の決め方。モードが add に渡す。 */
-export interface PracticeTargetSpec {
-  /** 識別子。練習の中で重ならない。弾の記録の target に入る。 */
+/**
+ * 練習の的の部分の箱（docs/spec/architecture.md「練習の的」）。軸に平行な箱の大きさと、的の中心からの相対的な位置を持つ。
+ * 人形の的（src/sim/humanoid.ts）は頭・胴・腕・脚の 6 つの部分の箱でできている。
+ */
+export interface TargetPart {
+  /** 部分の識別子（人形では head・torso など）。的の中で重ならない。 */
   readonly id: string;
   /** 幅（X）・高さ（Y）・奥行き（Z）。メートル。 */
   readonly size: Vec3;
+  /** 的の中心からの相対的な位置（メートル）。 */
+  readonly offset: Vec3;
+}
+
+/** 大きさ size の 1 つの箱だけの的の形（部分の箱が 1 つで、相対的な位置が 0）。 */
+export function singleBoxParts(size: Vec3): TargetPart[] {
+  return [{ id: 'box', size, offset: vec3(0, 0, 0) }];
+}
+
+/** 的の中心が center のときの、部分の箱の中心の位置。 */
+export function partCenter(center: Vec3, part: TargetPart): Vec3 {
+  return vec3(center.x + part.offset.x, center.y + part.offset.y, center.z + part.offset.z);
+}
+
+/** 練習の的の形の決め方。1 つの箱だけの的は size、部分の箱を組み合わせた的（人形）は parts で渡す。 */
+export type PracticeTargetShape = { readonly size: Vec3; readonly parts?: undefined } | { readonly parts: readonly TargetPart[]; readonly size?: undefined };
+
+/** 練習の的の決め方。モードが add に渡す。 */
+export type PracticeTargetSpec = PracticeTargetShape & PracticeTargetOptions;
+
+/** 練習の的の決め方のうち、形の外のもの。 */
+export interface PracticeTargetOptions {
+  /** 識別子。練習の中で重ならない。弾の記録の target に入る。 */
+  readonly id: string;
   /**
    * 中心の位置（メートル）。練習の開始からの時刻（秒）から位置を返す動きの関数か、位置の変わらない的では位置そのもの。
    * 関数は同じ時刻に同じ位置を返す（乱数を使うときは、作るときに練習の種付きの乱数から決めておく）。
@@ -26,12 +53,20 @@ export interface PracticeTargetSpec {
   readonly disappearAt?: number;
   /** 照準が乗っているあいだ、乗っていないときと違う色で表示するか（docs/spec/screens.md「3D の表示」）。省くと同じ色。表示だけのもの。 */
   readonly highlightAimed?: boolean;
+  /**
+   * 弾痕を残すか（docs/spec/architecture.md「照準と的の当たり」）。残す的に当たった弾は、当たった点を弾痕の位置として記録し、
+   * その的の上に弾痕を表示する。省くと残さない（弾痕を表示しない）。
+   */
+  readonly keepsImpacts?: boolean;
+  /** 的の正面に的のリングと中心点を描くか（docs/spec/screens.md「3D の表示」）。省くと描かない。表示だけのもの。 */
+  readonly rings?: boolean;
 }
 
 /** 練習の的の今の状態。シミュレーションが書き換え、描画とモードは読むだけ。 */
 export interface PracticeTarget {
   readonly id: string;
-  readonly size: Vec3;
+  /** 形（1 つ以上の部分の箱）。描画も同じ形を読んで表示を作る。 */
+  readonly parts: readonly TargetPart[];
   /** 最後のステップの終わりの時刻の中心の位置。 */
   readonly center: Vec3;
   /** 直前のステップの終わりの時刻の中心の位置。描画の補間に使う。足したばかりの的では center と同じ。 */
@@ -42,6 +77,10 @@ export interface PracticeTarget {
   readonly disappearAt: number | undefined;
   /** 照準が乗っているあいだ違う色で表示するか。 */
   readonly highlightAimed: boolean;
+  /** 弾痕を残すか。 */
+  readonly keepsImpacts: boolean;
+  /** 正面に的のリングと中心点を描くか。 */
+  readonly rings: boolean;
 }
 
 interface Entry {
@@ -111,13 +150,15 @@ export class PracticeTargets {
       spec,
       state: {
         id: spec.id,
-        size: spec.size,
+        parts: spec.parts ? [...spec.parts] : singleBoxParts(spec.size),
         center,
         previousCenter: center,
         visible: this.time > 0 && visibleInStep(timing, this.time),
         appearAt,
         disappearAt,
         highlightAimed: spec.highlightAimed ?? false,
+        keepsImpacts: spec.keepsImpacts ?? false,
+        rings: spec.rings ?? false,
       },
     });
   }
