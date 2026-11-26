@@ -4,7 +4,7 @@
 
 ## 背景
 
-Issue #77 で、トップ画面の武器とモードを select からカードの並びに変える（screens.md「トップ画面」、UI-10, UI-112〜UI-119、MODE-56）。
+Issue #77 で、トップ画面の武器とモードを select からカードの並びに変える（screens.md「トップ画面」、UI-10, UI-117〜UI-124、MODE-56）。
 練習を始める所・履歴の画面・リザルトからの「もう一度」・多くのテストは、`#weapon`・`#mode` の select の値と change で選択を読み書きしている。
 パッドでは、カードの並び全体を 1 つの選択肢の欄として左右で選ぶ（カード 1 枚ずつは項目にしない）。モードのカードには説明とアイコンを出し、
 モードのファイルを 1 つ足すだけでカードが出る（MODE-56）。
@@ -31,6 +31,6 @@ Issue #77 で、トップ画面の武器とモードを select からカード�
 ## 影響
 
 - 一部置き換える ADR: [2026-11-26-remove-center-mode-and-panel-setting](2026-11-26-remove-center-mode-and-panel-setting.md)（トップ画面で、モードが 1 つのときに名前だけの欄を出す部分。履歴の画面はそのまま）
-- docs/spec/screens.md（トップ画面、パッドでの項目の移動と変更、UI-10, UI-112〜UI-119）, docs/spec/modes.md（モードの登録、MODE-56）
+- docs/spec/screens.md（トップ画面、パッドでの項目の移動と変更、UI-10, UI-117〜UI-124）, docs/spec/modes.md（モードの登録、MODE-56）
 - index.html, src/ui/card-choices.ts, src/ui/mode-cards.ts, src/ui/mode-icons.ts, src/ui/pad-menu.ts, src/ui/style.css, src/modes/types.ts, src/modes/registry.ts,
   src/modes/recoil/ghost.ts, src/modes/tracking.ts, src/modes/aim/, src/main.ts

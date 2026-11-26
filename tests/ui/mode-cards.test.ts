@@ -11,19 +11,19 @@ const best = (fields: Record<string, number>) => JSON.stringify({ version: 1, ..
 const mouse = (weaponId: string, options: Record<string, string> = {}) => ({ input: 'mouse' as const, weaponId, options });
 
 describe('モードのカードの自己ベストの要約', () => {
-  it('UI-114: 反復練習は選んでいる武器の自己ベストを「自己ベスト: 0.85°」と書き、ない武器では「まだ記録なし」', () => {
+  it('UI-119: 反復練習は選んでいる武器の自己ベストを「自己ベスト: 0.85°」と書き、ない武器では「まだ記録なし」', () => {
     const s = storage({ 'apex-training:best:mouse:lstar:ghost': best({ meanError: 0.85, groupingRadius: 1, hitRate: 50, shots: 10 }) });
     expect(modeBestSummary(s, ghost, mouse('lstar'))).toBe('自己ベスト: 0.85°');
     expect(modeBestSummary(s, ghost, mouse('car'))).toBe(NO_BEST_SUMMARY);
     expect(NO_BEST_SUMMARY).toBe('自己ベスト: まだ記録なし');
   });
 
-  it('UI-114: 入力方式が違う組の自己ベストは出さない', () => {
+  it('UI-119: 入力方式が違う組の自己ベストは出さない', () => {
     const s = storage({ 'apex-training:best:mouse:lstar:ghost': best({ meanError: 0.85 }) });
     expect(modeBestSummary(s, ghost, { input: 'pad', weaponId: 'lstar', options: {} })).toBe(NO_BEST_SUMMARY);
   });
 
-  it('UI-114: 自己ベストが 1 つもないときは、すべてのモードで「まだ記録なし」', () => {
+  it('UI-119: 自己ベストが 1 つもないときは、すべてのモードで「まだ記録なし」', () => {
     for (const mode of [ghost, tracking, trackingRecoil, flick]) expect(modeBestSummary(storage(), mode, mouse('lstar')), mode.id).toBe(NO_BEST_SUMMARY);
   });
 

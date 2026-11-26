@@ -1,4 +1,4 @@
-// docs/spec/screens.md「トップ画面」（UI-10・UI-112〜UI-119）と docs/spec/modes.md「モードの登録」（MODE-56）の
+// docs/spec/screens.md「トップ画面」（UI-10・UI-117〜UI-124）と docs/spec/modes.md「モードの登録」（MODE-56）の
 // ブラウザで確かめる受け入れテスト。QA が SPEC だけから書いたもの。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、武器の JSON、SPEC に書かれた localStorage のキーと値の形、
 // モードの共通の型 TrainingMode）だけを使い、実装の内部には依存しない。
@@ -190,14 +190,14 @@ async function padTap(page: Page, b: number) {
 
 // ---------------------------------------------------------------------------
 
-describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-112〜UI-119・MODE-56）', () => {
+describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-117〜UI-124・MODE-56）', () => {
   let work = '';
   let server: Server | undefined;
   let extraServer: Server | undefined;
   let origin = '';
   let extraOrigin = '';
   let browser: Browser | undefined;
-  /** 配信したサーバーが受けた要求のパス（UI-119）。 */
+  /** 配信したサーバーが受けた要求のパス（UI-124）。 */
   let requests: string[] = [];
 
   const exceptions = (page: Page) => page.errors.filter((e) => e.startsWith('exception:'));
@@ -285,7 +285,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     noExceptions(page);
   });
 
-  it('UI-112: モードのカードが登録の順に並び、名前・説明・アイコンを持ち、反復練習が選ばれ、フリックをクリックすると選び直される', async () => {
+  it('UI-117: モードのカードが登録の順に並び、名前・説明・アイコンを持ち、反復練習が選ばれ、フリックをクリックすると選び直される', async () => {
     const page = await openFresh();
     expect(await modeNames(page)).toEqual(MODES.map((m) => m.name));
     const list = await cards(page, 'モード');
@@ -326,7 +326,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     noExceptions(page);
   });
 
-  it('UI-113: L-STAR のカードをクリックすると選ばれた表示になり（C.A.R. SMG は戻り）、「開始」で HUD に L-STAR と出て練習が始まる', async () => {
+  it('UI-118: L-STAR のカードをクリックすると選ばれた表示になり（C.A.R. SMG は戻り）、「開始」で HUD に L-STAR と出て練習が始まる', async () => {
     const page = await openFresh();
     const before = await cards(page, '武器');
     expect(expectOneSelected(before, '開いたとき').text).toBe(CAR);
@@ -351,7 +351,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     noExceptions(page);
   });
 
-  it('UI-114: L-STAR の反復練習の自己ベスト 0.85 度があるとき反復練習のカードに「自己ベスト: 0.85°」、ない武器では「まだ記録なし」。記録がないときはすべて「まだ記録なし」', async () => {
+  it('UI-119: L-STAR の反復練習の自己ベスト 0.85 度があるとき反復練習のカードに「自己ベスト: 0.85°」、ない武器では「まだ記録なし」。記録がないときはすべて「まだ記録なし」', async () => {
     // 自己ベストを 1 つも保存していないとき。
     const empty = await openFresh();
     const emptyCards = await cards(empty, 'モード');
@@ -379,7 +379,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     noExceptions(page);
   });
 
-  it('UI-114: 3D の描画（WebGL）が使えない環境でも、モードのカードに自己ベストの要約が出る', async () => {
+  it('UI-119: 3D の描画（WebGL）が使えない環境でも、モードのカードに自己ベストの要約が出る', async () => {
     // GPU のないヘッドレスの Chromium のように、WebGL のコンテキストが作れない状態にする。
     const noWebGL = `(() => { const get = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function (type, ...rest) { return /webgl/.test(String(type)) ? null : get.call(this, type, ...rest); }; })()`;
@@ -388,7 +388,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     for (const c of await cards(page, 'モード')) expect(c.text, c.text).toContain(NO_RECORD);
   });
 
-  it('UI-115: パッドだけでモードの並びにフォーカスを移すと並び全体を囲む枠が出て、右で 1 枚ずつ移って最後で止まり、下で次の項目に移る', async () => {
+  it('UI-120: パッドだけでモードの並びにフォーカスを移すと並び全体を囲む枠が出て、右で 1 枚ずつ移って最後で止まり、下で次の項目に移る', async () => {
     const page = await openFresh({ pad: true });
     const unfocusedGroup = await page.evaluate<Record<string, string>>(`window.__look(window.__group('モード'))`);
     const seen: string[] = [];
@@ -449,7 +449,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     noExceptions(page);
   });
 
-  it('UI-116: 武器のカードの並びにフォーカスがあるとき、キーボードの右の矢印キーで並びの順の次の武器が選ばれる', async () => {
+  it('UI-121: 武器のカードの並びにフォーカスがあるとき、キーボードの右の矢印キーで並びの順の次の武器が選ばれる', async () => {
     const page = await openFresh();
     let focused = false;
     for (let i = 0; i < 20 && !focused; i += 1) {
@@ -467,7 +467,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     noExceptions(page);
   });
 
-  it('UI-117: 幅 375px で反復練習とフリックのどちらでも横のスクロールが出ず、どの要素も画面の幅からはみ出さず、フッターに非公式の表記が出る', async () => {
+  it('UI-122: 幅 375px で反復練習とフリックのどちらでも横のスクロールが出ず、どの要素も画面の幅からはみ出さず、フッターに非公式の表記が出る', async () => {
     const page = await openFresh({ width: 375 });
     const check = async (context: string) => {
       await page.frames(2);
@@ -497,7 +497,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     noExceptions(page);
   });
 
-  it('UI-118: 「開始」のボタンの幅・高さ・文字の大きさが「設定」「履歴」のリンクより大きい', async () => {
+  it('UI-123: 「開始」のボタンの幅・高さ・文字の大きさが「設定」「履歴」のリンクより大きい', async () => {
     const page = await openFresh();
     const sizes = await page.evaluate<Record<string, { w: number; h: number; font: number } | null>>(`(() => {
       const els = [...window.__top().querySelectorAll('a, button')].filter((e) => window.__vis(e));
@@ -515,7 +515,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     noExceptions(page);
   });
 
-  it('UI-119: トップ画面を表示し終えるまでに、ほかのオリジンからの読み込みも、フォントとラスタ画像のファイルの読み込みもない', async () => {
+  it('UI-124: トップ画面を表示し終えるまでに、ほかのオリジンからの読み込みも、フォントとラスタ画像のファイルの読み込みもない', async () => {
     const page = await browser!.newPage();
     requests = [];
     await page.addInitScript(PAGE_INIT);

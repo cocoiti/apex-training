@@ -39,7 +39,7 @@ describe('select の選択肢からカードの並びを作る', () => {
 });
 
 describe('矢印キーの向き', () => {
-  it('UI-116: 右・下で次、左・上で前、ほかのキーは向きなし', () => {
+  it('UI-121: 右・下で次、左・上で前、ほかのキーは向きなし', () => {
     expect(keyDirection('ArrowRight')).toBe(1);
     expect(keyDirection('ArrowDown')).toBe(1);
     expect(keyDirection('ArrowLeft')).toBe(-1);
