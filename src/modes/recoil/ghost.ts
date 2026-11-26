@@ -39,7 +39,7 @@ const ghost: TrainingMode<ModeResult> = {
   },
   teardown() {},
   ghost(context) {
-    return ghostAngles(context.world, context.gun);
+    return context.gun ? ghostAngles(context.world, context.gun) : undefined;
   },
 };
 

@@ -16,8 +16,16 @@ export const IDLE_END_TIME = 2;
 /** 浮動小数の誤差で、ちょうど IDLE_END_TIME たったステップを 1 ステップずらさないための許容幅（秒）。 */
 const EPSILON = 1e-9;
 
-/** 練習が終わった理由。empty は撃ち切った、idle は離して撃たなかった、mode はモードが終えた。 */
-export type PracticeEndReason = 'empty' | 'idle' | 'mode';
+/** 練習が終わった理由。empty は撃ち切った、idle は離して撃たなかった、time はモードの制限時間がたった、mode はモードが終えた。 */
+export type PracticeEndReason = 'empty' | 'idle' | 'time' | 'mode';
+
+/**
+ * モードの制限時間（docs/spec/modes.md「共通」）がたったか。end はそのステップの終わりの時刻（秒）、limit は制限時間（秒）。
+ * 制限時間ちょうどに終わるステップで true になる。
+ */
+export function timeLimitReached(end: number, limit: number | undefined): boolean {
+  return limit !== undefined && end >= limit - EPSILON;
+}
 
 /**
  * 練習の終わりの判定（docs/spec/modes.md「共通」、MODE-6〜MODE-8）。

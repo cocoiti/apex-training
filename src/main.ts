@@ -15,11 +15,12 @@ import { canRumble, rumbleShot } from './input/pad-rumble';
 import { createSeed, RecordingInput } from './input/recording';
 import { keyControl, PadButtons, type ScreenControl } from './input/screen-controls';
 import { modes } from './modes/registry';
-import type { TrainingMode } from './modes/types';
+import { modeUsesDirectionSound, modeUsesWeakSections, modeUsesWeapon, type TrainingMode } from './modes/types';
 import { PracticeSession } from './modes/session';
 import { GhostMarker } from './render/ghost';
 import { ImpactMarks } from './render/impacts';
 import { interpolateAngles, SceneRenderer, UndrawnSceneRenderer, type ViewRenderer } from './render/scene';
+import { TargetMarks } from './render/targets';
 import { parseMap, type MapData } from './sim/map';
 import { viewAngles } from './sim/player';
 import type { WeaponData } from './sim/weapon';
@@ -36,6 +37,7 @@ import { renderCalibration, calibrationRadii, type CalibrationElements } from '.
 import { MappingAutoOpen, PadMappingScreen, PadMappingStore } from './ui/pad-mappings';
 import { bindCalibrationDeadzone, bindPadSettingsForm, type PadFormBinding, type PadSettingsFormElements } from './ui/pad-settings-form';
 import { fillModeChoice, fillModeSelect, type ModeChoiceElements } from './ui/mode-choices';
+import { compareMetric } from './ui/mode-scoring';
 import { PadMenu } from './ui/pad-menu';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { padGuideState, padGuideVisible, renderPadGuide, type PadGuideElements } from './ui/pad-guide';
@@ -45,7 +47,7 @@ import { applyPracticeSettings } from './ui/practice-settings';
 import { loadHistory, type HistorySelection } from './ui/practice-history';
 import type { InputMethod } from './ui/personal-best';
 import { parsePracticeCount, PracticeSet } from './ui/practice-set';
-import { completePractice, renderResult, type ResultElements, type ResultView } from './ui/result-view';
+import { completePractice, renderResult, resultWeaponId, type ResultElements, type ResultView } from './ui/result-view';
 import { renderRoundResult, roundResultTexts, type RoundResultElements } from './ui/round-result';
 import { adsAfter, applyReticleColor, showAimDisplay, type AimDisplayElements } from './ui/scope';
 import { SCREEN_HASHES, watchScreen, type ScreenId } from './ui/router';
@@ -57,7 +59,7 @@ import { bindSettingsForm, type SettingsFormElements } from './ui/settings-form'
 import { showScreen, showStorageNotice } from './ui/shell';
 import { appStorage } from './ui/storage';
 import { weakSection } from './ui/weak-section';
-import { fillWeaponSelect } from './ui/weapon-choices';
+import { fillWeaponSelect, showWeaponChoice } from './ui/weapon-choices';
 
 /** 読み込みが終わったあとに練習を始め・打ち切るもの。 */
 interface App {
@@ -282,7 +284,8 @@ function historyElements(): HistoryElements | null {
     cancel: byId<HTMLButtonElement>('confirm-cancel'),
   };
   if ([...Object.values(elements), ...Object.values(confirm)].some((element) => !element)) return null;
-  return { ...elements, confirm } as HistoryElements;
+  const weaponChoice = byId('weapon-choice');
+  return { ...elements, confirm, ...(weaponChoice ? { weaponChoice } : {}) } as HistoryElements;
 }
 
 /** 画面に入ったときに、パッドの画面の表示を保存された値に揃える。 */
@@ -422,7 +425,7 @@ function startPadScreens(): PadScreens {
 
 /** 1 回の練習の、シミュレーションとループと入力の記録。時刻は練習の開始を 0 とする。 */
 interface Running {
-  readonly session: PracticeSession;
+  readonly session: PracticeSession<WeaponData | undefined>;
   readonly loop: FixedStepLoop;
   /** 積んだ入力を記録しながらシミュレーションに流す。記録（input.recording()）はリザルトの軌道の重ね描きと再生に使う。 */
   readonly input: RecordingInput;
@@ -575,6 +578,20 @@ async function start(): Promise<void> {
   weaponSelect.addEventListener('change', () => preview.stop());
   refreshPreview();
 
+  // 武器を使わないモードを選んでいるあいだは、武器の欄と試聴を隠す（docs/spec/screens.md「トップ画面」）。
+  // 隠すだけで武器の選択は残すので、武器を使うモードに選び直すと前に選んでいた武器が選ばれている。隠した欄にはパッドのフォーカスも移らない。
+  const weaponChoice = document.querySelector<HTMLElement>('#weapon-choice');
+  const previewChoice = document.querySelector<HTMLElement>('#preview-sound-choice');
+  const selectedMode = () => modes.find((m) => m.id === modeSelect.value) ?? modes[0];
+  const refreshWeaponChoice = () => {
+    const mode = selectedMode();
+    const shown = mode ? modeUsesWeapon(mode) : true;
+    if (!shown) preview.stop();
+    showWeaponChoice({ weapon: weaponChoice, preview: previewChoice }, shown);
+  };
+  modeSelect.addEventListener('change', refreshWeaponChoice);
+  refreshWeaponChoice();
+
   // 履歴の画面（docs/spec/screens.md「履歴の画面」）。武器は一覧のすべて、モードは登録されたモードを選択肢にする。
   // 登録されていないモードの id の保存（以前のパターン観察・センター維持など）は選択肢に出さず、消さない。
   // このページで最後に終えた練習の組を、開いたときに選ぶ。
@@ -586,7 +603,7 @@ async function start(): Promise<void> {
     const historyModeChoice = modeChoiceElements('history-', historyEls.mode as HTMLSelectElement);
     if (historyModeChoice) fillModeChoice(historyModeChoice, modes);
     else fillModeSelect(historyEls.mode as HTMLSelectElement, modes);
-    const historyView = bindHistoryView(historyEls, { storage: appStorage, now: () => new Date() });
+    const historyView = bindHistoryView(historyEls, { storage: appStorage, now: () => new Date(), modes });
     const weaponIds = weapons.map((w) => w.id);
     const modeIds = modes.map((m) => m.id);
     openHistory = () => historyView.open(initialHistorySelection(lastFinished, weaponIds, modeIds));
@@ -599,6 +616,8 @@ async function start(): Promise<void> {
   const view: ViewRenderer = pageOptions.render ? new SceneRenderer(canvas, shownWorld, { fov }) : new UndrawnSceneRenderer(canvas, shownWorld, { fov });
   const impacts = new ImpactMarks(view.view.layer);
   const ghost = new GhostMarker(view.view.layer);
+  // 練習の的（docs/spec/screens.md「3D の表示」）。描画のたびにシミュレーションの的の状態を読んで置き直す。
+  const targetMarks = new TargetMarks(view.view.layer);
   // パッド向けのガイド（docs/spec/pad.md「練習中のガイド」）。表示だけで、シミュレーションと入力の記録には触れない。
   const guide = padGuideElements();
   const hideGuide = () => {
@@ -653,7 +672,8 @@ async function start(): Promise<void> {
 
   // 今のセット（回数が 1 のときも 1 回のセットとして持つ）と、その武器とモード。回ごと・やり直しごとに同じものを使う。
   let set: PracticeSet | undefined;
-  let setup: { readonly weapon: WeaponData; readonly mode: TrainingMode } | undefined;
+  // 武器を使わないモードでは weapon は undefined。
+  let setup: { readonly weapon: WeaponData | undefined; readonly mode: TrainingMode } | undefined;
   // セットで最後に終えた回の入力方式（1 発目を撃ったときの入力方式）。セットのまとめに表示する。
   let setInput: InputMethod = 'mouse';
   // 直前に終えた回のリザルト。短いリザルトの残り秒数を描き直すのに使う。
@@ -666,6 +686,7 @@ async function start(): Promise<void> {
     if (!setup) return;
     const { weapon, mode } = setup;
     impacts.clear();
+    targetMarks.clear();
     ghost.hide();
     const settings = applyPracticeSettings(appStorage, {
       view: view.view,
@@ -702,21 +723,29 @@ async function start(): Promise<void> {
       render: (alpha) => {
         // 撃ち切ったときと練習が終わったときはゴーストを消す（session.ghost が undefined）。
         ghost.update(world.player.position, showGhost ? session.ghost : undefined);
+        // 練習の的は読むだけで、シミュレーションの状態を変えない（ARC-37）。
+        targetMarks.update(world.targets.all, alpha);
         // テストが時計を進めている途中の描画（clock.draws が false）では 3D を描かず、次の実際の描画で最後の状態を描く。
         if (clock.draws) view.render(world, interpolateAngles(session.previousViewAngles, viewAngles(world.player), alpha));
       },
     });
     shownWorld = world;
-    // 向きの音は練習の武器の簡易版の区切りで鳴らす。パターンの表示・補正のパネル・モードによらない（docs/spec/screens.md「音」）。
-    const play = soundBlockedReason(settings) ? undefined : (direction: string) => directionSound.play(direction, settings.volume);
-    const sounds = new ShotSounds(simplePattern(weapon), play);
+    // 向きの音は、向きの音を使うモードで、練習の武器の簡易版の区切りで鳴らす。パターンの表示・補正のパネルによらない（docs/spec/screens.md「音」）。
+    const play =
+      soundBlockedReason(settings) || !modeUsesDirectionSound(mode) ? undefined : (direction: string) => directionSound.play(direction, settings.volume);
+    const sounds = new ShotSounds(weapon ? simplePattern(weapon) : { segments: [] }, play);
     running = { session, loop, input, padSettings: DEFAULT_PAD_SETTINGS, rumbledShots: 0, sounds };
     hideGuide();
     // 新しい練習では自分の線を消し、今の発の点を 1 発目に戻す。表示は描画のたびに決める。
     // 苦手な区間は始める時点の入力方式と保存してある履歴から 1 回だけ求め、練習のあいだは変えない（docs/spec/screens.md「補正のパネル」）。
-    const weak = weakSection(loadHistory(appStorage, { input: inputs.current, weaponId: weapon.id, modeId: mode.id }));
     // パターンの表示（詳細 / 簡易）はパネルの理想の線と次の発の点だけに使う（docs/spec/screens.md「補正のパネル」）。
-    panel?.begin(weapon, { weakStart: weak?.start, display: settings.patternDisplay });
+    // 武器を使わないモードではパネルを出さない。
+    if (weapon) {
+      const weak = modeUsesWeakSections(mode)
+        ? weakSection(loadHistory(appStorage, { input: inputs.current, weaponId: weapon.id, modeId: mode.id }))
+        : null;
+      panel?.begin(weapon, { weakStart: weak?.start, display: settings.patternDisplay });
+    }
     panel?.hide();
     setAds(false);
     interlude.hidden = true;
@@ -727,9 +756,11 @@ async function start(): Promise<void> {
   /** トップ画面で選んだ武器・モード・回数で、新しいセットを 1 回目から始める。 */
   const begin = () => {
     preview.stop();
-    const weapon = weapons.find((w) => w.id === weaponSelect.value) ?? weapons[0];
     const mode = modes.find((m) => m.id === modeSelect.value) ?? modes[0];
-    if (!weapon || !mode) return;
+    if (!mode) return;
+    // 武器を使わないモードは、トップ画面の武器の選択を使わない（docs/spec/modes.md「モードの登録」）。
+    const weapon = modeUsesWeapon(mode) ? (weapons.find((w) => w.id === weaponSelect.value) ?? weapons[0]) : undefined;
+    if (modeUsesWeapon(mode) && !weapon) return;
     setup = { weapon, mode };
     set = new PracticeSet(parsePracticeCount(countSelect.value));
     quitHint.hidden = !set.isSet;
@@ -743,6 +774,7 @@ async function start(): Promise<void> {
     setup = undefined;
     interlude.hidden = true;
     impacts.clear();
+    targetMarks.clear();
     ghost.hide();
     hideGuide();
     panel?.hide();
@@ -753,9 +785,9 @@ async function start(): Promise<void> {
     if (!setup) return;
     running = undefined;
     interlude.hidden = true;
-    const summary = summarizeSet(current.rounds, current.count);
-    renderSetSummary(setView, setSummaryHeading(setup.weapon.name, setup.mode.name, setInput, summary), summary);
-    setSharing.set(setShareText(setShare(setup.weapon.name, setup.mode.name, summary)));
+    const summary = summarizeSet(current.rounds, current.count, compareMetric(setup.mode));
+    renderSetSummary(setView, setSummaryHeading(setup.weapon?.name, setup.mode.name, setInput, summary), summary);
+    setSharing.set(setShareText(setShare(setup.weapon?.name, setup.mode.name, summary)));
     flow.finishSet();
     location.hash = SCREEN_HASHES['set-result'];
   };
@@ -771,6 +803,7 @@ async function start(): Promise<void> {
     if (!result || !set || set.phase !== 'playing') return;
     running = undefined;
     ghost.hide();
+    targetMarks.clear();
     hideGuide();
     panel?.hide();
     setAds(false);
@@ -788,9 +821,9 @@ async function start(): Promise<void> {
       appStorage,
       new Date(),
     );
-    lastFinished = { input: result.inputMethod, weaponId: result.weapon.id, modeId: result.mode.id };
+    lastFinished = { input: result.inputMethod, weaponId: resultWeaponId(result), modeId: result.mode.id };
     setInput = result.inputMethod;
-    const phase = set.completeRound(view.meanDeviation, now(), view.bestUpdated);
+    const phase = set.completeRound(view.value, now(), view.bestUpdated);
     if (!set.isSet) {
       renderResult(resultView, view);
       resultSharing.set(resultShareText(resultShare(result, view)));
@@ -874,7 +907,7 @@ async function start(): Promise<void> {
 
   // 入力に使うパッドで弾が 1 発出るたびに 1 回振動させる。マウスのとき・OFF のとき・対応しないときは出さない（docs/spec/pad.md「振動」）。
   const rumbleNewShots = (current: Running) => {
-    const shots = current.session.gun.shots.length;
+    const shots = current.session.shots.length;
     for (; current.rumbledShots < shots; current.rumbledShots += 1) {
       if (vibration && inputs.current === 'pad' && padStatus.kind === 'using') rumbleShot(padStatus.pad);
     }
@@ -901,12 +934,11 @@ async function start(): Promise<void> {
       current.loop.frame();
       const { session } = current;
       rumbleNewShots(current);
-      current.sounds.sync(session.gun.shots);
-      impacts.sync(session.gun.shots, session.world.player.position);
+      current.sounds.sync(session.shots);
+      impacts.sync(session.shots, session.world.player.position);
+      const { gun } = session;
       renderHud(hudElements, {
-        weaponName: session.weapon.name,
-        ammo: session.gun.ammo,
-        magSize: session.weapon.magSize,
+        weapon: gun ? { name: gun.weapon.name, ammo: gun.ammo, magSize: gun.weapon.magSize } : undefined,
         elapsed: session.elapsed,
         inputMethod: inputs.current,
         round: set ? { index: set.round, count: set.count } : undefined,
@@ -930,8 +962,8 @@ async function start(): Promise<void> {
       }
       // 補正のパネルは入力方式と設定によらず、パネルを出すモード（反復練習）で出す。一時停止中は状態が変わらないので同じ表示のまま。
       if (panel) {
-        if (correctionPanelShown(session.mode.correctionPanel)) {
-          panel.update({ nextShot: session.gun.nextPatternShot, ammo: session.gun.ammo, shotAims: session.shotAims, aim: session.aim });
+        if (gun && correctionPanelShown(session.mode.correctionPanel)) {
+          panel.update({ nextShot: gun.nextPatternShot, ammo: gun.ammo, shotAims: session.shotAims, aim: session.aim });
         } else {
           panel.hide();
         }

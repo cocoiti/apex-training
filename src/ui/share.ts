@@ -1,6 +1,9 @@
 import type { PracticeResult } from '../modes/session';
+import type { CompareMetric } from '../modes/types';
+import type { WeaponData } from '../sim/weapon';
+import { formatMetric, HIT_RATE_METRIC, SHOT_DEVIATION_METRIC } from './mode-scoring';
+import type { ResultView } from './result-view';
 import type { SetSummary } from './set-summary';
-import { formatDegrees, formatPercent, type ResultView } from './result-view';
 
 /**
  * 結果のシェア（docs/spec/screens.md「結果のシェア」）。渡すのは成績の要約の文（シェアの文）だけで、
@@ -16,62 +19,87 @@ const BEST_UPDATED = '自己ベスト更新！';
 
 /** リザルト画面（回数 1）のシェアの文に入れるもの。 */
 export interface ResultShare {
-  readonly weaponName: string;
+  /** 武器の表示名。武器を使わないモードでは undefined。 */
+  readonly weaponName: string | undefined;
   readonly modeName: string;
-  /** 平均ズレ（度）。「なし」のときは null。 */
-  readonly meanDeviation: number | null;
-  /** 命中率（%）。「なし」のときは null。 */
-  readonly hitRate: number | null;
+  /** 3 行目。反復練習は「平均ズレ: 0.85° / 命中率: 72.0%」、ほかのモードは比べる指標（例: 「命中数: 13」）。 */
+  readonly score: string;
   readonly bestUpdated: boolean;
 }
 
 /** セットのまとめのシェアの文に入れるもの。 */
 export interface SetShare {
-  readonly weaponName: string;
+  /** 武器の表示名。武器を使わないモードでは undefined。 */
+  readonly weaponName: string | undefined;
   readonly modeName: string;
   /** 終えた回の数。 */
   readonly rounds: number;
   /** 選んだ回数。 */
   readonly count: number;
-  /** セットの平均ズレ（度）。「なし」のときは null。 */
-  readonly average: number | null;
+  /** セットの平均の比べる指標の書き方（例: 「セットの平均ズレ: 0.85°」）。 */
+  readonly average: string;
   /** そのセットのどれかの回で自己ベストを更新したか。 */
   readonly bestUpdated: boolean;
 }
 
-function lines(title: string, weaponName: string, modeName: string, score: string, bestUpdated: boolean): string {
-  return [title, `武器: ${weaponName} / モード: ${modeName}`, score, ...(bestUpdated ? [BEST_UPDATED] : []), PUBLIC_URL].join('\n');
+/** 反復練習（弾痕のズレの採点）の 3 行目。「平均ズレ: 0.85° / 命中率: 72.0%」。「なし」の指標は「なし」と書く。 */
+export function shotDeviationShareScore(meanDeviation: number | null, hitRate: number | null): string {
+  return `${metricShareScore(SHOT_DEVIATION_METRIC, meanDeviation)} / ${metricShareScore(HIT_RATE_METRIC, hitRate)}`;
+}
+
+/** ほかのモードの 3 行目。比べる指標の名前と値（例: 「命中数: 13」）。 */
+export function metricShareScore(metric: Pick<CompareMetric, 'label' | 'format'>, value: number | null): string {
+  return `${metric.label}: ${formatMetric(metric, value)}`;
+}
+
+/** 2 行目。武器を使わないモードでは「モード: <モード>」だけ（docs/spec/screens.md「シェアの文」）。 */
+function choiceLine(weaponName: string | undefined, modeName: string): string {
+  return weaponName === undefined ? `モード: ${modeName}` : `武器: ${weaponName} / モード: ${modeName}`;
+}
+
+function lines(title: string, weaponName: string | undefined, modeName: string, score: string, bestUpdated: boolean): string {
+  return [title, choiceLine(weaponName, modeName), score, ...(bestUpdated ? [BEST_UPDATED] : []), PUBLIC_URL].join('\n');
 }
 
 /** リザルト画面のシェアの文。数の書き方はリザルト画面の表示と同じ。 */
 export function resultShareText(share: ResultShare): string {
-  const score = `平均ズレ: ${formatDegrees(share.meanDeviation)} / 命中率: ${formatPercent(share.hitRate)}`;
-  return lines(`${APP_NAME}の結果`, share.weaponName, share.modeName, score, share.bestUpdated);
+  return lines(`${APP_NAME}の結果`, share.weaponName, share.modeName, share.score, share.bestUpdated);
 }
 
 /** セットのまとめのシェアの文。 */
 export function setShareText(share: SetShare): string {
-  const score = `回数: ${share.rounds} / ${share.count} 回 / セットの平均ズレ: ${formatDegrees(share.average)}`;
+  const score = `回数: ${share.rounds} / ${share.count} 回 / ${share.average}`;
   return lines(`${APP_NAME}のセットの結果`, share.weaponName, share.modeName, score, share.bestUpdated);
 }
 
 /** リザルト画面の練習の結果と表示から、シェアの文に入れるものを取り出す。 */
 export function resultShare(
-  result: { readonly weapon: Pick<PracticeResult['weapon'], 'name'>; readonly mode: Pick<PracticeResult['mode'], 'name'> },
-  view: Pick<ResultView, 'meanDeviation' | 'hitRate' | 'bestUpdated'>,
+  result: { readonly weapon: Pick<WeaponData, 'name'> | undefined; readonly mode: Pick<PracticeResult['mode'], 'name'> },
+  view: Pick<ResultView, 'shareScore' | 'bestUpdated'>,
 ): ResultShare {
-  return {
-    weaponName: result.weapon.name,
-    modeName: result.mode.name,
-    meanDeviation: view.meanDeviation,
-    hitRate: view.hitRate,
-    bestUpdated: view.bestUpdated,
-  };
+  return { weaponName: result.weapon?.name, modeName: result.mode.name, score: view.shareScore, bestUpdated: view.bestUpdated };
 }
 
-/** セットのまとめから、シェアの文に入れるものを取り出す。 */
-export function setShare(weaponName: string, modeName: string, summary: Pick<SetSummary, 'rounds' | 'count' | 'average' | 'bestUpdated'>): SetShare {
-  return { weaponName, modeName, rounds: summary.rounds.length, count: summary.count, average: summary.average, bestUpdated: summary.bestUpdated };
+/** セットの平均の書き方。反復練習（平均ズレ）は「セットの平均ズレ: 0.85°」、ほかのモードは「セットの平均<指標の名前>: <値>」。 */
+export function setAverageShareText(summary: Pick<SetSummary, 'metric' | 'average'>): string {
+  const label = summary.metric === SHOT_DEVIATION_METRIC ? '平均ズレ' : `平均${summary.metric.label}`;
+  return `セットの${label}: ${formatMetric(summary.metric, summary.average)}`;
+}
+
+/** セットのまとめから、シェアの文に入れるものを取り出す。武器を使わないモードでは weaponName を undefined にする。 */
+export function setShare(
+  weaponName: string | undefined,
+  modeName: string,
+  summary: Pick<SetSummary, 'metric' | 'rounds' | 'count' | 'average' | 'bestUpdated'>,
+): SetShare {
+  return {
+    weaponName,
+    modeName,
+    rounds: summary.rounds.length,
+    count: summary.count,
+    average: setAverageShareText(summary),
+    bestUpdated: summary.bestUpdated,
+  };
 }
 
 /** 「X に投稿」のリンクの行き先。投稿の画面の下書きにシェアの文が入る。 */

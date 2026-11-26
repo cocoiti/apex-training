@@ -2,9 +2,8 @@ import { INPUT_METHOD_LABELS, type InputMethod } from '../input/input-switch';
 
 /** HUD に出すもの（docs/spec/modes.md「共通」）。 */
 export interface HudState {
-  readonly weaponName: string;
-  readonly ammo: number;
-  readonly magSize: number;
+  /** 武器名と残弾。武器を使わないモードでは undefined で、武器名と残弾の要素を隠す。 */
+  readonly weapon: { readonly name: string; readonly ammo: number; readonly magSize: number } | undefined;
   /** 練習の開始からの時間（秒、固定ステップの時刻）。 */
   readonly elapsed: number;
   /** 今の入力方式（docs/spec/input.md「入力方式の切替」）。 */
@@ -38,8 +37,8 @@ export function formatElapsed(seconds: number): string {
 
 export function hudTexts(state: HudState): HudTexts {
   return {
-    weapon: state.weaponName,
-    ammo: `残弾 ${state.ammo} / ${state.magSize}`,
+    weapon: state.weapon?.name ?? '',
+    ammo: state.weapon ? `残弾 ${state.weapon.ammo} / ${state.weapon.magSize}` : '',
     time: formatElapsed(state.elapsed),
     input: INPUT_METHOD_LABELS[state.inputMethod],
     round: state.round && state.round.count >= 2 ? `${state.round.index} / ${state.round.count}` : '',
@@ -47,9 +46,11 @@ export function hudTexts(state: HudState): HudTexts {
   };
 }
 
-/** HUD の要素。index.html の [data-hud] の要素。パッドの状態の要素は出さないときに隠す。 */
-export type HudElements = Readonly<Record<Exclude<keyof HudTexts, 'pad'>, Pick<HTMLElement, 'textContent'>>> & {
+/** HUD の要素。index.html の [data-hud] の要素。パッドの状態と武器名・残弾の要素は出さないときに隠す。 */
+export type HudElements = Readonly<Record<Exclude<keyof HudTexts, 'pad' | 'weapon' | 'ammo'>, Pick<HTMLElement, 'textContent'>>> & {
   readonly pad: Pick<HTMLElement, 'textContent' | 'hidden'>;
+  readonly weapon: Pick<HTMLElement, 'textContent' | 'hidden'>;
+  readonly ammo: Pick<HTMLElement, 'textContent' | 'hidden'>;
 };
 
 /** HUD の要素の文字を書き換える。変わっていない要素は書き換えない。 */
@@ -58,6 +59,10 @@ export function renderHud(elements: HudElements, state: HudState): void {
   for (const key of Object.keys(texts) as (keyof HudTexts)[]) {
     if (elements[key].textContent !== texts[key]) elements[key].textContent = texts[key];
   }
-  const hidden = state.padStatus === undefined;
-  if (elements.pad.hidden !== hidden) elements.pad.hidden = hidden;
+  const setHidden = (element: Pick<HTMLElement, 'hidden'>, hidden: boolean) => {
+    if (element.hidden !== hidden) element.hidden = hidden;
+  };
+  setHidden(elements.pad, state.padStatus === undefined);
+  setHidden(elements.weapon, state.weapon === undefined);
+  setHidden(elements.ammo, state.weapon === undefined);
 }

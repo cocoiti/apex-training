@@ -2,14 +2,24 @@ import { DEFAULT_PAD_SETTINGS, stickPosition, type PadSettings } from '../input/
 import { padDisplayName } from '../input/pad-layout';
 import type { InputRecording } from '../input/recording';
 import type { PracticeResult } from '../modes/session';
+import { modeUsesWeakSections, type CompareMetric } from '../modes/types';
 import { scoreShots, shotDeviations, targetRadius, type ScoreResult } from '../sim/scoring';
 import { aimAtShots, lookRateTrace } from '../sim/trajectory';
 import { idealCorrection } from '../sim/weapon';
 import type { World } from '../sim/world';
-import { personalBestKey, recordPersonalBest, type InputMethod, type PersonalBestOutcome } from './personal-best';
-import { recordHistory } from './practice-history';
+import { compareMetric, formatMetric, NO_WEAPON_ID, SHOT_DEVIATION_METRIC } from './mode-scoring';
+import {
+  personalBestKey,
+  recordBest,
+  shotDeviationBestCandidate,
+  type BestOutcome,
+  type InputMethod,
+  type PersonalBestOutcome,
+} from './personal-best';
+import { recordHistoryEntry, shotDeviationHistoryCandidate, type HistoryEntry } from './practice-history';
 import { escapeHtml, plotHtml, tracePlotHtml, type Plot, type TracePlot } from './result-plot';
 import { resultSummaryText } from './result-summary';
+import { metricShareScore, shotDeviationShareScore } from './share';
 import type { SafeStorage } from './storage';
 import { weakSection, weakSectionText } from './weak-section';
 
@@ -48,10 +58,12 @@ export interface ResultView {
   readonly comments: readonly string[];
   /** 自己ベストの表示。 */
   readonly best: string;
-  /** 平均ズレ（度）。「なし」のときは null。連続練習の短いリザルトとセットのまとめに使う。 */
-  readonly meanDeviation: number | null;
-  /** 命中率（%）。「なし」のときは null。シェアの文に使う。 */
-  readonly hitRate: number | null;
+  /** モードの比べる指標（反復練習は平均ズレ）。 */
+  readonly metric: CompareMetric;
+  /** 比べる指標の値（反復練習は平均ズレ、度）。求まらない（「なし」の）ときは null。連続練習の短いリザルトとセットのまとめに使う。 */
+  readonly value: number | null;
+  /** シェアの文の 3 行目（docs/spec/screens.md「シェアの文」）。 */
+  readonly shareScore: string;
   /** この練習で自己ベストを更新したか。 */
   readonly bestUpdated: boolean;
   readonly plots: readonly Plot[];
@@ -94,10 +106,14 @@ export function metricRows(result: ScoreResult): MetricRow[] {
   ];
 }
 
-/** 自己ベストの表示。更新したら「自己ベスト更新」、しなかったら保存してある自己ベストの平均ズレ。 */
-export function personalBestText(outcome: PersonalBestOutcome): string {
+/**
+ * 自己ベストの表示。更新したら「自己ベスト更新」、しなかったら保存してある自己ベストの比べる指標の値（既定は平均ズレ）。
+ * outcome は弾痕のズレの採点の結果（best を持つ）か、比べる指標の値（value を持つ）。
+ */
+export function personalBestText(outcome: PersonalBestOutcome | BestOutcome, metric: CompareMetric = SHOT_DEVIATION_METRIC): string {
   if (outcome.updated) return '自己ベスト更新';
-  return `自己ベスト 平均ズレ ${formatDegrees(outcome.best?.meanError ?? null)}`;
+  const value = 'value' in outcome ? outcome.value : (outcome.best?.meanError ?? null);
+  return `自己ベスト ${metric.label} ${formatMetric(metric, value)}`;
 }
 
 /**
@@ -108,7 +124,10 @@ export function padTraceView(
   practice: Pick<FinishedPractice, 'recording' | 'dt' | 'padSettings'> & { readonly result: Pick<PracticeResult, 'weapon' | 'padName'> },
 ): PadTraceView {
   const settings = practice.padSettings ?? DEFAULT_PAD_SETTINGS;
-  const trace = lookRateTrace(practice.recording, practice.result.weapon, practice.dt).map((point) => ({
+  // 理想の補正速度は武器のパターンから求めるので、武器を使わない練習では入力推移を求めない（呼び出し側がグラフを出さない）。
+  const { weapon } = practice.result;
+  const points = weapon ? lookRateTrace(practice.recording, weapon, practice.dt) : [];
+  const trace = points.map((point) => ({
     time: point.time,
     stick: stickPosition(point.rate, settings, point.ads),
     ideal: stickPosition(point.ideal, settings, point.ads),
@@ -128,8 +147,14 @@ export function padTraceView(
   };
 }
 
+/** 保存のキーの武器の id。武器を使わないモードの練習では NO_WEAPON_ID（`-`）。 */
+export function resultWeaponId(result: Pick<PracticeResult, 'weapon'>): string {
+  return result.weapon?.id ?? NO_WEAPON_ID;
+}
+
 /**
- * 練習の結果を採点し、自己ベストと比べて保存し、履歴に足し、リザルト画面に出すものを作る。
+ * 練習の結果をモードの採点の仕方で採点し、比べる指標で自己ベストと比べて保存し、履歴に足し、リザルト画面に出すものを作る
+ * （docs/spec/scoring.md「モードごとの採点」）。採点の仕方を持たないモードは弾痕のズレの採点。
  * 保存は SafeStorage を通すので、保存できない環境でも投げない。
  */
 export function completePractice(
@@ -137,6 +162,33 @@ export function completePractice(
   storage: Pick<SafeStorage, 'get' | 'set'>,
   now: Date,
 ): ResultView {
+  const { result } = practice;
+  const scoring = result.mode.scoring;
+  if (!scoring) return completeShotDeviation(practice, storage, now);
+  const metric = compareMetric(result.mode);
+  const scored = scoring.score({ shots: result.shots, duration: result.duration, modeResult: result.modeResult });
+  const selection = { input: practice.input, weaponId: resultWeaponId(result), modeId: result.mode.id };
+  const candidate = { value: scored.value, fields: scored.fields ?? {} };
+  const outcome = recordBest(storage, personalBestKey(selection.input, selection.weaponId, selection.modeId), metric, candidate, now);
+  recordHistoryEntry(storage, selection, metric, candidate, now);
+  return {
+    summary: resultSummaryText(result),
+    metrics: scored.metrics,
+    comments: scored.comments ?? [],
+    best: personalBestText(outcome, metric),
+    metric,
+    value: scored.value,
+    shareScore: metricShareScore(metric, scored.value),
+    bestUpdated: outcome.updated,
+    // 散布図・照準の軌道・入力推移のグラフ・苦手な区間は弾痕のズレの採点のモードだけのもの（SCO-41）。
+    plots: [],
+    padTrace: null,
+    weakSection: null,
+  };
+}
+
+/** 弾痕のズレの採点（反復練習）。指標と弾痕の散布図・照準の軌道、パッドのときは入力推移のグラフ、苦手な区間を出す。 */
+function completeShotDeviation(practice: FinishedPractice, storage: Pick<SafeStorage, 'get' | 'set'>, now: Date): ResultView {
   const { result, world } = practice;
   const summary = resultSummaryText(result);
   const deviations = shotDeviations(result.shots, world.center);
@@ -144,23 +196,26 @@ export function completePractice(
 
   const radius = targetRadius(world);
   const scored = scoreShots(result.shots, world, radius);
-  const key = personalBestKey(practice.input, result.weapon.id, result.mode.id);
-  const outcome = recordPersonalBest(storage, key, scored, now);
+  const selection = { input: practice.input, weaponId: resultWeaponId(result), modeId: result.mode.id };
+  const key = personalBestKey(selection.input, selection.weaponId, selection.modeId);
+  const outcome = recordBest(storage, key, SHOT_DEVIATION_METRIC, shotDeviationBestCandidate(scored), now);
   // 履歴は自己ベストとは別のキーに足す（docs/spec/scoring.md「練習の履歴」）。
-  const history = recordHistory(storage, { input: practice.input, weaponId: result.weapon.id, modeId: result.mode.id }, scored, now);
-  // 苦手な区間は今の練習を足したあとの履歴から求める（docs/spec/scoring.md「リザルト画面」）。
-  const weak = weakSection(history);
+  const history = recordHistoryEntry(storage, selection, SHOT_DEVIATION_METRIC, shotDeviationHistoryCandidate(scored), now) as HistoryEntry[];
+  // 苦手な区間は今の練習を足したあとの履歴から求める（docs/spec/scoring.md「リザルト画面」）。苦手な区間を使うモードだけ。
+  const weak = modeUsesWeakSections(result.mode) ? weakSection(history) : null;
   const aim = aimAtShots(practice.recording, result.shots, world.center, practice.dt);
-  const ideal = idealCorrection(result.weapon).slice(0, result.shots.length);
+  const { weapon } = result;
+  const ideal = weapon ? idealCorrection(weapon).slice(0, result.shots.length) : [];
   return {
     summary,
     metrics: metricRows(scored),
     comments: scored.comments,
     best: personalBestText(outcome),
-    meanDeviation: scored.meanDeviation,
-    hitRate: scored.hitRate,
+    metric: SHOT_DEVIATION_METRIC,
+    value: scored.meanDeviation,
+    shareScore: shotDeviationShareScore(scored.meanDeviation, scored.hitRate),
     bestUpdated: outcome.updated,
-    padTrace: result.inputMethod === 'pad' ? padTraceView(practice) : null,
+    padTrace: result.inputMethod === 'pad' && weapon ? padTraceView(practice) : null,
     weakSection: weak ? `${WEAK_SECTION_LABEL}: ${weakSectionText(weak)}` : null,
     plots: [
       { name: 'scatter', title: '弾痕の散布図', series: [shotSeries], circle: radius },

@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { SHOT_DEVIATION_METRIC } from '../../src/ui/mode-scoring';
 import { countdownSeconds, renderRoundResult, roundResultTexts } from '../../src/ui/round-result';
+import { HIT_COUNT } from '../helpers/aim-modes';
+
+const metric = SHOT_DEVIATION_METRIC;
 
 describe('連続練習の短いリザルト', () => {
   it('MODE-17: 回の番号と回数、平均ズレとコメント、次の回までの残り秒数を出す', () => {
-    const texts = roundResultTexts(1, 5, { meanDeviation: 0.8, comments: ['下げ不足', '横の補正不足'], bestUpdated: false }, 3);
+    const texts = roundResultTexts(1, 5, { metric, value: 0.8, comments: ['下げ不足', '横の補正不足'], bestUpdated: false }, 3);
     expect(texts).toEqual({
       round: '1 / 5 回目',
       score: '平均ズレ 0.80° — 下げ不足 / 横の補正不足',
@@ -13,14 +17,18 @@ describe('連続練習の短いリザルト', () => {
   });
 
   it('その回で自己ベストを更新したときは「自己ベスト更新」と出す', () => {
-    expect(roundResultTexts(2, 5, { meanDeviation: 0.5, comments: [], bestUpdated: true }, 1).best).toBe('自己ベスト更新');
+    expect(roundResultTexts(2, 5, { metric, value: 0.5, comments: [], bestUpdated: true }, 1).best).toBe('自己ベスト更新');
   });
 
   it('平均ズレが「なし」の回は「平均ズレ なし」と出し、「採点なし」は出さない', () => {
-    const texts = roundResultTexts(3, 10, { meanDeviation: null, comments: [], bestUpdated: false }, 2.2);
+    const texts = roundResultTexts(3, 10, { metric, value: null, comments: [], bestUpdated: false }, 2.2);
     expect(texts.score).toBe('平均ズレ なし');
     expect(texts.score).not.toContain('採点なし');
     expect(texts.best).toBe('');
+  });
+
+  it('ほかのモードでは、そのモードの比べる指標の名前と書き方で出す', () => {
+    expect(roundResultTexts(1, 3, { metric: HIT_COUNT, value: 13, comments: [], bestUpdated: false }, 3).score).toBe('命中数 13');
   });
 
   it('残り秒数は切り上げ、0 より小さくしない', () => {

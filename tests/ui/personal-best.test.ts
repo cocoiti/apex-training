@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { score } from '../../src/sim/scoring';
-import { parsePersonalBest, personalBestKey, recordPersonalBest } from '../../src/ui/personal-best';
+import { NO_WEAPON_ID } from '../../src/ui/mode-scoring';
+import { parsePersonalBest, parseStoredBest, personalBestKey, recordBest, recordPersonalBest } from '../../src/ui/personal-best';
+import { HIT_COUNT } from '../helpers/aim-modes';
 import { SafeStorage } from '../../src/ui/storage';
 
 /** Map で代用した保存先。 */
@@ -111,5 +113,53 @@ describe('自己ベストの更新', () => {
     expect(storage.unavailable).toBe(true);
     const again = recordPersonalBest(storage, KEY, result(0.7), NOW);
     expect(again).toMatchObject({ updated: false, best: { meanError: 0.5 } });
+  });
+});
+
+describe('モードの比べる指標の自己ベスト', () => {
+  const AIM_KEY = personalBestKey('mouse', NO_WEAPON_ID, 'flick');
+  const hits = (value: number | null) => ({ value, fields: { shots: 20 } });
+
+  it('武器を使わないモードのキーは武器の id の代わりに - を書く', () => {
+    expect(AIM_KEY).toBe('apex-training:best:mouse:-:flick');
+  });
+
+  it('SCO-40: 大きいほど良い命中数で、自己ベスト 12 のとき 13 で更新し、そのあと 13（等しい）と 11 では更新しない', () => {
+    const storage = memoryStorage({ [AIM_KEY]: JSON.stringify({ version: 1, hits: 12, achievedAt: '2026-01-01T00:00:00.000Z' }) });
+    const first = recordBest(storage, AIM_KEY, HIT_COUNT, hits(13), NOW);
+    expect(first).toMatchObject({ updated: true, value: 13 });
+    expect(parseStoredBest(storage.items.get(AIM_KEY) ?? null, HIT_COUNT)?.value).toBe(13);
+    const saved = storage.items.get(AIM_KEY);
+    expect(recordBest(storage, AIM_KEY, HIT_COUNT, hits(13), NOW)).toMatchObject({ updated: false, value: 13 });
+    expect(recordBest(storage, AIM_KEY, HIT_COUNT, hits(11), NOW)).toMatchObject({ updated: false, value: 13 });
+    expect(storage.items.get(AIM_KEY)).toBe(saved);
+  });
+
+  it('SCO-42: 保存の値は version 1・比べる指標の値・モードが決めた指標・achievedAt を持つ', () => {
+    const storage = memoryStorage();
+    recordBest(storage, AIM_KEY, HIT_COUNT, hits(7), NOW);
+    expect(JSON.parse(storage.items.get(AIM_KEY) ?? '')).toEqual({ version: 1, hits: 7, shots: 20, achievedAt: '2026-11-25T05:06:07.000Z' });
+  });
+
+  it('モードが決めた指標は保存の形の項目名と比べる指標を上書きしない', () => {
+    const storage = memoryStorage();
+    recordBest(storage, AIM_KEY, HIT_COUNT, { value: 3, fields: { version: 9, achievedAt: 'x', hits: 100, shots: 4 } }, NOW);
+    expect(JSON.parse(storage.items.get(AIM_KEY) ?? '')).toEqual({ version: 1, hits: 3, shots: 4, achievedAt: '2026-11-25T05:06:07.000Z' });
+  });
+
+  it('値が求まらない、または指標のとりうる値でない結果では更新しない', () => {
+    const storage = memoryStorage();
+    expect(recordBest(storage, AIM_KEY, HIT_COUNT, hits(null), NOW).updated).toBe(false);
+    expect(recordBest(storage, AIM_KEY, HIT_COUNT, hits(-1), NOW).updated).toBe(false);
+    expect(storage.items.size).toBe(0);
+  });
+
+  it.each([
+    ['比べる指標の項目がない', { version: 1, shots: 3 }],
+    ['比べる指標が数でない', { version: 1, hits: '12' }],
+    ['比べる指標がとりうる値でない', { version: 1, hits: 1.5 }],
+    ['version が 1 でない', { version: 2, hits: 12 }],
+  ])('%s ときは自己ベストがないものとする', (_, value) => {
+    expect(parseStoredBest(JSON.stringify(value), HIT_COUNT)).toBeNull();
   });
 });

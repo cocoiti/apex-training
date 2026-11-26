@@ -1,5 +1,6 @@
 import { normalizeYaw, type Angles } from './angles';
 import type { Box } from './map';
+import type { PracticeTarget } from './targets';
 import { vec3, type Vec3 } from './vec3';
 
 /** レイと箱の最も近い交点。 */
@@ -14,7 +15,7 @@ export interface RayHit {
 const AXES = ['x', 'y', 'z'] as const;
 
 /** レイと軸に平行な箱の交差（スラブ法）。始点より前（t > 0）の最初の交点の t を返す。始点が箱の中なら出口。 */
-function intersectBox(origin: Vec3, dir: Vec3, box: Box): number | undefined {
+function intersectBox(origin: Vec3, dir: Vec3, box: Pick<Box, 'center' | 'size'>): number | undefined {
   let tNear = -Infinity;
   let tFar = Infinity;
   for (const axis of AXES) {
@@ -44,6 +45,32 @@ export function raycastBoxes(origin: Vec3, dir: Vec3, boxes: readonly Box[]): Ra
     const t = intersectBox(origin, dir, box);
     if (t === undefined || (best && t >= best.distance)) continue;
     best = { box, distance: t, position: vec3(origin.x + dir.x * t, origin.y + dir.y * t, origin.z + dir.z * t) };
+  }
+  return best;
+}
+
+/** 照準のレイや弾が最初に当たったもの。マップの箱か練習の的のどちらか。 */
+export interface SceneHit {
+  /** 交点の位置（メートル）。 */
+  readonly position: Vec3;
+  readonly distance: number;
+  /** 当たったマップの箱。練習の的に当たったときは undefined。 */
+  readonly box: Box | undefined;
+  /** 当たった練習の的。マップの箱に当たったときは undefined。 */
+  readonly target: PracticeTarget | undefined;
+}
+
+/**
+ * 始点から方向（長さ 1）へ飛ばしたレイが、マップの箱と出現している練習の的のなかで最初に当たるもの
+ * （docs/spec/architecture.md「照準と的の当たり」）。同じ距離ならマップの箱を先にする。どれにも当たらなければ undefined。
+ */
+export function raycastScene(origin: Vec3, dir: Vec3, boxes: readonly Box[], targets: readonly PracticeTarget[]): SceneHit | undefined {
+  const boxHit = raycastBoxes(origin, dir, boxes);
+  let best: SceneHit | undefined = boxHit ? { position: boxHit.position, distance: boxHit.distance, box: boxHit.box, target: undefined } : undefined;
+  for (const target of targets) {
+    const t = intersectBox(origin, dir, target);
+    if (t === undefined || (best && t >= best.distance)) continue;
+    best = { position: vec3(origin.x + dir.x * t, origin.y + dir.y * t, origin.z + dir.z * t), distance: t, box: undefined, target };
   }
   return best;
 }

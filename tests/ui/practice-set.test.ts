@@ -14,7 +14,7 @@ describe('連続練習（セット）', () => {
     const set = new PracticeSet(1);
     expect(set.isSet).toBe(false);
     expect(set.completeRound(0.5, 0)).toBe('done');
-    expect(set.rounds).toEqual([{ round: 1, meanDeviation: 0.5, bestUpdated: false }]);
+    expect(set.rounds).toEqual([{ round: 1, value: 0.5, bestUpdated: false }]);
   });
 
   it('回ごとに自己ベストを更新したかを残す（省いたときは更新していない）', () => {
@@ -55,7 +55,7 @@ describe('連続練習（セット）', () => {
       expect(set.completeRound(mean, i)).toBe(i === 4 ? 'done' : 'interlude');
       if (i < 4) set.next();
     });
-    expect(set.rounds.map((r) => [r.round, r.meanDeviation])).toEqual(means.map((m, i) => [i + 1, m]));
+    expect(set.rounds.map((r) => [r.round, r.value])).toEqual(means.map((m, i) => [i + 1, m]));
   });
 
   it('MODE-20: 2 回を終えたあとにやめると、終えた 2 回だけでまとめにする（練習中でも短いリザルトの表示中でも）', () => {

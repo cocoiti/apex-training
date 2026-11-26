@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WeaponData } from '../../src/sim/weapon';
-import { fillWeaponSelect, groupWeaponsByCategory } from '../../src/ui/weapon-choices';
+import { fillWeaponSelect, groupWeaponsByCategory, showWeaponChoice } from '../../src/ui/weapon-choices';
 import { createFakeSelect, describeSelect } from './fake-select';
 
 function weapon(id: string, category: string, name = id): WeaponData {
@@ -65,5 +65,19 @@ describe('fillWeaponSelect', () => {
     fillWeaponSelect(select, [weapon('a', 'AR')]);
     fillWeaponSelect(select, []);
     expect(element.children).toEqual([]);
+  });
+});
+
+describe('showWeaponChoice', () => {
+  it('MODE-33・UI-99: 武器を使わないモードでは武器の欄と試聴の欄を隠し、武器を使うモードに戻すと出す', () => {
+    const elements = { weapon: { hidden: false }, preview: { hidden: false } };
+    showWeaponChoice(elements, false);
+    expect(elements).toEqual({ weapon: { hidden: true }, preview: { hidden: true } });
+    showWeaponChoice(elements, true);
+    expect(elements).toEqual({ weapon: { hidden: false }, preview: { hidden: false } });
+  });
+
+  it('欄がなくても投げない', () => {
+    expect(() => showWeaponChoice({ weapon: null, preview: null }, false)).not.toThrow();
   });
 });

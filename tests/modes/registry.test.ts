@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildModeList, modes, type ModeModule } from '../../src/modes/registry';
-import type { TrainingMode } from '../../src/modes/types';
+import { modeUsesDirectionSound, modeUsesWeakSections, modeUsesWeapon, type TrainingMode } from '../../src/modes/types';
 
 function mode(id: string, order: number, extra: Partial<TrainingMode> = {}): TrainingMode {
   return {
@@ -60,6 +60,38 @@ describe('モードの一覧を作る', () => {
   });
 });
 
+describe('エイムのモードと採点の仕方', () => {
+  const scoring = {
+    compare: { id: 'hits', label: '命中数', unit: '', better: 'higher' as const, format: String },
+    score: () => ({ value: 0, metrics: [] }),
+  };
+
+  it('種類 aim と、武器を使うか・制限時間・採点の仕方を持つモードを一覧に入れる', () => {
+    const list = buildModeList([
+      file('recoil/ghost.ts', mode('ghost', 20)),
+      file('aim/flick.ts', mode('flick', 30, { category: 'aim', usesWeapon: false, timeLimit: 10, scoring })),
+      file('aim/track.ts', mode('track', 10, { category: 'aim', usesWeapon: true, scoring: { ...scoring, columns: [scoring.compare] } })),
+    ]);
+    expect(list.map((m) => m.id)).toEqual(['track', 'ghost', 'flick']);
+  });
+
+  it.each([
+    ['武器を使うかが真偽値でない', { usesWeapon: 'no' }],
+    ['制限時間が 0', { timeLimit: 0 }],
+    ['制限時間が数でない', { timeLimit: '10' }],
+    ['採点の仕方に score がない', { scoring: { compare: scoring.compare } }],
+    ['比べる指標の向きが不明', { scoring: { ...scoring, compare: { ...scoring.compare, better: 'up' } } }],
+    ['比べる指標の項目名が保存の形の項目名', { scoring: { ...scoring, compare: { ...scoring.compare, id: 'version' } } }],
+    ['比べる指標に書き方がない', { scoring: { ...scoring, compare: { id: 'hits', label: '命中数', unit: '', better: 'higher' } } }],
+    ['一覧の指標の項目名が at', { scoring: { ...scoring, columns: [{ ...scoring.compare, id: 'at' }] } }],
+  ])('%s モードは外す', (_, extra) => {
+    const logs: string[] = [];
+    const list = buildModeList([file('aim/x.ts', mode('x', 1, { category: 'aim', ...(extra as Partial<TrainingMode>) }))], (m) => logs.push(m));
+    expect(list).toEqual([]);
+    expect(logs).toHaveLength(1);
+  });
+});
+
 describe('登録されたモード', () => {
   it('MODE-27: src/modes/ のファイルから集めたモードは反復練習だけ', () => {
     expect(modes.map((m) => [m.id, m.name])).toEqual([['ghost', '反復練習']]);
@@ -67,5 +99,22 @@ describe('登録されたモード', () => {
     expect(modes.map((m) => m.name)).not.toContain('センター維持');
     expect(modes.map((m) => m.name)).not.toContain('パターン観察');
     expect(modes.map((m) => m.name)).not.toContain('ゴースト追従');
+  });
+
+  it('反復練習は武器を使い、弾痕のズレの採点・苦手な区間・向きの音・補正のパネルを使う', () => {
+    const ghost = modes.find((m) => m.id === 'ghost')!;
+    expect(modeUsesWeapon(ghost)).toBe(true);
+    expect(ghost.scoring).toBeUndefined();
+    expect(modeUsesWeakSections(ghost)).toBe(true);
+    expect(modeUsesDirectionSound(ghost)).toBe(true);
+    expect(ghost.correctionPanel).toBe('always');
+    expect(ghost.timeLimit).toBeUndefined();
+  });
+
+  it('武器を使わないモードは向きの音を使わず、採点の仕方を持つモードは苦手な区間を使わない', () => {
+    expect(modeUsesDirectionSound({ usesWeapon: false })).toBe(false);
+    expect(modeUsesDirectionSound({ usesWeapon: true, directionSound: false })).toBe(false);
+    expect(modeUsesWeakSections({ scoring: { compare: { id: 'x', label: 'x', unit: '', better: 'lower', format: String }, score: () => ({ value: null, metrics: [] }) } })).toBe(false);
+    expect(modeUsesWeakSections({ weakSections: false })).toBe(false);
   });
 });

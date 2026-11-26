@@ -4,6 +4,7 @@ import type { InputRecording } from '../input/recording';
 import { inputFromTimedActions } from '../input/queue';
 import { normalizeYaw, type Angles } from './angles';
 import { Gun, type ShotRecord } from './gun';
+import { PracticeTargets } from './targets';
 import { createPlayer } from './player';
 import { applyActions } from './simulation';
 import { vec3 } from './vec3';
@@ -81,7 +82,7 @@ export function lookRateTrace(
   dt = DEFAULT_FIXED_STEP,
 ): LookRatePoint[] {
   const center = { yaw: 0, pitch: 0 };
-  const world: World = { mapId: '', boxes: [], center, player: createPlayer(vec3(0, 0, 0), center) };
+  const world: World = { mapId: '', boxes: [], center, player: createPlayer(vec3(0, 0, 0), center), targets: new PracticeTargets() };
   const gun = new Gun(weapon, createRandom(0));
   const input = inputFromTimedActions(recording.actions);
   const points: LookRatePoint[] = [];

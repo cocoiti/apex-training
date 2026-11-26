@@ -5,7 +5,7 @@ import type { Angles } from './angles';
 import { applyLook, viewAngles, type Player } from './player';
 import type { World } from './world';
 
-/** ステップごとの追加の処理（練習モードなど）。入力を適用したあとに呼ぶ。 */
+/** ステップごとの追加の処理（練習モードなど）。入力を適用し、練習の的をそのステップの位置にしたあとに呼ぶ。 */
 export type StepHook = (world: World, dt: number) => void;
 
 /**
@@ -49,6 +49,8 @@ export class Simulation {
     this.previous = viewAngles(this.world.player);
     const end = (this.steps + 1) * this.dt;
     applyActions(this.world.player, this.input.take(end));
+    // 練習の的の位置と出現は、そのステップの終わりの時刻で決める（docs/spec/architecture.md「練習の的」）。
+    this.world.targets.update(end);
     for (const hook of this.hooks) hook(this.world, this.dt);
     this.steps += 1;
   }
