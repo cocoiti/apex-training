@@ -54,6 +54,8 @@ const WEAPON_NAMES = readdirSync(join(ROOT, 'src/data/weapons'))
 /** 標準配置のボタンの番号（pad.md）。 */
 const A = 0;
 const DOWN = 13;
+const LEFT = 14;
+const RIGHT = 15;
 
 // ---------------------------------------------------------------------------
 // ページに入れるスクリプト
@@ -75,6 +77,7 @@ const PAGE_INIT = `
   window.__interlude = () => window.__vis('#interlude');
   window.__screens = () => [...document.querySelectorAll('[data-screen]')].filter((s) => window.__vis(s)).map((s) => s.getAttribute('data-screen'));
   window.__button = (label) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === label && window.__vis(b));
+  window.__focused = () => { const els = [...document.querySelectorAll('.pad-focus')]; return els.length === 1 ? (els[0].id || els[0].textContent.trim()) : els.length > 1 ? 'MULTIPLE' : ''; };
   window.__bannerShown = () => !!window.__button(${JSON.stringify(GRANT)}) && !!window.__button(${JSON.stringify(DENY)});
   window.__bannerText = () => { const g = window.__button(${JSON.stringify(GRANT)}); if (!g) return '';
     let el = g; while (el && !el.innerText.includes('許可しますか')) el = el.parentElement; return el ? el.innerText : ''; };
@@ -598,4 +601,52 @@ describe.skipIf(NESTED || !chromium)('QA: 画面の表示の計測', () => {
     expect((await pageViews(page)).map((e) => e.screen_name)).toEqual(['top', 'play', 'result']);
     noExceptions(page);
   }, 120_000);
+
+  // 追いエイム・フリックのモードの選択欄（#73・#74）と、同意の案内の「許可」「許可しない」が同じトップ画面に並んでも、パッドだけで選んで始められる。
+  for (const [mode, setting, value] of [['追いエイム', '速さ', '遅い'], ['フリック', '的の大きさ', '小']] as const) {
+    it(`UI-112・UI-113: 案内を出したまま、パッドだけで${mode}と${setting}「${value}」を選んで開始でき、プレイ画面では案内が出ない`, async () => {
+      const o = await open(withId, '#/', 'top', { pad: true });
+      const { page } = o;
+      await page.waitFor('window.__bannerShown()');
+      const focusTo = async (target: string) => {
+        const seen: string[] = [];
+        for (let i = 0; i < 20; i += 1) {
+          const now = await page.evaluate<string>('window.__focused()');
+          if (now === target) return seen;
+          seen.push(now);
+          await tap(page, DOWN);
+        }
+        throw new Error(`十字キーの下で ${target} にフォーカスが来ない: ${seen.join(' → ')}`);
+      };
+      const choose = async (selector: string, label: string) => {
+        for (let i = 0; i < 8; i += 1) {
+          const st = await page.evaluate<{ now: number; want: number }>(`(() => { const s = document.querySelector(${JSON.stringify(selector)});
+            return { now: s.selectedIndex, want: [...s.options].findIndex((o) => o.textContent.trim() === ${JSON.stringify(label)}) }; })()`);
+          if (st.want < 0) throw new Error(`${selector} に ${label} がない`);
+          if (st.now === st.want) return;
+          await tap(page, st.now < st.want ? RIGHT : LEFT);
+        }
+        throw new Error(`十字キーの左右で ${selector} に ${label} を選べない`);
+      };
+      const seen = await focusTo('mode');
+      // 案内の 2 つのボタンが項目の順の最初に来て、そのあとに画面の項目が続く。
+      expect(seen.slice(1, 3)).toEqual(['consent-grant', 'consent-deny']);
+      await choose('#mode', mode);
+      const settingId = await page.evaluate<string>(
+        `[...document.querySelectorAll('[data-screen="top"] select')].find((s) => window.__vis(s) && (s.closest('label')?.textContent ?? '').includes(${JSON.stringify(setting)}))?.id ?? ''`,
+      );
+      expect(settingId).toBeTruthy();
+      await focusTo(settingId);
+      await choose(`#${settingId}`, value);
+      await focusTo('start');
+      await tap(page, A);
+      await page.waitFor(`location.hash === '#/play' && window.__vis('[data-screen="play"]')`);
+      await settle(page);
+      expect(await bannerShown(page)).toBe(false);
+      // 案内では何も選んでいないので、計測しないまま（GTM の要求なし、同意の状態は未選択）。
+      expect(await consent(page)).toBeNull();
+      expect(gtmRequests(o)).toEqual([]);
+      noExceptions(page);
+    }, 90_000);
+  }
 });
