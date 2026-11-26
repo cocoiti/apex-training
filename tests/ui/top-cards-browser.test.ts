@@ -41,6 +41,18 @@ const readCards = (page: Page, root: string, select: string) =>
       select: document.getElementById('${select}').value };
   })()`);
 
+/** select の値を変え、利用者が選んだときと同じく input と change を送る。 */
+async function chooseValue(page: Page, selector: string, value: string): Promise<void> {
+  const ok = await page.evaluate<boolean>(`(() => {
+    const s = document.querySelector(${JSON.stringify(selector)});
+    if (!s || ![...s.options].some((o) => o.value === ${JSON.stringify(value)})) return false;
+    s.value = ${JSON.stringify(value)};
+    s.dispatchEvent(new Event('input', { bubbles: true }));
+    s.dispatchEvent(new Event('change', { bubbles: true }));
+    return true; })()`);
+  if (!ok) throw new Error(`${selector} に ${value} の選択肢がない`);
+}
+
 describe.skipIf(NESTED || !chromium)('トップ画面のカード', () => {
   let work = '';
   let server: Server | undefined;
@@ -136,6 +148,34 @@ describe.skipIf(NESTED || !chromium)('トップ画面のカード', () => {
     expect((await summaries())[0]).toBe('自己ベスト: 0.85°');
     await page.clickSelector('#weapon-cards .card[data-value="car"]');
     expect((await summaries())[0]).toBe('自己ベスト: まだ記録なし');
+  });
+
+  it('設定で入力方式をパッドに変えてトップ画面に戻ると、自己ベストの要約はパッドの自己ベストに変わる', async () => {
+    const best = JSON.stringify({ version: 1, meanError: 0.42, groupingRadius: 1, hitRate: 50, shots: 10, achievedAt: '2026-11-26T00:00:00.000Z' });
+    const page = await open(`localStorage.setItem('apex-training:best:pad:lstar:ghost', ${JSON.stringify(best)})`);
+    const ghostSummary = () => page.evaluate<string>(`document.querySelector('#mode-cards .card[data-value="ghost"] .card-best').textContent`);
+    await page.clickSelector('#weapon-cards .card[data-value="lstar"]');
+    // 入力方式は既定（自動・最後に操作したのはマウス）なので、パッドだけにある自己ベストは出ない。
+    expect(await ghostSummary()).toBe('自己ベスト: まだ記録なし');
+    await page.evaluate(`location.hash = '#/settings'`);
+    await page.waitFor(`!document.querySelector('[data-screen="settings"]').hidden`);
+    await chooseValue(page, '#setting-input-method', 'pad');
+    await page.evaluate(`location.hash = '#/'`);
+    await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden`);
+    expect(await ghostSummary()).toBe('自己ベスト: 0.42°');
+  });
+
+  it('追いエイムの速さを変えると、追いエイムのカードの要約はその速さの自己ベストに変わる', async () => {
+    const record = (rate: number) => JSON.stringify({ version: 1, onTargetRate: rate, achievedAt: '2026-11-26T00:00:00.000Z' });
+    const page = await open(`localStorage.setItem('apex-training:best:mouse:-:tracking:normal', ${JSON.stringify(record(40))});
+      localStorage.setItem('apex-training:best:mouse:-:tracking:fast', ${JSON.stringify(record(62.5))})`);
+    const trackingSummary = () => page.evaluate<string>(`document.querySelector('#mode-cards .card[data-value="tracking"] .card-best').textContent`);
+    await page.clickSelector('#mode-cards .card[data-value="tracking"]');
+    expect(await trackingSummary()).toBe('自己ベスト: 40.0%');
+    await chooseValue(page, '#speed', 'fast');
+    expect(await trackingSummary()).toBe('自己ベスト: 62.5%');
+    await chooseValue(page, '#speed', 'slow');
+    expect(await trackingSummary()).toBe('自己ベスト: まだ記録なし');
   });
 
   it('パッドでモードの並びにフォーカスを移すと並び全体に枠が付き、右で 1 枚ずつ進んで最後で止まり、下で次の項目へ移る', async () => {
