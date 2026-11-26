@@ -162,6 +162,11 @@ export interface PadMenuOptions {
   readonly section: (screen: ScreenId) => HTMLElement | null;
   /** 戻る（B / ○）で画面を移る。 */
   readonly navigate: (screen: ScreenId) => void;
+  /**
+   * 画面の要素の外にあり、項目の順で画面の項目より前に置くもの（計測の同意の案内。docs/spec/screens.md「計測の同意の案内」）。
+   * 隠しているあいだは項目にしない。確認を出しているあいだは使わない。
+   */
+  readonly leading?: () => HTMLElement | null;
 }
 
 /** 項目のフォーカスと、パッドの操作をフォーカスしている項目に当てること。 */
@@ -207,12 +212,15 @@ export class PadMenu {
     }
   }
 
-  private scope(section: HTMLElement): ParentNode {
-    return this.modal ?? section;
+  /** 項目になりうるものの順（使えないものを含む）。確認を出していればその中だけ、なければ前に置くものと画面の項目。 */
+  private candidates(section: HTMLElement): HTMLElement[] {
+    if (this.modal) return controls(this.modal);
+    const leading = this.options.leading?.();
+    return [...(leading ? controls(leading) : []), ...controls(section)];
   }
 
   private items(section: HTMLElement): HTMLElement[] {
-    return controls(this.scope(section)).filter(usable);
+    return this.candidates(section).filter(usable);
   }
 
   /** 確認を出した・閉じたことを見て、フォーカスを確認の中に置く・確認の前の項目に戻す。 */
@@ -229,16 +237,16 @@ export class PadMenu {
     this.modal = undefined;
     const back = this.returnTo;
     this.returnTo = undefined;
-    if (this.focused && !section.contains(this.focused)) this.setFocus(undefined);
+    if (this.focused && !this.candidates(section).includes(this.focused)) this.setFocus(undefined);
     if (back && (!this.focused || !usable(this.focused))) this.setFocus(back);
   }
 
   private revalidate(section: HTMLElement): void {
     const focused = this.focused;
     if (!focused) return;
-    const scope = this.scope(section);
-    if (scope.contains(focused) && usable(focused)) return;
-    this.setFocus(relocateFocus(controls(scope), usable, focused));
+    const all = this.candidates(section);
+    if (all.includes(focused) && usable(focused)) return;
+    this.setFocus(relocateFocus(all, usable, focused));
   }
 
   /** 1 つの操作を当てる。押した・戻ったときは true。 */

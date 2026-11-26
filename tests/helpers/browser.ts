@@ -86,6 +86,8 @@ export class Page {
   private pending = new Map<number, Pending>();
   /** ページで捕まらなかった例外とコンソールのエラー。 */
   readonly errors: string[] = [];
+  /** DevTools プロトコルの知らせ（method ごと）を受け取るもの。 */
+  private readonly listeners = new Map<string, ((params: Record<string, unknown>) => void)[]>();
 
   constructor(private readonly socket: WebSocket) {
     socket.addEventListener('message', (event) => {
@@ -103,6 +105,7 @@ export class Page {
         else p?.resolve(msg.result);
         return;
       }
+      if (msg.method) for (const listener of this.listeners.get(msg.method) ?? []) listener(msg.params ?? {});
       if (msg.method === 'Runtime.exceptionThrown') {
         const details = msg.params?.exceptionDetails as { text?: string; exception?: { description?: string } };
         this.errors.push(`exception: ${details.exception?.description ?? details.text ?? ''}`);
@@ -112,6 +115,11 @@ export class Page {
         this.errors.push(`console.error: ${args.map((a) => String(a.value ?? a.description ?? '')).join(' ')}`);
       }
     });
+  }
+
+  /** DevTools プロトコルの知らせ（Network.requestWillBeSent・Fetch.requestPaused など）を受け取る。 */
+  on(method: string, listener: (params: Record<string, unknown>) => void): void {
+    this.listeners.set(method, [...(this.listeners.get(method) ?? []), listener]);
   }
 
   send<T = unknown>(method: string, params: Record<string, unknown> = {}): Promise<T> {

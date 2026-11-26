@@ -6,6 +6,19 @@ import { configDefaults, defineConfig } from 'vitest/config';
 // 配信先のサブパス。ビルドの結果は /apex-training/ に置いて配信する（docs/spec/architecture.md ARC-14）。
 export const BASE_PATH = '/apex-training/';
 
+/**
+ * 画面の表示の計測に使う Google Tag Manager のコンテナ ID（docs/spec/overview.md「画面の表示の計測」）。ID を置くのはここだけ。
+ * 空にすると計測に関わることを何もしないビルドになる。環境変数 APEX_GTM_CONTAINER_ID があればその値（空を含む）で置き換える。
+ */
+export const GTM_CONTAINER_ID = 'GTM-MNFCCG6N';
+/** コンテナ ID を置き換える環境変数。 */
+export const GTM_CONTAINER_ID_ENV = 'APEX_GTM_CONTAINER_ID';
+
+/** ビルドに埋め込むコンテナ ID。環境変数があればその値、なければ GTM_CONTAINER_ID。 */
+export function gtmContainerId(env: Record<string, string | undefined>): string {
+  return env[GTM_CONTAINER_ID_ENV] ?? GTM_CONTAINER_ID;
+}
+
 /** テストのファイルの場所（src/ と同じ構成で tests/ に置く）。 */
 export const TEST_DIR = 'tests';
 export const TEST_SUFFIX = '.test.ts';
@@ -58,6 +71,9 @@ const BROWSER_WORKERS = process.env.VITEST ? browserWorkers(process.env) : DEFAU
 
 export default defineConfig({
   base: BASE_PATH,
+  define: {
+    __GTM_CONTAINER_ID__: JSON.stringify(gtmContainerId(process.env)),
+  },
   build: {
     // 資産は大きさによらず data: URL に埋め込まず、ベースパス基準の URL のファイルとして出す。
     // データの JSON は fetch するため（ARC-11）、画像・音声・3D モデルは素材の一覧と照らして検査するため（overview.md OVR-14）。
@@ -71,6 +87,9 @@ export default defineConfig({
     // テスト 1 件の上限を伸ばして、負荷の中で 3 回続けて流しても落ちないようにする（docs/spec/architecture.md ARC-20）。
     testTimeout: 60_000,
     hookTimeout: 60_000,
+    // テストが子のプロセスで行うビルドと開発サーバーは、既定でコンテナ ID を空にし、計測の案内を出さず googletagmanager.com へ要求しない。
+    // 計測を確かめるテストだけが APEX_GTM_CONTAINER_ID を渡してビルドする（docs/adr/2026-11-26-gtm-container-id-in-vite-config.md）。
+    env: { [GTM_CONTAINER_ID_ENV]: process.env[GTM_CONTAINER_ID_ENV] ?? '' },
     // テストは 2 つの組に分ける（docs/spec/architecture.md「テストの実行」）。npm test は両方を流す。
     // unit（ブラウザを使わない）はファイル単位で並列に、browser（Chromium を使う）は BROWSER_WORKERS ファイルずつ並行に流す。
     // browser のファイルは、ポート（0 で待ち受け）・Chromium のプロファイルと一時ディレクトリ・ビルドの結果・Vite の cacheDir を

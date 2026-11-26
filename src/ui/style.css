@@ -1023,3 +1023,32 @@ polyline.plot-trend {
   background: #262a32;
   box-shadow: 0 4px 24px rgb(0 0 0 / 50%);
 }
+
+/* 計測の同意の案内（docs/spec/screens.md「計測の同意の案内」）。画面の内容の上に帯で出し、画面のほかの項目は操作できるままにする。 */
+.consent-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 24px;
+  padding: 12px 16px;
+  font-size: 13px;
+  background: #262a32;
+  border-bottom: 1px solid #3a3f49;
+  pointer-events: auto;
+}
+
+.consent-banner p {
+  margin: 0;
+  max-width: 720px;
+}
+
+.consent-banner[hidden],
+.analytics-settings[hidden] {
+  display: none;
+}
+
+/* 「許可」と「許可しない」は同じ大きさと見た目にする。 */
+.consent-actions button {
+  min-width: 96px;
+}

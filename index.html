@@ -9,6 +9,15 @@
     <!-- 3D のキャンバスを画面いっぱいに置き、その上に各画面の HTML を重ねる（docs/spec/overview.md「公開」）。 -->
     <canvas id="view"></canvas>
     <div id="ui">
+      <!-- 計測の同意の案内（docs/spec/screens.md「計測の同意の案内」）。コンテナ ID があり未選択のとき、トップ・設定・履歴・パッドの画面の上に出す。
+           GTM の断片と noscript の iframe は置かない。許可したときだけ src/ui/analytics.ts が gtm.js を読み込む。 -->
+      <div id="consent-banner" class="consent-banner" role="region" aria-label="計測の同意" hidden>
+        <p id="consent-message"></p>
+        <div class="menu menu-row consent-actions">
+          <button type="button" id="consent-grant">許可</button>
+          <button type="button" id="consent-deny">許可しない</button>
+        </div>
+      </div>
       <section class="screen" data-screen="top">
         <div class="panel">
           <h1>リコイル練習</h1>
@@ -122,6 +131,12 @@
                 <label>振動 <input id="setting-pad-vibration" type="checkbox" /></label>
                 <span id="settings-pad-vibration-notice" class="note" hidden>このパッドまたはブラウザは振動に対応していません</span>
               </p>
+            </fieldset>
+            <!-- 計測の区分（docs/spec/screens.md「計測の設定」）。コンテナ ID が空のビルドでは隠したままにする。 -->
+            <fieldset id="settings-analytics" class="analytics-settings" hidden>
+              <legend>計測</legend>
+              <label class="setting">画面の表示の計測（Google Analytics） <input id="setting-analytics" type="checkbox" /></label>
+              <p class="note" id="settings-analytics-note"></p>
             </fieldset>
           </form>
           <nav class="menu">
