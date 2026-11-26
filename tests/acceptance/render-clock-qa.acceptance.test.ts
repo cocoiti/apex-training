@@ -247,4 +247,55 @@ describe.skipIf(NESTED || !chromium)('render=off と clock=manual（QA）', () =
     expect(none).toBeGreaterThan(0);
     expect(second).toBe(none);
   }, 90_000);
+  /**
+   * QA が SPEC（pad.md「スティックから視点の回転へ」の式と既定値、architecture.md の固定ステップ 1/120 秒）だけから求めた、
+   * 右スティックを右に 0.4 倒したまま 0.25 秒（固定ステップ 30 回）進めたときのヨーの変化（度）。
+   * 既定の詳細設定: デッドゾーン 10%・外側しきい値 2%・レスポンスカーブ 2・ヨー速度 300 度/秒。
+   */
+  const expectedYaw = (seconds: number) => Math.pow((0.4 - 0.1) / (1 - 0.02 - 0.1), 1 + 2 / 8) * 300 * seconds;
+
+  /**
+   * clock=manual のページでパッドで練習を始め、右スティックを右に 0.4 倒したまま時計を seconds 秒進めてから戻し、照準のヨーの変化を返す。
+   * 倒す前・倒したあと（時計を進める前）・時計を進めたあと（戻す前）・戻したあとに、実時間で wait ms だけ待ち、その間も描画は進む。
+   */
+  async function holdLook(wait: number, seconds: number): Promise<number> {
+    const page = await openTop({ render: false, manualClock: true });
+    await start(page);
+    const settle = async () => {
+      if (wait <= 0) return;
+      const t0 = await page.evaluate<number>('performance.now()');
+      await page.waitFor(`performance.now() >= ${t0 + wait}`, wait + 10_000);
+      await page.frames(3);
+    };
+    // 練習の開始の時点の照準（時計を少し進めて落ち着かせた値）。
+    await page.advanceClock(0.05);
+    const before = await page.evaluate<number>('window.__aimYaw()');
+    await settle();
+    await page.evaluate('window.__look(0.4, 0)');
+    await settle();
+    await page.advanceClock(seconds);
+    await settle();
+    await page.evaluate('window.__look(0, 0)');
+    await settle();
+    // 戻したあと時計を進めても、照準はもう動かない（戻した入力が読まれる）。
+    await page.advanceClock(0.2);
+    await settle();
+    const after = await page.evaluate<number>('window.__aimYaw()');
+    await page.advanceClock(0.2);
+    expect(await page.evaluate<number>('window.__aimYaw()')).toBe(after);
+    expect(await page.evaluate<string>(`document.querySelector('[data-hud="input"]').textContent`)).toContain('パッド');
+    expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    return after - before;
+  }
+
+  it('ARC-63（QA）: パッドの右スティックを右に 0.4 倒したまま時計を 0.25 秒進めて戻したときのヨーの変化は、実時間で 0 秒待っても 1 秒待っても同じで、進めた秒数から決まる固定の値になる', async () => {
+    const none = await holdLook(0, 0.25);
+    const second = await holdLook(1000, 0.25);
+    expect(second, `0 秒: ${none} / 1 秒: ${second}`).toBe(none);
+    // 期待値は SPEC の式から求めた固定の値（固定ステップ 30 回分）。印の値の丸めのぶんだけずれを許す。
+    expect(Math.abs(none - expectedYaw(0.25)), `ヨーの変化 ${none}、SPEC から求めた値 ${expectedYaw(0.25)}`).toBeLessThan(0.05);
+    // 進めた秒数を倍にすると、ヨーの変化も倍になる（実時間でなく進めた秒数で決まる）。
+    const double = await holdLook(0, 0.5);
+    expect(Math.abs(double - 2 * none), `0.25 秒: ${none} / 0.5 秒: ${double}`).toBeLessThan(0.05);
+  }, 120_000);
 });
