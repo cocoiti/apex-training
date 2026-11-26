@@ -237,7 +237,7 @@ describe('テストから進める時計（ManualFrameClock、clock=manual）', 
     return { edges, heldSteps };
   }
 
-  it('時計を止めている間に変えた入力は、実際の描画が間に入っても入らなくても、止めていた時刻で読まれ、押していたステップの数は進めた秒数で決まる（ARC-63）', () => {
+  it('時計を止めている間に変えた入力は、実際の描画が間に入っても入らなくても、止めていた時刻で読まれ、押していたステップの数は進めた秒数で決まる（ARC-67）', () => {
     const none = holdRun(0);
     expect(none.edges.map(([on, t]) => [on, Math.round(t * 1000)])).toEqual([
       [true, 100],

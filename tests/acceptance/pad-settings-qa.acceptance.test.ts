@@ -418,7 +418,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
 
   // -------------------------------------------------------------------------
   it('PAD-21: キャリブレーション画面で、右スティックの軸を 0.6 にすると 0.60、R2 を 0.3 にすると 0.30 と表示される', async () => {
-    // 倒している・押している間は、ページの時計を進めて表示を待つ（ARC-64）。
+    // 倒している・押している間は、ページの時計を進めて表示を待つ（ARC-68）。
     const page = await openFresh({ pads: [standardPad()], clock: true });
     await page.evaluate(`location.hash = '#/settings/pad'`);
     await page.waitFor(`${screenVisible('settings-pad')} && document.querySelectorAll('#calibration-axes li').length >= 4 && document.querySelectorAll('#calibration-buttons li').length >= 8`);
@@ -529,7 +529,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
     const pads = [genericPad(0), standardPad(1)];
 
     it('番号 1 のパッドで照準と射撃ができ、HUD に番号 1 のパッドの名前が出る（番号 0 のパッドの操作は無視される）', async () => {
-      // 倒している・押している長さはページの時計を進めた秒数で決める（ARC-64）。
+      // 倒している・押している長さはページの時計を進めた秒数で決める（ARC-68）。
       const page = await openFresh({ pads, render: true, clock: true });
       const w = byId('lstar');
       await start(page, w);

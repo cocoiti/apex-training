@@ -1,4 +1,4 @@
-// docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」の ARC-64 を、テストのコードを調べて確かめる
+// docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」の ARC-68 を、テストのコードを調べて確かめる
 // QA の受け入れテスト。QA が SPEC だけから書いたもの。tests/ 以下の TypeScript を構文木で読み、実装やほかの調べる道具
 // （tests/helpers/test-code.ts など）には依存しない。
 // ブラウザを使うテストのファイルは、tests/helpers/browser.ts を import するファイル（CLAUDE.md）。
@@ -200,7 +200,7 @@ export function realTimeHolds(file: string, source: string): { file: string; lin
 const ALL = listTs(TESTS);
 const browserFiles = ALL.filter((f) => f.endsWith('.test.ts') && importsBrowser(parse(f, read(f))));
 
-describe('ARC-64（QA）: ブラウザを使うテストは、スティックを倒している長さやボタンを押している長さを実時間や描画の回数で決めない', () => {
+describe('ARC-68（QA）: ブラウザを使うテストは、スティックを倒している長さやボタンを押している長さを実時間や描画の回数で決めない', () => {
   it('調べる道具が、実時間・描画の回数で決めた押す長さを見つけ、時計を進めて決めた長さは見つけない（調べ方の確かめ）', () => {
     const bad: [string, string][] = [
       ['決まった ms のタイマー', `async function f(page) { await page.evaluate('window.__fire(true)'); await new Promise((r) => setTimeout(r, 500)); await page.evaluate('window.__fire(false)'); }`],

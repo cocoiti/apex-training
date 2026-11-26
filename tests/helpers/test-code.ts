@@ -218,7 +218,7 @@ const callOf = (names: Set<string>): RegExp | undefined =>
   names.size === 0 ? undefined : new RegExp(String.raw`(?<![\w$.])(?:${[...names].join('|')})\(`);
 
 /**
- * ARC-64: 練習の入力（スティック・fire / ADS のボタン・マウスのボタン）を倒している・押している長さを、実時間や描画の回数で決めている箇所。
+ * ARC-68: 練習の入力（スティック・fire / ADS のボタン・マウスのボタン）を倒している・押している長さを、実時間や描画の回数で決めている箇所。
  * 倒す・押す書き方から、戻す・離す書き方までを 1 つの「押している間」とし、その間にページの時計を進めず
  * （advanceClock・advanceClockUntil がなく）に、実時間の時刻やタイマー（performance.now()・Date.now()・setTimeout）で待つか、
  * 描画や条件を待っているものを、倒す・押す行で示す。
@@ -242,7 +242,7 @@ export function findRealTimeHolds(file: string, source: string): TestCodeViolati
   let hold: { line: number; advanced: boolean; waited: boolean; realTime: boolean } | undefined;
   const close = () => {
     if (!hold) return;
-    // 時計を進めていれば clock=manual のページなので、押している間に実時間で待っても長さは変わらない（ARC-63 の確かめ方）。
+    // 時計を進めていれば clock=manual のページなので、押している間に実時間で待っても長さは変わらない（ARC-67 の確かめ方）。
     const reason = hold.advanced
       ? undefined
       : hold.realTime

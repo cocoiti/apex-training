@@ -9,7 +9,7 @@
 「次の実際の描画（止めた時刻 T）」か「時計を進めたときの最初の描画（T + 描画の間隔）」のどちらか先に来た方になる。
 入力の時刻はループの時計（`FixedStepLoop.currentTime()`、前の描画からの経過を足す）で付くので、押した時刻が描画の間隔（1/60 秒、
 固定ステップ 2 つ）だけずれ、撃つ弾の数や押していた長さが、実時間で待ったかどうか（実行の速さ）で変わっていた。
-main の CI で落ちた MODE-11 は、さらに倒す長さを実時間（performance.now）で決めていた（docs/spec/architecture.md、ARC-63・ARC-64）。
+main の CI で落ちた MODE-11 は、さらに倒す長さを実時間（performance.now）で決めていた（docs/spec/architecture.md、ARC-67・ARC-68）。
 
 ## 決定
 
@@ -29,6 +29,6 @@ main の CI で落ちた MODE-11 は、さらに倒す長さを実時間（perfo
 
 ## 影響
 
-- spec/architecture.md（テストのための描画の省略と時計の差し替え、ARC-63・ARC-64）
+- spec/architecture.md（テストのための描画の省略と時計の差し替え、ARC-67・ARC-68）
 - src/core/frame-clock.ts, tests/core/frame-clock.test.ts, tests/acceptance/render-clock-qa.acceptance.test.ts
 - 時計を進めるたびに描画が 1 回増える（advanceClockUntil は固定ステップごとに 2 回描画する）。3D は描かないので軽い。

@@ -1,4 +1,4 @@
-// docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」（ARC-23〜ARC-25、ARC-63）の受け入れテスト（QA）。
+// docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」（ARC-23〜ARC-25、ARC-67）の受け入れテスト（QA）。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、URL のクエリ render=off・clock=manual、
 // tests/helpers/browser.ts の appUrl・Page.advanceClock、index.html の要素）だけを使う。
 // 入力は Gamepad API（navigator.getGamepads）の形で与える（標準配置の R2 = ボタン 7 が fire、右スティック = 軸 2・3）。
@@ -240,7 +240,7 @@ describe.skipIf(NESTED || !chromium)('render=off と clock=manual（QA）', () =
     return after - before;
   }
 
-  it('ARC-63: clock=manual でパッドの右スティックを右に 0.4 倒したまま時計を 0.25 秒進めて戻すと、照準のヨーの変化は実時間で 0 秒待ったときと 1 秒待ったときとで一致する', async () => {
+  it('ARC-67: clock=manual でパッドの右スティックを右に 0.4 倒したまま時計を 0.25 秒進めて戻すと、照準のヨーの変化は実時間で 0 秒待ったときと 1 秒待ったときとで一致する', async () => {
     const none = await tiltYaw(0);
     const second = await tiltYaw(1000);
     // 右に倒したので、照準は右（ヨーの正の向き）へ動く。
@@ -288,7 +288,7 @@ describe.skipIf(NESTED || !chromium)('render=off と clock=manual（QA）', () =
     return after - before;
   }
 
-  it('ARC-63（QA）: パッドの右スティックを右に 0.4 倒したまま時計を 0.25 秒進めて戻したときのヨーの変化は、実時間で 0 秒待っても 1 秒待っても同じで、進めた秒数から決まる固定の値になる', async () => {
+  it('ARC-67（QA）: パッドの右スティックを右に 0.4 倒したまま時計を 0.25 秒進めて戻したときのヨーの変化は、実時間で 0 秒待っても 1 秒待っても同じで、進めた秒数から決まる固定の値になる', async () => {
     const none = await holdLook(0, 0.25);
     const second = await holdLook(1000, 0.25);
     expect(second, `0 秒: ${none} / 1 秒: ${second}`).toBe(none);

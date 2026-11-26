@@ -1,5 +1,5 @@
 // テストの実行（docs/spec/architecture.md「テストの実行」、ARC-18・ARC-21・ARC-22・ARC-32・ARC-33）と、
-// ブラウザのテストの入力の与え方（「テストのための描画の省略と時計の差し替え」、ARC-64）の確認。
+// ブラウザのテストの入力の与え方（「テストのための描画の省略と時計の差し替え」、ARC-68）の確認。
 // ARC-35（CLAUDE.md の書き方）は tests/acceptance/parallel-browser-qa.acceptance.test.ts だけで確かめる。
 // このファイルは決まったポート番号や sleep の書き方を例として持つので、ARC-18 の確認の対象から外す。
 import { spawnSync } from 'node:child_process';
@@ -203,7 +203,7 @@ describe('ARC-22: ブラウザを使うテストは決まった時間の sleep �
   });
 });
 
-describe('ARC-64: ブラウザを使うテストは、スティックを倒している長さやボタンを押している長さを実時間や描画の回数で決めない', () => {
+describe('ARC-68: ブラウザを使うテストは、スティックを倒している長さやボタンを押している長さを実時間や描画の回数で決めない', () => {
   it('ブラウザを使うテストのコードに、倒している・押している長さを実時間や描画の回数で決めている箇所がない', () => {
     const files = browserTestFiles(ROOT);
     expect(files.length).toBeGreaterThan(0);
@@ -248,7 +248,7 @@ describe('ARC-64: ブラウザを使うテストは、スティックを倒し�
     "await page.evaluate('window.__pad.axes[2] = 0.4');\nawait page.advanceClock(0.25);\nawait page.evaluate('window.__pad.axes[2] = 0');",
     // 押す → 条件まで時計を固定ステップで進める → 離す。
     "await page.evaluate('window.__btn(7, true)');\nawait page.advanceClockUntil('window.__ammo() === 0');\nawait page.evaluate('window.__btn(7, false)');",
-    // 時計を進めているなら、間に実時間で待っても長さは進めた秒数で決まる（ARC-63 の確かめ方）。
+    // 時計を進めているなら、間に実時間で待っても長さは進めた秒数で決まる（ARC-67 の確かめ方）。
     "await tilt(page, 0.4);\nawait page.waitFor(`performance.now() > ${t0 + 1000}`);\nawait page.advanceClock(0.25);\nawait page.evaluate('window.__pad.axes[2] = 0');",
     // 時計を進める関数を、ファイルの中で定義して呼ぶ。
     "const settle = (page: Page, n: number) => page.advanceClock(n / 60);\nawait mouseButton(page, 'mousePressed', CX, CY);\nawait settle(page, 38);\nawait mouseButton(page, 'mouseReleased', CX, CY);",
