@@ -45,7 +45,7 @@ export interface ModeOptionChoice {
 
 /**
  * 練習の選択肢（docs/spec/modes.md「モードの登録」。追いエイムの速さ、フリックの出る範囲など）。持つモードはトップ画面でその値を選んで
- * 練習を始め、自己ベストと履歴を値の組ごとに分ける。決定の理由は docs/adr/2026-11-26-mode-practice-option.md。
+ * 練習を始め、自己ベストと履歴を値の組ごとに分ける。決定の理由は docs/adr/2026-11-26-mode-practice-options-list.md。
  */
 export interface ModeOption {
   /** 選択肢の id（例: `speed`）。同じ id の選択肢を持つモードどうしは、トップ画面と履歴の画面で選んだ値を共有する。 */

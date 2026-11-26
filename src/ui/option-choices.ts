@@ -2,7 +2,7 @@ import type { ModeOption, TrainingMode } from '../modes/types';
 
 /**
  * 練習の選択肢（追いエイムの速さ、フリックの出る範囲と的の大きさなど、docs/spec/screens.md「トップ画面」「履歴の画面」）の欄。
- * 選択肢の id ごとに欄を 1 つ作り、同じ id の選択肢を持つモードで共有する。決定の理由は docs/adr/2026-11-26-mode-practice-option.md。
+ * 選択肢の id ごとに欄を 1 つ作り、同じ id の選択肢を持つモードで共有する。決定の理由は docs/adr/2026-11-26-mode-practice-options-list.md。
  */
 
 /** 登録されたモードの練習の選択肢を、id ごとに 1 つ（最初に出たもの）ずつ、モードの並び順・選択肢の並び順に並べる。 */
