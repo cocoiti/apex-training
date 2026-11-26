@@ -1,4 +1,4 @@
-// docs/spec/scoring.md「発の区間ごとのズレ」「苦手な区間」の受け入れテスト（SCO-31〜SCO-37）と、
+// docs/spec/scoring.md「発の区間ごとのズレ」「苦手な区間」の受け入れテスト（SCO-31〜SCO-37・SCO-39）と、
 // docs/spec/screens.md「履歴の画面」「補正のパネル」の苦手な区間の受け入れテスト（UI-64〜UI-68）。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（トップ・設定・プレイ・リザルト・履歴）、武器の JSON、
 // SPEC に書かれた localStorage のキーと値の形。画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、マウス（ポインターロック + 左ボタン）で撃つ。
@@ -38,7 +38,6 @@ const APP = { render: false, manualClock: true };
 /** ページの時計（clock=manual）を 60Hz の描画 frames 回分進める。実時間では待たない。 */
 const settle = (page: Page, frames: number) => page.advanceClock(frames / 60);
 
-const CENTER = 'センター維持';
 const GHOST = '反復練習';
 const HISTORY_PREFIX = 'apex-training:history:';
 const historyKey = (input: string, weapon: string, mode: string) => `${HISTORY_PREFIX}${input}:${weapon}:${mode}`;
@@ -264,12 +263,12 @@ async function chooseHistory(page: Page, caption: string, label: string) {
   await settle(page, 2);
 }
 
-async function openHistory(page: Page, weapon: string, mode: string, input = 'マウス') {
+/** 履歴の画面で武器・入力方式を選ぶ。登録されたモードは反復練習だけなので、モードを選ぶ欄はない（screens.md「履歴の画面」）。 */
+async function openHistory(page: Page, weapon: string, input = 'マウス') {
   await page.evaluate(`location.hash = '#/history'`);
   await page.waitFor(`window.__vis('[data-screen="history"]') && document.querySelectorAll('[data-screen="history"] select option').length > 0`);
   await settle(page, 2);
   await chooseHistory(page, '武器', weapon);
-  await chooseHistory(page, 'モード', mode);
   await chooseHistory(page, '入力方式', input);
 }
 
@@ -424,9 +423,9 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
   describe('発の区間ごとのズレの保存', () => {
     it('SCO-31: 23 発を採点すると、履歴の 1 件に発の区間が 5 つ（start 1・6・11・16・21）保存され、最後の弾数が 3、各平均がその発の区間の弾から求めた値になる', async () => {
       const page = await openFresh();
-      const text = await practice(page, QA23.name, CENTER);
+      const text = await practice(page, QA23.name, GHOST);
       expect(text).toContain('23');
-      const value = await storedHistory(page, historyKey('mouse', QA23.id, 'center'));
+      const value = await storedHistory(page, historyKey('mouse', QA23.id, 'ghost'));
       expect(value?.entries).toHaveLength(1);
       const e = value!.entries[0]!;
       expect(e.shots).toBe(23);
@@ -449,13 +448,13 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
 
   // -------------------------------------------------------------------------
   describe('リザルト画面の苦手な区間の行', () => {
-    it('SCO-32: マウスで L-STAR とセンター維持を、11〜15 発目だけ水平 +2 度・ほかは 0 で 5 回練習して終えると、5 回目のリザルトに「この武器の苦手な区間: 11〜15 発目、右に外しがち」と表示される', async () => {
+    it('SCO-32: マウスで L-STAR と反復練習を、11〜15 発目だけ水平 +2 度・ほかは 0 で 5 回練習して終えると、5 回目のリザルトに「この武器の苦手な区間: 11〜15 発目、右に外しがち」と表示される', async () => {
       const page = await openFresh();
       let text = '';
-      for (let i = 0; i < 5; i += 1) text = await practice(page, LSTAR.name, CENTER);
+      for (let i = 0; i < 5; i += 1) text = await practice(page, LSTAR.name, GHOST);
       expect(norm(text)).toContain(WEAK_RESULT('11〜15 発目、右に外しがち'));
       // 履歴の 1 件ごとの 11〜15 発目の発の区間が +2 度（前提の確かめ）。
-      const value = await storedHistory(page, historyKey('mouse', 'lstar', 'center'));
+      const value = await storedHistory(page, historyKey('mouse', 'lstar', 'ghost'));
       expect(value?.entries).toHaveLength(5);
       for (const e of value!.entries) {
         const s11 = (e.sections as Section[]).find((s) => s.start === 11)!;
@@ -467,15 +466,15 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
     it('SCO-33: 同じ練習を 4 回だけ終えると、4 回目のリザルトに苦手な区間の行が表示されない', async () => {
       const page = await openFresh();
       const texts: string[] = [];
-      for (let i = 0; i < 4; i += 1) texts.push(await practice(page, LSTAR.name, CENTER));
+      for (let i = 0; i < 4; i += 1) texts.push(await practice(page, LSTAR.name, GHOST));
       texts.forEach((t, i) => expect(t, `${i + 1} 回目`).not.toContain('苦手な区間'));
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 180_000);
 
     it('SCO-34: 1〜5 発目の垂直のズレの平均が +1 度・水平が −1 度でいちばん大きいとき、苦手な区間が「1〜5 発目、上に外しがち（下げ不足）・左に外しがち」になる（履歴の画面）', async () => {
       const entries = Array.from({ length: 5 }, (_, i) => withSections(i, sections(28, 0.2, { 1: { meanH: -1, meanV: 1, meanError: 1.5 } })));
-      const page = await openFresh({ [historyKey('mouse', 'lstar', 'center')]: stored(entries) });
-      await openHistory(page, LSTAR.name, CENTER);
+      const page = await openFresh({ [historyKey('mouse', 'lstar', 'ghost')]: stored(entries) });
+      await openHistory(page, LSTAR.name);
       const f = await page.evaluate<SectionFigure>('window.__sectionFigure()');
       expect(norm(f.text)).toContain(WEAK_HISTORY('1〜5 発目、上に外しがち（下げ不足）・左に外しがち'));
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
@@ -484,8 +483,8 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
     it('SCO-34: 同じ条件（4 件 + ズレ 0 の今の練習で、1〜5 発目が垂直 +1・水平 −1 度）で、リザルトに「この武器の苦手な区間: 1〜5 発目、上に外しがち（下げ不足）・左に外しがち」と表示される', async () => {
       // 4 件の 1〜5 発目を垂直 +1.25・水平 −1.25 度にし、ズレ 0 の練習を 1 回足すと、5 件の弾数で重み付けした平均が +1・−1 度になる。
       const entries = Array.from({ length: 4 }, (_, i) => withSections(i, sections(28, 0.2, { 1: { meanH: -1.25, meanV: 1.25, meanError: 1.8 } })));
-      const page = await openFresh({ [historyKey('mouse', ZERO.id, 'center')]: stored(entries) });
-      const text = await practice(page, ZERO.name, CENTER);
+      const page = await openFresh({ [historyKey('mouse', ZERO.id, 'ghost')]: stored(entries) });
+      const text = await practice(page, ZERO.name, GHOST);
       expect(norm(text)).toContain(WEAK_RESULT('1〜5 発目、上に外しがち（下げ不足）・左に外しがち'));
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
@@ -493,26 +492,38 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
     it('SCO-35: 直近 5 件のすべての発の区間でズレの大きさの平均が 0.5 度未満のとき、苦手な区間は「なし」で、リザルトに行が表示されない', async () => {
       // 4 件のすべての発の区間を 0.6 度にし、ズレ 0 の練習を 1 回足すと、5 件の平均は 0.48 度（しきい値未満）。
       const entries = Array.from({ length: 4 }, (_, i) => withSections(i, sections(28, 0.6, { 11: { meanH: 0.6 } })));
-      const page = await openFresh({ [historyKey('mouse', ZERO.id, 'center')]: stored(entries) });
-      const text = await practice(page, ZERO.name, CENTER);
+      const page = await openFresh({ [historyKey('mouse', ZERO.id, 'ghost')]: stored(entries) });
+      const text = await practice(page, ZERO.name, GHOST);
       expect(text).not.toContain('苦手な区間');
       // 履歴の画面では「苦手な区間: なし」。
-      await openHistory(page, ZERO.name, CENTER);
+      await openHistory(page, ZERO.name);
       const f = await page.evaluate<SectionFigure>('window.__sectionFigure()');
       expect(norm(f.text)).toContain(WEAK_HISTORY('なし'));
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
     it('SCO-36: sections を持たない古い形式の件が 10 件ある組で練習を 1 回終えると、リザルトが表示され苦手な区間の行は出ず、履歴は 11 件で古い 10 件はそのまま残る', async () => {
-      const key = historyKey('mouse', 'lstar', 'center');
+      const key = historyKey('mouse', 'lstar', 'ghost');
       const seeds = Array.from({ length: 10 }, (_, i) => oldEntry(i, 1 + i / 10));
       const page = await openFresh({ [key]: stored(seeds) });
-      const text = await practice(page, LSTAR.name, CENTER);
+      const text = await practice(page, LSTAR.name, GHOST);
       expect(text).toContain('平均ズレ');
       expect(text).not.toContain('苦手な区間');
       const value = await storedHistory(page, key);
       expect(value?.entries).toHaveLength(11);
       expect(value!.entries.slice(0, 10)).toEqual(seeds);
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 60_000);
+
+    it('SCO-39: 以前のセンター維持のキーに 11〜15 発目が右に外れた発の区間を持つ 5 件があり反復練習の履歴がない状態で、L-STAR と反復練習を 1 回終えると、苦手な区間の行は出ず、反復練習の履歴は 1 件で、センター維持のキーは変わらない', async () => {
+      const centerKey = historyKey('mouse', 'lstar', 'center');
+      const old = stored(Array.from({ length: 5 }, (_, i) => withSections(i, sections(LSTAR.magSize, 0.2, { 11: { meanH: 2, meanError: 2 } }))));
+      const page = await openFresh({ [centerKey]: old });
+      const text = await practice(page, LSTAR.name, GHOST);
+      expect(text).toContain('平均ズレ');
+      expect(text).not.toContain('苦手な区間');
+      expect((await storedHistory(page, historyKey('mouse', 'lstar', 'ghost')))?.entries).toHaveLength(1);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(centerKey)})`)).toBe(old);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
@@ -532,8 +543,8 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
     };
 
     it('SCO-37: sections を持たない件と持つ件が混ざった組で、苦手な区間は持つ件の新しい順 5 件だけから求まる（履歴の画面）', async () => {
-      const page = await openFresh({ [historyKey('mouse', 'lstar', 'center')]: stored(mixed(5, 1.5)) });
-      await openHistory(page, LSTAR.name, CENTER);
+      const page = await openFresh({ [historyKey('mouse', 'lstar', 'ghost')]: stored(mixed(5, 1.5)) });
+      await openHistory(page, LSTAR.name);
       const f = await page.evaluate<SectionFigure>('window.__sectionFigure()');
       expect(norm(f.text)).toContain(WEAK_HISTORY('6〜10 発目、右に外しがち'));
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
@@ -541,8 +552,8 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
 
     it('SCO-37: 同じく混ざった組（持つ件 4 件 + 今の練習）で、リザルトの苦手な区間が持つ件の新しい順 5 件だけから求まる', async () => {
       // 4 件の 6〜10 発目を水平 +1.875 度にし、ズレ 0 の練習を足すと 5 件の平均は +1.5 度。
-      const page = await openFresh({ [historyKey('mouse', ZERO.id, 'center')]: stored(mixed(4, 1.875)) });
-      const text = await practice(page, ZERO.name, CENTER);
+      const page = await openFresh({ [historyKey('mouse', ZERO.id, 'ghost')]: stored(mixed(4, 1.875)) });
+      const text = await practice(page, ZERO.name, GHOST);
       expect(norm(text)).toContain(WEAK_RESULT('6〜10 発目、右に外しがち'));
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
@@ -567,8 +578,8 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
 
     it('UI-64: SCO-32 と同じ練習を 5 回したあと履歴の画面で選ぶと、11〜15 の棒だけが違う色で「苦手」の印が付き、「苦手な区間: 11〜15 発目、右に外しがち」と表示される', async () => {
       const page = await openFresh();
-      for (let i = 0; i < 5; i += 1) await practice(page, LSTAR.name, CENTER);
-      await openHistory(page, LSTAR.name, CENTER);
+      for (let i = 0; i < 5; i += 1) await practice(page, LSTAR.name, GHOST);
+      await openHistory(page, LSTAR.name);
       const f = await page.evaluate<SectionFigure>('window.__sectionFigure()');
       expect(norm(f.text)).toContain(WEAK_HISTORY('11〜15 発目、右に外しがち'));
       expect(f.labels).toEqual(['1〜5', '6〜10', '11〜15', '16〜20', '21〜25', '26〜30']);
@@ -579,8 +590,8 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
 
     it('UI-64（補足）: ほかの棒にも長さがある組（保存した 5 件）でも、苦手な区間の棒だけが違う色で描かれ、棒の長さはズレの大きさの平均に比例する', async () => {
       const entries = Array.from({ length: 5 }, (_, i) => withSections(i, sections(CAR.magSize, 0.3, { 11: { meanH: 2, meanError: 2 }, 6: { meanError: 0.6 } })));
-      const page = await openFresh({ [historyKey('mouse', CAR.id, 'center')]: stored(entries) });
-      await openHistory(page, CAR.name, CENTER);
+      const page = await openFresh({ [historyKey('mouse', CAR.id, 'ghost')]: stored(entries) });
+      await openHistory(page, CAR.name);
       const f = await page.evaluate<SectionFigure>('window.__sectionFigure()');
       expect(norm(f.text)).toContain(WEAK_HISTORY('11〜15 発目、右に外しがち'));
       expect(f.figText ?? '').toContain('2.00');
@@ -594,8 +605,8 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
 
     it('UI-65: 発の区間ごとのズレを持つ件が 4 件の組では、図が描かれず「苦手な区間は、発の区間の記録がある練習を 5 回終えると表示されます（今 4 回）」と表示される', async () => {
       const entries = [oldEntry(0), ...Array.from({ length: 4 }, (_, i) => withSections(1 + i, sections(28, 0.3, { 11: { meanH: 2, meanError: 2 } }))), oldEntry(9)];
-      const page = await openFresh({ [historyKey('mouse', 'lstar', 'center')]: stored(entries) });
-      await openHistory(page, LSTAR.name, CENTER);
+      const page = await openFresh({ [historyKey('mouse', 'lstar', 'ghost')]: stored(entries) });
+      await openHistory(page, LSTAR.name);
       const f = await page.evaluate<SectionFigure>('window.__sectionFigure()');
       expect(f.labels).toEqual([]);
       expect(norm(f.text)).toContain(norm('苦手な区間は、発の区間の記録がある練習を 5 回終えると表示されます（今 4 回）'));
@@ -604,8 +615,8 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
 
     it('UI-66: sections を持たない古い形式の件だけの組でも、エラーで止まらずに推移のグラフと一覧にその件が表示され、図は描かれない', async () => {
       const seeds = [oldEntry(0, 1.25), oldEntry(1, 2.5), oldEntry(2, 3.75)];
-      const page = await openFresh({ [historyKey('mouse', 'lstar', 'center')]: stored(seeds) });
-      await openHistory(page, LSTAR.name, CENTER);
+      const page = await openFresh({ [historyKey('mouse', 'lstar', 'ghost')]: stored(seeds) });
+      await openHistory(page, LSTAR.name);
       const state = await page.evaluate<{ rows: string[][]; points: number }>(`(() => {
         const screen = document.querySelector('[data-screen="history"]');
         const table = [...screen.querySelectorAll('table')].find((t) => window.__vis(t));
@@ -634,14 +645,6 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
       return p;
     }
 
-    async function setPanel(page: Page, on: boolean) {
-      await page.evaluate(`location.hash = '#/settings'`);
-      await page.waitFor(`window.__vis('[data-screen="settings"]') && !!document.getElementById('setting-correction-panel')`);
-      if ((await page.evaluate<boolean>(`document.getElementById('setting-correction-panel').checked`)) !== on) await page.clickSelector('#setting-correction-panel');
-      await page.waitFor(`document.getElementById('setting-correction-panel').checked === ${on}`);
-      await settle(page, 2);
-    }
-
     const expectWeakSegments = (colors: (string | null)[]) => {
       expect(colors, JSON.stringify(colors)).not.toContain('missing');
       // k = 11..15（10→11 発目 … 14→15 発目）が苦手な区間の部分。
@@ -653,13 +656,9 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
       expect(weak[0]).not.toBe(rest[0]);
     };
 
-    it.each([
-      [CENTER, 'center'],
-      [GHOST, 'ghost'],
-    ])('UI-67: 11〜15 発目が苦手な区間の組で %s を始めると、理想の線の 11〜15 発目の部分が違う色で描かれ、「苦手な区間」の凡例が表示される', async (mode, id) => {
-      const page = await openFresh({ [historyKey('mouse', CAR.id, id)]: weakCar() });
-      if (mode === CENTER) await setPanel(page, true);
-      await startPractice(page, CAR.name, mode);
+    it('UI-67: 11〜15 発目が苦手な区間の組で反復練習を始めると、理想の線の 11〜15 発目の部分が違う色で描かれ、「苦手な区間」の凡例が表示される', async () => {
+      const page = await openFresh({ [historyKey('mouse', CAR.id, 'ghost')]: weakCar() });
+      await startPractice(page, CAR.name, GHOST);
       const p = await readPanel(page);
       expect(p.visible).toBe(true);
       expectWeakSegments(segmentColors(p, CAR));

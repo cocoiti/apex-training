@@ -33,7 +33,7 @@ import { renderHud, type HudElements } from './ui/hud';
 import { renderCalibration, calibrationRadii, type CalibrationElements } from './ui/pad-calibration';
 import { MappingAutoOpen, PadMappingScreen, PadMappingStore } from './ui/pad-mappings';
 import { bindCalibrationDeadzone, bindPadSettingsForm, type PadFormBinding, type PadSettingsFormElements } from './ui/pad-settings-form';
-import { fillModeSelect } from './ui/mode-choices';
+import { fillModeChoice, fillModeSelect, type ModeChoiceElements } from './ui/mode-choices';
 import { PadMenu } from './ui/pad-menu';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { padGuideState, padGuideVisible, renderPadGuide, type PadGuideElements } from './ui/pad-guide';
@@ -193,6 +193,14 @@ function padGuideElements(): PadGuideElements | undefined {
   return root && ideal && current && name ? { root, ideal, current, name } : undefined;
 }
 
+/** モードの欄の要素（prefix はトップ画面なら空、履歴の画面なら `history-`）。どれかが欠けていれば undefined。 */
+function modeChoiceElements(prefix: string, select: HTMLSelectElement): ModeChoiceElements | undefined {
+  const choice = document.querySelector<HTMLElement>(`#${prefix}mode-choice`);
+  const only = document.querySelector<HTMLElement>(`#${prefix}mode-only`);
+  const name = document.querySelector<HTMLElement>(`#${prefix}mode-name`);
+  return choice && only && name ? { select, choice, only, name } : undefined;
+}
+
 /** 補正のパネルの要素。どれかが欠けていれば undefined。 */
 function correctionPanelElements(): CorrectionPanelElements | undefined {
   const root = document.querySelector<HTMLElement>('[data-screen="play"] .correction-panel');
@@ -223,7 +231,6 @@ function startSettingsForm(): void {
     crosshairShape: byId<HTMLSelectElement>('setting-crosshair-shape'),
     crosshairColor: byId<HTMLInputElement>('setting-crosshair-color'),
     ghost: byId<HTMLInputElement>('setting-ghost'),
-    correctionPanel: byId<HTMLInputElement>('setting-correction-panel'),
     patternDisplay: byId<HTMLSelectElement>('setting-pattern-display'),
     sound: byId<HTMLInputElement>('setting-sound'),
     dpi: byId<HTMLInputElement>('setting-dpi'),
@@ -493,17 +500,22 @@ async function start(): Promise<void> {
   }
   fillWeaponSelect(weaponSelect, weapons);
   weaponSelect.value = weapons[0]?.id ?? '';
-  fillModeSelect(modeSelect, modes);
+  // 登録されたモードが 1 つ（今は反復練習だけ）のときは、選択肢の欄を出さずに名前だけを出す（docs/spec/screens.md「トップ画面」）。
+  const topModeChoice = modeChoiceElements('', modeSelect);
+  if (topModeChoice) fillModeChoice(topModeChoice, modes);
+  else fillModeSelect(modeSelect, modes);
 
   // 履歴の画面（docs/spec/screens.md「履歴の画面」）。武器は一覧のすべて、モードは登録されたモードを選択肢にする。
-  // 登録されていないモードの id の保存（以前のパターン観察など）は選択肢に出さず、消さない。
+  // 登録されていないモードの id の保存（以前のパターン観察・センター維持など）は選択肢に出さず、消さない。
   // このページで最後に終えた練習の組を、開いたときに選ぶ。
   let lastFinished: HistorySelection | null = null;
   const historyEls = historyElements();
   let openHistory = () => {};
   if (historyEls) {
     fillWeaponSelect(historyEls.weapon as HTMLSelectElement, weapons);
-    fillModeSelect(historyEls.mode as HTMLSelectElement, modes);
+    const historyModeChoice = modeChoiceElements('history-', historyEls.mode as HTMLSelectElement);
+    if (historyModeChoice) fillModeChoice(historyModeChoice, modes);
+    else fillModeSelect(historyEls.mode as HTMLSelectElement, modes);
     const historyView = bindHistoryView(historyEls, { storage: appStorage, now: () => new Date() });
     const weaponIds = weapons.map((w) => w.id);
     const modeIds = modes.map((m) => m.id);
@@ -525,8 +537,6 @@ async function start(): Promise<void> {
   // 補正のパネル（docs/spec/screens.md「補正のパネル」）。表示だけで、シミュレーションと入力の記録には触れない。
   const panelElements = correctionPanelElements();
   const panel = panelElements ? new CorrectionPanel(panelElements) : undefined;
-  // 補正のパネルの設定。「開始」を押した時点の保存された値。センター維持だけが使う（反復練習では設定によらず出す）。
-  let showPanel = loadCommonSettings(appStorage).correctionPanel;
   // ゴースト表示の設定。「開始」を押した時点の保存された値（docs/spec/screens.md）。OFF でも採点は変わらない。
   let showGhost = loadCommonSettings(appStorage).ghost;
   let running: Running | undefined;
@@ -595,7 +605,6 @@ async function start(): Promise<void> {
     const scope = document.querySelector<HTMLElement>('.scope');
     if (scope) applyReticleColor(scope, loadCommonSettings(appStorage).crosshairColor);
     showGhost = settings.ghost;
-    showPanel = settings.correctionPanel;
     mouseSettings = settings.mouse;
     padSettings = settings.pad;
     vibration = settings.vibration;
@@ -838,9 +847,9 @@ async function start(): Promise<void> {
             : undefined,
         );
       }
-      // 補正のパネルは入力方式によらず、反復練習では必ず、センター維持では設定が ON なら出す。一時停止中は状態が変わらないので同じ表示のまま。
+      // 補正のパネルは入力方式と設定によらず、パネルを出すモード（反復練習）で出す。一時停止中は状態が変わらないので同じ表示のまま。
       if (panel) {
-        if (correctionPanelShown(session.mode.correctionPanel, showPanel)) {
+        if (correctionPanelShown(session.mode.correctionPanel)) {
           panel.update({ nextShot: session.gun.nextPatternShot, ammo: session.gun.ammo, shotAims: session.shotAims, aim: session.aim });
         } else {
           panel.hide();

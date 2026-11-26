@@ -8,7 +8,7 @@
 // フォーカスしている項目は、画面で観察できる印で読む。画面を動かして確かめたところ、パッドのフォーカスを置いた項目には
 // pad-focus のクラスが付く（document.activeElement は動かない）。枠が背景と見分けられる形で表示されているか（UI-47）は、
 // 画面写しで項目の周りの画素が、フォーカスがないときと変わるかで読む。
-// 照準の反応は、センター維持の中心の的の色が画面の中心から外れるか（画面写しの中心の画素）で読む。
+// 照準の反応は、反復練習の中心の的の色が画面の中心から外れるか（画面写しの中心の画素）で読む。
 // 押し続けたときの繰り返し（UI-48）は、clock=manual で開き、ページの時計をテストが進めて読む。
 // 画面写しでキャンバスの色を読むテスト（UI-46）のほかは、3D を描画せずに開く（render=off）。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
@@ -34,7 +34,7 @@ const CY = HEIGHT / 2;
 const chromium = findChromium();
 
 /** SPEC の文言と値（実装の定数には依存しない）。 */
-const CENTER_MODE = 'センター維持';
+const MODE = '反復練習';
 const MOUSE_LABEL = 'マウス';
 const PAD_LABEL = 'パッド';
 const BEST_PREFIX = 'apex-training:best:';
@@ -177,17 +177,17 @@ async function chooseByPad(page: Page, selector: string, label: string) {
 }
 
 /**
- * トップ画面でパッドだけ（十字キーと A / ×）で武器・モードを選び、「開始」で A / × を押してプレイ画面に入る。
+ * トップ画面でパッドだけ（十字キーと A / ×）で武器を選び、「開始」で A / × を押してプレイ画面に入る。
+ * 登録されたモードは反復練習だけなので、モードの欄はなく、武器の次のフォーカスは回数になる（screens.md「トップ画面」）。
  * 画面を開いてからパッドを操作していない状態で呼ぶ。
  */
-async function padStart(page: Page, weapon: WeaponJson, mode = CENTER_MODE) {
+async function padStart(page: Page, weapon: WeaponJson) {
   await page.waitFor(`${screenVisible('top')} && document.querySelector('#weapon').options.length > 0 && document.querySelector('#mode').options.length > 0`);
   await tap(page, DOWN); // 最初の項目（武器）にフォーカスを置くだけ
   expect(await focused(page)).toBe('weapon');
   await chooseByPad(page, '#weapon', weapon.name);
   await tap(page, DOWN);
-  expect(await focused(page)).toBe('mode');
-  await chooseByPad(page, '#mode', mode);
+  expect(await focused(page), 'モードにフォーカスが移った').toBe('count');
   await focusDownTo(page, 'start');
   await button(page, A, 1);
   await page.waitFor(`location.hash === '#/play' && ${screenVisible('play')} && window.__ammo() === ${weapon.magSize}`, 10_000);
@@ -308,10 +308,11 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
   });
 
   // -------------------------------------------------------------------------
-  it('UI-43: パッドだけで L-STAR・センター維持を選んで始め、撃ち切り、A / × でもう一度、B / ○ でトップに戻ると選択が残っている', async () => {
+  it('UI-43: パッドだけで L-STAR を選んで（モードを選ぶ操作はない）反復練習を始め、撃ち切り、A / × でもう一度、B / ○ でトップに戻ると L-STAR が選ばれている', async () => {
     const page = await openFresh({ clock: true });
     await padStart(page, LSTAR);
     expect(await text(page, '[data-hud="weapon"]')).toContain(LSTAR.name);
+    expect(await page.evaluate<string>(`document.querySelector('#mode').value`), '反復練習で始まっていない').toBe('ghost');
 
     await shootOut(page);
     // リザルト画面で A / × を押すと、同じ武器・モードで新しい練習が始まる。
@@ -327,7 +328,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     await button(page, B, 0);
     await page.frames(3);
     expect(await selectedLabel(page, '#weapon')).toBe(LSTAR.name);
-    expect(await selectedLabel(page, '#mode')).toBe(CENTER_MODE);
+    expect(await selectedLabel(page, '#mode')).toBe(MODE);
     noExceptions(page);
   }, 120_000);
 
@@ -414,7 +415,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     await page.waitFor(`location.hash === '#/' && ${screenVisible('top')}`, 5000);
     await button(page, B, 0);
     expect(await selectedLabel(page, '#weapon')).toBe(startWeapon);
-    expect(await selectedLabel(page, '#mode')).toBe(CENTER_MODE);
+    expect(await selectedLabel(page, '#mode')).toBe(MODE);
     expect(await value(page, '#count')).toBe(startCount);
     noExceptions(page);
   }, 120_000);
@@ -467,8 +468,9 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     const weaponRect = await rectOf(page, '#weapon');
     expect(ringDiff(noFocus, weaponFocused, weaponRect), '武器の欄の周りに、フォーカスがないときと見分けられる枠が出る').toBeGreaterThan(20);
 
+    // 次の項目は回数（モードは反復練習だけで、モードの欄はない）。
     await tap(page, DOWN);
-    expect(await focused(page)).toBe('mode');
+    expect(await focused(page)).toBe('count');
     expect(await value(page, '#weapon')).toBe(weaponBefore);
 
     // 最後の項目（表示の順で最後の「履歴」）まで進め、さらに下を押しても動かない。
@@ -712,13 +714,13 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     await tap(page, RIGHT);
     expect(await value(page, '#setting-fov')).toBe('91');
 
-    // トップ画面: モードを次の選択肢にする。
+    // トップ画面: 回数を次の選択肢にする。
     await open(page, '#/', 'top');
-    await page.waitFor(`document.querySelector('#mode').options.length > 1`);
-    const modeBefore = await selectedIndex(page, '#mode');
-    await focusDownTo(page, 'mode');
+    await page.waitFor(`document.querySelector('#count').options.length > 1`);
+    const countBefore = await selectedIndex(page, '#count');
+    await focusDownTo(page, 'count');
     await tap(page, RIGHT);
-    expect(await selectedIndex(page, '#mode')).toBe(modeBefore + 1);
+    expect(await selectedIndex(page, '#count')).toBe(countBefore + 1);
     noExceptions(page);
   }, 60_000);
 
@@ -839,10 +841,10 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     await page.advanceClockUntil(`location.hash === '#/result'`, { step: 0.05 });
     await button(page, R2, 0);
     const keys = await page.evaluate<string[]>('Object.keys(localStorage)');
-    expect(keys).toContain(`${BEST_PREFIX}pad:${CAR.id}:center`);
-    expect(keys).not.toContain(`${BEST_PREFIX}mouse:${CAR.id}:center`);
-    expect(keys).toContain(`${HISTORY_PREFIX}pad:${CAR.id}:center`);
-    expect(keys).not.toContain(`${HISTORY_PREFIX}mouse:${CAR.id}:center`);
+    expect(keys).toContain(`${BEST_PREFIX}pad:${CAR.id}:ghost`);
+    expect(keys).not.toContain(`${BEST_PREFIX}mouse:${CAR.id}:ghost`);
+    expect(keys).toContain(`${HISTORY_PREFIX}pad:${CAR.id}:ghost`);
+    expect(keys).not.toContain(`${HISTORY_PREFIX}mouse:${CAR.id}:ghost`);
     noExceptions(page);
   }, 90_000);
 

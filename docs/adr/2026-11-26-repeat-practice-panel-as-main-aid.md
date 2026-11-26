@@ -1,6 +1,6 @@
 # 反復練習は補正のパネルを主な補助にし、パネルの出し方はモードが持つ。表示名だけを変え、id `ghost` は残す
 
-状態: 承認
+状態: 一部置き換え済み → [2026-11-26-remove-center-mode-and-panel-setting](2026-11-26-remove-center-mode-and-panel-setting.md)（`'setting'` と設定の補正のパネル）
 
 ## 背景
 

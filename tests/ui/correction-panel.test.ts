@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { modes } from '../../src/modes/registry';
 import { simplePattern } from '../../src/sim/simple-pattern';
 import { idealCorrection, type RecoilStep, type WeaponData } from '../../src/sim/weapon';
 import { plotExtent } from '../../src/ui/result-plot';
@@ -65,12 +66,13 @@ function parsePoints(points: string | undefined): { yaw: number; pitch: number }
 }
 
 describe('補正のパネルを出すモード', () => {
-  it('反復練習（always）は設定によらず出し、センター維持（setting）は設定が ON のときだけ出し、持たないモードは出さない', () => {
-    expect(correctionPanelShown('always', false)).toBe(true);
-    expect(correctionPanelShown('always', true)).toBe(true);
-    expect(correctionPanelShown('setting', true)).toBe(true);
-    expect(correctionPanelShown('setting', false)).toBe(false);
-    expect(correctionPanelShown(undefined, true)).toBe(false);
+  it('反復練習（always）は設定によらず出し、持たないモードは出さない（MODE-24）', () => {
+    expect(correctionPanelShown('always')).toBe(true);
+    expect(correctionPanelShown(undefined)).toBe(false);
+  });
+
+  it('MODE-24: 反復練習のモードはパネルを出す', () => {
+    expect(correctionPanelShown(modes.find((m) => m.id === 'ghost')?.correctionPanel)).toBe(true);
   });
 });
 

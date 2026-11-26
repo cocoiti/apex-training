@@ -208,7 +208,8 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
 
   /**
    * 新しいタブで、localStorage を空にし、必要なら設定画面で FOV・クロスヘアを変えてから、トップ画面の「開始」でプレイ画面に入る。
-   * 画面写しに HTML の重ね表示が入らないよう、設定の補正のパネルを OFF にしてセンター維持で始める（ゴーストもパネルも出ない）。
+   * 反復練習（ゴースト表示は既定の OFF）で始める。補正のパネルは設定で消せないので、画面写しに HTML の重ね表示が入らないよう、
+   * ページにスタイルを足してパネルを見えなくする（パネルは表示だけのもので、3D・弾痕・スコープを変えない）。
    */
   async function openPlay(options: OpenOptions = {}): Promise<Page> {
     const { origin = staticOrigin, width = 1280, height = 800 } = options;
@@ -230,9 +231,6 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       await page.waitFor(`document.getElementById('setting-fov').value === ${JSON.stringify(String(options.fov))}`);
       expect(await page.evaluate<string>(`document.getElementById('setting-fov').value`)).toBe(String(options.fov));
     }
-    await page.evaluate(`(() => { const el = document.getElementById('setting-correction-panel'); el.checked = false;
-      el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-    await page.waitFor(`document.getElementById('setting-correction-panel').checked === false`);
     if (options.crosshair) {
       for (const [id, value] of [['setting-crosshair-color', options.crosshair.color], ['setting-crosshair-shape', options.crosshair.shape]]) {
         await page.evaluate(`(() => { const el = document.getElementById(${JSON.stringify(id)}); el.value = ${JSON.stringify(value)};
@@ -242,8 +240,10 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     }
     await page.evaluate(`location.hash = '#/'`);
     await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden && document.querySelector('#mode').options.length > 0`);
-    await page.evaluate(`(() => { const el = document.querySelector('#mode'); el.value = 'center';
-      el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await page.evaluate(`(() => { const el = document.querySelector('#mode'); el.value = 'ghost';
+      el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+      const style = document.createElement('style'); style.textContent = '.correction-panel { visibility: hidden !important; }';
+      document.head.append(style); })()`);
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     // プレイ画面に入り、練習が始まって（残弾が出て）シーンが何度か描画されるまで待つ。
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden && ${AMMO} > 0`);

@@ -3,7 +3,7 @@
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、index.html の要素、武器の JSON、SPEC の localStorage のキー）
 // だけを使い、実装の内部には依存しない。画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、
 // パッドは Gamepad API（navigator.getGamepads と vibrationActuator.playEffect）の形で与える。
-// 照準の反応は、センター維持の中心の的の色が画面の中心から外れるか（画面写しの中心の画素）で読む。
+// 照準の反応は、反復練習の中心の的の色が画面の中心から外れるか（画面写しの中心の画素）で読む。
 // ヨーの量（PAD-28）は、clock=manual で開いたページの時計をテストが進め、
 // 回した結果の画面写しを、同じヨーになるはずの別の回し方（既定のヨー速度 300 で左に 0.7 秒 = −210 度 ≡ +150 度）の画面写しと比べて読む。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
@@ -32,7 +32,7 @@ const NO_VIBRATION = 'このパッドまたはブラウザは振動に対応し�
 const AIM_ASSIST = 'エイムアシストは再現しません。エイムアシストなしの素のリコイル制御を練習します';
 const NOT_EXACT = 'ゲームと完全に一致するものではなく、近い感覚で練習できます';
 const IN_USE = '使用中';
-const CENTER_MODE = 'センター維持';
+const MODE = '反復練習';
 const MOUSE_KEY = 'apex-training:settings:mouse';
 
 /** パッドの名前（Gamepad API の id）。HUD では最初の「 (」より前を表示する（pad.md）。 */
@@ -181,7 +181,7 @@ async function setInputMethod(page: Page, label: string) {
  * トップ画面で武器とモードを選び、「開始」をキーボード（フォーカスして Enter）で押してプレイ画面に入る
  * （screens.md「武器とモードはマウスのクリック（またはキーボード）で選ぶ」）。
  */
-async function start(page: Page, weapon: WeaponJson, mode = CENTER_MODE) {
+async function start(page: Page, weapon: WeaponJson, mode = MODE) {
   await page.evaluate(`location.hash = '#/'`);
   await page.waitFor(`${screenVisible('top')} && document.querySelector('#weapon').options.length > 0 && document.querySelector('#mode').options.length > 0`);
   await choose(page, '#weapon', weapon.name);

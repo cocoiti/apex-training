@@ -27,7 +27,7 @@ const APP = { render: false, manualClock: true };
 /** SPEC の名前と値（実装の定数には依存しない）。 */
 const MEASURED_NAMES = ['C.A.R. SMG', 'L-STAR'];
 const PLACEHOLDER_NAMES = ['R-301', 'R-99', 'フラットライン', 'ボルト', 'スピットファイア'];
-const MODES = ['反復練習', 'センター維持'];
+const MODES = ['反復練習'];
 
 interface WeaponJson {
   id: string;
@@ -325,16 +325,16 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-1: 武器の一覧の武器それぞれで、反復練習とセンター維持を最後まで練習できる', () => {
+  describe('MODE-1: 武器の一覧の武器それぞれで、反復練習を最後まで練習できる', () => {
     for (const weapon of ['L-STAR', 'C.A.R. SMG']) {
-      it(`MODE-1: ${weapon} で反復練習・センター維持を撃ち切ると、それぞれリザルト画面が表示される`, async () => {
+      it(`MODE-1: ${weapon} で反復練習を撃ち切ると、リザルト画面が表示される`, async () => {
         serveDist(mainDist);
         const page = await openFresh();
         for (const mode of MODES) {
           const summary = await practice(page, weapon, mode);
           expect(summary, `${weapon} / ${mode}`).toContain(weapon);
           expect(summary, `${weapon} / ${mode}`).toContain(mode);
-          // どちらのモードも採点する（リザルトに採点結果の指標が出る）。
+          // 採点する（リザルトに採点結果の指標が出る）。
           expect(await page.evaluate<boolean>(`window.__vis('#result-metrics')`), `${weapon} / ${mode}: リザルトに指標が出る`).toBe(true);
           expect(await page.evaluate<string>(`document.querySelector('#result-metrics').innerText`)).toMatch(/\d/);
         }

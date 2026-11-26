@@ -1,5 +1,6 @@
-// Issue #51「パターン観察モードをなくし、すべてのモードを採点する」の QA の受け入れテスト。
-// 対象: MODE-2・MODE-26・SCO-17・SCO-25（欠番）・MODE-27（変更）・MODE-28（追加）。
+// Issue #51「パターン観察モードをなくし、すべてのモードを採点する」と Issue #64「センター維持モードをなくし、反復練習だけにする」の
+// QA の受け入れテスト。
+// 対象: MODE-2・MODE-26・SCO-17・SCO-25・MODE-4・UI-58・UI-61（欠番）・MODE-27・MODE-28（変更）・MODE-29・UI-75（追加）。
 // MODE-1 は measured-weapons-qa、UI-26 は history-qa、PAD-18・PAD-19 は pad-guide-browser-qa が確かめる（tests/acceptance/README.md）。
 // 公開された入口（docs/spec/、ビルドの結果を /apex-training/ で配信した画面、index.html の要素、武器の JSON、
 // localStorage の自己ベスト・履歴のキー）だけを使い、実装の内部には依存しない。
@@ -28,10 +29,29 @@ const GHOST = '反復練習';
 const CENTER = 'センター維持';
 const PATTERN = 'パターン観察';
 const OLD_GHOST = 'ゴースト追従';
-const MODES = [GHOST, CENTER];
+const MODES = [GHOST];
 const PAD_NAME = 'acceptance pad (STANDARD GAMEPAD)';
 const OLD_BEST_KEY = 'apex-training:best:mouse:lstar:pattern';
 const OLD_HISTORY_KEY = 'apex-training:history:mouse:lstar:pattern';
+const CENTER_BEST_KEY = 'apex-training:best:mouse:lstar:center';
+const CENTER_HISTORY_KEY = 'apex-training:history:mouse:lstar:center';
+const COMMON_SETTINGS_KEY = 'apex-training:settings:common';
+/**
+ * 変更の前のビルド（センター維持と補正のパネルの設定があったとき）で、設定画面の補正のパネルを OFF にし、FOV を 100 にしたときに
+ * 保存された共通の設定の値そのもの（QA が変更の前のビルドの画面を操作して localStorage から写した）。
+ */
+const LEGACY_COMMON = JSON.stringify({
+  inputMethod: 'auto',
+  fov: 100,
+  crosshairShape: 'dot',
+  crosshairColor: '#77ccff',
+  ghost: false,
+  correctionPanel: false,
+  patternDisplay: 'detailed',
+  sound: true,
+});
+const PAD_CENTER_BEST_KEY = 'apex-training:best:pad:lstar:center';
+const PAD_GHOST_BEST_KEY = 'apex-training:best:pad:lstar:ghost';
 
 interface WeaponJson {
   id: string;
@@ -125,6 +145,18 @@ async function openHistory(page: Page) {
   await settle(page, 2);
 }
 
+/**
+ * 画面（top・history）のモードの欄。選択肢の select が画面に描かれているかと、画面の文字。
+ * hidden 属性が CSS の display で上書きされて描かれていることもあるので、属性ではなく描かれているか（大きさと可視性）で見る。
+ */
+const modeView = (page: Page, screen: 'top' | 'history') =>
+  page.evaluate<{ selectShown: boolean; text: string }>(`(() => {
+    const root = document.querySelector('[data-screen="${screen}"]');
+    const select = root.querySelector('select[id$="mode"]');
+    const r = select ? select.getBoundingClientRect() : null;
+    const shown = !!select && select.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !!r && r.width > 0 && r.height > 0;
+    return { selectShown: shown, text: root.innerText }; })()`);
+
 const storageKeys = (page: Page) => page.evaluate<string[]>('Object.keys(localStorage)');
 
 // ---------------------------------------------------------------------------
@@ -137,10 +169,17 @@ describe('SPEC: パターン観察の受け入れ条件は欠番になってい�
     for (const id of ['MODE-1', 'MODE-27', 'MODE-28', 'UI-26', 'PAD-18', 'PAD-19']) expect(ids, id).toContain(id);
   });
 
-  it('SPEC のモードは反復練習とセンター維持の 2 つで、パターン観察はモードとして書かれていない', () => {
+  it('センター維持と補正のパネルの設定の 3 つの受け入れ条件は欠番で、追加した条件はある', () => {
+    const ids = specIds();
+    for (const id of ['MODE-4', 'UI-58', 'UI-61']) expect(ids, id).not.toContain(id);
+    for (const id of ['MODE-29', 'UI-75', 'SCO-39']) expect(ids, id).toContain(id);
+  });
+
+  it('SPEC のモードは反復練習の 1 つで、パターン観察とセンター維持はモードとして書かれていない', () => {
     const modes = SPEC('modes.md');
-    expect(modes).toContain('モードは、反復練習・センター維持の 2 つ');
+    expect(modes).toContain('モードは反復練習の 1 つ');
     expect(modes).not.toMatch(/^### パターン観察/m);
+    expect(modes).not.toMatch(/^### センター維持/m);
   });
 });
 
@@ -191,7 +230,7 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
 
   // -------------------------------------------------------------------------
   describe('パターン観察の受け入れ条件（欠番）: パターン観察は画面のどこからも選べず、そのキーは保存されない', () => {
-    it('トップ画面と履歴の画面にパターン観察の選択肢がなく、両モードを練習しても :pattern のキーが保存されない', async () => {
+    it('トップ画面と履歴の画面にパターン観察の選択肢がなく、反復練習を練習しても :pattern のキーが保存されない', async () => {
       const page = await openFresh();
       expect(await options(page, '#mode')).not.toContain(PATTERN);
       expect(await page.evaluate<string>(`document.querySelector('[data-screen="top"]').innerText`)).not.toContain(PATTERN);
@@ -205,22 +244,24 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
       expect(await options(page, '#history-mode')).not.toContain(PATTERN);
       const keys = await storageKeys(page);
       expect(keys.filter((k) => k.endsWith(':pattern')), keys.join('\n')).toEqual([]);
-      // 練習した 2 つのモードはどちらも採点され、履歴に保存される（SCO の「すべてのモードを採点する」）。
+      // 練習したモードは採点され、履歴に保存される（SCO の「すべてのモードを採点する」）。
       expect(keys.some((k) => k.startsWith('apex-training:history:') && k.endsWith(':lstar:ghost')), keys.join('\n')).toBe(true);
-      expect(keys.some((k) => k.startsWith('apex-training:history:') && k.endsWith(':lstar:center')), keys.join('\n')).toBe(true);
+      expect(keys.filter((k) => k.endsWith(':center')), keys.join('\n')).toEqual([]);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 120_000);
   });
 
   // -------------------------------------------------------------------------
   describe('MODE-27: モードの選択肢と「反復練習」の言葉', () => {
-    it('トップ画面のモードの選択肢に「反復練習」「センター維持」だけが出て、「ゴースト追従」と「パターン観察」は出ない', async () => {
+    it('トップ画面にモードの選択肢が出ず、モードとして「反復練習」だけが表示され、「ゴースト追従」「パターン観察」「センター維持」は出ない', async () => {
       const page = await openFresh();
-      const modes = await options(page, '#mode');
-      expect(modes).toEqual(MODES);
-      const top = await page.evaluate<string>(`document.querySelector('[data-screen="top"]').innerText`);
+      const view = await modeView(page, 'top');
+      expect(view.selectShown, 'モードの選択肢の欄が見えている').toBe(false);
+      expect(view.text).toMatch(/モード\s*反復練習/);
+      const top = view.text;
       expect(top).not.toContain(OLD_GHOST);
       expect(top).not.toContain(PATTERN);
+      expect(top).not.toContain(CENTER);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
@@ -265,12 +306,15 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
 
   // -------------------------------------------------------------------------
   describe('MODE-28: 以前のパターン観察のキーがあっても開ける', () => {
-    it('トップ画面が開き、選択肢は 2 つで反復練習が選ばれ、そのまま開始すると反復練習が始まり、履歴の画面にもパターン観察が出ず、キーは残る', async () => {
+    it('トップ画面が開き、モードは反復練習だけが表示され、そのまま開始すると反復練習が始まり、履歴の画面にもパターン観察が出ず、キーは残る', async () => {
       const best = JSON.stringify({ version: 1, meanError: 1.23, groupingRadius: 1, hitRate: 50, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
       const history = JSON.stringify({ version: 1, entries: [{ at: '2026-01-01T00:00:00.000Z', meanError: 4.56, hitRate: 50, groupingRadius: 1, shots: 28 }] });
       const page = await openFresh({ [OLD_BEST_KEY]: best, [OLD_HISTORY_KEY]: history });
       expect(await page.evaluate<string[]>('window.__screens()')).toEqual(['top']);
-      expect(await options(page, '#mode')).toEqual(MODES);
+      const view = await modeView(page, 'top');
+      expect(view.selectShown).toBe(false);
+      expect(view.text).toMatch(/モード\s*反復練習/);
+      expect(view.text).not.toContain(PATTERN);
       expect(await selected(page, '#mode')).toBe(GHOST);
       // モードは選び直さずに「開始」を押す（武器も既定のまま）。
       await page.clickSelector('[data-screen="top"] a[href="#/play"]');
@@ -280,8 +324,9 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
       await padFireAll(page);
       await waitResult(page);
       expect(await page.evaluate<string>(`document.querySelector('#result-summary').innerText`)).toContain(GHOST);
-      // 履歴の画面のモードの選択肢にもパターン観察は出ない。
+      // 履歴の画面のモードにもパターン観察は出ない。
       await openHistory(page);
+      expect((await modeView(page, 'history')).selectShown).toBe(false);
       expect(await options(page, '#history-mode')).toEqual(MODES);
       expect(await page.evaluate<string>(`document.querySelector('[data-screen="history"]').innerText`)).not.toContain(PATTERN);
       // 2 つのキーは消されずに残る。
@@ -290,7 +335,7 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 90_000);
 
-    it('以前のキーがある状態で履歴の画面を直接開いても、エラーにならずモードの選択肢は 2 つで、キーは残る', async () => {
+    it('以前のキーがある状態で履歴の画面を直接開いても、エラーにならずモードは反復練習だけで、キーは残る', async () => {
       const best = JSON.stringify({ version: 1, meanError: 1.23, groupingRadius: 1, hitRate: 50, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
       const history = JSON.stringify({ version: 1, entries: [{ at: '2026-01-01T00:00:00.000Z', meanError: 4.56, hitRate: 50, groupingRadius: 1, shots: 28 }] });
       const page = await openFresh({ [OLD_BEST_KEY]: best, [OLD_HISTORY_KEY]: history });
@@ -308,6 +353,118 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
     }, 60_000);
   });
 
+  // -------------------------------------------------------------------------
+  describe('MODE-29: 以前のセンター維持のキーと、補正のパネルを OFF にした古い共通の設定があっても開ける', () => {
+    const best = JSON.stringify({ version: 1, meanError: 0.01, groupingRadius: 1, hitRate: 50, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
+    const history = JSON.stringify({ version: 1, entries: [{ at: '2026-01-01T00:00:00.000Z', meanError: 4.56, hitRate: 50, groupingRadius: 1, shots: 28 }] });
+    const oldCommon = JSON.stringify({ correctionPanel: false });
+    const seed = { [CENTER_BEST_KEY]: best, [CENTER_HISTORY_KEY]: history, [COMMON_SETTINGS_KEY]: oldCommon };
 
+    it('トップ画面のモードは反復練習だけで、そのまま開始すると補正のパネル付きで反復練習が始まり、撃ち切ると採点結果が出て、キーは残る', async () => {
+      const page = await openFresh(seed);
+      expect(await page.evaluate<string[]>('window.__screens()')).toEqual(['top']);
+      const view = await modeView(page, 'top');
+      expect(view.selectShown).toBe(false);
+      expect(view.text).toMatch(/モード\s*反復練習/);
+      expect(view.text).not.toContain(CENTER);
+      await page.clickSelector('[data-screen="top"] a[href="#/play"]');
+      await page.waitFor(`location.hash === '#/play' && window.__vis('[data-screen="play"]') && window.__ammo() > 0`, 10_000);
+      await page.advanceClockUntil(`window.__vis('.correction-panel')`, { limit: 5 });
+      expect(await page.evaluate<boolean>(`window.__vis('.correction-panel')`), '補正のパネルが表示されない').toBe(true);
+      await padFireAll(page);
+      await waitResult(page);
+      expect(await page.evaluate<string>(`document.querySelector('#result-summary').innerText`)).toContain(GHOST);
+      expect(await page.evaluate<string>(`document.querySelector('#result-metrics').innerText`)).toMatch(/平均ズレ\s*[\d.]+\s*°/);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(CENTER_BEST_KEY)})`)).toBe(best);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(CENTER_HISTORY_KEY)})`)).toBe(history);
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 90_000);
 
+    it('設定画面と履歴の画面がエラーにならずに開き、どちらにもセンター維持と補正のパネルの項目が出ず、キーは残る', async () => {
+      const page = await openFresh(seed);
+      await page.evaluate(`location.hash = '#/settings'`);
+      await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
+      const settings = await page.evaluate<{ text: string; panelChecks: number }>(`(() => ({
+        text: document.querySelector('[data-screen="settings"]').innerText,
+        panelChecks: [...document.querySelectorAll('[data-screen="settings"] input[type="checkbox"]')]
+          .filter((i) => (i.closest('label')?.textContent ?? '').includes('補正のパネル')).length }))()`);
+      expect(settings.text).not.toContain(CENTER);
+      expect(settings.panelChecks, '補正のパネルの ON/OFF の項目がある').toBe(0);
+      await openHistory(page);
+      const view = await modeView(page, 'history');
+      expect(view.selectShown).toBe(false);
+      expect(view.text).not.toContain(CENTER);
+      expect(view.text).not.toContain('補正のパネル');
+      // 以前のセンター維持の履歴（平均ズレ 4.56）は表示しない。
+      expect(view.text).not.toContain('4.56');
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(CENTER_BEST_KEY)})`)).toBe(best);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(CENTER_HISTORY_KEY)})`)).toBe(history);
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 60_000);
+
+    it('変更の前のビルドが保存した共通の設定（補正のパネル OFF）と、以前のセンター維持の自己ベストがあっても、反復練習はパネル付きで始まり、センター維持の自己ベストを使わずに採点・保存する', async () => {
+      // パッドの L-STAR の以前のセンター維持の自己ベストは、どの結果にも負けない小さな値にしておく。
+      const padCenterBest = JSON.stringify({ version: 1, meanError: 0.0001, groupingRadius: 0, hitRate: 100, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
+      const page = await openFresh({ ...seed, [COMMON_SETTINGS_KEY]: LEGACY_COMMON, [PAD_CENTER_BEST_KEY]: padCenterBest });
+      const view = await modeView(page, 'top');
+      expect(view.selectShown).toBe(false);
+      expect(view.text).toMatch(/モード\s*反復練習/);
+      await start(page, LSTAR, undefined);
+      await page.advanceClockUntil(`window.__vis('.correction-panel')`, { limit: 5 });
+      expect(await page.evaluate<boolean>(`window.__vis('.correction-panel')`), '補正のパネルが表示されない').toBe(true);
+      await padFireAll(page);
+      await waitResult(page);
+      const result = await page.evaluate<string>(`document.querySelector('[data-screen="result"]').innerText`);
+      expect(result).toMatch(/平均ズレ\s*[\d.]+\s*°/);
+      // 反復練習の自己ベストはまだないので更新になる（センター維持の自己ベストと比べない）。
+      expect(result).toContain('自己ベスト更新');
+      expect(result).not.toContain(CENTER);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(PAD_GHOST_BEST_KEY)})`)).not.toBeNull();
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(PAD_CENTER_BEST_KEY)})`)).toBe(padCenterBest);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(CENTER_BEST_KEY)})`)).toBe(best);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(CENTER_HISTORY_KEY)})`)).toBe(history);
+      // 設定画面は変更の前に保存した FOV 100 を表示し、補正のパネルの項目はない。
+      await page.evaluate(`location.hash = '#/settings'`);
+      await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
+      expect(await page.evaluate<string>(`document.getElementById('setting-fov').value`)).toBe('100');
+      expect(await page.evaluate<boolean>(`!!document.getElementById('setting-correction-panel')`)).toBe(false);
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 90_000);
+  });
+
+  // -------------------------------------------------------------------------
+  it('UI-75: 変更の前のビルドが保存した共通の設定（補正のパネル OFF・FOV 100）そのままでも、設定画面は FOV 100 を表示して補正のパネルの項目を出さず、反復練習ではパネルが表示される', async () => {
+    const page = await openFresh({ [COMMON_SETTINGS_KEY]: LEGACY_COMMON });
+    await page.evaluate(`location.hash = '#/settings'`);
+    await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
+    expect(await page.evaluate<string>(`document.getElementById('setting-fov').value`)).toBe('100');
+    const settings = await page.evaluate<{ text: string; panelInputs: number }>(`(() => {
+      const root = document.querySelector('[data-screen="settings"]');
+      const labelOf = (el) => ((el.closest('label')?.textContent ?? '') + (el.labels ? [...el.labels].map((l) => l.textContent).join('') : ''));
+      return { text: root.innerText,
+        panelInputs: (root.querySelector('#setting-correction-panel') ? 1 : 0)
+          + [...root.querySelectorAll('input, select')].filter((el) => el.id !== 'setting-pattern-display' && labelOf(el).includes('補正のパネル')).length }; })()`);
+    expect(settings.panelInputs, '補正のパネルの項目がある').toBe(0);
+    expect(settings.text).not.toContain('補正のパネル（センター維持）');
+    expect(settings.text).not.toContain(CENTER);
+    await start(page, LSTAR, undefined);
+    await page.advanceClockUntil(`window.__vis('.correction-panel')`, { limit: 5 });
+    expect(await page.evaluate<boolean>(`window.__vis('.correction-panel')`), '補正のパネルが表示されない').toBe(true);
+    expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+  }, 60_000);
+
+  // -------------------------------------------------------------------------
+  it('UI-75: 古い補正のパネルの項目（OFF）と FOV 100 を保存した共通の設定でも、設定画面は FOV 100 を表示して補正のパネルの項目を出さず、反復練習ではパネルが表示される', async () => {
+    const page = await openFresh({ [COMMON_SETTINGS_KEY]: JSON.stringify({ correctionPanel: false, fov: 100 }) });
+    await page.evaluate(`location.hash = '#/settings'`);
+    await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
+    expect(await page.evaluate<string>(`document.getElementById('setting-fov').value`)).toBe('100');
+    const panelChecks = await page.evaluate<number>(`[...document.querySelectorAll('[data-screen="settings"] input[type="checkbox"]')]
+      .filter((i) => (i.closest('label')?.textContent ?? '').includes('補正のパネル')).length`);
+    expect(panelChecks, '補正のパネルの ON/OFF の項目がある').toBe(0);
+    await start(page, LSTAR, undefined);
+    await page.advanceClockUntil(`window.__vis('.correction-panel')`, { limit: 5 });
+    expect(await page.evaluate<boolean>(`window.__vis('.correction-panel')`), '補正のパネルが表示されない').toBe(true);
+    expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+  }, 60_000);
 });

@@ -30,11 +30,13 @@ describe('モードの一覧を作る', () => {
   });
 
   it('ファイルを 1 つ足すと、ほかを変えずに一覧に出る（MODE-5）', () => {
-    const base = [file('recoil/ghost.ts', mode('ghost', 20)), file('recoil/center.ts', mode('center', 30))];
+    const base = [file('recoil/ghost.ts', mode('ghost', 20))];
     const before = buildModeList(base);
     const after = buildModeList([...base, file('recoil/new.ts', mode('new', 25))]);
-    expect(before.map((m) => m.id)).toEqual(['ghost', 'center']);
-    expect(after.map((m) => m.id)).toEqual(['ghost', 'new', 'center']);
+    const first = buildModeList([...base, file('recoil/new.ts', mode('new', 10))]);
+    expect(before.map((m) => m.id)).toEqual(['ghost']);
+    expect(after.map((m) => m.id)).toEqual(['ghost', 'new']);
+    expect(first.map((m) => m.id)).toEqual(['new', 'ghost']);
   });
 
   it('default がモードの形でないファイルと、id が重なるファイルは外して出力し、ほかは残す', () => {
@@ -59,11 +61,10 @@ describe('モードの一覧を作る', () => {
 });
 
 describe('登録されたモード', () => {
-  it('MODE-27: src/modes/ のファイルから集めたモードは反復練習とセンター維持だけで、この順に並ぶ', () => {
-    expect(modes.map((m) => [m.id, m.name])).toEqual([
-      ['ghost', '反復練習'],
-      ['center', 'センター維持'],
-    ]);
+  it('MODE-27: src/modes/ のファイルから集めたモードは反復練習だけ', () => {
+    expect(modes.map((m) => [m.id, m.name])).toEqual([['ghost', '反復練習']]);
+    expect(modes.map((m) => m.id)).not.toContain('center');
+    expect(modes.map((m) => m.name)).not.toContain('センター維持');
     expect(modes.map((m) => m.name)).not.toContain('パターン観察');
     expect(modes.map((m) => m.name)).not.toContain('ゴースト追従');
   });

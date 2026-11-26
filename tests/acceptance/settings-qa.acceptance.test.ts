@@ -148,6 +148,35 @@ async function setNative(page: Page, id: string, value: string) {
   })()`);
 }
 
+/** パターンの表示の項目で選ばれている選択肢の文字（「詳細」「簡易」）。 */
+const patternDisplayLabel = (page: Page) =>
+  page.evaluate<string>(`document.getElementById('setting-pattern-display').selectedOptions[0]?.textContent.trim() ?? ''`);
+
+/** 設定画面の補正のパネルの ON/OFF の項目（以前の項目）の数。パターンの表示（補正のパネル）の選択は数えない。 */
+const correctionPanelToggles = (page: Page) =>
+  page.evaluate<number>(`(() => {
+    const root = document.querySelector('[data-screen="settings"]');
+    const byId = root.querySelector('#setting-correction-panel') ? 1 : 0;
+    const byLabel = [...root.querySelectorAll('input[type="checkbox"], input[type="radio"]')]
+      .filter((i) => ((i.closest('label')?.textContent ?? '') + (i.labels ? [...i.labels].map((l) => l.textContent).join('') : '')).includes('補正のパネル')).length;
+    const selects = [...root.querySelectorAll('select')]
+      .filter((s) => s.id !== 'setting-pattern-display')
+      .filter((s) => ((s.closest('label')?.textContent ?? '') + (s.labels ? [...s.labels].map((l) => l.textContent).join('') : '')).includes('補正のパネル')).length;
+    return byId + byLabel + selects; })()`);
+
+/** パターンの表示を選択肢の文字（「詳細」「簡易」）で選ぶ。 */
+async function choosePatternDisplay(page: Page, label: string) {
+  const ok = await page.evaluate<boolean>(`(() => {
+    const el = document.getElementById('setting-pattern-display');
+    const o = [...el.options].find((x) => x.textContent.trim() === ${JSON.stringify(label)});
+    if (!o) return false;
+    el.value = o.value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return true; })()`);
+  if (!ok) throw new Error(`パターンの表示に ${label} の選択肢がない`);
+}
+
 describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', () => {
   const temps: string[] = [];
   let server: Server | undefined;
@@ -221,6 +250,14 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       expect(s.adsMultiplier).toMatch(/^1(\.0+)?$/);
       noExceptions(page);
     });
+
+    it('パターンの表示は詳細で、補正のパネルの ON/OFF の項目は表示されない（#64）', async () => {
+      expect(await patternDisplayLabel(page)).toBe('詳細');
+      expect(await correctionPanelToggles(page), '補正のパネルの ON/OFF の項目がある').toBe(0);
+      const text = await page.evaluate<string>(`document.querySelector('[data-screen="settings"]').innerText`);
+      expect(text).not.toContain('センター維持');
+      noExceptions(page);
+    });
   });
 
   describe('UI-2: 感度を変えて再読み込みすると、保存の操作なしで変えた感度が残る', () => {
@@ -255,6 +292,17 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
       // 変えていない項目は既定値のまま。
       expect(s.sound).toBe(true);
       expect(s.dpi).toBe('800');
+      noExceptions(page);
+    });
+
+    it('パターンの表示を簡易にして再読み込みすると簡易が残り、補正のパネルの項目は出ない（#64）', async () => {
+      await typeInto(page, 'setting-fov', '105', 'enter');
+      await choosePatternDisplay(page, '簡易');
+      expect(await patternDisplayLabel(page)).toBe('簡易');
+      await reload(page);
+      expect(await patternDisplayLabel(page)).toBe('簡易');
+      expect((await shown(page)).fov).toBe('105');
+      expect(await correctionPanelToggles(page)).toBe(0);
       noExceptions(page);
     });
 

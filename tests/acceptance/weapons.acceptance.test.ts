@@ -475,7 +475,7 @@ describe('MODE-1: 武器の一覧の武器（weapons.md）', () => {
     expect(weapons.map((w) => w.name).sort()).toEqual([...MEASURED_NAMES].sort());
   });
 
-  it.todo('武器の一覧の武器それぞれで反復練習・センター維持を最後まで練習でき、リザルト画面が表示される（modes.acceptance.test.ts で確かめる）');
+  it.todo('武器の一覧の武器それぞれで反復練習を最後まで練習でき、リザルト画面が表示される（modes.acceptance.test.ts で確かめる）');
 });
 
 // ---------------------------------------------------------------------------

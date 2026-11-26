@@ -100,10 +100,10 @@ describe.skipIf(NESTED || !chromium)('render=off と clock=manual（QA）', () =
     return page;
   }
 
-  /** トップ画面で採点するモード（センター維持）を選び、「開始」でプレイ画面に入って練習が始まるまで待つ。 */
+  /** トップ画面で採点するモード（反復練習）を選び、「開始」でプレイ画面に入って練習が始まるまで待つ。 */
   async function start(page: Page) {
-    await page.evaluate(`(() => { const s = document.querySelector('#mode'); s.value = 'center'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-    expect(await page.evaluate<string>(`document.querySelector('#mode').value`)).toBe('center');
+    await page.evaluate(`(() => { const s = document.querySelector('#mode'); s.value = 'ghost'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    expect(await page.evaluate<string>(`document.querySelector('#mode').value`)).toBe('ghost');
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     await page.waitFor(`location.hash === '#/play' && window.__shown('[data-screen="play"]') && window.__ammo() > 0`);
     await page.frames(2);

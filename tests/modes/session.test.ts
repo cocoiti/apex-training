@@ -38,7 +38,7 @@ function session(actions: TimedAction[], options: { weapon?: WeaponData; mode?: 
   return new PracticeSession({
     world: wallWorld(),
     weapon: options.weapon ?? makeWeapon(),
-    mode: options.mode ?? modeById('center'),
+    mode: options.mode ?? modeById('ghost'),
     input: inputFromTimedActions(actions),
     seed: 1,
   });
@@ -66,7 +66,7 @@ describe('練習', () => {
 
   it('照準を動かさずに撃ち切ると、弾痕が武器のパターンの形に並び、撃ち切ったところで終わる（MODE-6）', () => {
     const weapon = makeWeapon();
-    const s = session([press(0)], { weapon, mode: modeById('center') });
+    const s = session([press(0)], { weapon, mode: modeById('ghost') });
     advance(s, 5);
     expect(s.ended).toBe(true);
     const result = s.result!;
@@ -83,7 +83,7 @@ describe('練習', () => {
     // 20 発目は 19 × 0.1 秒の時刻のステップで撃たれ、そのステップの終わりで終わる。
     expect(result.duration).toBeCloseTo(1.9 + s.sim.dt, 9);
     expect(result.weapon).toBe(weapon);
-    expect(result.mode).toEqual({ id: 'center', name: 'センター維持', category: 'recoil' });
+    expect(result.mode).toEqual({ id: 'ghost', name: '反復練習', category: 'recoil' });
     expect(result.modeResult).toEqual({});
   });
 
@@ -161,7 +161,7 @@ describe('練習', () => {
 describe('記録の再生（モードを含めた練習）', () => {
   /** setup とステップごとに乱数を取るモード。モードと Gun が同じ乱数を使っても再生が一致することを確かめる。 */
   const randomMode: TrainingMode = {
-    ...modeById('center'),
+    ...modeById('ghost'),
     setup(context) {
       context.random.next();
     },
@@ -191,7 +191,7 @@ describe('練習の入力方式（docs/spec/input.md「入力方式ごとの保�
     const s = new PracticeSession({
       world: wallWorld(),
       weapon: makeWeapon(),
-      mode: modeById('center'),
+      mode: modeById('ghost'),
       input: inputFromTimedActions([press(0)]),
       seed: 1,
       inputMethod: () => current,
@@ -208,7 +208,7 @@ describe('練習の入力方式（docs/spec/input.md「入力方式ごとの保�
     const s = new PracticeSession({
       world: wallWorld(),
       weapon: makeWeapon(),
-      mode: modeById('center'),
+      mode: modeById('ghost'),
       input: inputFromTimedActions([press(0.5)]),
       seed: 1,
       inputMethod: () => current,
@@ -248,7 +248,7 @@ describe('パッド向けのガイドと入力推移に使うもの（docs/spec/
     const s = new PracticeSession({
       world: wallWorld(),
       weapon: makeWeapon(),
-      mode: modeById('center'),
+      mode: modeById('ghost'),
       input: inputFromTimedActions([press(0)]),
       seed: 1,
       inputMethod: () => 'pad',
@@ -264,7 +264,7 @@ describe('パッド向けのガイドと入力推移に使うもの（docs/spec/
     const s = new PracticeSession({
       world: wallWorld(),
       weapon: makeWeapon(),
-      mode: modeById('center'),
+      mode: modeById('ghost'),
       input: inputFromTimedActions([press(0)]),
       seed: 1,
       inputMethod: () => 'mouse',
@@ -279,7 +279,7 @@ describe('撃った各弾の発射時の照準（docs/spec/screens.md「補正�
   it('撃つ前は空で、記録から求めるリザルトの自分の照準の軌道（aimAtShots）と同じ値を撃った順に持つ', () => {
     const weapon = makeWeapon();
     const input = new RecordingInput(7);
-    const s = new PracticeSession({ world: wallWorld(), weapon, mode: modeById('center'), input, seed: input.seed });
+    const s = new PracticeSession({ world: wallWorld(), weapon, mode: modeById('ghost'), input, seed: input.seed });
     expect(s.shotAims).toEqual([]);
     input.push(0, { type: 'fire', pressed: true });
     input.push(0.05, { type: 'look', yaw: 0.4, pitch: -0.7 });
@@ -307,7 +307,7 @@ describe('撃った各弾の発射時の照準（docs/spec/screens.md「補正�
 
   it('UI-56: 照準を動かさずに 5 発撃つと、5 つの照準はすべて原点（リコイルのオフセットを含まない）', () => {
     const weapon = makeWeapon();
-    const s = session([press(0)], { weapon, mode: modeById('center') });
+    const s = session([press(0)], { weapon, mode: modeById('ghost') });
     while (s.gun.shots.length < 5) s.step();
     expect(s.shotAims.slice(0, 5)).toEqual(Array.from({ length: 5 }, () => ({ yaw: 0, pitch: 0 })));
     expect(s.world.player.recoilOffset.pitch).toBeGreaterThan(0);
@@ -325,7 +325,7 @@ describe('撃った各弾の発射時の照準（docs/spec/screens.md「補正�
       const time = Math.max(0, i * interval - dt / 2);
       actions.push({ time, action: { type: 'look', yaw: point.yaw - previous.yaw, pitch: point.pitch - previous.pitch } });
     });
-    const s = session(actions, { weapon, mode: modeById('center') });
+    const s = session(actions, { weapon, mode: modeById('ghost') });
     while (!s.ended) s.step();
     expect(s.shotAims).toHaveLength(weapon.magSize);
     s.shotAims.forEach((aim, i) => {

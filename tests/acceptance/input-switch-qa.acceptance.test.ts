@@ -2,7 +2,7 @@
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、index.html の要素、武器の JSON、
 // scoring.md の自己ベストの localStorage のキー）だけを使い、実装の内部には依存しない。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、パッドは Gamepad API（navigator.getGamepads）の形で与える。
-// HUD の入力方式の表示は index.html の [data-hud="input"] の文字で読む。照準の反応は、センター維持の中心の的の色が
+// HUD の入力方式の表示は index.html の [data-hud="input"] の文字で読む。照準の反応は、反復練習の中心の的の色が
 // 画面の中心から外れるか（画面写しの中心の画素）で読む。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
@@ -41,8 +41,8 @@ const PAD = 'パッド';
 const UPDATED = '自己ベスト更新';
 const BEST_PREFIX = 'apex-training:best:';
 const bestKey = (input: string, weapon: string, mode: string) => `${BEST_PREFIX}${input}:${weapon}:${mode}`;
-const CENTER_MODE = 'センター維持';
-const CENTER_MODE_ID = 'center';
+const MODE = '反復練習';
+const MODE_ID = 'ghost';
 
 interface WeaponJson {
   id: string;
@@ -115,7 +115,7 @@ async function setInputMethod(page: Page, label: string) {
  * トップ画面で武器とモードを選び、「開始」をキーボード（フォーカスして Enter）で押してプレイ画面に入る
  * （マウスでもパッドでも操作しないため。screens.md「武器とモードはマウスのクリック（またはキーボード）で選ぶ」）。
  */
-async function start(page: Page, weapon: WeaponJson, mode = CENTER_MODE) {
+async function start(page: Page, weapon: WeaponJson, mode = MODE) {
   await page.evaluate(`location.hash = '#/'`);
   await page.waitFor(`!document.querySelector('[data-screen="top"]').hidden && document.querySelector('#weapon').options.length > 0 && document.querySelector('#mode').options.length > 0`);
   await choose(page, '#weapon', weapon.name);
@@ -384,8 +384,8 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
   // -------------------------------------------------------------------------
   describe('INP-14: 自動で、マウスで 1 発目を撃ち、パッドに切り替えて撃ち終えると、自己ベストはマウスの記録として比べて保存する', () => {
     const w = byId('lstar');
-    const mouseKey = bestKey('mouse', w.id, CENTER_MODE_ID);
-    const padKey = bestKey('pad', w.id, CENTER_MODE_ID);
+    const mouseKey = bestKey('mouse', w.id, MODE_ID);
+    const padKey = bestKey('pad', w.id, MODE_ID);
     const unbeatable = JSON.stringify({ version: 1, meanError: 0.0001, groupingRadius: 0.0001, hitRate: 100, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
 
     /** マウスで 1 発目を撃ってから、パッドに切り替えて R2 で撃ち切る。リザルト画面の文字を返す。 */

@@ -33,7 +33,6 @@
 | INP-16 | [input.md](../../docs/spec/input.md) | `tests/acceptance/pad-navigation-qa.acceptance.test.ts` |
 | MODE-1 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/measured-weapons-qa.acceptance.test.ts` |
 | MODE-3 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/ghost-follow-qa.acceptance.test.ts` |
-| MODE-4 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | MODE-5 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | MODE-6 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | MODE-7 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/modes.acceptance.test.ts` |
@@ -57,6 +56,7 @@
 | MODE-25 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/correction-panel-qa.acceptance.test.ts` |
 | MODE-27 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/remove-pattern-mode-qa.acceptance.test.ts` |
 | MODE-28 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/remove-pattern-mode-qa.acceptance.test.ts` |
+| MODE-29 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/remove-pattern-mode-qa.acceptance.test.ts` |
 | MOU-2 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-3 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-4 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
@@ -117,6 +117,7 @@
 | SCO-35 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/weak-sections-qa.acceptance.test.ts` |
 | SCO-36 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/weak-sections-qa.acceptance.test.ts` |
 | SCO-37 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/weak-sections-qa.acceptance.test.ts` |
+| SCO-39 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/weak-sections-qa.acceptance.test.ts` |
 | UI-1 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | UI-2 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
 | UI-4 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/ghost-follow-qa.acceptance.test.ts` |
@@ -171,10 +172,8 @@
 | UI-55 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/correction-panel-qa.acceptance.test.ts` |
 | UI-56 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/correction-panel-qa.acceptance.test.ts` |
 | UI-57 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/correction-panel-qa.acceptance.test.ts` |
-| UI-58 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/correction-panel-qa.acceptance.test.ts` |
 | UI-59 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/correction-panel-qa.acceptance.test.ts` |
 | UI-60 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/correction-panel-qa.acceptance.test.ts` |
-| UI-61 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/correction-panel-qa.acceptance.test.ts` |
 | UI-62 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/correction-panel-qa.acceptance.test.ts` |
 | UI-63 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/correction-panel-qa.acceptance.test.ts` |
 | UI-64 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/weak-sections-qa.acceptance.test.ts` |
@@ -187,6 +186,7 @@
 | UI-71 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/simple-pattern-panel-qa.acceptance.test.ts` |
 | UI-72 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/simple-pattern-panel-qa.acceptance.test.ts` |
 | UI-73 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/simple-pattern-panel-qa.acceptance.test.ts` |
+| UI-75 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/remove-pattern-mode-qa.acceptance.test.ts` |
 | WPN-1 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-2 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-3 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |

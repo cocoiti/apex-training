@@ -25,7 +25,7 @@ describe('ガイドを表示するか', () => {
     expect(padGuideVisible({ ghostShown: true, inputMethod: 'pad' })).toBe(true);
   });
 
-  it('PAD-18: 入力方式がマウス、ゴーストの位置がない（センター維持・撃ち切った）ときは表示しない', () => {
+  it('PAD-18: 反復練習で入力方式がマウスのとき、ゴーストの位置がない（撃ち切った）ときは表示しない', () => {
     expect(padGuideVisible({ ghostShown: true, inputMethod: 'mouse' })).toBe(false);
     expect(padGuideVisible({ ghostShown: false, inputMethod: 'pad' })).toBe(false);
   });

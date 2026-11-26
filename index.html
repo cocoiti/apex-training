@@ -13,7 +13,9 @@
         <div class="panel">
           <h1>リコイル練習</h1>
           <label class="choice">武器 <select id="weapon"></select></label>
-          <label class="choice">モード <select id="mode"></select></label>
+          <!-- 登録されたモードが 1 つのときは選択肢の欄を隠し、名前だけを出す（docs/spec/screens.md「トップ画面」）。 -->
+          <label class="choice" id="mode-choice">モード <select id="mode"></select></label>
+          <p class="choice" id="mode-only" hidden>モード <span id="mode-name" class="mode-name"></span></p>
           <label class="choice">回数 <select id="count"></select></label>
           <nav class="menu">
             <a href="#/play" id="start">開始</a>
@@ -45,7 +47,6 @@
                 </select>
               </label>
               <label class="setting">ゴースト表示（反復練習の 3D） <input id="setting-ghost" type="checkbox" /></label>
-              <label class="setting">補正のパネル（センター維持） <input id="setting-correction-panel" type="checkbox" /></label>
               <label class="setting">パターンの表示（補正のパネル）
                 <select id="setting-pattern-display">
                   <option value="detailed">詳細</option>
@@ -285,7 +286,8 @@
           <div id="history-body">
             <div class="history-choices">
               <label class="choice">武器 <select id="history-weapon"></select></label>
-              <label class="choice">モード <select id="history-mode"></select></label>
+              <label class="choice" id="history-mode-choice">モード <select id="history-mode"></select></label>
+              <p class="choice" id="history-mode-only" hidden>モード <span id="history-mode-name" class="mode-name"></span></p>
               <label class="choice">入力方式
                 <select id="history-input">
                   <option value="mouse">マウス</option>
