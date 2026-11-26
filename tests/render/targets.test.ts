@@ -187,7 +187,7 @@ describe('練習の的の表示', () => {
     expect(color('track')).toBe(PRACTICE_TARGET_COLOR);
   });
 
-  it('ARC-60・UI-136: シミュレーションの側で部分の箱の大きさと位置を変えた的は、表示の各部分もその大きさと位置（補間した中心からの位置）になる', () => {
+  it('ARC-66・UI-136: シミュレーションの側で部分の箱の大きさと位置を変えた的は、表示の各部分もその大きさと位置（補間した中心からの位置）になる', () => {
     const w = world();
     const parts: TargetPart[] = [
       { id: 'a', size: vec3(0.3, 0.2, 0.1), offset: vec3(0.5, -0.25, 0) },

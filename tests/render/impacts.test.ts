@@ -36,7 +36,7 @@ describe('弾痕の表示', () => {
     expect(marks(view)).toHaveLength(1);
   });
 
-  it('ARC-59: 弾痕を残す練習の的に当たった弾（impactOnTarget を持つ）の弾痕は、当たった点に表示する', () => {
+  it('ARC-65: 弾痕を残す練習の的に当たった弾（impactOnTarget を持つ）の弾痕は、当たった点に表示する', () => {
     const view = new ViewScene(rangeWorld());
     const impacts = new ImpactMarks(view.layer);
     impacts.sync([{ ...shot(1, vec3(0.1, 1.7, -9.6)), target: 'dummy', impactOnTarget: true }, { ...shot(2, vec3(0, 1.6, -5)), target: 'mover' }], eye);

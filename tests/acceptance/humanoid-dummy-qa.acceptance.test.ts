@@ -1,4 +1,4 @@
-// docs/spec/architecture.md「人形の的」「照準と的の当たり」（ARC-57〜ARC-60）、docs/spec/modes.md の人形の的の受け入れ条件
+// docs/spec/architecture.md「人形の的」「照準と的の当たり」（ARC-63〜ARC-66）、docs/spec/modes.md の人形の的の受け入れ条件
 // （MODE-40・MODE-51 の変更、MODE-59〜MODE-64）、docs/spec/screens.md「3D の表示」の人形の描画（UI-136）と配布物（UI-138）の受け入れテスト（#90）。
 // QA が SPEC だけから書いたもの。ブラウザを使わない（ブラウザで確かめるものは humanoid-dummy-browser-qa.acceptance.test.ts）。
 // 公開された入口（練習モードの共通の型・PracticeSession・登録されたモードの一覧、練習の的の決め方 PracticeTargetSpec と部分の箱 TargetPart、
@@ -230,7 +230,7 @@ function expectDrawnParts(group: THREE.Object3D, target: PracticeTarget, alpha: 
 // architecture.md「人形の的」
 // ---------------------------------------------------------------------------
 
-describe('ARC-57: 縮尺 1 の人形を 10 メートル先に置いたときの「乗っている」', () => {
+describe('ARC-63: 縮尺 1 の人形を 10 メートル先に置いたときの「乗っている」', () => {
   const CENTER = vec3(0, 1.6, -10);
   const cases: { name: string; rel: [number, number]; aimed: boolean }[] = [
     { name: '人形の中心', rel: [0, 0], aimed: true },
@@ -275,7 +275,7 @@ describe('ARC-57: 縮尺 1 の人形を 10 メートル先に置いたときの�
   });
 });
 
-describe('ARC-58: 縮尺 0.5 の人形', () => {
+describe('ARC-64: 縮尺 0.5 の人形', () => {
   it('各部分の箱の大きさと人形の中心からの相対的な位置が、縮尺 1 の値の 0.5 倍になる', () => {
     const one = humanoidParts(1);
     const half = humanoidParts(0.5);
@@ -312,7 +312,7 @@ describe('ARC-58: 縮尺 0.5 の人形', () => {
   });
 });
 
-describe('ARC-59: 弾痕を残す練習の的と残さない練習の的', () => {
+describe('ARC-65: 弾痕を残す練習の的と残さない練習の的', () => {
   it('弾痕を残す的の部分の箱に当たった弾は的の識別子を持ち、当たった点が弾痕の位置として記録されて表示される。残さない的に当たった弾の弾痕は表示されない', () => {
     const keepCenter = vec3(-1, 1.6, -10);
     const plainCenter = vec3(1, 1.6, -10);
@@ -363,7 +363,7 @@ describe('ARC-59: 弾痕を残す練習の的と残さない練習の的', () =>
   });
 });
 
-describe('ARC-60: シミュレーションの側で部分の箱を変えた的の描画', () => {
+describe('ARC-66: シミュレーションの側で部分の箱を変えた的の描画', () => {
   it('部分の箱の大きさと位置を変えた的（人形の形でない 3 つの箱と、腕を長くした人形）を描画すると、表示される各部分がその大きさと位置になる', () => {
     const custom: TargetPart[] = [
       { id: 'a', size: vec3(0.3, 0.7, 0.1), offset: vec3(0.5, -0.2, 0) },

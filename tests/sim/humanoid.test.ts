@@ -65,7 +65,7 @@ describe('人形の部分の箱', () => {
     expect(parts.find((p) => p.id === 'torso')!.size.x).toBe(HUMANOID_TORSO_WIDTH);
   });
 
-  it('ARC-58: 縮尺 0.5 の人形の部分の箱の大きさと中心からの相対的な位置は、縮尺 1 の値の 0.5 倍', () => {
+  it('ARC-64: 縮尺 0.5 の人形の部分の箱の大きさと中心からの相対的な位置は、縮尺 1 の値の 0.5 倍', () => {
     const one = humanoidParts(1);
     const half = humanoidParts(0.5);
     expect(half.map((p) => p.id)).toEqual(one.map((p) => p.id));
@@ -78,7 +78,7 @@ describe('人形の部分の箱', () => {
     });
   });
 
-  it('ARC-57: 10 メートル先の縮尺 1 の人形で、中心・頭・右腕・右脚の中心に向けると乗っていて、脇の下・脚のあいだ・頭の右で肩より上・右端より外では乗っていない', () => {
+  it('ARC-63: 10 メートル先の縮尺 1 の人形で、中心・頭・右腕・右脚の中心に向けると乗っていて、脇の下・脚のあいだ・頭の右で肩より上・右端より外では乗っていない', () => {
     const center = vec3(0, 1.6, -10);
     const target = dummyAt(center);
     const at = (id: string) => partCenter(center, part(target, id));
@@ -93,7 +93,7 @@ describe('人形の部分の箱', () => {
     for (const point of [armpit, legs, besideHead, outside]) expect(aimedAt(target, point)).toBe(false);
   });
 
-  it('ARC-57: 照準と弾の当たりは、マップの箱と人形の部分の箱のうち目の位置からいちばん近いものになり、当たった部分の箱を持つ', () => {
+  it('ARC-63: 照準と弾の当たりは、マップの箱と人形の部分の箱のうち目の位置からいちばん近いものになり、当たった部分の箱を持つ', () => {
     const center = vec3(0, 1.6, -10);
     const target = dummyAt(center);
     const wall = { id: 'wall', kind: 'wall' as const, center: vec3(0, 1.6, -12), size: vec3(20, 20, 0.2) };
@@ -159,7 +159,7 @@ describe('弾痕を残す練習の的', () => {
     return gun.shots;
   };
 
-  it('ARC-59: 弾痕を残す的に当たった弾は的の識別子を持ち、当たった点を弾痕の位置として記録する', () => {
+  it('ARC-65: 弾痕を残す的に当たった弾は的の識別子を持ち、当たった点を弾痕の位置として記録する', () => {
     const shots = shoot(true);
     expect(shots).toHaveLength(3);
     for (const shot of shots) {
@@ -171,7 +171,7 @@ describe('弾痕を残す練習の的', () => {
     }
   });
 
-  it('ARC-59: 弾痕を残さない的に当たった弾は的の識別子だけを持ち、弾痕を残す印を持たない', () => {
+  it('ARC-65: 弾痕を残さない的に当たった弾は的の識別子だけを持ち、弾痕を残す印を持たない', () => {
     const shots = shoot(false);
     expect(shots.every((s) => s.target === 'dummy' && s.impactOnTarget === undefined)).toBe(true);
   });

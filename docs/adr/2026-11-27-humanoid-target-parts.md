@@ -5,8 +5,8 @@
 ## 背景
 
 Issue #90 で、すべてのモードの的を頭・胴・腕・脚の箱でできた人形にする（docs/spec/architecture.md「人形の的」）。
-当たりは部分の箱で求め、空き（脇の下・脚のあいだ）には当たらない（ARC-57）。描画はシミュレーションと同じ形を読む（ARC-60, UI-136）。
-反復練習の人形だけは弾痕を残し、正面にリングを描く（ARC-59, UI-135）。フリックの人形は胴の幅の見込み角で縮尺を決める（MODE-62）。
+当たりは部分の箱で求め、空き（脇の下・脚のあいだ）には当たらない（ARC-63）。描画はシミュレーションと同じ形を読む（ARC-66, UI-136）。
+反復練習の人形だけは弾痕を残し、正面にリングを描く（ARC-65, UI-135）。フリックの人形は胴の幅の見込み角で縮尺を決める（MODE-62）。
 
 ## 決定
 
@@ -24,7 +24,7 @@ Issue #90 で、すべてのモードの的を頭・胴・腕・脚の箱でで�
 
 ## 却下した案
 
-- 描画の側に人形の形を持たせ、シミュレーションは外枠の 1 つの箱で当たりを求める: 空きに当たり、見えている形と当たりがずれる（ARC-57, UI-136 に反する）。
+- 描画の側に人形の形を持たせ、シミュレーションは外枠の 1 つの箱で当たりを求める: 空きに当たり、見えている形と当たりがずれる（ARC-63, UI-136 に反する）。
 - 当たりを正面の面（2 次元の形）だけで求め、空きを斜めから見ても通るようにする: 見えている側面に当たらず、
   「見えている所に当たれば人形に当たる」（screens.md「3D の表示」）に反する。
 - 弾痕を残さない的に当たった弾の位置を null にする: 外れと同じ記録になり、ズレの求め方と命中の数え方が変わる。
@@ -32,7 +32,7 @@ Issue #90 で、すべてのモードの的を頭・胴・腕・脚の箱でで�
 
 ## 影響
 
-- docs/spec/architecture.md（練習の的、人形の的、照準と的の当たり、ARC-57〜ARC-60）, docs/spec/modes.md（反復練習・追いエイム・フリック、MODE-51, MODE-58〜MODE-64）,
+- docs/spec/architecture.md（練習の的、人形の的、照準と的の当たり、ARC-63〜ARC-66）, docs/spec/modes.md（反復練習・追いエイム・フリック、MODE-51, MODE-58〜MODE-64）,
   docs/spec/screens.md（3D の表示、UI-135〜UI-138）, docs/spec/weapons.md（当たり判定と弾痕）
 - src/sim/targets.ts, src/sim/humanoid.ts, src/sim/hit.ts, src/sim/gun.ts, src/sim/tracking.ts, src/modes/recoil/ghost.ts, src/modes/tracking.ts, src/modes/aim/flick.ts,
   src/render/targets.ts, src/render/impacts.ts, src/render/environment.ts, src/main.ts
