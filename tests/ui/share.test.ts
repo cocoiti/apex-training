@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { TIME_PER_HIT_METRIC } from '../../src/modes/aim/flick';
 import { summarizeSet } from '../../src/ui/set-summary';
 import { HIT_COUNT } from '../helpers/aim-modes';
 import {
@@ -105,10 +106,10 @@ describe('シェアの文（docs/spec/screens.md「シェアの文」）', () =>
   });
 
   it('UI-105: 追いエイムでは 2 行目の最後に「 / 速さ: <速さ>」を足し、3 行目が乗っていた割合', () => {
-    const tracking = { weapon: undefined, mode: { name: '追いエイム' }, option: { label: '速さ', name: 'ふつう' } };
+    const tracking = { weapon: undefined, mode: { name: '追いエイム' }, options: [{ label: '速さ', name: 'ふつう' }] };
     const lines = resultShareText(resultShare(tracking, { shareScore: '乗っていた割合: 72.0%', bestUpdated: false })).split('\n');
     expect(lines.slice(1, 3)).toEqual(['モード: 追いエイム / 速さ: ふつう', '乗っていた割合: 72.0%']);
-    const recoil = { weapon: { name: 'L-STAR' }, mode: { name: '追いエイム＋リコイル' }, option: { label: '速さ', name: '速い' } };
+    const recoil = { weapon: { name: 'L-STAR' }, mode: { name: '追いエイム＋リコイル' }, options: [{ label: '速さ', name: '速い' }] };
     expect(resultShareText(resultShare(recoil, { shareScore: '', bestUpdated: false })).split('\n')[1]).toBe('武器: L-STAR / モード: 追いエイム＋リコイル / 速さ: 速い');
   });
 
@@ -130,6 +131,32 @@ describe('シェアの文（docs/spec/screens.md「シェアの文」）', () =>
     const lines = setShareText(setShare(undefined, 'フリック', summary)).split('\n');
     expect(lines[1]).toBe('モード: フリック');
     expect(lines[2]).toBe('回数: 3 / 3 回 / セットの平均命中数: 12');
+  });
+
+  it('UI-110: フリックのセットの文は 2 行目に出る範囲と的の大きさを書き、3 行目を「セットの平均の命中 1 回あたりの時間」にする', () => {
+    const summary = summarizeSet(
+      [
+        { round: 1, value: 0.6 },
+        { round: 2, value: 0.5 },
+        { round: 3, value: 0.7 },
+      ],
+      3,
+      TIME_PER_HIT_METRIC,
+    );
+    const lines = setShareText(setShare(undefined, 'フリック', summary, '出る範囲: 遠い / 的の大きさ: 小')).split('\n');
+    expect(lines[1]).toBe('モード: フリック / 出る範囲: 遠い / 的の大きさ: 小');
+    expect(lines[2]).toBe('回数: 3 / 3 回 / セットの平均の命中 1 回あたりの時間: 0.600 秒');
+  });
+
+  it('UI-110: フリックのリザルトの文の 2 行目は、選択肢の並び順に出る範囲と的の大きさを書く', () => {
+    const result = { weapon: undefined, mode: { name: 'フリック' }, options: [{ label: '出る範囲', name: '遠い' }, { label: '的の大きさ', name: '小' }] };
+    const lines = resultShareText(resultShare(result, { shareScore: '命中 1 回あたりの時間: 0.523 秒 / 命中率: 90.0%', bestUpdated: false })).split('\n');
+    expect(lines).toEqual([
+      'リコイル練習（非公式ファンツール）の結果',
+      'モード: フリック / 出る範囲: 遠い / 的の大きさ: 小',
+      '命中 1 回あたりの時間: 0.523 秒 / 命中率: 90.0%',
+      PUBLIC_URL,
+    ]);
   });
 
   it('UI-94: 「X に投稿」の行き先は x.com の投稿画面に URL エンコードした文を付けたもの', () => {

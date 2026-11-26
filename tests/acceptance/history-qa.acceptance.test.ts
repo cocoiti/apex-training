@@ -570,7 +570,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       const h = await historyState(page);
       expect(h.selects.map((s) => s.label.split(' ')[0])).toEqual(['武器', 'モード', '入力方式']);
       const modeOptions = await page.evaluate<string[]>(`[...document.querySelector('#history-mode').options].map((o) => o.textContent.trim())`);
-      expect(modeOptions).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル']);
+      expect(modeOptions).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック']);
       expect(h.text).not.toContain('センター維持');
       expect(h.text).not.toContain('パターン観察');
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);

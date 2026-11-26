@@ -46,15 +46,21 @@ function isScoring(value: unknown): boolean {
 /** 保存のキーに足せる値の id（docs/spec/scoring.md「保存の形」）。キーの区切りの `:` を含まない。 */
 const OPTION_ID = /^[a-z0-9-]+$/;
 
-/** 練習の選択肢の形。省いたモードは持たない。値の id は重ならず、既定の値は値のどれか。 */
+/** 練習の選択肢の 1 つの形。値の id は重ならず、既定の値は値のどれか。 */
 function isOption(value: unknown): boolean {
-  if (value === undefined) return true;
   if (!isRecord(value) || typeof value.id !== 'string' || value.id === '' || typeof value.label !== 'string') return false;
   const { choices, defaultChoice } = value;
   if (!Array.isArray(choices) || choices.length === 0) return false;
   const ids = choices.map((c: unknown) => (isRecord(c) && typeof c.name === 'string' && typeof c.id === 'string' && OPTION_ID.test(c.id) ? c.id : undefined));
   if (ids.some((id) => id === undefined) || new Set(ids).size !== ids.length) return false;
   return typeof defaultChoice === 'string' && ids.includes(defaultChoice);
+}
+
+/** 練習の選択肢の並びの形。省いたモードは持たない。選択肢の id は重ならない。 */
+function isOptions(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!Array.isArray(value) || !value.every(isOption)) return false;
+  return new Set(value.map((o: { id: string }) => o.id)).size === value.length;
 }
 
 const optional = (value: unknown, type: 'boolean' | 'function') => value === undefined || typeof value === type;
@@ -70,11 +76,12 @@ function isTrainingMode(value: unknown): value is TrainingMode {
     Number.isFinite(mode.order) &&
     ['setup', 'step', 'result', 'teardown'].every((key) => typeof mode[key] === 'function') &&
     optional(mode.ghost, 'function') &&
+    optional(mode.status, 'function') &&
     optional(mode.usesWeapon, 'boolean') &&
     optional(mode.weakSections, 'boolean') &&
     optional(mode.directionSound, 'boolean') &&
     optional(mode.refillOnRelease, 'boolean') &&
-    isOption(mode.option) &&
+    isOptions(mode.options) &&
     (mode.timeLimit === undefined || (typeof mode.timeLimit === 'number' && Number.isFinite(mode.timeLimit) && mode.timeLimit > 0)) &&
     isScoring(mode.scoring)
   );

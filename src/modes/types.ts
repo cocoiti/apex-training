@@ -28,9 +28,12 @@ export interface ModeContext {
   readonly random: Random;
   /** 練習の開始から今のステップの終わりまでの時間（秒、固定ステップの時刻）。setup では 0。 */
   readonly time: number;
-  /** 練習の選択肢（option）で選んだ値の id。練習の選択肢を持たないモードでは undefined。 */
-  readonly option: string | undefined;
+  /** 練習の選択肢（options）で選んだ値の id（選択肢の id → 値の id）。練習の選択肢を持たないモードでは空。 */
+  readonly options: ModeOptionValues;
 }
+
+/** 練習の選択肢で選んだ値（選択肢の id → 値の id）。 */
+export type ModeOptionValues = Readonly<Record<string, string>>;
 
 /** 練習の選択肢の 1 つの値（例: 速さの「ふつう」）。 */
 export interface ModeOptionChoice {
@@ -41,8 +44,8 @@ export interface ModeOptionChoice {
 }
 
 /**
- * 練習の選択肢（docs/spec/modes.md「モードの登録」。追いエイムの速さなど）。持つモードはトップ画面でその値を選んで練習を始め、
- * 自己ベストと履歴を値ごとに分ける。決定の理由は docs/adr/2026-11-26-mode-practice-option.md。
+ * 練習の選択肢（docs/spec/modes.md「モードの登録」。追いエイムの速さ、フリックの出る範囲など）。持つモードはトップ画面でその値を選んで
+ * 練習を始め、自己ベストと履歴を値の組ごとに分ける。決定の理由は docs/adr/2026-11-26-mode-practice-options-list.md。
  */
 export interface ModeOption {
   /** 選択肢の id（例: `speed`）。同じ id の選択肢を持つモードどうしは、トップ画面と履歴の画面で選んだ値を共有する。 */
@@ -77,6 +80,11 @@ export interface MetricSpec {
 export interface CompareMetric extends MetricSpec {
   /** lower は小さいほど良い、higher は大きいほど良い。 */
   readonly better: 'lower' | 'higher';
+  /**
+   * セットのまとめのシェアの文で「セットの」のあとに書く名前（例: 「平均の命中 1 回あたりの時間」）。省くと「平均<label>」
+   * （docs/spec/screens.md「シェアの文」）。
+   */
+  readonly averageLabel?: string;
   /** 保存してある値がこの指標のとりうる値か。省くと有限の数ならとりうる値。 */
   valid?(value: number): boolean;
 }
@@ -107,6 +115,8 @@ export interface ModeScore {
   readonly comments?: readonly string[];
   /** 自己ベストと履歴の 1 件に、比べる指標と一緒に保存する指標（項目名 → 値）。 */
   readonly fields?: Readonly<Record<string, number>>;
+  /** リザルト画面のシェアの文の 3 行目。省くと「<比べる指標の名前>: <値>」（docs/spec/screens.md「シェアの文」）。 */
+  readonly share?: string;
 }
 
 /**
@@ -148,8 +158,8 @@ export interface TrainingMode<TResult extends ModeResult = ModeResult> {
   readonly directionSound?: boolean;
   /** 補正のパネルの出し方。持たないモードでは出さない。武器を使わないモードでは出さない。 */
   readonly correctionPanel?: CorrectionPanelUse;
-  /** 練習の選択肢。省くと持たない（反復練習）。 */
-  readonly option?: ModeOption;
+  /** 練習の選択肢。並び順にトップ画面に欄を出し、保存のキーに値の id を足す。省くと持たない（反復練習）。 */
+  readonly options?: readonly ModeOption[];
   /**
    * 撃ち切ったあと fire を離すと残弾を装弾数に戻すか（docs/spec/modes.md「追いエイム」）。武器を使うモードだけで意味を持ち、省くと戻さない。
    * 戻すモードは撃ち切りと「離して 2 秒」では終わらず、モードが決めた終わりの条件（制限時間など）だけで終わる。
@@ -171,6 +181,11 @@ export interface TrainingMode<TResult extends ModeResult = ModeResult> {
    * 表示しないときは undefined を返す。描画のたびに呼ぶので、シミュレーションの状態を変えない（docs/spec/modes.md「反復練習」）。
    */
   ghost?(context: ModeContext): Angles | undefined;
+  /**
+   * HUD に出すモードの表示（例: 「的: 3 / 20」）を返す。出さないときは undefined。持たないモードは出さない。
+   * 描画のたびに呼ぶので、シミュレーションの状態を変えない。
+   */
+  status?(context: ModeContext): string | undefined;
 }
 
 /** モードが武器を使うか。usesWeapon を省いたモードは使う。 */
@@ -188,9 +203,29 @@ export function modeUsesDirectionSound(mode: Pick<TrainingMode, 'usesWeapon' | '
   return modeUsesWeapon(mode) && mode.directionSound !== false;
 }
 
-/** 選んだ値の id から、モードの練習の選択肢の値を決める。持たないモードでは undefined、選択肢にない値は既定の値。 */
-export function modeOptionChoice(mode: Pick<TrainingMode, 'option'>, choiceId: string | undefined): ModeOptionChoice | undefined {
-  const option = mode.option;
-  if (!option) return undefined;
-  return option.choices.find((c) => c.id === choiceId) ?? option.choices.find((c) => c.id === option.defaultChoice) ?? option.choices[0];
+/** 練習の選択肢と、そこで選んだ値。 */
+export interface ModeOptionSelection {
+  readonly option: ModeOption;
+  readonly choice: ModeOptionChoice;
+}
+
+/**
+ * 選んだ値（選択肢の id → 値の id）から、モードの練習の選択肢ごとの値を決める。並びはモードの options の順。
+ * 持たないモードでは空、選択肢にない値と渡されなかった選択肢は既定の値。
+ */
+export function modeOptionChoices(
+  mode: Pick<TrainingMode, 'options'>,
+  given: Readonly<Record<string, string | undefined>> = {},
+): ModeOptionSelection[] {
+  return (mode.options ?? []).map((option) => {
+    const id = given[option.id];
+    const choice = option.choices.find((c) => c.id === id) ?? option.choices.find((c) => c.id === option.defaultChoice) ?? option.choices[0];
+    if (!choice) throw new Error(`練習の選択肢 ${option.id} に値がない`);
+    return { option, choice };
+  });
+}
+
+/** 練習の選択肢ごとの値を、選択肢の id → 値の id の形にする。 */
+export function modeOptionValues(selections: readonly ModeOptionSelection[]): ModeOptionValues {
+  return Object.fromEntries(selections.map((s) => [s.option.id, s.choice.id]));
 }

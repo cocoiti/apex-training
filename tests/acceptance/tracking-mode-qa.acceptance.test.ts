@@ -71,8 +71,8 @@ function makeSession(opts: { seed: number; speed?: Speed; mode?: TrainingMode; a
   const mode = opts.mode ?? trackingMode;
   const world = rangeWorld();
   const input = inputFromTimedActions(opts.actions ?? []);
-  if (opts.weapon) return new PracticeSession<WeaponData>({ world, weapon: opts.weapon, mode, input, seed: opts.seed, option: opts.speed ?? 'normal' });
-  return new PracticeSession<undefined>({ world, weapon: undefined, mode, input, seed: opts.seed, option: opts.speed ?? 'normal' });
+  if (opts.weapon) return new PracticeSession<WeaponData>({ world, weapon: opts.weapon, mode, input, seed: opts.seed, options: { speed: opts.speed ?? 'normal' } });
+  return new PracticeSession<undefined>({ world, weapon: undefined, mode, input, seed: opts.seed, options: { speed: opts.speed ?? 'normal' } });
 }
 
 interface Motion {

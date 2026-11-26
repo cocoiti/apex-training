@@ -27,7 +27,7 @@ describe('fillModeSelect', () => {
   it('MODE-27: 登録されたモードは「反復練習」「追いエイム」「追いエイム＋リコイル」の順で、「反復練習」を選ぶ', () => {
     const { select, element } = createFakeSelect();
     fillModeSelect(select, modes);
-    expect(element.children.map((o) => o.textContent)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル']);
+    expect(element.children.map((o) => o.textContent)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック']);
     expect(element.value).toBe('ghost');
   });
 
@@ -66,12 +66,12 @@ describe('fillModeChoice', () => {
     expect(element.value).toBe('ghost');
   });
 
-  it('MODE-27・UI-26: 登録されたモード（3 つ）では選択肢の欄を出し、名前だけの欄を隠して「反復練習」を選ぶ', () => {
+  it('MODE-27・UI-26: 登録されたモード（4 つ）では選択肢の欄を出し、名前だけの欄を隠して「反復練習」を選ぶ', () => {
     const { element, elements } = choiceElements();
     fillModeChoice(elements, modes);
     expect(elements.choice.hidden).toBe(false);
     expect(elements.only.hidden).toBe(true);
-    expect(element.children.map((o) => o.textContent)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル']);
+    expect(element.children.map((o) => o.textContent)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック']);
     expect(element.value).toBe('ghost');
   });
 });

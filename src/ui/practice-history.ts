@@ -50,16 +50,16 @@ export interface HistorySelection {
   readonly input: InputMethod;
   readonly weaponId: string;
   readonly modeId: string;
-  /** 練習の選択肢を持つモードで選んだ値の id（例: `normal`）。持たないモードでは省く。 */
-  readonly option?: string;
+  /** 練習の選択肢を持つモードで選んだ値の id（例: `normal`）。モードの選択肢の並び順。持たないモードでは省く。 */
+  readonly options?: readonly string[];
 }
 
 /**
  * 履歴のキー。`apex-training:history:<入力方式>:<武器の id>:<モードの id>`。武器を使わないモードの武器の id は NO_WEAPON_ID（`-`）。
- * 練習の選択肢を持つモードでは末尾に `:<値の id>` を足す（docs/spec/scoring.md「履歴の保存の形」）。
+ * 練習の選択肢を持つモードでは末尾に選択肢ごとに `:<値の id>` を足す（docs/spec/scoring.md「履歴の保存の形」）。
  */
 export function historyKey(selection: HistorySelection): string {
-  return `apex-training:history:${selection.input}:${selection.weaponId}:${modeKeyPart(selection.modeId, selection.option)}`;
+  return `apex-training:history:${selection.input}:${selection.weaponId}:${modeKeyPart(selection.modeId, selection.options)}`;
 }
 
 function isFiniteNumber(value: unknown): value is number {

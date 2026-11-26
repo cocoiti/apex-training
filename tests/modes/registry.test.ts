@@ -98,24 +98,30 @@ describe('登録されたモード', () => {
     const logs: string[] = [];
     const list = buildModeList(
       [
-        file('aim/a.ts', mode('a', 1, { option: speed })),
-        file('aim/b.ts', mode('b', 2, { option: { ...speed, defaultChoice: 'fast' } })),
-        file('aim/c.ts', mode('c', 3, { option: { ...speed, choices: [] } })),
-        file('aim/d.ts', mode('d', 4, { option: { ...speed, choices: [{ id: 'a:b', name: 'x' }], defaultChoice: 'a:b' } })),
-        file('aim/e.ts', mode('e', 5, { option: { ...speed, choices: [...speed.choices, { id: 'slow', name: '遅い' }] } })),
+        file('aim/a.ts', mode('a', 1, { options: [speed] })),
+        file('aim/b.ts', mode('b', 2, { options: [{ ...speed, defaultChoice: 'fast' }] })),
+        file('aim/c.ts', mode('c', 3, { options: [{ ...speed, choices: [] }] })),
+        file('aim/d.ts', mode('d', 4, { options: [{ ...speed, choices: [{ id: 'a:b', name: 'x' }], defaultChoice: 'a:b' }] })),
+        file('aim/e.ts', mode('e', 5, { options: [{ ...speed, choices: [...speed.choices, { id: 'slow', name: '遅い' }] }] })),
         file('aim/f.ts', mode('f', 6, { refillOnRelease: 'yes' as unknown as boolean })),
+        // 選択肢の id が重なるモード、並びでない選択肢、2 つの選択肢を持つモード。
+        file('aim/g.ts', mode('g', 7, { options: [speed, speed] })),
+        file('aim/h.ts', mode('h', 8, { options: speed as unknown as [] })),
+        file('aim/i.ts', mode('i', 9, { options: [speed, { ...speed, id: 'size', label: '大きさ' }] })),
+        file('aim/j.ts', mode('j', 10, { status: 'x' as unknown as () => undefined })),
       ],
       (m) => logs.push(m),
     );
-    expect(list.map((m) => m.id)).toEqual(['a']);
-    expect(logs).toHaveLength(5);
+    expect(list.map((m) => m.id)).toEqual(['a', 'i']);
+    expect(logs).toHaveLength(8);
   });
 
-  it('MODE-27: src/modes/ のファイルから集めたモードは反復練習・追いエイム・追いエイム＋リコイルの順', () => {
+  it('MODE-27: src/modes/ のファイルから集めたモードは反復練習・追いエイム・追いエイム＋リコイル・フリックの順', () => {
     expect(modes.map((m) => [m.id, m.name])).toEqual([
       ['ghost', '反復練習'],
       ['tracking', '追いエイム'],
       ['tracking-recoil', '追いエイム＋リコイル'],
+      ['flick', 'フリック'],
     ]);
     expect(modes.map((m) => m.id)).not.toContain('center');
     expect(modes.map((m) => m.name)).not.toContain('センター維持');

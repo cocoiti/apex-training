@@ -15,7 +15,7 @@ import { canRumble, rumbleShot } from './input/pad-rumble';
 import { createSeed, RecordingInput } from './input/recording';
 import { keyControl, PadButtons, type ScreenControl } from './input/screen-controls';
 import { modes } from './modes/registry';
-import { modeOptionChoice, modeUsesDirectionSound, modeUsesWeakSections, modeUsesWeapon, type ModeOptionChoice, type TrainingMode } from './modes/types';
+import { modeOptionChoices, modeUsesDirectionSound, modeUsesWeakSections, modeUsesWeapon, type ModeOptionSelection, type TrainingMode } from './modes/types';
 import { PracticeSession } from './modes/session';
 import { GhostMarker } from './render/ghost';
 import { ImpactMarks } from './render/impacts';
@@ -38,7 +38,7 @@ import { MappingAutoOpen, PadMappingScreen, PadMappingStore } from './ui/pad-map
 import { bindCalibrationDeadzone, bindPadSettingsForm, type PadFormBinding, type PadSettingsFormElements } from './ui/pad-settings-form';
 import { fillModeChoice, fillModeSelect, type ModeChoiceElements } from './ui/mode-choices';
 import { compareMetric } from './ui/mode-scoring';
-import { fillOptionSelect, firstModeOption, showOptionChoice } from './ui/option-choices';
+import { buildOptionFields, modeOptionsOf, optionFieldValues, showOptionFields, type OptionField } from './ui/option-choices';
 import { PadMenu } from './ui/pad-menu';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { padGuideState, padGuideVisible, renderPadGuide, type PadGuideElements } from './ui/pad-guide';
@@ -287,14 +287,14 @@ function historyElements(): HistoryElements | null {
   };
   if ([...Object.values(elements), ...Object.values(confirm)].some((element) => !element)) return null;
   const weaponChoice = byId('weapon-choice');
-  // 練習の選択肢（速さ）の欄。練習の選択肢を持つモードを選んでいるときだけ出す。
-  const option = byId<HTMLSelectElement>('speed');
-  const optionChoice = byId('speed-choice');
+  // 練習の選択肢（速さ、出る範囲と的の大きさ）の欄。選択肢ごとに作り、その選択肢を持つモードを選んでいるときだけ出す。
+  const optionList = byId('mode-options');
+  const options = optionList ? buildOptionFields(optionList, modeOptionsOf(modes), 'history-') : [];
   return {
     ...elements,
     confirm,
     ...(weaponChoice ? { weaponChoice } : {}),
-    ...(option && optionChoice ? { option, optionChoice } : {}),
+    options,
   } as HistoryElements;
 }
 
@@ -452,7 +452,6 @@ async function start(): Promise<void> {
   const status = document.querySelector<HTMLElement>('#status');
   const weaponSelect = document.querySelector<HTMLSelectElement>('#weapon');
   const modeSelect = document.querySelector<HTMLSelectElement>('#mode');
-  const speedSelect = document.querySelector<HTMLSelectElement>('#speed');
   const countSelect = document.querySelector<HTMLSelectElement>('#count');
   const interlude = document.querySelector<HTMLElement>('#interlude');
   const playControls = document.querySelector<HTMLElement>('#play-controls');
@@ -493,6 +492,7 @@ async function start(): Promise<void> {
   const hud: Partial<Record<keyof HudElements, HTMLElement | null>> = {
     weapon: document.querySelector<HTMLElement>('[data-hud="weapon"]'),
     ammo: document.querySelector<HTMLElement>('[data-hud="ammo"]'),
+    mode: document.querySelector<HTMLElement>('[data-hud="mode"]'),
     time: document.querySelector<HTMLElement>('[data-hud="time"]'),
     input: document.querySelector<HTMLElement>('[data-hud="input"]'),
     round: document.querySelector<HTMLElement>('[data-hud="round"]'),
@@ -516,6 +516,7 @@ async function start(): Promise<void> {
     !pausedNotice ||
     !hud.weapon ||
     !hud.ammo ||
+    !hud.mode ||
     !hud.time ||
     !hud.input ||
     !hud.round ||
@@ -594,19 +595,16 @@ async function start(): Promise<void> {
   const weaponChoice = document.querySelector<HTMLElement>('#weapon-choice');
   const previewChoice = document.querySelector<HTMLElement>('#preview-sound-choice');
   const selectedMode = () => modes.find((m) => m.id === modeSelect.value) ?? modes[0];
-  // 練習の選択肢（追いエイムの速さ）は、持つモードを選んでいるときだけ欄を出す。選んだ値は隠しているあいだも残り、
+  // 練習の選択肢（追いエイムの速さ、フリックの出る範囲と的の大きさ）は、持つモードを選んでいるときだけ欄を出す。選んだ値は隠しているあいだも残り、
   // 同じ選択肢を持つモード（追いエイムと追いエイム＋リコイル）で共有する（docs/spec/screens.md「トップ画面」）。
-  const speedChoice = document.querySelector<HTMLElement>('#speed-choice');
-  const firstOption = firstModeOption(modes);
-  if (speedSelect && firstOption) fillOptionSelect(speedSelect, firstOption);
+  const optionList = document.querySelector<HTMLElement>('#mode-options');
+  const optionFields: OptionField[] = optionList ? buildOptionFields(optionList, modeOptionsOf(modes)) : [];
   const refreshWeaponChoice = () => {
     const mode = selectedMode();
     const shown = mode ? modeUsesWeapon(mode) : true;
     if (!shown) preview.stop();
     showWeaponChoice({ weapon: weaponChoice, preview: previewChoice }, shown);
-    if (speedSelect && speedChoice) {
-      showOptionChoice({ select: speedSelect, choice: speedChoice, name: document.querySelector<HTMLElement>('#speed-label') }, mode);
-    }
+    showOptionFields(optionFields, mode);
   };
   modeSelect.addEventListener('change', refreshWeaponChoice);
   refreshWeaponChoice();
@@ -622,7 +620,6 @@ async function start(): Promise<void> {
     const historyModeChoice = modeChoiceElements('history-', historyEls.mode as HTMLSelectElement);
     if (historyModeChoice) fillModeChoice(historyModeChoice, modes);
     else fillModeSelect(historyEls.mode as HTMLSelectElement, modes);
-    if (historyEls.option && firstOption) fillOptionSelect(historyEls.option as HTMLSelectElement, firstOption);
     const historyView = bindHistoryView(historyEls, { storage: appStorage, now: () => new Date(), modes });
     const weaponIds = weapons.map((w) => w.id);
     const modeIds = modes.map((m) => m.id);
@@ -692,8 +689,8 @@ async function start(): Promise<void> {
 
   // 今のセット（回数が 1 のときも 1 回のセットとして持つ）と、その武器とモード。回ごと・やり直しごとに同じものを使う。
   let set: PracticeSet | undefined;
-  // 武器を使わないモードでは weapon は undefined。練習の選択肢を持たないモードでは option は undefined。
-  let setup: { readonly weapon: WeaponData | undefined; readonly mode: TrainingMode; readonly option: ModeOptionChoice | undefined } | undefined;
+  // 武器を使わないモードでは weapon は undefined。練習の選択肢を持たないモードでは options は空。
+  let setup: { readonly weapon: WeaponData | undefined; readonly mode: TrainingMode; readonly options: readonly ModeOptionSelection[] } | undefined;
   // セットで最後に終えた回の入力方式（1 発目を撃ったときの入力方式）。セットのまとめに表示する。
   let setInput: InputMethod = 'mouse';
   // 直前に終えた回のリザルト。短いリザルトの残り秒数を描き直すのに使う。
@@ -704,7 +701,7 @@ async function start(): Promise<void> {
   /** 今のセットの今の回の練習を最初から始める。やり直しもこれで始め直す（docs/spec/modes.md「やり直し」）。 */
   const startRound = () => {
     if (!setup) return;
-    const { weapon, mode, option } = setup;
+    const { weapon, mode, options } = setup;
     impacts.clear();
     targetMarks.clear();
     ghost.hide();
@@ -730,7 +727,7 @@ async function start(): Promise<void> {
       mode,
       input,
       seed: input.seed,
-      ...(option ? { option: option.id } : {}),
+      options: Object.fromEntries(options.map((o) => [o.option.id, o.choice.id])),
       inputMethod: () => inputs.current,
       padName: () => pad.name,
     });
@@ -782,8 +779,8 @@ async function start(): Promise<void> {
     // 武器を使わないモードは、トップ画面の武器の選択を使わない（docs/spec/modes.md「モードの登録」）。
     const weapon = modeUsesWeapon(mode) ? (weapons.find((w) => w.id === weaponSelect.value) ?? weapons[0]) : undefined;
     if (modeUsesWeapon(mode) && !weapon) return;
-    // 練習の選択肢を持つモードは、トップ画面で選んだ値（速さ）で始める。
-    setup = { weapon, mode, option: modeOptionChoice(mode, speedSelect?.value) };
+    // 練習の選択肢を持つモードは、トップ画面で選んだ値（速さ、出る範囲と的の大きさ）で始める。
+    setup = { weapon, mode, options: modeOptionChoices(mode, optionFieldValues(optionFields)) };
     set = new PracticeSet(parsePracticeCount(countSelect.value));
     quitHint.hidden = !set.isSet;
     startRound();
@@ -808,8 +805,7 @@ async function start(): Promise<void> {
     running = undefined;
     interlude.hidden = true;
     const summary = summarizeSet(current.rounds, current.count, compareMetric(setup.mode));
-    const label = setup.mode.option?.label;
-    const option = setup.option && label ? optionText({ label, name: setup.option.name }) : undefined;
+    const option = optionText(setup.options.map((o) => ({ label: o.option.label, name: o.choice.name })));
     renderSetSummary(setView, setSummaryHeading(setup.weapon?.name, setup.mode.name, setInput, summary, option), summary);
     setSharing.set(setShareText(setShare(setup.weapon?.name, setup.mode.name, summary, option)));
     flow.finishSet();
@@ -963,6 +959,7 @@ async function start(): Promise<void> {
       const { gun } = session;
       renderHud(hudElements, {
         weapon: gun ? { name: gun.weapon.name, ammo: gun.ammo, magSize: gun.weapon.magSize } : undefined,
+        mode: session.status,
         elapsed: session.elapsed,
         inputMethod: inputs.current,
         round: set ? { index: set.round, count: set.count } : undefined,

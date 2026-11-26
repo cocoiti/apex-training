@@ -10,6 +10,7 @@ import {
   summarizeSet,
 } from '../../src/ui/set-summary';
 import { HIT_COUNT } from '../helpers/aim-modes';
+import { TIME_PER_HIT_METRIC } from '../../src/modes/aim/flick';
 import { modes } from '../../src/modes/registry';
 
 const rounds = (means: readonly (number | null)[]): RoundRecord[] => means.map((value, i) => ({ round: i + 1, value }));
@@ -127,5 +128,14 @@ describe('セットのまとめ', () => {
   it('武器を使わないモードの見出しは武器を書かない', () => {
     const summary = summarizeSet(rounds([1, 2]), 5, HIT_COUNT);
     expect(setSummaryHeading(undefined, 'エイム', 'mouse', summary)).toBe('エイム / マウス — 2 / 5 回');
+  });
+
+  it('UI-111: フリックの 3 回を 0.6・0.5・0.7 秒で終えたとき、出る範囲と的の大きさを見出しに書き、セットの平均 0.600 秒、いちばん良かった回 2 回目（0.500 秒）', () => {
+    const summary = summarizeSet(rounds([0.6, 0.5, 0.7]), 3, TIME_PER_HIT_METRIC);
+    expect(setSummaryHeading(undefined, 'フリック', 'mouse', summary, '出る範囲: 遠い / 的の大きさ: 小')).toBe('フリック / 出る範囲: 遠い / 的の大きさ: 小 / マウス — 3 / 3 回');
+    expect(setAverageText(summary)).toBe('セットの平均 0.600 秒');
+    expect(setBestText(summary)).toBe('いちばん良かった回 2 回目（0.500 秒）');
+    const list = setRoundsHtml(summary);
+    expect([...list.matchAll(/<\/span> ([\d.]+ 秒)/g)].map((m) => m[1])).toEqual(['0.600 秒', '0.500 秒', '0.700 秒']);
   });
 });

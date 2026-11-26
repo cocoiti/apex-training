@@ -89,6 +89,15 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+.hud-mode {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-mode[hidden] {
+  display: none;
+}
+
 .hud-input,
 .hud-pad {
   color: #a4a9b2;
@@ -458,6 +467,11 @@ p.choice {
 /* モードが 1 つのときは選択肢（label.choice）を hidden で隠す。display: block が hidden を上書きしないようにする。 */
 .choice[hidden] {
   display: none;
+}
+
+/* 練習の選択肢の欄を入れる囲み（src/ui/option-choices.ts）。並びに影響させず、中の欄をほかの欄と同じように並べる。 */
+.option-list {
+  display: contents;
 }
 
 /*

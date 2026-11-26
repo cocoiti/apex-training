@@ -31,15 +31,15 @@ export interface PersonalBest {
 /**
  * 自己ベストのキー。`apex-training:best:<入力方式>:<武器の id>:<モードの id>`。
  * 武器を使わないモードでは武器の id に NO_WEAPON_ID（`-`）を渡す。練習の選択肢を持つモードでは、選んだ値の id（例: `normal`）を
- * optionId に渡し、キーの末尾に `:<値の id>` を足す（docs/spec/scoring.md「保存の形」）。
+ * モードの選択肢の並び順に optionIds に渡し、キーの末尾にそれぞれ `:<値の id>` を足す（docs/spec/scoring.md「保存の形」）。
  */
-export function personalBestKey(input: InputMethod, weaponId: string, modeId: string, optionId?: string): string {
-  return `apex-training:best:${input}:${weaponId}:${modeKeyPart(modeId, optionId)}`;
+export function personalBestKey(input: InputMethod, weaponId: string, modeId: string, optionIds?: readonly string[]): string {
+  return `apex-training:best:${input}:${weaponId}:${modeKeyPart(modeId, optionIds)}`;
 }
 
-/** キーのモードの部分。練習の選択肢を持つモードでは `<モードの id>:<値の id>`。 */
-export function modeKeyPart(modeId: string, optionId: string | undefined): string {
-  return optionId === undefined ? modeId : `${modeId}:${optionId}`;
+/** キーのモードの部分。練習の選択肢を持つモードでは `<モードの id>:<値の id>`（選択肢が 2 つなら `<モードの id>:<値の id>:<値の id>`）。 */
+export function modeKeyPart(modeId: string, optionIds: readonly string[] | undefined): string {
+  return [modeId, ...(optionIds ?? [])].join(':');
 }
 
 /** 読み出した自己ベスト。record は保存してある値そのもの、value はその比べる指標の値。 */

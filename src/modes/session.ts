@@ -9,7 +9,7 @@ import { Simulation } from '../sim/simulation';
 import { TapFire } from '../sim/tap-fire';
 import { idealCorrectionRate, type WeaponData } from '../sim/weapon';
 import type { World } from '../sim/world';
-import { modeOptionChoice, modeUsesWeapon, type ModeContext, type ModeOptionChoice, type ModeResult, type TrainingMode } from './types';
+import { modeOptionChoices, modeOptionValues, modeUsesWeapon, type ModeContext, type ModeOptionChoice, type ModeOptionSelection, type ModeResult, type TrainingMode } from './types';
 
 /** リザルト画面が使うモードの項目。 */
 export type PracticeResultMode = Pick<TrainingMode, 'id' | 'name' | 'category' | 'usesWeapon' | 'scoring' | 'weakSections'>;
@@ -32,12 +32,14 @@ export interface PracticeResult {
   /** 練習の開始から終わりまでの時間（秒、固定ステップの時刻）。 */
   readonly duration: number;
   readonly modeResult: ModeResult;
-  /** 練習の選択肢を持つモードで選んだ値（docs/spec/modes.md「共通」）。持たないモードでは undefined。 */
-  readonly option: PracticeResultOption | undefined;
+  /** 練習の選択肢を持つモードで選んだ値（docs/spec/modes.md「共通」）。モードの選択肢の並び順。持たないモードでは空。 */
+  readonly options: readonly PracticeResultOption[];
 }
 
 /** リザルト画面に渡す、練習の選択肢の値。 */
 export interface PracticeResultOption extends ModeOptionChoice {
+  /** 選択肢の id（例: `speed`）。 */
+  readonly optionId: string;
   /** 選択肢の表示名（例: 「速さ」）。 */
   readonly label: string;
 }
@@ -55,8 +57,8 @@ export interface PracticeSessionOptions<W extends WeaponData | undefined = Weapo
   readonly input: InputSource;
   /** 乱数の種。 */
   readonly seed: number;
-  /** 練習の選択肢で選んだ値の id。持たないモードでは使わない。省いたとき・選択肢にない値のときは既定の値。 */
-  readonly option?: string;
+  /** 練習の選択肢で選んだ値（選択肢の id → 値の id）。持たないモードでは使わない。省いた選択肢・選択肢にない値は既定の値。 */
+  readonly options?: Readonly<Record<string, string | undefined>>;
   /** 今の入力方式。1 発目を撃ったステップで 1 回だけ読む。省いたときはマウス。 */
   readonly inputMethod?: () => InputMethod;
   /** 入力に使っているパッドの名前。入力方式と同じく、1 発目を撃ったステップで 1 回だけ読む。省いたときは分からない。 */
@@ -76,8 +78,8 @@ export class PracticeSession<W extends WeaponData | undefined = WeaponData> {
   readonly sim: Simulation;
   /** 練習の武器の発射・リコイル。武器を使わないモードでは undefined。 */
   readonly gun: SessionGun<W>;
-  /** 練習の選択肢で選んだ値。持たないモードでは undefined。 */
-  readonly option: ModeOptionChoice | undefined;
+  /** 練習の選択肢で選んだ値。モードの選択肢の並び順。持たないモードでは空。 */
+  readonly options: readonly ModeOptionSelection[];
   private readonly shooter: Shooter;
   private readonly context: ModeContext;
   private readonly endRule = new PracticeEndRule();
@@ -101,7 +103,7 @@ export class PracticeSession<W extends WeaponData | undefined = WeaponData> {
     const weapon: WeaponData | undefined = options.weapon;
     const usesWeapon = modeUsesWeapon(options.mode);
     if (usesWeapon && !weapon) throw new Error(`モード ${options.mode.id} は武器を使うので、武器を渡す`);
-    this.option = modeOptionChoice(options.mode, options.option);
+    this.options = modeOptionChoices(options.mode, options.options);
     const refill = options.mode.refillOnRelease === true;
     const gun = usesWeapon && weapon ? new Gun(weapon, random, { refillOnRelease: refill }) : undefined;
     this.gun = gun as SessionGun<W>;
@@ -115,7 +117,7 @@ export class PracticeSession<W extends WeaponData | undefined = WeaponData> {
       shots: shooter.shots,
       targets: options.world.targets,
       random,
-      option: this.option?.id,
+      options: modeOptionValues(this.options),
       // setup では 0、ステップごとの処理ではそのステップの終わりの時刻（フックはステップの数を数える前に呼ばれる）。
       get time() {
         return inStep ? (sim.stepCount + 1) * sim.dt : sim.time;
@@ -159,6 +161,11 @@ export class PracticeSession<W extends WeaponData | undefined = WeaponData> {
   /** 練習の開始からの時間（秒、固定ステップの時刻）。終わったあとは終わった時刻のまま。 */
   get elapsed(): number {
     return this.sim.time;
+  }
+
+  /** HUD に出すモードの表示（例: 「的: 3 / 20」）。モードが出さないときは undefined。 */
+  get status(): string | undefined {
+    return this.mode.status?.(this.context);
   }
 
   /** 直前のステップの開始時点の照準の向き。描画の補間に使う。 */
@@ -228,7 +235,7 @@ export class PracticeSession<W extends WeaponData | undefined = WeaponData> {
       // フックはステップの数を数える前に呼ばれるので、このステップの終わりの時刻はステップの数 + 1 から求める。
       duration: (this.sim.stepCount + 1) * dt,
       modeResult,
-      option: this.option && this.mode.option ? { ...this.option, label: this.mode.option.label } : undefined,
+      options: this.options.map(({ option, choice }) => ({ ...choice, optionId: option.id, label: option.label })),
     };
   }
 }

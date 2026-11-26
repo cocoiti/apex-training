@@ -69,6 +69,9 @@
 | MODE-43 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
 | MODE-44 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
 | MODE-45 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
+| MODE-46 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| MODE-53 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| MODE-55 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
 | MOU-2 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-3 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-4 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
@@ -143,6 +146,11 @@
 | SCO-52 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
 | SCO-53 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
 | SCO-54 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
+| SCO-56 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| SCO-57 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| SCO-58 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| SCO-59 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| SCO-60 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
 | UI-1 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | UI-2 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
 | UI-4 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/ghost-follow-qa.acceptance.test.ts` |
@@ -241,6 +249,11 @@
 | UI-104 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
 | UI-105 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
 | UI-106 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
+| UI-107 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| UI-108 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| UI-109 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| UI-110 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| UI-111 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
 | WPN-1 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-2 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-3 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |

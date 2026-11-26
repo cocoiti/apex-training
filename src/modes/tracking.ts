@@ -129,11 +129,11 @@ export function createTrackingMode(spec: TrackingModeSpec): TrainingMode<Trackin
     timeLimit: TRACKING_DURATION,
     scoring: trackingScoring(spec.recoil),
     directionSound: false,
-    option: SPEED_OPTION,
+    options: [SPEED_OPTION],
     setup(context) {
       const { player } = context.world;
       // 開始時の照準は的の中心（基準の点）を向く。
-      motion = createTrackingMotion(context.random, { eye: player.position, aim: viewAngles(player), speed: trackingSpeed(context.option) });
+      motion = createTrackingMotion(context.random, { eye: player.position, aim: viewAngles(player), speed: trackingSpeed(context.options[SPEED_OPTION.id]) });
       const current = motion;
       steps = [];
       dt = 0;

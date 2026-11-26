@@ -24,6 +24,7 @@ describe('HUD', () => {
     expect(hudTexts({ weapon: { name: 'L-STAR', ammo: 23, magSize: 24 }, elapsed: 0.4, inputMethod: 'mouse' })).toEqual({
       weapon: 'L-STAR',
       ammo: '残弾 23 / 24',
+      mode: '',
       time: '0.4 秒',
       input: 'マウス',
       round: '',
@@ -42,6 +43,7 @@ describe('HUD', () => {
     const elements = {
       weapon: { textContent: '', hidden: false },
       ammo: { textContent: '', hidden: false },
+      mode: { textContent: '', hidden: true },
       time: { textContent: '' },
       input: { textContent: '' },
       round: { textContent: '' },
@@ -51,6 +53,7 @@ describe('HUD', () => {
     expect(elements).toEqual({
       weapon: { textContent: 'L-STAR', hidden: false },
       ammo: { textContent: '残弾 28 / 28', hidden: false },
+      mode: { textContent: '', hidden: true },
       time: { textContent: '0.0 秒' },
       input: { textContent: 'マウス' },
       round: { textContent: '3 / 5' },
@@ -65,6 +68,7 @@ describe('HUD', () => {
     const elements = {
       weapon: { textContent: '', hidden: false },
       ammo: { textContent: '', hidden: false },
+      mode: { textContent: '', hidden: true },
       time: { textContent: '' },
       input: { textContent: '' },
       round: { textContent: '' },
@@ -79,6 +83,7 @@ describe('HUD', () => {
     const elements = {
       weapon: { textContent: '', hidden: false },
       ammo: { textContent: '', hidden: false },
+      mode: { textContent: '', hidden: true },
       time: { textContent: '' },
       input: { textContent: '' },
       round: { textContent: '' },
@@ -92,6 +97,7 @@ describe('HUD', () => {
     const elements = {
       weapon: { textContent: 'L-STAR', hidden: false },
       ammo: { textContent: '残弾 28 / 28', hidden: false },
+      mode: { textContent: '', hidden: true },
       time: { textContent: '' },
       input: { textContent: '' },
       round: { textContent: '' },
@@ -104,5 +110,23 @@ describe('HUD', () => {
     renderHud(elements, { weapon: { name: 'L-STAR', ammo: 28, magSize: 28 }, elapsed: 0, inputMethod: 'mouse' });
     expect(elements.weapon).toEqual({ textContent: 'L-STAR', hidden: false });
     expect(elements.ammo).toEqual({ textContent: '残弾 28 / 28', hidden: false });
+  });
+
+  it('MODE-46: モードが出すもの（フリックの「的: 0 / 20」）を表示し、武器名と残弾は隠す。出さないモードではその要素を隠す', () => {
+    const elements = {
+      weapon: { textContent: '', hidden: false },
+      ammo: { textContent: '', hidden: false },
+      mode: { textContent: '', hidden: true },
+      time: { textContent: '' },
+      input: { textContent: '' },
+      round: { textContent: '' },
+      pad: { textContent: '', hidden: true },
+    };
+    renderHud(elements, { weapon: undefined, mode: '的: 0 / 20', elapsed: 1, inputMethod: 'mouse' });
+    expect(elements.mode).toEqual({ textContent: '的: 0 / 20', hidden: false });
+    expect(elements.weapon.hidden).toBe(true);
+    expect(elements.ammo.hidden).toBe(true);
+    renderHud(elements, { weapon: { name: 'L-STAR', ammo: 28, magSize: 28 }, elapsed: 0, inputMethod: 'mouse' });
+    expect(elements.mode).toEqual({ textContent: '', hidden: true });
   });
 });

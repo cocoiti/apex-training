@@ -59,6 +59,7 @@ export function metricShareScore(metric: Pick<CompareMetric, 'label' | 'format'>
 
 /**
  * 2 行目。武器を使わないモードでは「モード: <モード>」だけ。練習の選択肢を持つモードでは最後に「 / 速さ: <速さ>」を足す
+ * （選択肢が 2 つなら「 / 出る範囲: <範囲> / 的の大きさ: <大きさ>」）
  * （docs/spec/screens.md「シェアの文」）。
  */
 function choiceLine(weaponName: string | undefined, modeName: string, option: string | undefined): string {
@@ -86,16 +87,20 @@ export function resultShare(
   result: {
     readonly weapon: Pick<WeaponData, 'name'> | undefined;
     readonly mode: Pick<PracticeResult['mode'], 'name'>;
-    readonly option?: Pick<PracticeResultOption, 'label' | 'name'> | undefined;
+    readonly options?: readonly Pick<PracticeResultOption, 'label' | 'name'>[] | undefined;
   },
   view: Pick<ResultView, 'shareScore' | 'bestUpdated'>,
 ): ResultShare {
-  return { weaponName: result.weapon?.name, modeName: result.mode.name, option: optionText(result.option), score: view.shareScore, bestUpdated: view.bestUpdated };
+  return { weaponName: result.weapon?.name, modeName: result.mode.name, option: optionText(result.options), score: view.shareScore, bestUpdated: view.bestUpdated };
 }
 
-/** セットの平均の書き方。反復練習（平均ズレ）は「セットの平均ズレ: 0.85°」、ほかのモードは「セットの平均<指標の名前>: <値>」。 */
+/**
+ * セットの平均の書き方。反復練習（平均ズレ）は「セットの平均ズレ: 0.85°」、ほかのモードは「セットの<averageLabel>: <値>」
+ * （averageLabel を省いた指標は「セットの平均<指標の名前>: <値>」）。
+ */
 export function setAverageShareText(summary: Pick<SetSummary, 'metric' | 'average'>): string {
-  const label = summary.metric === SHOT_DEVIATION_METRIC ? '平均ズレ' : `平均${summary.metric.label}`;
+  const { metric } = summary;
+  const label = metric === SHOT_DEVIATION_METRIC ? '平均ズレ' : (metric.averageLabel ?? `平均${metric.label}`);
   return `セットの${label}: ${formatMetric(summary.metric, summary.average)}`;
 }
 

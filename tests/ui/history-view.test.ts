@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FLICK_RANGE_OPTION, FLICK_SIZE_OPTION, TIME_PER_HIT_METRIC } from '../../src/modes/aim/flick';
 import { modes } from '../../src/modes/registry';
 import { score } from '../../src/sim/scoring';
 import {
@@ -80,9 +81,9 @@ const pointCount = (html: string) => Number(/data-series="history" data-count="(
 const listedMeans = (html: string) => [...html.matchAll(/data-field="meanError">([^<]*)</g)].map((m) => m[1]);
 
 describe('履歴の画面の選択肢', () => {
-  it('UI-26: モードにする登録されたモードは反復練習・追いエイム・追いエイム＋リコイルで、センター維持とパターン観察はない', () => {
-    expect(modes.map((m) => m.name)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル']);
-    expect(modes.map((m) => m.id)).toEqual(['ghost', 'tracking', 'tracking-recoil']);
+  it('UI-26: モードにする登録されたモードは反復練習・追いエイム・追いエイム＋リコイル・フリックで、センター維持とパターン観察はない', () => {
+    expect(modes.map((m) => m.name)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック']);
+    expect(modes.map((m) => m.id)).toEqual(['ghost', 'tracking', 'tracking-recoil', 'flick']);
   });
 
   it('入力方式はマウスとパッド', () => {
@@ -390,17 +391,18 @@ describe('追いエイムの履歴の画面（速さの選択肢）', () => {
   const trackingRecoil = modes.find((m) => m.id === 'tracking-recoil')!;
   const ghost = modes.find((m) => m.id === 'ghost')!;
   const metric = tracking.scoring!.compare;
-  const key = (option: string) => ({ input: 'mouse', weaponId: NO_WEAPON_ID, modeId: 'tracking', option }) as const;
+  const key = (option: string) => ({ input: 'mouse', weaponId: NO_WEAPON_ID, modeId: 'tracking', options: [option] }) as const;
 
   function openTrackingPage(backing: FakeBacking) {
     const storage = new SafeStorage(() => backing as unknown as Storage);
     storage.probe();
+    const option = new FakeControl();
+    const optionChoice = { hidden: false };
     const elements = {
       weapon: new FakeControl(),
       weaponChoice: { hidden: false },
       mode: new FakeControl(),
-      option: new FakeControl(),
-      optionChoice: { hidden: false },
+      options: [{ id: 'speed', option: { defaultChoice: 'normal' }, select: option, choice: optionChoice }],
       input: new FakeControl(),
       averages: { innerHTML: '' },
       plot: { innerHTML: '' },
@@ -413,7 +415,7 @@ describe('追いエイムの履歴の画面（速さの選択肢）', () => {
       confirm: { root: { hidden: true }, message: { textContent: '' }, ok: new FakeControl(), cancel: new FakeControl() },
     };
     const view = bindHistoryView(elements satisfies HistoryElements, { storage, now: () => NOW, modes: [ghost, tracking, trackingRecoil] });
-    return { storage, elements, view };
+    return { storage, elements: { ...elements, option, optionChoice }, view };
   }
 
   const listed = (html: string) => [...html.matchAll(/data-field="onTargetRate">([^<]*)</g)].map((m) => m[1]);
@@ -443,7 +445,7 @@ describe('追いエイムの履歴の画面（速さの選択肢）', () => {
 
   it('このページで終えた練習の速さで開き、追いエイム＋リコイルでは武器と速さの両方の組の履歴を出す', () => {
     const page = openTrackingPage(new FakeBacking());
-    const recoil = { input: 'mouse', weaponId: 'car', modeId: 'tracking-recoil', option: 'slow' } as const;
+    const recoil = { input: 'mouse', weaponId: 'car', modeId: 'tracking-recoil', options: ['slow'] } as const;
     recordHistoryEntry(page.storage, recoil, metric, { value: 33, fields: { hitRate: 50, shots: 40 } }, NOW);
     recordHistoryEntry(page.storage, { ...recoil, weaponId: 'lstar' }, metric, { value: 90, fields: {} }, NOW);
     page.view.open(recoil);
@@ -458,11 +460,105 @@ describe('追いエイムの履歴の画面（速さの選択肢）', () => {
     const backing = new FakeBacking();
     const page = openTrackingPage(backing);
     recordHistoryEntry(page.storage, key('normal'), metric, { value: 60, fields: {} }, NOW);
-    recordHistoryEntry(page.storage, { input: 'mouse', weaponId: 'lstar', modeId: 'tracking-recoil', option: 'normal' }, metric, { value: 70, fields: {} }, NOW);
+    recordHistoryEntry(page.storage, { input: 'mouse', weaponId: 'lstar', modeId: 'tracking-recoil', options: ['normal'] }, metric, { value: 70, fields: {} }, NOW);
     page.view.open(key('normal'));
     page.elements.clear.fire();
     page.elements.confirm.ok.fire();
     expect(backing.getItem('apex-training:history:mouse:-:tracking:normal')).toBeNull();
     expect(backing.getItem('apex-training:history:mouse:lstar:tracking-recoil:normal')).not.toBeNull();
+  });
+});
+
+describe('練習の選択肢を 2 つ持つモード（フリック）の履歴の画面', () => {
+  const flick = modes.find((m) => m.id === 'flick')!;
+  const tracking = modes.find((m) => m.id === 'tracking')!;
+  const ghost = modes.find((m) => m.id === 'ghost')!;
+  const FAR_SMALL = { input: 'mouse', weaponId: NO_WEAPON_ID, modeId: 'flick', options: ['far', 'small'] } as const;
+  const NEAR_LARGE = { input: 'mouse', weaponId: NO_WEAPON_ID, modeId: 'flick', options: ['near', 'large'] } as const;
+
+  function openFlickPage(backing: FakeBacking) {
+    const storage = new SafeStorage(() => backing as unknown as Storage);
+    storage.probe();
+    const speed = new FakeControl();
+    const range = new FakeControl();
+    const size = new FakeControl();
+    const field = (id: string, select: FakeControl, defaultChoice: string) => ({ id, option: { defaultChoice }, select, choice: { hidden: true } });
+    const fields = [field('speed', speed, 'normal'), field(FLICK_RANGE_OPTION.id, range, 'normal'), field(FLICK_SIZE_OPTION.id, size, 'medium')];
+    const elements = {
+      weapon: new FakeControl(),
+      weaponChoice: { hidden: false },
+      mode: new FakeControl(),
+      options: fields,
+      input: new FakeControl(),
+      averages: { innerHTML: '' },
+      plot: { innerHTML: '' },
+      weak: { innerHTML: '' },
+      list: { innerHTML: '' },
+      empty: { hidden: true, textContent: '' },
+      clear: new FakeControl(),
+      unavailable: { hidden: true, textContent: '' },
+      body: { inert: false },
+      confirm: { root: { hidden: true }, message: { textContent: '' }, ok: new FakeControl(), cancel: new FakeControl() },
+    };
+    const view = bindHistoryView(elements satisfies HistoryElements, { storage, now: () => NOW, modes: [ghost, tracking, flick] });
+    const shown = () => fields.filter((f) => !f.choice.hidden).map((f) => f.id);
+    return { storage, elements, view, range, size, shown };
+  }
+
+  const entry = (timePerHit: number) => ({ value: timePerHit, fields: { meanTime: timePerHit * 0.9, hitRate: 90, hits: 18, targets: 20, meanError: 0.5 } });
+  const listed = (html: string) => [...html.matchAll(/data-field="timePerHit">([^<]*)</g)].map((m) => m[1]);
+
+  it('UI-109: フリックを選ぶと武器と速さの欄を隠して出る範囲と的の大きさの欄を出し、選んだ組の履歴を命中 1 回あたりの時間の推移と一覧で出す', () => {
+    const page = openFlickPage(new FakeBacking());
+    [0.6, 0.5].forEach((v) => recordHistoryEntry(page.storage, FAR_SMALL, TIME_PER_HIT_METRIC, entry(v), NOW));
+    recordHistoryEntry(page.storage, NEAR_LARGE, TIME_PER_HIT_METRIC, entry(0.4), NOW);
+    page.view.open({ input: 'mouse', weaponId: 'lstar', modeId: 'ghost' });
+    expect(page.shown()).toEqual([]);
+
+    page.elements.mode.select('flick');
+    expect(page.elements.weaponChoice.hidden).toBe(true);
+    expect(page.shown()).toEqual(['flick-range', 'flick-size']);
+    // 開いたときの出る範囲と的の大きさは既定の「ふつう」「中」で、その組の履歴はない。
+    expect([page.range.value, page.size.value]).toEqual(['normal', 'medium']);
+    expect(page.elements.empty.hidden).toBe(false);
+
+    page.range.value = 'far';
+    page.size.select('small');
+    expect(pointCount(page.elements.plot.innerHTML)).toBe(2);
+    expect(page.elements.plot.innerHTML).toContain('命中 1 回あたりの時間の推移');
+    expect(listed(page.elements.list.innerHTML)).toEqual(['0.600 秒', '0.500 秒']);
+    expect(page.elements.list.innerHTML).toContain('<th>命中 1 回あたりの時間</th><th>時間の平均</th><th>命中率</th><th>ズレの平均</th>');
+
+    page.range.value = 'near';
+    page.size.select('large');
+    expect(listed(page.elements.list.innerHTML)).toEqual(['0.400 秒']);
+
+    page.elements.mode.select('tracking');
+    expect(page.shown()).toEqual(['speed']);
+    page.elements.mode.select('ghost');
+    expect(page.shown()).toEqual([]);
+  });
+
+  it('最後に終えた練習がフリックなら、その出る範囲と的の大きさの組で開く。ほかのモードで開くと既定の値', () => {
+    const page = openFlickPage(new FakeBacking());
+    recordHistoryEntry(page.storage, FAR_SMALL, TIME_PER_HIT_METRIC, entry(0.6), NOW);
+    page.view.open(initialHistorySelection(FAR_SMALL, ['lstar'], ['ghost', 'tracking', 'flick']));
+    expect([page.range.value, page.size.value]).toEqual(['far', 'small']);
+    expect(pointCount(page.elements.plot.innerHTML)).toBe(1);
+    page.view.open({ input: 'mouse', weaponId: 'lstar', modeId: 'ghost' });
+    expect([page.range.value, page.size.value]).toEqual(['normal', 'medium']);
+  });
+
+  it('出る範囲と的の大きさの組の履歴を消すと、その組だけが消える', () => {
+    const backing = new FakeBacking();
+    const page = openFlickPage(backing);
+    recordHistoryEntry(page.storage, FAR_SMALL, TIME_PER_HIT_METRIC, entry(0.6), NOW);
+    recordHistoryEntry(page.storage, NEAR_LARGE, TIME_PER_HIT_METRIC, entry(0.4), NOW);
+    page.view.open(FAR_SMALL);
+    page.elements.clear.fire();
+    page.elements.confirm.ok.fire();
+    expect(historyKey(FAR_SMALL)).toBe('apex-training:history:mouse:-:flick:far:small');
+    expect(backing.items.has(historyKey(FAR_SMALL))).toBe(false);
+    expect(backing.items.has(historyKey(NEAR_LARGE))).toBe(true);
   });
 });
