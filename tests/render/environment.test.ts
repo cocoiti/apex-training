@@ -322,7 +322,7 @@ describe('見た目と練習の結果', () => {
     expect(before).toBeCloseTo(0, 9);
     const input = new RecordingInput(3);
     input.push(0, { type: 'fire', pressed: true });
-    const session = new PracticeSession({ world, weapon: upwardWeapon(), mode: centerMode(), input, seed: input.seed });
+    const session = new PracticeSession({ world, weapon: upwardWeapon(), mode: repeatMode(), input, seed: input.seed });
     for (let i = 0; i < 120 && session.gun.shots.length < 4; i += 1) session.step();
     expect(session.gun.shots.length).toBeGreaterThanOrEqual(4);
     // 利用者の照準は動かず、カメラの向きはリコイルのオフセットの分だけ上を向く。
@@ -348,7 +348,7 @@ describe('見た目と練習の結果', () => {
     expect(form).toContain('setting-fov');
     expect(form).not.toMatch(/視点の跳ね|カメラ|跳ね|リコイルの(表示|見せ方)|固定/);
     expect(Object.keys(DEFAULT_COMMON_SETTINGS).sort()).toEqual(
-      ['correctionPanel', 'crosshairColor', 'crosshairShape', 'fov', 'ghost', 'inputMethod', 'patternDisplay', 'sound'].sort(),
+      ['crosshairColor', 'crosshairShape', 'fov', 'ghost', 'inputMethod', 'patternDisplay', 'sound'].sort(),
     );
   });
 

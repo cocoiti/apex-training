@@ -187,6 +187,7 @@
 | UI-72 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/simple-pattern-panel-qa.acceptance.test.ts` |
 | UI-73 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/simple-pattern-panel-qa.acceptance.test.ts` |
 | UI-75 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/remove-pattern-mode-qa.acceptance.test.ts` |
+| UI-76 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/recoil-view-qa.acceptance.test.ts` |
 | WPN-1 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-2 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-3 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |

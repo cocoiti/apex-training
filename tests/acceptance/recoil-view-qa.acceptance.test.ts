@@ -1,4 +1,4 @@
-// docs/spec/screens.md の受け入れ条件 UI-75（リコイルは視点が跳ねる表示）の QA の受け入れテスト（#65）。
+// docs/spec/screens.md の受け入れ条件 UI-76（リコイルは視点が跳ねる表示）の QA の受け入れテスト（#65）。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（キャンバス・.crosshair・HUD の残弾・設定画面）と武器の JSON。
 // 「randomness 0 で pattern が上向き（dy が正）の武器」は、ビルドの結果の武器の JSON を、randomness 0・各発 dx 0・dy 1.5 度・
 // 遅い rpm に書き換えた配信物で再現する（撃っている途中の画面を確実に写せるように）。
@@ -87,7 +87,7 @@ const crosshairState = (page: Page) =>
     return { crosshair: el ? { ...center(el), shown } : null, canvas: canvas ? center(canvas) : null };
   })()`);
 
-describe.skipIf(NESTED || !chromium)('QA: UI-75 リコイルは視点が跳ねる表示で、表示の方式を切り替える設定はない', () => {
+describe.skipIf(NESTED || !chromium)('QA: UI-76 リコイルは視点が跳ねる表示で、表示の方式を切り替える設定はない', () => {
   const temps: string[] = [];
   const servers: Server[] = [];
   let browser: Browser | undefined;
