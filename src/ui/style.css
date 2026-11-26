@@ -1,3 +1,13 @@
+:root {
+  /* 強調の色（docs/spec/screens.md「並びと見た目」）。選んでいるカード・フォーカスの枠・「開始」に使う。 */
+  --accent: #f2c14e;
+  --accent-soft: rgb(242 193 78 / 14%);
+  --accent-ink: #1b1e24;
+  --card-bg: #2f343e;
+  --card-border: #444a55;
+  --muted: #a4a9b2;
+}
+
 html,
 body {
   margin: 0;
@@ -996,7 +1006,7 @@ polyline.plot-trend {
  * DOM のフォーカスとは別に、src/ui/pad-menu.ts がクラスを付ける。パネルの背景と見分けられる色にする。
  */
 .pad-focus {
-  outline: 3px solid #f2c14e;
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
   border-radius: 2px;
 }
@@ -1051,4 +1061,218 @@ polyline.plot-trend {
 /* 「許可」と「許可しない」は同じ大きさと見た目にする。 */
 .consent-actions button {
   min-width: 96px;
+}
+
+/*
+ * トップ画面（docs/spec/screens.md「トップ画面」）。暗い背景に、武器とモードのカードを画面の幅に合わせて折り返して並べる。
+ * 画面が低いときはパネルの中で縦にスクロールし、幅 375px でも横にはみ出さない。
+ */
+.panel-top {
+  width: min(880px, calc(100vw - 32px));
+  min-width: 0;
+  max-height: calc(100% - 16px);
+  padding: 20px 24px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.panel-top h1 {
+  margin-bottom: 12px;
+  font-size: 26px;
+}
+
+.top-section {
+  margin-bottom: 12px;
+}
+
+.top-section[hidden] {
+  display: none;
+}
+
+.top-label {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* カードの並び全体。パッドのフォーカスの枠（pad-focus）は並び全体を囲む。武器の分類は幅があれば横に並べる。 */
+.card-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  border-radius: 10px;
+}
+
+.card-choice:focus {
+  outline: none;
+}
+
+.card-choice:focus-visible {
+  outline: 3px dashed var(--accent);
+  outline-offset: 6px;
+}
+
+/* カードの並びのフォーカスの枠は、選んでいるカード（実線の枠と塗り）と見分けられるよう破線にする。 */
+.card-choice.pad-focus {
+  outline: 3px dashed var(--accent);
+  outline-offset: 6px;
+  border-radius: 10px;
+}
+
+.card-category {
+  min-width: 0;
+}
+
+.card-heading {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.card-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.card-choice-modes > .card-list {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 2px solid var(--card-border);
+  border-radius: 10px;
+  background: var(--card-bg);
+  cursor: pointer;
+  user-select: none;
+  overflow-wrap: anywhere;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+
+.card-category .card {
+  min-width: 128px;
+  box-sizing: border-box;
+}
+
+.card:hover {
+  border-color: #6b7280;
+}
+
+/* 選んでいるカードは、アクセント色の枠と背景でほかのカードと見分けられる形にする。 */
+.card.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.card[role='presentation'] {
+  cursor: default;
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-icon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  color: var(--muted);
+}
+
+.card.selected .card-icon {
+  color: var(--accent);
+}
+
+.card-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.card-description,
+.card-best {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.card-best {
+  margin-top: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.card.selected .card-best {
+  color: #e6e8eb;
+}
+
+/* 「開始」はトップ画面のボタン・リンクの中でいちばん大きく、アクセント色で塗る。 */
+.start-button {
+  display: block;
+  margin: 16px 0 12px;
+  padding: 12px 24px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+.start-button:hover {
+  filter: brightness(1.08);
+}
+
+.start-button.pad-focus {
+  outline-color: #fff;
+}
+
+/* 「設定」「履歴」は「開始」より小さい文字で、塗りのない控えめなリンクにする。 */
+.top-links {
+  justify-content: center;
+  gap: 24px;
+}
+
+.top-links a {
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.top-links a:hover {
+  color: #e6e8eb;
+}
+
+.panel-top .choice {
+  margin-bottom: 10px;
+}
+
+/* トップ画面の選択肢の欄（練習の選択肢・回数）と試聴のボタンも、暗い背景に合わせ、文字は 16px にする。 */
+.panel-top select,
+.panel-top .sound-preview button {
+  padding: 4px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: #e6e8eb;
+  font: inherit;
+  font-size: 16px;
+}
+
+.panel-top .sound-preview button:not(:disabled) {
+  cursor: pointer;
+}
+
+.panel-top .sound-preview button:disabled {
+  opacity: 0.6;
 }

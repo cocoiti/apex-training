@@ -6,6 +6,8 @@ function mode(id: string, order: number, extra: Partial<TrainingMode> = {}): Tra
   return {
     id,
     name: id,
+    description: `${id} の説明`,
+    icon: 'spray',
     category: 'recoil',
     order,
     setup() {},
@@ -89,6 +91,39 @@ describe('エイムのモードと採点の仕方', () => {
     const list = buildModeList([file('aim/x.ts', mode('x', 1, { category: 'aim', ...(extra as Partial<TrainingMode>) }))], (m) => logs.push(m));
     expect(list).toEqual([]);
     expect(logs).toHaveLength(1);
+  });
+});
+
+describe('カードの説明とアイコン', () => {
+  it.each([
+    ['説明がない', { description: undefined }],
+    ['説明が文字列でない', { description: 1 }],
+    ['アイコンがない', { icon: undefined }],
+    ['アイコンの形が一覧にない', { icon: 'star' }],
+  ])('%s モードは外す', (_, extra) => {
+    const logs: string[] = [];
+    const list = buildModeList([file('aim/x.ts', { ...mode('x', 1), ...extra })], (m) => logs.push(m));
+    expect(list).toEqual([]);
+    expect(logs).toHaveLength(1);
+  });
+
+  it('MODE-56: 登録されたモードは表のひとこと説明と、モードごとに違うアイコンの形を持つ', () => {
+    expect(modes.map((m) => [m.name, m.description])).toEqual([
+      ['反復練習', '同じ武器のリコイルを繰り返し撃って、パターンを手に覚えさせる'],
+      ['追いエイム', '左右に動く的に照準を乗せ続ける'],
+      ['追いエイム＋リコイル', 'リコイルを抑えながら、動く的に照準を乗せ続ける'],
+      ['フリック', 'ランダムに出る的へ素早く照準を合わせて撃つ'],
+    ]);
+    expect(new Set(modes.map((m) => m.icon)).size).toBe(modes.length);
+  });
+
+  it('MODE-56: ファイルを 1 つ足すと、そのモードの名前と説明が一覧に出る', () => {
+    const extra = { ...mode('new', 100), name: '足したモード', description: '足したモードの説明' };
+    const list = buildModeList([file('recoil/ghost.ts', mode('ghost', 20)), file('aim/new.ts', extra)]);
+    expect(list.map((m) => [m.name, m.description])).toEqual([
+      ['ghost', 'ghost の説明'],
+      ['足したモード', '足したモードの説明'],
+    ]);
   });
 });
 

@@ -56,7 +56,7 @@ const PAGE_INIT = `
     return !!el && !el.closest('[hidden]') && el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && el.getClientRects().length > 0; };
   window.__clockNow = () => window.__apexTestClock.now();
   window.__interlude = () => window.__vis('#interlude');
-  window.__focused = () => { const els = [...document.querySelectorAll('.pad-focus')]; return els.length === 1 ? (els[0].id || els[0].textContent.trim()) : els.length > 1 ? 'MULTIPLE' : ''; };
+  window.__focused = () => { const els = [...document.querySelectorAll('.pad-focus')]; return els.length === 1 ? (els[0].getAttribute('data-card-choice') || els[0].id || els[0].textContent.trim()) : els.length > 1 ? 'MULTIPLE' : ''; };
   window.__hudMode = () => (document.querySelector('[data-hud="mode"]')?.textContent ?? '').trim();
   window.__shareCalls = [];
   Object.defineProperty(Navigator.prototype, 'share', { value: function (data) { window.__shareCalls.push(data?.text); return Promise.resolve(); }, configurable: true, writable: true });
@@ -122,8 +122,8 @@ const topState = (page: Page) =>
       const label = (s.closest('label')?.textContent ?? '').replace(s.textContent, '').trim();
       settings[label] = { value: s.selectedOptions[0]?.textContent.trim() ?? '', options: [...s.options].map((o) => o.textContent.trim()) };
     }
-    return { modeVisible: window.__vis(mode), modes: [...mode.options].map((o) => o.textContent.trim()), mode: mode.selectedOptions[0]?.textContent.trim() ?? '',
-      weaponVisible: window.__vis(weapon), previewVisible: !!preview && window.__vis(preview), settings }; })()`);
+    return { modeVisible: window.__vis('#mode-cards'), modes: [...mode.options].map((o) => o.textContent.trim()), mode: mode.selectedOptions[0]?.textContent.trim() ?? '',
+      weaponVisible: window.__vis('#weapon-cards'), previewVisible: !!preview && window.__vis(preview), settings }; })()`);
 
 /** HUD の見えている文字（見えていない欄は空文字）。 */
 const hud = (page: Page, k: string) =>
@@ -845,7 +845,7 @@ describe.skipIf(NESTED || !chromium)('QA: フリック（ブラウザ）', () =>
       await page.waitFor('window.__shareCalls.length > 0');
       const text = (await page.evaluate<string[]>('window.__shareCalls'))[0]!;
       const lines = text.split('\n');
-      expect(lines[0]).toBe('リコイル練習（非公式ファンツール）の結果');
+      expect(lines[0]).toBe('Hyper Aim Training（非公式ファンツール）の結果');
       expect(lines[1]).toBe('モード: フリック / 出る範囲: 遠い / 的の大きさ: 小');
       expect(lines[2]).toMatch(/^命中 1 回あたりの時間: \d+\.\d{3} 秒 \/ 命中率: \d+\.\d%$/);
       expect(lines[2]).toBe(`命中 1 回あたりの時間: ${metric(r, '命中 1 回あたりの時間')} / 命中率: ${metric(r, '命中率')}`);

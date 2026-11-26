@@ -3,7 +3,7 @@
  * ファイルを 1 つ足せば、ほかのファイルを変えずにトップ画面の選択肢に出る（MODE-5）。
  * 決定の理由は docs/adr/2026-11-25-mode-files-by-glob.md。
  */
-import type { ModeCategory, TrainingMode } from './types';
+import { MODE_ICONS, type ModeCategory, type ModeIcon, type TrainingMode } from './types';
 
 /** モードのファイル 1 つ分。file はファイルのパス（並び順が同じときの順と、開発者向けの出力に使う）。 */
 export interface ModeModule {
@@ -71,6 +71,8 @@ function isTrainingMode(value: unknown): value is TrainingMode {
   return (
     typeof mode.id === 'string' &&
     typeof mode.name === 'string' &&
+    typeof mode.description === 'string' &&
+    MODE_ICONS.includes(mode.icon as ModeIcon) &&
     CATEGORIES.includes(mode.category as ModeCategory) &&
     typeof mode.order === 'number' &&
     Number.isFinite(mode.order) &&

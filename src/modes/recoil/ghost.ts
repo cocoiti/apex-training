@@ -27,6 +27,8 @@ export function ghostAngles(world: Readonly<Pick<World, 'center' | 'player'>>, g
 const ghost: TrainingMode<ModeResult> = {
   id: 'ghost',
   name: '反復練習',
+  description: '同じ武器のリコイルを繰り返し撃って、パターンを手に覚えさせる',
+  icon: 'spray',
   category: 'recoil',
   order: 20,
   correctionPanel: 'always',

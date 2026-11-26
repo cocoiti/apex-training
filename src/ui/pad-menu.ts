@@ -1,4 +1,5 @@
 import type { NavCommand } from '../input/pad-navigation';
+import { CARD_CHOICE_ATTR, cardChoiceSelect } from './card-choices';
 import type { ScreenId } from './router';
 import {
   ADS_MULTIPLIER_RANGE,
@@ -120,7 +121,8 @@ export function relocateFocus<T>(all: readonly T[], usable: (item: T) => boolean
 /** 項目の種類。 */
 export type ItemKind = 'choice' | 'number' | 'color' | 'toggle' | 'press' | 'other';
 
-const CONTROL_SELECTOR = 'select, input, button, a[href]';
+/** 項目にするもの。トップ画面の武器とモードのカードの並び（src/ui/card-choices.ts）は、並び全体で 1 つの選択肢の欄にする。 */
+const CONTROL_SELECTOR = `select, input, button, a[href], [${CARD_CHOICE_ATTR}]`;
 /** 画面の中の確認（履歴を消す確認など）。出している間は項目をその中だけにする。 */
 const MODAL_SELECTOR = '[role="dialog"], [role="alertdialog"]';
 /** 確認を出したときにフォーカスを置く項目と、戻る（B / ○）で押す項目。 */
@@ -129,7 +131,7 @@ const MODAL_CANCEL = '[data-pad-cancel]';
 export const FOCUS_CLASS = 'pad-focus';
 
 function kindOf(element: HTMLElement): ItemKind {
-  if (element instanceof HTMLSelectElement) return 'choice';
+  if (element instanceof HTMLSelectElement || element.hasAttribute(CARD_CHOICE_ATTR)) return 'choice';
   if (element instanceof HTMLInputElement) {
     if (element.type === 'checkbox') return 'toggle';
     if (element.type === 'color') return 'color';
@@ -297,7 +299,9 @@ export class PadMenu {
 function change(element: HTMLElement, direction: StepDirection): void {
   switch (kindOf(element)) {
     case 'choice': {
-      const select = element as HTMLSelectElement;
+      // カードの並びでは、並びが選んでいる値を持つ select を変える（カードの表示は select の change で合わせる）。
+      const select = element instanceof HTMLSelectElement ? element : cardChoiceSelect(element);
+      if (!select) return;
       const next = stepChoice(select.selectedIndex, [...select.options].map((option) => !option.disabled), direction);
       if (next === select.selectedIndex) return;
       select.selectedIndex = next;

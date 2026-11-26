@@ -51,6 +51,8 @@ const WEAPON_AIM_MODE = `import type { TrainingMode } from '../types';
 const mode: TrainingMode = {
   id: 'qa-weapon',
   name: ${JSON.stringify(WEAPON_MODE)},
+  description: 'QA の武器を使うエイムのモード',
+  icon: 'track-spray',
   category: 'aim',
   order: -100000,
   usesWeapon: true,
@@ -75,6 +77,8 @@ const TAP_AIM_MODE = `import type { TrainingMode } from '../types';
 const mode: TrainingMode = {
   id: ${JSON.stringify(TAP_ID)},
   name: ${JSON.stringify(TAP_MODE)},
+  description: 'QA の武器を使わないエイムのモード',
+  icon: 'flick',
   category: 'aim',
   order: 100000,
   usesWeapon: false,
@@ -127,7 +131,7 @@ const PAGE_INIT = `
   window.__ammo = () => window.__num('[data-hud="ammo"]');
   window.__clockNow = () => window.__apexTestClock.now();
   window.__interlude = () => window.__vis('#interlude');
-  window.__focused = () => { const els = [...document.querySelectorAll('.pad-focus')]; return els.length === 1 ? (els[0].id || els[0].textContent.trim()) : ''; };
+  window.__focused = () => { const els = [...document.querySelectorAll('.pad-focus')]; return els.length === 1 ? (els[0].getAttribute('data-card-choice') || els[0].id || els[0].textContent.trim()) : ''; };
   window.__resultAt = undefined;
   addEventListener('hashchange', () => { if (location.hash === '#/result' && window.__apexTestClock) window.__resultAt = window.__apexTestClock.now(); });
   window.__shareCalls = [];
@@ -172,8 +176,8 @@ const topState = (page: Page) =>
   page.evaluate<{ modeVisible: boolean; modes: string[]; mode: string; weaponVisible: boolean; weapon: string; previewVisible: boolean }>(`(() => {
     const mode = document.querySelector('#mode'); const weapon = document.querySelector('#weapon');
     const preview = [...document.querySelectorAll('[data-screen="top"] button')].find((b) => b.textContent.trim() === ${JSON.stringify(PREVIEW)});
-    return { modeVisible: window.__vis(mode), modes: [...mode.options].map((o) => o.textContent.trim()), mode: mode.selectedOptions[0]?.textContent.trim() ?? '',
-      weaponVisible: window.__vis(weapon), weapon: weapon.selectedOptions[0]?.textContent.trim() ?? '', previewVisible: !!preview && window.__vis(preview) }; })()`);
+    return { modeVisible: window.__vis('#mode-cards'), modes: [...mode.options].map((o) => o.textContent.trim()), mode: mode.selectedOptions[0]?.textContent.trim() ?? '',
+      weaponVisible: window.__vis('#weapon-cards'), weapon: weapon.selectedOptions[0]?.textContent.trim() ?? '', previewVisible: !!preview && window.__vis(preview) }; })()`);
 
 /** HUD の見えている文字（見えていない欄は空文字）。 */
 const hud = (page: Page, key: string) =>
@@ -709,7 +713,7 @@ describe.skipIf(NESTED || !chromium)('QA: エイムのモード（src/modes/aim/
       await page.waitFor('window.__shareCalls.length > 0');
       const text = (await page.evaluate<string[]>('window.__shareCalls'))[0]!;
       const lines = text.split('\n');
-      expect(lines[0]).toBe('リコイル練習（非公式ファンツール）の結果');
+      expect(lines[0]).toBe('Hyper Aim Training（非公式ファンツール）の結果');
       expect(lines[1]).toBe(`モード: ${TAP_MODE}`);
       expect(lines[2]).toMatch(/^命中数[:：]\s*3$/);
       expect(text).not.toContain('武器');

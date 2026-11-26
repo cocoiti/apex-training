@@ -26,7 +26,7 @@ export interface ModeChoiceElements {
 }
 
 /**
- * トップ画面と履歴の画面のモードの欄を作る（docs/spec/screens.md「トップ画面」「履歴の画面」）。
+ * 履歴の画面のモードの欄を作る（docs/spec/screens.md「履歴の画面」）。トップ画面のモードはカードで選ぶ（src/ui/card-choices.ts）。
  * select には登録されたモードを入れて最初のモードを選ぶ。登録されたモードが 1 つのときは選択肢の欄を隠して、
  * そのモードの名前だけを出す（隠した欄にはパッドのフォーカスも移らない）。2 つ以上のときは選択肢の欄を出す。
  * select は隠しても残し、選んでいるモードはいつも select の値で読む。決定の理由は docs/adr/2026-11-26-remove-center-mode-and-panel-setting.md。

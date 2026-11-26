@@ -137,6 +137,8 @@ describe('練習', () => {
     const mode: TrainingMode = {
       id: 'stub',
       name: 'stub',
+      description: 'stub',
+      icon: 'spray',
       category: 'recoil',
       order: 0,
       setup: () => calls.push('setup'),

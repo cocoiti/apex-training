@@ -14,6 +14,15 @@ export type ModeCategory = 'recoil' | 'aim' | 'movement' | 'combined';
 export type CorrectionPanelUse = 'always';
 
 /**
+ * トップ画面のモードのカードのアイコンの形（docs/spec/screens.md「トップ画面」）。形の絵は src/ui/mode-icons.ts が自作の SVG で描く。
+ * `spray` はリコイルの弾の並び、`track` は左右に動く的、`track-spray` は動く的と弾の並び、`flick` は離れた的へ跳ぶ照準。
+ */
+export type ModeIcon = 'spray' | 'track' | 'track-spray' | 'flick';
+
+/** モードのアイコンの形の一覧。モードのファイルはこのどれかを選ぶ。 */
+export const MODE_ICONS: readonly ModeIcon[] = ['spray', 'track', 'track-spray', 'flick'];
+
+/**
  * 練習モードに渡すもの。シミュレーションの状態、その練習の武器（残弾・弾痕の記録。武器を使わないモードでは undefined）、
  * 撃った弾、練習の的、種付きの乱数、今のステップの終わりの時刻。
  */
@@ -140,6 +149,10 @@ export interface ModeScoring {
 export interface TrainingMode<TResult extends ModeResult = ModeResult> {
   readonly id: string;
   readonly name: string;
+  /** トップ画面のモードのカードに出すひとこと説明（1 文、docs/spec/modes.md「モードの登録」）。 */
+  readonly description: string;
+  /** トップ画面のモードのカードのアイコンの形。 */
+  readonly icon: ModeIcon;
   readonly category: ModeCategory;
   /** トップ画面の選択肢の並び順。小さいほど前。同じならファイル名の順。 */
   readonly order: number;

@@ -66,6 +66,8 @@ describe('各弾の発射時の照準', () => {
   const scoredMode: TrainingMode = {
     id: 'test',
     name: 'テスト',
+    description: 'テスト',
+    icon: 'spray',
     category: 'recoil',
     order: 0,
     setup() {},

@@ -44,6 +44,8 @@ export function aimMode(options: AimModeOptions = {}): TrainingMode {
   return {
     id: options.id ?? 'aim-test',
     name: 'エイムのテスト',
+    description: 'エイムのテスト',
+    icon: 'flick',
     category: 'aim',
     order: 100,
     usesWeapon: options.usesWeapon ?? false,

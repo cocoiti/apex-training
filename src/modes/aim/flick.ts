@@ -246,6 +246,8 @@ export const FLICK_SCORING: ModeScoring = {
 const flick: TrainingMode<FlickResult> = {
   id: 'flick',
   name: 'フリック',
+  description: 'ランダムに出る的へ素早く照準を合わせて撃つ',
+  icon: 'flick',
   category: 'aim',
   // 反復練習（20）・追いエイム（30）・追いエイム＋リコイル（40）のあとに並ぶ（docs/spec/modes.md「モードの登録」）。
   order: 50,

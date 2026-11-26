@@ -155,7 +155,8 @@ async function openHistory(page: Page) {
 const modeView = (page: Page, screen: 'top' | 'history') =>
   page.evaluate<{ selectShown: boolean; text: string }>(`(() => {
     const root = document.querySelector('[data-screen="${screen}"]');
-    const select = root.querySelector('select[id$="mode"]');
+    // トップ画面はモードのカードの並び、履歴の画面はモードの select（docs/spec/screens.md「トップ画面」「履歴の画面」）。
+    const select = root.querySelector('#mode-cards') ?? root.querySelector('select[id$="mode"]');
     const r = select ? select.getBoundingClientRect() : null;
     const shown = !!select && select.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !!r && r.width > 0 && r.height > 0;
     return { selectShown: shown, text: root.innerText }; })()`);
