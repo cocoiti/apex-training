@@ -394,7 +394,8 @@ describe.skipIf(NESTED || !chromium)('INP-8: 練習とリザルトの画面に�
   it('練習中とリザルトで、保存・コピー・送信の操作がなく、練習しても保存・コピー・送信の API が呼ばれない', async () => {
     const page = await browser!.newPage();
     await page.addInitScript(SPY);
-    await page.goto(appUrl(origin, BASE, '', { render: false, seed: SEED }));
+    // 押している長さはページの時計で決める（clock=manual。押す → 時計を進める → 離す）。
+    await page.goto(appUrl(origin, BASE, '', { render: false, manualClock: true, seed: SEED }));
     await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden`);
@@ -409,7 +410,7 @@ describe.skipIf(NESTED || !chromium)('INP-8: 練習とリザルトの画面に�
     await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: 640, y: 400, button: 'left', clickCount: 1 });
     for (let i = 0; i < 20; i += 1) {
       await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 640 + (i % 3), y: 400 + i, button: 'left' });
-      await page.frames(1);
+      await page.advanceClock(1 / 60);
     }
     for (const key of ['c', 's']) {
       for (const modifiers of [2, 4]) {
@@ -417,12 +418,12 @@ describe.skipIf(NESTED || !chromium)('INP-8: 練習とリザルトの画面に�
         await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: `Key${key.toUpperCase()}`, modifiers });
       }
     }
-    // 押したまま何度も描画される（練習が進む）まで待つ。
-    await page.frames(90);
+    // 押したまま、ページの時計を 1.5 秒（60Hz の 90 描画）進める（練習が進む）。
+    await page.advanceClock(1.5);
     await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 640, y: 420, button: 'left', clickCount: 1 });
-    // 練習の終わり（撃ち切り・離したあとの一定時間）でリザルトになるなら、それを待つ。
+    // 練習の終わり（撃ち切り・離したあとの一定時間）でリザルトになるなら、時計を進めてそれを待つ。
     try {
-      await page.waitFor(`!document.querySelector('[data-screen="result"]').hidden`, 6000);
+      await page.advanceClockUntil(`!document.querySelector('[data-screen="result"]').hidden`, { limit: 6 });
     } catch {
       // リザルトへの遷移はこの条件の対象外。なっていなくても、リザルトの画面の中身は下で調べる。
     }

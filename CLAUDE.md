@@ -33,6 +33,8 @@ Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescrip
   `APEX_BROWSER_WORKERS` に 1 以上の整数を渡して変える（`APEX_BROWSER_WORKERS=1` で 1 ファイルずつ。1 以上の整数でない値はテストを流す前に失敗する）。
 - `tests/helpers/browser.ts` を import するテストのファイルが、ブラウザを使うテストの組になる。テストが立てるサーバーはポート 0 で待ち受け（`tests/helpers/server.ts`）、
   画面の状態は sleep ではなく条件で待つ（`page.waitFor`・`page.frames`・`waitUntil`）。
+- ブラウザを使うテストで、スティックを倒している長さやボタンを押している長さは実時間や描画の回数で決めず、`clock=manual` で開いて
+  倒す・押す → `page.advanceClock`・`page.advanceClockUntil` で時計を進める → 戻す・離す、の形で与える（`tests/architecture/test-code.test.ts` が調べる）。
 - ブラウザを使うテストはページを固定の種で開く（`appUrl` の `seed` にファイルに書いた数を渡す。URL の `seed=<数>`）。失敗したときは使った種がメッセージに出る。
 - マップなどのデータの JSON は `src/data/` に置き、`?url` の資産として fetch する（ADR: data-json-as-fetched-assets）。
 

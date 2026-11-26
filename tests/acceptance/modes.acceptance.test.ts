@@ -4,6 +4,8 @@
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、武器の JSON、モードの共通の型）だけを使い、実装の内部には依存しない。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、パッドは Gamepad API（navigator.getGamepads）の形で与える。
 // 弾痕は、撃つ前と撃ったあと（リコイルが戻りきってから）の画面写しの差として読む（tests/helpers/png.ts）。
+// 練習の入力は clock=manual で開いたページで、倒す・押す → ページの時計を決まった秒数（または条件まで固定ステップで）進める → 戻す・離す、
+// の形で与え、倒している・押している長さを実時間や描画の回数で決めない（docs/spec/architecture.md「テストのための描画の省略と時計の差し替え」）。
 // MODE-5・WPN-1・WPN-2 はリポジトリの写しにモードのファイルと武器の JSON を足してビルドし、その画面で確かめる。
 // Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
@@ -60,25 +62,11 @@ const distance = (a: RGB, b: RGB) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] -
 
 /** Gamepad API の形の、標準配置のパッド 1 台。右スティックは軸 2・3、R2 はボタン 7。 */
 const FAKE_PAD = `
-  // ページの時計（ミリ秒）。clock=manual で開いたページはテストが進める時計、そうでなければ performance.now。
+  // ページの時計（ミリ秒）。clock=manual で開いたページで、テストが進める時計。
   window.__now = () => (window.__apexTestClock ? window.__apexTestClock.now() * 1000 : performance.now());
-  // 次の描画まで進める。clock=manual なら時計を 60Hz の 1 描画分（1/60 秒）進めて描画し、そうでなければ次の描画を待つ。
-  window.__frame = () => (window.__apexTestClock ? (window.__apexTestClock.advance(1 / 60, 1 / 60), Promise.resolve())
-    : new Promise((r) => requestAnimationFrame(r)));
   window.__pad = { axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ value: 0, pressed: false, touched: false })) };
-  // __pulse: 次に読まれた 1 回だけ R2 を押した値にし、その次に読まれたときは離した値にする（読まれた時刻を __pulseAt に残す）。
-  window.__pulse = 0;
-  window.__pulseAt = [];
-  navigator.getGamepads = () => {
-    const buttons = window.__pad.buttons.map((b) => ({ ...b }));
-    if (window.__pulse === 1) { buttons[7] = { value: 1, pressed: true, touched: true }; window.__pulse = 2; window.__pulseAt = [window.__now()]; }
-    else if (window.__pulse === 2) { window.__pulse = 0; window.__pulseAt.push(window.__now()); }
-    return [{ id: 'acceptance pad (STANDARD GAMEPAD)', index: 0, connected: true, mapping: 'standard',
-      timestamp: window.__now(), axes: window.__pad.axes.map((v, i) => (i === 2 && window.__now() < window.__stickUntil ? window.__stickX : v)), buttons, vibrationActuator: null }];
-  };
-  // __tiltRight(x, ms): 右スティックを右へ x だけ、ページの時計で ms ミリ秒のあいだ倒す（そのあとは戻した値を返す）。
-  window.__stickUntil = 0; window.__stickX = 0;
-  window.__tiltRight = (x, ms) => { window.__stickX = x; window.__stickUntil = window.__now() + ms; };
+  navigator.getGamepads = () => [{ id: 'acceptance pad (STANDARD GAMEPAD)', index: 0, connected: true, mapping: 'standard',
+    timestamp: window.__now(), axes: window.__pad.axes.slice(), buttons: window.__pad.buttons.map((b) => ({ ...b })), vibrationActuator: null }];
   window.__setR2 = (v) => { window.__pad.buttons[7] = { value: v, pressed: v >= 0.5, touched: v > 0 }; };
   addEventListener('hashchange', () => {
     if (location.hash === '#/result') window.__resultAt = window.__now();
@@ -98,6 +86,15 @@ async function screenshot(page: Page): Promise<Image> {
 }
 
 /**
+ * 時計を進めたあと、実際の描画で最後の状態が描かれてからの画面写し（clock=manual のページは、時計を進める間は 3D を描かず、
+ * 次の実際の描画で最後の状態を描く）。
+ */
+async function drawnScreenshot(page: Page): Promise<Image> {
+  await page.frames(2);
+  return screenshot(page);
+}
+
+/**
  * 離してから（ページの時計で）リコイルの戻りの時間が過ぎ、そのあと描画されてからの画面写し。
  * 撃たない時間（2 秒）でリザルトに移る前に写すため、画面写しを何枚も撮って止まるのを待つことはしない。
  */
@@ -112,18 +109,16 @@ async function afterRecovery(page: Page): Promise<Image> {
  * プレイ画面から移ったときも待つのをやめる（続く画面の確認で失敗する）。
  */
 const sinceRelease = (page: Page, ms: number) =>
-  until(page, `location.hash !== '#/play' || (window.__releasedSim !== undefined && window.__simTime() - window.__releasedSim >= ${ms / 1000})`, ms + 10_000);
+  until(page, `location.hash !== '#/play' || (window.__releasedSim !== undefined && window.__simTime() - window.__releasedSim >= ${ms / 1000})`, ms / 1000 + 5);
 
 /** clock=manual で開いたページで練習の時間を決めているテストの開き方（3D は描画しない）。 */
 const MANUAL = { render: false, manualClock: true };
+/** 画面写しで確かめるテストの開き方（3D を描画し、時計は clock=manual でテストが進める）。 */
+const MANUAL_DRAWN = { manualClock: true };
 
-/**
- * ページの式が真になるまで待つ。clock=manual で開いたページはページの時計を進め（実時間では待たない）、
- * そうでないページは実際の描画を待つ。
- */
-async function until(page: Page, expression: string, timeout = 10_000) {
-  if (await page.evaluate<boolean>('!!window.__apexTestClock')) await page.advanceClockUntil(expression);
-  else await page.waitFor(expression, timeout);
+/** clock=manual で開いたページの時計を固定ステップずつ進め、ページの式が真になったら止める（実時間では待たない）。 */
+async function until(page: Page, expression: string, limit = 30) {
+  await page.advanceClockUntil(expression, { limit });
 }
 
 /** ページの時計の今の時刻（秒）。 */
@@ -163,30 +158,31 @@ async function hideHtml(page: Page) {
   await page.frames(2);
 }
 
+/** R2 を押しておく時間（秒）。60Hz の 1 描画分で、どの武器の発射間隔より短い（押し始めの 1 発だけを撃つ）。 */
+const TAP_SECONDS = 1 / 60;
+
+/** 離した時刻（ページの時計と練習の時計）を残す。 */
+const markReleased = 'window.__releasedAt = window.__now(); window.__releasedSim = window.__simTime();';
+
 /**
- * R2 を、パッドが 1 回読まれるあいだだけ押す。押す前と離したあとの残弾と、押していた時間（秒、パッドが読まれた時刻の差）を返す。
- * 発射は時間で判定するので、押していた時間が発射間隔より長いと 2 発以上撃つ（描画が遅いとき）。
+ * R2 を押し、ページの時計を TAP_SECONDS だけ進めてから離す。押す前と離したあとの残弾と、押していた時間（秒）を返す。
+ * 押していた時間は発射間隔より短いので、撃つのは押し始めの 1 発だけ。
  */
 async function tap(page: Page): Promise<{ before: number; after: number; held: number }> {
-  const r = await page.evaluate<{ before: number; held: number }>(`(async () => {
-    const before = window.__ammo(); window.__pulse = 1; const t0 = performance.now();
-    while (window.__pulse !== 0 && performance.now() - t0 < 3000) await window.__frame();
-    window.__releasedAt = window.__now(); window.__releasedSim = window.__simTime();
-    return { before, held: (window.__pulseAt[1] - window.__pulseAt[0]) / 1000 }; })()`);
-  // 撃った弾が HUD の残弾に出るまで待つ（離したことを読んだ描画で HUD も書き換わっている）。
-  await until(page, `window.__ammo() < ${r.before} || location.hash !== '#/play'`);
-  return { ...r, after: await ammo(page) };
+  const before = await ammo(page);
+  await page.evaluate('window.__setR2(1)');
+  await page.advanceClock(TAP_SECONDS);
+  await page.evaluate(`window.__setR2(0); ${markReleased}`);
+  // 撃った弾が HUD の残弾に出るまで時計を進める。
+  await until(page, `window.__ammo() < ${before} || location.hash !== '#/play'`);
+  return { before, held: TAP_SECONDS, after: await ammo(page) };
 }
 
-/** 1 発だけ撃てたと言える押していた時間か（発射間隔より、固定ステップの刻みの分の余裕を持って短い）。 */
-const singleShot = (w: WeaponJson, held: number) => held < 60 / w.rpm - 0.02;
-
-/** R2 を押し続け、残弾が left 以下になったら離す。離したときの残弾を返す。 */
+/** R2 を押したまま、残弾が left 以下になるまで時計を固定ステップずつ進め、離す。離したときの残弾を返す。 */
 async function holdUntil(page: Page, left: number): Promise<number> {
-  return page.evaluate<number>(`(async () => {
-    window.__setR2(1); const t0 = performance.now();
-    while (!(window.__ammo() <= ${left}) && location.hash === '#/play' && performance.now() - t0 < 15000) await window.__frame();
-    window.__setR2(0); window.__releasedAt = window.__now(); window.__releasedSim = window.__simTime(); return window.__ammo(); })()`);
+  await page.evaluate('window.__setR2(1)');
+  await until(page, `window.__ammo() <= ${left} || location.hash !== '#/play'`);
+  return page.evaluate<number>(`(() => { window.__setR2(0); ${markReleased} return window.__ammo(); })()`);
 }
 
 // ---------------------------------------------------------------------------
@@ -399,7 +395,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       const t0 = await clockNow(page);
       // R2 を押し続ける。残弾 0 になってもそのまま。
       await page.evaluate(`window.__setR2(1)`);
-      await until(page, `location.hash === '#/result'`, 20_000);
+      await until(page, `location.hash === '#/result'`);
       const elapsed = (await clockNow(page)) - t0;
       await page.evaluate(`window.__setR2(0)`);
       expect(await page.evaluate<boolean>(`!document.querySelector('[data-screen="result"]').hidden && document.querySelector('[data-screen="play"]').hidden`)).toBe(true);
@@ -435,8 +431,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       // 押し直すと残弾から続けて撃つ（装弾数に戻らない）。
       const again = await tap(page);
       expect(again.before).toBe(first);
-      expect(again.after).toBeLessThan(first);
-      if (singleShot(w, again.held)) expect(again.after).toBe(first - 1);
+      expect(again.after).toBe(first - 1);
       const second = again.after;
       // もう一度 1.5 秒待っても（最初に離してからは 3 秒以上）プレイ画面のまま。
       await sinceRelease(page, 1500);
@@ -457,14 +452,14 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       for (const mode of ['反復練習']) {
         await start(page, origin, w.name, mode);
         // 始めてから（練習の時計で）撃たない時間 + 2 秒たつまで待つ。
-        await until(page, `window.__simTime() >= ${IDLE_END + 2}`, 20_000);
+        await until(page, `window.__simTime() >= ${IDLE_END + 2}`);
         expect(await hash(page), mode).toBe('#/play');
         expect(await page.evaluate<boolean>(`!document.querySelector('[data-screen="play"]').hidden`)).toBe(true);
         expect(await ammo(page)).toBe(w.magSize);
         // そのあと撃てる。
         const t = await tap(page);
         expect(t.before).toBe(w.magSize);
-        expect(t.after).toBeLessThan(w.magSize);
+        expect(t.after).toBe(w.magSize - 1);
       }
     }, 60_000);
   });
@@ -475,28 +470,16 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       serveDist(mainDist);
       const page = await newPage(MANUAL);
       await start(page, origin, w.name, '反復練習');
-      // 画面写しを使わないので、描画を軽くして 1 回の描画の間隔（押していた時間）を短くする。マシンが混んでいても 1 発で離しやすい。
-      await page.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 200, deviceScaleFactor: 1, mobile: false });
-      await page.waitFor(`document.querySelector('canvas').getBoundingClientRect().width === 320`);
-      await page.frames(2);
       expect(await ammo(page)).toBe(w.magSize);
       expect(await hudText(page, 'ammo')).toContain(String(w.magSize));
-      // 1 発ずつ撃つ。描画が遅く 1 発で離せなかった回（押していた時間が発射間隔を超えた回）は数えない。
-      let expected = w.magSize;
-      let verified = 0;
-      for (let i = 0; i < 20 && verified < 4 && expected > 2; i += 1) {
+      // 1 発ずつ撃つ（押していた時間は発射間隔より短い）。
+      for (let i = 0; i < 4; i += 1) {
         // 押し直しは、離してから（練習の時計で）発射間隔より長くたってから（間隔の内に押し直しても次の弾は出ない）。
         if (i > 0) await sinceRelease(page, 60_000 / w.rpm + 100);
         const t = await tap(page);
-        expect(t.before).toBe(expected);
-        expect(t.after, `${i + 1} 回目`).toBeLessThan(expected);
-        if (singleShot(w, t.held)) {
-          expect(t.after, `${i + 1} 回目（押していた時間 ${t.held} 秒）`).toBe(expected - 1);
-          verified += 1;
-        }
-        expected = t.after;
+        expect(t.before).toBe(w.magSize - i);
+        expect(t.after, `${i + 1} 回目（押していた時間 ${t.held} 秒）`).toBe(w.magSize - i - 1);
       }
-      expect(verified, '1 発だけ撃てた回').toBeGreaterThanOrEqual(3);
     }, 60_000);
 
     it('MODE-9: 押し続けたあいだも、HUD の残弾は 1 ずつ減り、撃った数だけ減る', async () => {
@@ -504,10 +487,15 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       const page = await newPage(MANUAL);
       const w = byName('L-STAR');
       await start(page, origin, w.name, '反復練習');
-      const seen = await page.evaluate<number[]>(`(async () => {
-        const seen = [window.__ammo()]; window.__setR2(1); const t0 = window.__now();
-        while (window.__now() - t0 < 1500) { const a = window.__ammo(); if (a !== seen[seen.length - 1]) seen.push(a); await window.__frame(); }
-        window.__setR2(0); return seen; })()`);
+      // R2 を押したまま、ページの時計を 1.5 秒（60Hz の 90 描画）進め、描画ごとに HUD の残弾を読む。
+      const seen = [await ammo(page)];
+      await page.evaluate('window.__setR2(1)');
+      for (let i = 0; i < 90; i += 1) {
+        await page.advanceClock(1 / 60);
+        const a = await ammo(page);
+        if (a !== seen[seen.length - 1]) seen.push(a);
+      }
+      await page.evaluate('window.__setR2(0)');
       expect(seen[0]).toBe(w.magSize);
       // 表示は減る一方。
       for (let i = 1; i < seen.length; i += 1) expect(seen[i]!).toBeLessThan(seen[i - 1]!);
@@ -522,7 +510,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
   describe('弾痕', () => {
     it('MODE-10: 撃った弾の弾痕は、練習が終わるまで壁と的の上に表示され続ける', async () => {
       serveDist(mainDist);
-      const page = await newPage();
+      const page = await newPage(MANUAL_DRAWN);
       const w = byName('C.A.R. SMG');
       await start(page, origin, w.name, '反復練習');
       await hideHtml(page);
@@ -557,7 +545,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
 
     it('MODE-11: パッドで L-STAR を選んで（モードは反復練習）開始し、右スティックで照準を動かして R2 を押し続けると、弾痕が壁に残り、撃ち切るとリザルト画面に移る', async () => {
       serveDist(mainDist);
-      const page = await newPage();
+      const page = await newPage(MANUAL_DRAWN);
       const w = byName('L-STAR');
       await start(page, origin, w.name, '反復練習');
       await hideHtml(page);
@@ -573,17 +561,19 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       }
       const target = [...counts.values()].sort((a, b) => b[1] - a[1])[0]![0];
       // 右スティックを右に少し倒して照準を動かす。中心から的が外れ、壁の上を向く。
-      // 倒す時間はページの時計で決め（パッドがそのあいだだけ倒した値を返す）、戻したあと画面が止まるまで待つ。
-      await page.evaluate(`window.__tiltRight(0.4, 150)`);
-      await page.waitFor(`performance.now() >= window.__stickUntil`);
-      const moved = decodePng(await page.stableScreenshot());
+      // 倒す → ページの時計を 0.15 秒（固定ステップ 18 個）進める → 戻す、の形で与える（倒す長さを実時間で決めない）。
+      await page.evaluate('window.__pad.axes[2] = 0.4');
+      await page.advanceClock(0.15);
+      await page.evaluate('window.__pad.axes[2] = 0');
+      await page.advanceClock(2 / 60);
+      const moved = await drawnScreenshot(page);
       expect(distance(moved.pixel(WIDTH / 2, HEIGHT / 2), target), '照準が動いた').toBeGreaterThan(30);
       expect(distance(moved.pixel(WIDTH / 2, HEIGHT / 2), wall), '照準は壁の上').toBeLessThan(20);
       // R2 を押し続ける。途中で、撃った弾の弾痕が壁に残っているかを見る（照準はそのまま）。
       await page.evaluate(`window.__setR2(1)`);
-      await page.waitFor(`window.__ammo() <= ${w.magSize - 6}`, 10_000);
+      await until(page, `window.__ammo() <= ${w.magSize - 6}`);
       // 押し続けたまま、まだ撃ち切っていないうちに写す。リコイルで画面は上にずれるので、壁の色と違う点を中心の縦の線の近くで探す。
-      const during = await screenshot(page);
+      const during = await drawnScreenshot(page);
       expect(await hash(page)).toBe('#/play');
       /** 中心の縦の帯の中で、弾痕の色（黄、#ffd84a）に近い画素の数。壁・的・床・空には黄に近い色はない。 */
       const yellow: [number, number, number] = [0xff, 0xd8, 0x4a];
@@ -599,7 +589,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       const marks = foreign(during);
       expect(marks, '押し続けているあいだに壁に残った弾痕の画素').toBeGreaterThan(0);
       // 押し続けたまま撃ち切ると、リザルト画面に移る。
-      await page.waitFor(`location.hash === '#/result'`, 15_000);
+      await until(page, `location.hash === '#/result'`);
       await page.evaluate(`window.__setR2(0)`);
       expect(await page.evaluate<boolean>(`!document.querySelector('[data-screen="result"]').hidden`)).toBe(true);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);

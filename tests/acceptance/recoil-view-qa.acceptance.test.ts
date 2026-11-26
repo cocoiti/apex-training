@@ -144,7 +144,8 @@ describe.skipIf(NESTED || !chromium)('QA: UI-76 リコイルは視点が跳ね�
     expect(upWeaponFiles, '書き換える武器の JSON が配信物にない').toBeGreaterThan(0);
     const page = await browser!.newPage();
     await page.send('Emulation.setDeviceMetricsOverride', { width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false });
-    await page.goto(appUrl(upOrigin, BASE, '', { seed: SEED }));
+    // 撃つ長さはページの時計で決める（clock=manual。押す → 時計を進める → 離す）。
+    await page.goto(appUrl(upOrigin, BASE, '', { manualClock: true, seed: SEED }));
     await page.evaluate('localStorage.clear()');
     // 読み込み直す前のページで開始を押さないように、印を付けてから読み込み直し、印がなく武器の選択肢がそろうまで待つ。
     await page.evaluate('window.__beforeReload = true; location.reload()');
@@ -153,6 +154,8 @@ describe.skipIf(NESTED || !chromium)('QA: UI-76 リコイルは視点が跳ね�
     );
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden && ${AMMO} > 0`);
+    // clock=manual では、時計を進めるまでステップが進まず、的が最初のステップのあとの姿で描かれない。撃つ前の画面を写す前に少し進めておく。
+    await page.advanceClock(2 / 60);
     await page.frames(5);
 
     // ポインターロックを掛ける（マウスは中心から動かさない）。
@@ -181,8 +184,10 @@ describe.skipIf(NESTED || !chromium)('QA: UI-76 リコイルは視点が跳ね�
     let crosshairDuring: Awaited<ReturnType<typeof crosshairState>>;
     let ammoAtShot: number;
     try {
-      await page.waitFor(`${AMMO} <= ${ammo0 - 3}`, 15_000);
+      await page.advanceClockUntil(`${AMMO} <= ${ammo0 - 3}`, { limit: 3 });
       crosshairDuring = await crosshairState(page);
+      // 時計を進める間は 3D を描かないので、実際の描画で最後の状態が描かれてから写す。
+      await page.frames(2);
       const full = decodePng(await page.screenshot());
       // クロスヘアの見た目も画面の中心に残っている（既定の色 #77ccff の点が中心の近くにある）。
       let nearCrosshair = Infinity;

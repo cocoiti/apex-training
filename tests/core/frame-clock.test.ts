@@ -94,7 +94,7 @@ describe('テストから進める時計（ManualFrameClock、clock=manual）', 
     expect(clock.now()).toBe(10.5);
   });
 
-  it('advance は描画の間隔（既定 1/60 秒）ごとに時刻を進めて描画を行い、描画の時刻はミリ秒', () => {
+  it('advance は今の時刻のまま 1 回描画してから、描画の間隔（既定 1/60 秒）ごとに時刻を進めて描画を行い、描画の時刻はミリ秒', () => {
     const clock = new ManualFrameClock();
     const times: number[] = [];
     const tick = (t: number) => {
@@ -103,10 +103,11 @@ describe('テストから進める時計（ManualFrameClock、clock=manual）', 
     };
     clock.requestFrame(tick);
     expect(clock.advance(0.1)).toBe(6);
-    expect(times).toHaveLength(6);
-    expect(times[0]).toBeCloseTo(MANUAL_FRAME_SECONDS * 1000, 9);
+    expect(times).toHaveLength(7);
+    expect(times[0]).toBe(0);
+    expect(times[1]).toBeCloseTo(MANUAL_FRAME_SECONDS * 1000, 9);
     expect(times.at(-1)).toBeCloseTo(100, 9);
-    expect(clock.frameCount).toBe(6);
+    expect(clock.frameCount).toBe(7);
   });
 
   it('間隔で割り切れない時間は、最後の描画を残りの時間にする', () => {
@@ -118,7 +119,7 @@ describe('テストから進める時計（ManualFrameClock、clock=manual）', 
     };
     clock.requestFrame(tick);
     clock.advance(0.25, 0.1);
-    expect(times.map((t) => Math.round(t))).toEqual([100, 200, 250]);
+    expect(times.map((t) => Math.round(t))).toEqual([0, 100, 200, 250]);
     expect(clock.now()).toBe(0.25);
   });
 
@@ -154,10 +155,10 @@ describe('テストから進める時計（ManualFrameClock、clock=manual）', 
     };
     clock.requestFrame(tick);
     clock.advance(0.05);
-    expect(draws).toEqual([false, false, false]);
+    expect(draws).toEqual([false, false, false, false]);
     expect(clock.draws).toBe(true);
     raf.flush();
-    expect(draws).toEqual([false, false, false, true]);
+    expect(draws).toEqual([false, false, false, false, true]);
   });
 
   it('advance の中で例外が出ても、そのあとの描画では 3D を描く', () => {
@@ -183,7 +184,7 @@ describe('テストから進める時計（ManualFrameClock、clock=manual）', 
     expect(() => clock.advance(0.1)).toThrow('パッドの失敗');
     expect(times).toHaveLength(1);
     clock.advance(0.05);
-    expect(times).toHaveLength(4);
+    expect(times).toHaveLength(5);
   });
 
   it('固定ステップのループの時計にすると、2 秒進めたときに 2 秒分のステップが進む（実時間で待たない）', () => {
@@ -200,5 +201,50 @@ describe('テストから進める時計（ManualFrameClock、clock=manual）', 
     clock.advance(0.1);
     expect(loop.stepCount).toBe(240);
     expect(updates).toBe(240);
+  });
+
+  /**
+   * 描画のたびにパッドを読み（ページの tick と同じく、ループの frame の前に読む）、押した・離した時刻をループの時計で記録し、
+   * ステップごとにボタンを押していたステップの数を数える。between は、時計を止めている間に実際の描画を何回行うか。
+   */
+  function holdRun(between: number) {
+    const raf = fakeSchedule();
+    const clock = new ManualFrameClock(raf.schedule);
+    let button = false;
+    let read = false;
+    let heldSteps = 0;
+    const edges: [boolean, number][] = [];
+    const loop = new FixedStepLoop({ timeSource: clock, update: () => (heldSteps += read ? 1 : 0), render: () => {} });
+    const tick = () => {
+      if (button !== read) edges.push([button, loop.currentTime()]);
+      read = button;
+      loop.frame();
+      clock.requestFrame(tick);
+    };
+    clock.requestFrame(tick);
+    clock.advance(0.1);
+    const idle = () => {
+      for (let i = 0; i < between; i += 1) raf.flush();
+    };
+    idle();
+    button = true;
+    idle();
+    clock.advance(0.25);
+    idle();
+    button = false;
+    idle();
+    clock.advance(0.1);
+    return { edges, heldSteps };
+  }
+
+  it('時計を止めている間に変えた入力は、実際の描画が間に入っても入らなくても、止めていた時刻で読まれ、押していたステップの数は進めた秒数で決まる（ARC-67）', () => {
+    const none = holdRun(0);
+    expect(none.edges.map(([on, t]) => [on, Math.round(t * 1000)])).toEqual([
+      [true, 100],
+      [false, 350],
+    ]);
+    // 0.25 秒（固定ステップ 1/120 秒の 30 ステップ）。
+    expect(none.heldSteps).toBe(30);
+    for (const between of [1, 5]) expect(holdRun(between), `実際の描画 ${between} 回`).toEqual(none);
   });
 });

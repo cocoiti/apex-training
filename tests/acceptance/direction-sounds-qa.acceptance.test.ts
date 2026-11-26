@@ -9,12 +9,15 @@
 // 鳴り始めより前に切られた音は「鳴らない」とみなす。start の when（音の時計の秒）もそのまま記録し、試聴の音の時刻の間隔はこれで比べる。
 // 音と発の対応は、HUD の残弾が変わった時刻（MutationObserver）のうち、音を鳴らす処理が呼ばれた時刻に最も近いもので決める。
 // 発射の間隔は描画の間隔より十分に長くする（rpm 200 = 0.3 秒、L-STAR は 0.1 秒）。
+// 練習の R2 は、押す → ページの時計を 1 描画（1/60 秒）ずつ進める → 離す、の形で与える（docs/spec/architecture.md
+// 「テストのための描画の省略と時計の差し替え」）。1 描画ずつ別の呼び出しで進めるので、描画ごとの音と残弾の変化は実時間で離れ、
+// 同じ描画の音と残弾の変化が最も近くなる。
 //
 // リポジトリの写しに受け入れテスト用の武器（measured が true、randomness 0）を足してビルドした画面で確かめる。
 // - QA-三方向: 28 発。1〜8 発目で照準を下へ、9〜20 発目で左下へ、21〜28 発目で右下へ動かす直線（簡易版の区切りが UI-77 のとおり）。
 // - QA-向き-<向き>: 9 つの向きそれぞれの、区切りが 1 本だけの武器（UI-78 の試聴に使う）。
 // パッドは Gamepad API（navigator.getGamepads）の形で与え、R2 で撃つ。サーバーと DevTools のポートは OS に選ばせる。
-// 画面は render=off（3D を描かない）で開く。試聴は clock=manual で開き、ページの時計を進めて確かめる（実時間で測らない）。
+// 画面は render=off（3D を描かない）と clock=manual で開き、練習も試聴もページの時計を進めて確かめる（実時間で測らない）。
 // 待ちは sleep にせず、画面の状態か時計の条件で待つ。Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -120,7 +123,6 @@ const PAGE_INIT = `
   window.__vis = (sel) => { const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
     return !!el && !el.closest('[hidden]') && el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && el.getClientRects().length > 0; };
   window.__interlude = () => window.__vis('#interlude');
-  window.__nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
   window.__label = () => (document.getElementById('preview-sound')?.textContent ?? '').trim();
 
   // HUD の残弾と試聴のボタンの表示が変わった時刻。
@@ -322,22 +324,28 @@ async function waitRoundStart(page: Page, w: WeaponJson) {
     `location.hash === '#/play' && window.__vis('[data-screen="play"]') && !window.__interlude() && window.__ammo() === ${w.magSize} && window.__inputShown() !== ''`,
     10_000,
   );
-  await page.waitFor('window.__time() >= 0.3', 10_000);
+  await page.advanceClockUntil('window.__time() >= 0.3', { step: 1 / 60, limit: 2 });
   await page.frames(3);
 }
 
-/** R2 を押し続け、残弾が untilAmmo 以下になったら離す。 */
+/**
+ * R2 を押したまま、ページの時計を 1 描画（1/60 秒）ずつ進め、残弾が untilAmmo 以下になった描画で離す。
+ * 1 描画ずつ別の呼び出しで進め、描画ごとの音と残弾の変化を実時間で離す（音と発の対応を、呼ばれた時刻で決めるため）。
+ */
 async function padFireUntil(page: Page, untilAmmo: number) {
-  await page.evaluate(`(async () => {
-    window.__btn(7, true); const t0 = performance.now();
-    while (window.__ammo() > ${untilAmmo} && location.hash === '#/play' && !window.__interlude() && performance.now() - t0 < 20000) await window.__nextFrame();
-    window.__btn(7, false); })()`);
+  const done = `window.__ammo() <= ${untilAmmo} || location.hash !== '#/play' || window.__interlude()`;
+  await page.evaluate('window.__btn(7, true)');
+  for (let t = 0; !(await page.evaluate<boolean>(done)); t += 1 / 60) {
+    if (t > 20) throw new Error(`ページの時計を 20 秒進めても次の状態にならない: ${done}`);
+    await page.advanceClock(1 / 60, 1 / 60);
+  }
+  await page.evaluate('window.__btn(7, false)');
 }
 const padFireAll = (page: Page) => padFireUntil(page, 0);
-/** 描画の時計（performance.now）で ms たつまで待つ。 */
-const elapse = async (page: Page, ms: number) => {
-  const until = (await page.evaluate<number>('performance.now()')) + ms;
-  await page.waitFor(`performance.now() >= ${until}`, ms + 10_000);
+/** 撃ち切ったあと、ページの時計を進めてリザルト画面に移るまで待つ。 */
+const waitResult = async (page: Page) => {
+  await page.advanceClockUntil(`location.hash === '#/result'`, { step: 1 / 60, limit: 5 });
+  await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
 };
 async function padTap(page: Page, button: number) {
   await page.evaluate(`window.__btn(${button}, true)`);
@@ -363,7 +371,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
   let opened: Page[] = [];
   const exceptions = (page: Page) => page.errors.filter((e) => e.startsWith('exception:'));
 
-  async function openFresh(init = '', { manualClock = false }: { manualClock?: boolean } = {}): Promise<Page> {
+  async function openFresh(init = '', { manualClock = true }: { manualClock?: boolean } = {}): Promise<Page> {
     const page = await browser!.newPage();
     opened.push(page);
     await page.addInitScript(init + PAGE_INIT);
@@ -430,7 +438,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
       await start(page, THREE);
       const t0 = await page.evaluate<number>('performance.now()');
       await padFireAll(page);
-      await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
+      await waitResult(page);
       await page.frames(5);
       const list = (await sounds(page)).filter((s) => s.call >= t0);
       const mapped = shotsOfSounds(list, await ammoLog(page), THREE.magSize, t0);
@@ -456,7 +464,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
           await start(page, w);
           const t0 = await page.evaluate<number>('performance.now()');
           await padFireAll(page);
-          await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
+          await waitResult(page);
           await page.frames(5);
           const mapped = shotsOfSounds(await sounds(page), await ammoLog(page), w.magSize, t0);
           runs[`${w.id}:${display}`] = mapped.map((m) => [m.shot, m.dir]);
@@ -476,13 +484,13 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
       // 戻りの時間より前に押し直す。
       await start(page, THREE);
       await padFireUntil(page, THREE.magSize - 12);
-      const released = await page.evaluate<number>('performance.now()');
+      const released = await page.evaluate<number>('window.__time()');
       expect(await page.evaluate<number>('window.__ammo()')).toBe(THREE.magSize - 12);
-      await page.frames(3);
+      await page.advanceClock(3 / 60);
       const t1 = await page.evaluate<number>('performance.now()');
-      expect(t1 - released, '押し直す前に 0.5 秒たってしまった').toBeLessThan(400);
+      expect((await page.evaluate<number>('window.__time()')) - released, '押し直す前に 0.5 秒たってしまった').toBeLessThan(0.4);
       await padFireAll(page);
-      await page.waitFor(`location.hash === '#/result'`, 15_000);
+      await waitResult(page);
       await page.frames(3);
       const quick = shotsOfSounds(await sounds(page), await ammoLog(page), THREE.magSize, t1);
       expect(
@@ -494,11 +502,11 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
       await start(page, THREE);
       await padFireUntil(page, THREE.magSize - 12);
       const releasedAt = await page.evaluate<number>('window.__time()');
-      await page.waitFor(`window.__time() >= ${releasedAt + 0.9}`, 5000);
+      await page.advanceClockUntil(`window.__time() >= ${releasedAt + 0.9}`, { step: 1 / 60, limit: 1.5 });
       expect(await page.evaluate<string>('location.hash')).toBe('#/play');
       const t2 = await page.evaluate<number>('performance.now()');
       await padFireAll(page);
-      await page.waitFor(`location.hash === '#/result'`, 15_000);
+      await waitResult(page);
       await page.frames(3);
       const late = shotsOfSounds(await sounds(page), await ammoLog(page), THREE.magSize, t2);
       // 押し直した 1 発目（通しで 13 発目）で下、パターンの 9 発目（通しで 21 発目）で左下。
@@ -526,12 +534,12 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
         expect(btn.note).toContain(note);
         // 押しても試聴は始まらない。
         await page.clickSelector('#preview-sound');
-        await elapse(page, 400);
+        await page.advanceClock(0.4);
         expect(await page.evaluate<string>('window.__label()')).toBe(PREVIEW_LABEL);
 
         await start(page, THREE);
         await padFireAll(page);
-        await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
+        await waitResult(page);
         await page.frames(5);
         expect(await sounds(page), JSON.stringify(opts)).toEqual([]);
         expect(exceptions(page), page.errors.join('\n')).toEqual([]);
@@ -547,7 +555,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
         await start(page, THREE);
         await padFireAll(page);
         const ended = await page.evaluate<number>('performance.now()');
-        await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
+        await waitResult(page);
         await page.frames(10);
         const list = await sounds(page);
         // 練習中に鳴ったのは区切りの最初の 3 発だけで、撃ち切ったあと（リザルトのための計算し直し）では呼ばれない。
@@ -575,7 +583,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
     }
 
     it('UI-78: 9 つの向きの音の高さと波形が表のとおりで、どの 2 つの向きでも高さと波形の組が異なる', async () => {
-      const page = await openFresh('', { manualClock: true });
+      const page = await openFresh();
       const heard: Record<string, { freq: number; type: string }> = {};
       for (const [k, [name]] of DIRS.entries()) {
         const w = DIR_WEAPONS[k]!;
@@ -612,7 +620,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
     };
 
     it('UI-80: L-STAR の試聴で、区切りの順に向きの音が（最初の発 − 1）× 発射間隔の時刻に 1 回ずつ鳴り、最後の音のあとに表示が戻る', async () => {
-      const page = await openFresh('', { manualClock: true });
+      const page = await openFresh();
       const o = oracleSimplePattern(LSTAR);
       const interval = 60 / LSTAR.rpm;
       const clicked = await startPreview(page, LSTAR);
@@ -634,7 +642,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
     }, 60_000);
 
     it('UI-80: 試聴の途中で「止める」を押すと、それより後の音は鳴らず、表示が戻る', async () => {
-      const page = await openFresh('', { manualClock: true });
+      const page = await openFresh();
       const o = oracleSimplePattern(LSTAR);
       expect(o.segments.length).toBeGreaterThanOrEqual(2);
       const interval = 60 / LSTAR.rpm;
@@ -655,7 +663,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
     }, 60_000);
 
     it('UI-81: 試聴のあいだに武器を C.A.R. SMG に変えると、L-STAR の残りの音は鳴らず、試聴が止まる', async () => {
-      const page = await openFresh('', { manualClock: true });
+      const page = await openFresh();
       const o = oracleSimplePattern(LSTAR);
       const interval = 60 / LSTAR.rpm;
       const clicked = await startPreview(page, LSTAR);
@@ -681,11 +689,11 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
       expect(await page.evaluate<string>('typeof window.AudioContext')).toBe('undefined');
       await configure(page, {});
       await page.clickSelector('#preview-sound');
-      await page.frames(10);
+      await page.advanceClock(0.2);
       await gotoTop(page);
       await start(page, THREE);
       await padFireAll(page);
-      await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
+      await waitResult(page);
       expect((await resultOf(page)).metrics.length).toBeGreaterThan(0);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
       expect(page.errors, page.errors.join('\n')).toEqual([]);
@@ -695,7 +703,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
       const page = await openFresh();
       // 利用者の操作を使わず（スクリプトから）試聴を始め、練習を始める。
       await page.evaluate(`document.getElementById('preview-sound').click()`);
-      await page.frames(20);
+      await page.advanceClock(0.3);
       await page.evaluate(`document.getElementById('preview-sound').click()`);
       await page.frames(5);
       await choose(page, '#weapon', THREE.name);
@@ -705,7 +713,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
       // パッドのボタンを押す前に、1 発目（鳴らすべき発）の前までの状態が続いている。
       expect(await page.evaluate<string>('location.hash')).toBe('#/play');
       await padFireAll(page);
-      await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
+      await waitResult(page);
       expect((await resultOf(page)).metrics.length).toBeGreaterThan(0);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
       expect(page.errors, page.errors.join('\n')).toEqual([]);
@@ -751,7 +759,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
       await start(page, THREE, 5);
       await padFireUntil(page, THREE.magSize - 3);
       // 2 秒撃たずに回を終え、短いリザルトで「次へ」（パッドの A）。
-      await page.waitFor('window.__interlude()', 6000);
+      await page.advanceClockUntil('window.__interlude()', { step: 1 / 60, limit: 3 });
       await padTap(page, 0);
       await waitRoundStart(page, THREE);
       const t0 = await page.evaluate<number>('performance.now()');

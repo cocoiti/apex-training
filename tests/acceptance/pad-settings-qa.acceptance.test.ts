@@ -418,7 +418,8 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
 
   // -------------------------------------------------------------------------
   it('PAD-21: キャリブレーション画面で、右スティックの軸を 0.6 にすると 0.60、R2 を 0.3 にすると 0.30 と表示される', async () => {
-    const page = await openFresh({ pads: [standardPad()] });
+    // 倒している・押している間は、ページの時計を進めて表示を待つ（ARC-68）。
+    const page = await openFresh({ pads: [standardPad()], clock: true });
     await page.evaluate(`location.hash = '#/settings/pad'`);
     await page.waitFor(`${screenVisible('settings-pad')} && document.querySelectorAll('#calibration-axes li').length >= 4 && document.querySelectorAll('#calibration-buttons li').length >= 8`);
     const axisText = () => page.evaluate<string>(`document.querySelectorAll('#calibration-axes li')[2].textContent`);
@@ -426,12 +427,13 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
     expect(await axisText()).toContain('0.00');
     expect(await buttonText()).toContain('0.00');
     await axis(page, 0, 2, 0.6);
-    await page.waitFor(`document.querySelectorAll('#calibration-axes li')[2].textContent.includes('0.60')`, 3000);
+    await page.advanceClockUntil(`document.querySelectorAll('#calibration-axes li')[2].textContent.includes('0.60')`, { limit: 3 });
     await button(page, 0, 7, 0.3);
-    await page.waitFor(`document.querySelectorAll('#calibration-buttons li')[7].textContent.includes('0.30')`, 3000);
+    await page.advanceClockUntil(`document.querySelectorAll('#calibration-buttons li')[7].textContent.includes('0.30')`, { limit: 3 });
     // ほかの軸・ボタンは 0 のまま。
     expect(await page.evaluate<string>(`document.querySelectorAll('#calibration-axes li')[0].textContent`)).toContain('0.00');
     expect(await page.evaluate<string>(`document.querySelectorAll('#calibration-buttons li')[6].textContent`)).toContain('0.00');
+    await page.evaluate('window.__releaseAll(0)');
     noExceptions(page);
   });
 
@@ -527,7 +529,8 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
     const pads = [genericPad(0), standardPad(1)];
 
     it('番号 1 のパッドで照準と射撃ができ、HUD に番号 1 のパッドの名前が出る（番号 0 のパッドの操作は無視される）', async () => {
-      const page = await openFresh({ pads, render: true });
+      // 倒している・押している長さはページの時計を進めた秒数で決める（ARC-68）。
+      const page = await openFresh({ pads, render: true, clock: true });
       const w = byId('lstar');
       await start(page, w);
       await page.waitFor(`window.__text('${HUD_PAD}').includes(${JSON.stringify(STD_NAME)})`, 3000);
@@ -538,16 +541,17 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
       // 番号 0 のパッドの右スティック（軸 2）と R2（ボタン 7）は反応しない。
       await axis(page, 0, 2, 1);
       await button(page, 0, 7, 1);
-      await page.frames(40);
+      await page.advanceClock(40 / 60);
       expect(await ammo(page)).toBe(w.magSize);
       expect(distance(await center(page), target)).toBeLessThan(20);
       await page.evaluate('window.__releaseAll(0)');
       // 番号 1 のパッドの右スティックで照準が動き、R2 で撃てる。
       await axis(page, 1, 2, 0.5);
-      await waitAimMoved(page, target, '番号 1 のパッドの右スティックで照準が動く');
+      await page.advanceClock(0.5);
       await axis(page, 1, 2, 0);
+      expect(distance(await center(page), target), '番号 1 のパッドの右スティックで照準が動く').toBeGreaterThan(30);
       await button(page, 1, 7, 1);
-      await page.waitFor(`window.__ammo() < ${w.magSize}`, 3000);
+      await page.advanceClockUntil(`window.__ammo() < ${w.magSize}`, { limit: 3 });
       await button(page, 1, 7, 0);
       noExceptions(page);
     }, 60_000);

@@ -11,7 +11,7 @@ import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
@@ -28,14 +28,8 @@ const chromium = findChromium();
  * ページが描画を frames 回進めるまで待つ（決まった時間の sleep で待たない。architecture.md ARC-20, ARC-22）。
  * パッドの読み取りと練習のステップは描画ごとに進むので、変わらないことを確かめるときもこれで待つ。
  */
-/**
- * 60Hz の描画 frames 回分の時間を進める。clock=manual で開いたページはページの時計を進め（実時間では待たない）、
- * そうでないページ（画面写しで照準の動きを読む INP-10）は実際の描画を待つ。
- */
-const settle = async (page: Page, frames: number) => {
-  if (await page.evaluate<boolean>('!!window.__apexTestClock')) await page.advanceClock(frames / 60);
-  else await page.frames(frames);
-};
+/** 60Hz の描画 frames 回分だけ、clock=manual で開いたページの時計を進める（実時間では待たない）。 */
+const settle = (page: Page, frames: number) => page.advanceClock(frames / 60);
 
 /** SPEC の文言と値（実装の定数には依存しない）。 */
 const MOUSE = 'マウス';
@@ -158,7 +152,9 @@ async function lock(page: Page): Promise<boolean> {
   return true;
 }
 
+/** 画面写し。clock=manual のページは時計を進める間は 3D を描かないので、実際の描画で最後の状態が描かれてから写す。 */
 async function screenshot(page: Page): Promise<Image> {
+  await page.frames(2);
   const { data } = await page.send<{ data: string }>('Page.captureScreenshot', { format: 'png' });
   return decodePng(Buffer.from(data, 'base64'));
 }
@@ -262,8 +258,8 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
 
   // -------------------------------------------------------------------------
   it('INP-10: パッドに固定しているとき、マウスを動かしたりクリックしたりしても照準と射撃は反応せず、表示はパッドのまま', async () => {
-    // 画面写しの中心の色で照準の動きを読むので、描画し、実時間で進める。
-    const page = await openFresh({}, { render: true, manualClock: false });
+    // 画面写しで照準の動きを読むので描画する。時計は clock=manual でテストが進める。
+    const page = await openFresh({}, { render: true });
     await setInputMethod(page, 'パッド');
     const w = byId('lstar');
     await start(page, w);
@@ -292,18 +288,20 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     const afterMouse = await screenshot(page);
     expect(distance(afterMouse.pixel(CX, CY), target), `マウスで照準が動かない（ポインターロック: ${locked}）`).toBeLessThan(20);
 
-    // 対照: パッドの右スティックでは照準が動き、R2 では撃てる（画面の中心の色の変化で照準の動きを読める）。
+    // 対照: パッドの右スティックでは照準が動き、R2 では撃てる。
     // ポインターロックは外さない（外すと一時停止になる。mouse.md「一時停止と再開」）。
-    // 中心の色が的の色から外れるまで、スティックを倒したまま待つ（描画の速さによって 1 回の倒しで動く量が変わるため）。
+    // 倒す → ページの時計を 0.15 秒進める → 戻す、の形で与える（倒す長さを実時間で決めない）。
+    // 照準（カメラ）が動くと、壁の目地や的など画面の広い範囲が変わる。
     await page.evaluate('window.__pad.axes[2] = 0.4');
-    await waitUntil(
-      async () => distance((await screenshot(page)).pixel(CX, CY), target) > 30,
-      'パッドの右スティックで照準が動き、画面の中心の色が的の色から外れる',
-      { timeout: 5000 },
-    );
+    await page.advanceClock(0.15);
     await page.evaluate('window.__pad.axes[2] = 0');
+    await settle(page, 2);
+    const afterPad = await screenshot(page);
+    let changed = 0;
+    for (let y = 0; y < HEIGHT; y += 4) for (let x = 0; x < WIDTH; x += 4) if (distance(afterPad.pixel(x, y), afterMouse.pixel(x, y)) > 30) changed += 1;
+    expect(changed, 'パッドの右スティックで照準が動き、画面の広い範囲が変わる').toBeGreaterThan(500);
     await page.evaluate('window.__button(7, 1)');
-    await page.waitFor(`window.__ammo() < ${w.magSize}`, 3000);
+    await page.advanceClockUntil(`window.__ammo() < ${w.magSize}`, { limit: 1 });
     await page.evaluate('window.__button(7, 0)');
     expect(await shownMethod(page)).toBe(PAD);
     expect(exceptions(page), page.errors.join('\n')).toEqual([]);

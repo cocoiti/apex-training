@@ -18,7 +18,7 @@ import { fieldOfView } from '../../src/render/fov';
 import { parseMap, type MapData } from '../../src/sim/map';
 import { replayRecording } from '../../src/sim/practice';
 import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
-import { appUrl, findChromium, launchBrowser, originOf, serveStatic, waitUntil, type Browser, type Page } from '../helpers/browser';
+import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 import { decodePng, type Image } from '../helpers/png';
 
 const ROOT = resolve(__dirname, '../..');
@@ -246,6 +246,8 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     height?: number;
     fov?: number;
     crosshair?: { color: string; shape: string };
+    /** clock=manual で開く（撃つ長さ・ads を押している長さを、テストが進めるページの時計で決める）。 */
+    manualClock?: boolean;
   }
 
   /**
@@ -254,12 +256,12 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
    * ページにスタイルを足してパネルを見えなくする（パネルは表示だけのもので、3D・弾痕・スコープを変えない）。
    */
   async function openPlay(options: OpenOptions = {}): Promise<Page> {
-    const { origin = staticOrigin, width = 1280, height = 800 } = options;
+    const { origin = staticOrigin, width = 1280, height = 800, manualClock = false } = options;
     const page = await browser!.newPage();
     await page.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
-    await page.goto(appUrl(origin, BASE, '', { seed: SEED }));
+    await page.goto(appUrl(origin, BASE, '', { manualClock, seed: SEED }));
     await page.evaluate('localStorage.clear()');
-    await page.goto(appUrl(origin, BASE, '#/settings', { seed: SEED }));
+    await page.goto(appUrl(origin, BASE, '#/settings', { manualClock, seed: SEED }));
     // 読み込み直す前の文書に印を付け、印のない（読み込み直した）文書で設定画面の入力欄が埋まるまで待つ。
     await page.evaluate('window.__beforeReload = true; location.reload()');
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && document.getElementById('setting-fov') && document.getElementById('setting-fov').value !== ''`);
@@ -289,6 +291,8 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     // プレイ画面に入り、練習が始まって（残弾が出て）シーンが何度か描画されるまで待つ。
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden && ${AMMO} > 0`);
+    // clock=manual では、時計を進めるまでステップが進まず、的が最初のステップのあとの姿で描かれない。比べる元の画面を写す前に少し進めておく。
+    if (manualClock) await page.advanceClock(2 / 60);
     await page.frames(5);
     return page;
   }
@@ -495,7 +499,7 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       const H = 1600;
       const cx = W / 2;
       const cy = H / 2;
-      const page = await openPlay({ origin: zeroOrigin, width: W, height: H, fov: 70 });
+      const page = await openPlay({ origin: zeroOrigin, width: W, height: H, fov: 70, manualClock: true });
       const before = await canvasOnly(page);
       const wall = before.pixel(cx + 140, cy + 30);
       const center = [before.pixel(cx - 1, cy - 1), before.pixel(cx, cy - 1), before.pixel(cx - 1, cy), before.pixel(cx, cy)];
@@ -504,18 +508,11 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       await lock(page, cx, cy);
       const full = await ammo(page);
       await mouseButton(page, 'mousePressed', cx, cy, 'left');
-      // 決まった時間押し続ける代わりに、何発か撃てた（残弾が 3 減った）ところで離す。
-      await waitUntil(async () => full! - (await ammo(page))! >= 3, '押している間に何発か撃てる（残弾が減る）');
+      // 押したままページの時計を進め、何発か撃てた（残弾が 3 減った）ところで離す。
+      await page.advanceClockUntil(`${full} - ${AMMO} >= 3`, { limit: 2 });
       await mouseButton(page, 'mouseReleased', cx, cy, 'left');
-      // 離したあとに撃ち終わり、残弾が変わらなくなる（2 回描画が進んでも同じ）まで待つ。
-      let shown = await ammo(page);
-      await waitUntil(async () => {
-        await page.frames(2);
-        const now = await ammo(page);
-        const same = now === shown;
-        shown = now;
-        return same;
-      }, '離したあと残弾が変わらなくなる（撃ち終わる）');
+      // 離したあと、リコイルの戻りが終わるまで時計を進める（撃ち終わり、照準が戻る）。
+      await page.advanceClock(0.6);
       const left = await ammo(page);
       expect(full! - left!, `残弾 ${full} → ${left}`).toBeGreaterThanOrEqual(2);
       const after = await canvasOnly(page);
@@ -565,7 +562,7 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     }
 
     it('UI-21: 既定の色で、押している間はクロスヘアが消え、周りが暗く覆われた円形の視野と十字と点のレティクル。離すと戻る', async () => {
-      const page = await openPlay();
+      const page = await openPlay({ manualClock: true });
       await lock(page, cx, cy);
       const hip = await screenshot(page);
       const hipCanvas = await canvasOnly(page);
@@ -576,6 +573,8 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
       expect(hipReticle.arms.some(Boolean), '腰撃ちでは十字の腕がない').toBe(false);
 
       await mouseButton(page, 'mousePressed', cx, cy, 'right');
+      // 押したままページの時計を 2 描画分進める（押している長さを実時間で決めない）。
+      await page.advanceClock(2 / 60);
       // スコープの表示に切り替わり（クロスヘアが消えてスコープが出る）、その画面が描画されるまで待つ。
       await page.waitFor(`!${SHOWN('[data-screen="play"] .crosshair')} && ${SHOWN('[data-screen="play"] .scope')}`);
       const ads = await screenshot(page);
@@ -631,9 +630,11 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     }, 90_000);
 
     it('UI-21: レティクルはクロスヘアの色で描かれ、形はクロスヘアの形（輪）によらず十字と点', async () => {
-      const page = await openPlay({ crosshair: { color: '#ff3030', shape: 'circle' } });
+      const page = await openPlay({ crosshair: { color: '#ff3030', shape: 'circle' }, manualClock: true });
       await lock(page, cx, cy);
       await mouseButton(page, 'mousePressed', cx, cy, 'right');
+      // 押したままページの時計を 2 描画分進める（押している長さを実時間で決めない）。
+      await page.advanceClock(2 / 60);
       // スコープの表示に切り替わり（クロスヘアが消えてスコープが出る）、その画面が描画されるまで待つ。
       await page.waitFor(`!${SHOWN('[data-screen="play"] .crosshair')} && ${SHOWN('[data-screen="play"] .scope')}`);
       const ads = await screenshot(page);
@@ -650,10 +651,12 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     }, 90_000);
 
     it.each([90, 110])('UI-22: FOV %d で、ads を押している間と離している間でキャンバスの描画（視野角）が同じで、FOV から求めた視野角の投影に一致する', async (fov) => {
-      const page = await openPlay({ fov });
+      const page = await openPlay({ fov, manualClock: true });
       await lock(page, cx, cy);
       const hip = await canvasOnly(page);
       await mouseButton(page, 'mousePressed', cx, cy, 'right');
+      // 押したままページの時計を 2 描画分進める（押している長さを実時間で決めない）。
+      await page.advanceClock(2 / 60);
       // スコープの表示に切り替わり（クロスヘアが消えてスコープが出る）、その画面が描画されるまで待つ。
       await page.waitFor(`!${SHOWN('[data-screen="play"] .crosshair')} && ${SHOWN('[data-screen="play"] .scope')}`);
       expect(await page.evaluate<boolean>(SHOWN('[data-screen="play"] .crosshair')), 'ads が効いている').toBe(false);

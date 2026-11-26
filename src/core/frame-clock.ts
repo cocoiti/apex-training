@@ -134,9 +134,13 @@ export class ManualFrameClock implements FrameClock {
   }
 
   /**
-   * 時計を seconds 秒進める。frameSeconds ごとに時刻を進めて描画を 1 回行う。行った描画の回数を返す。
+   * 時計を seconds 秒進める。frameSeconds ごとに時刻を進めて描画を 1 回行う。時刻を進めた描画の回数を返す。
    * 描画の間隔は、固定ステップのループが 1 回の描画で進める上限（MAX_FRAME_TIME）まで（それより長いと進めた時間を捨てるため）。
    * この描画の中では draws が false になり、3D は描かない（画面に出るのは、次の実際の描画で描く最後の状態）。
+   *
+   * 時刻を進める前に、今の時刻のまま描画を 1 回行う。テストが時計を止めている間に変えた入力（スティック・ボタン）は、
+   * 実際の描画が間に入ったかどうかによらず、いつも止めていた時刻で読まれる。進めた時間のステップはすべてその入力で進むので、
+   * 押していた長さは進めた秒数だけで決まり、実時間でどれだけ待ったかによらない（docs/spec/architecture.md、ARC-63）。
    */
   advance(seconds: number, frameSeconds = MANUAL_FRAME_SECONDS): number {
     if (!(frameSeconds > 0 && frameSeconds <= MAX_FRAME_TIME)) throw new Error(`the frame interval must be greater than 0 and at most ${MAX_FRAME_TIME} s`);
@@ -145,6 +149,7 @@ export class ManualFrameClock implements FrameClock {
     let frames = 0;
     this.advancing = true;
     try {
+      this.queue.run(this.current * 1000);
       // 浮動小数の誤差で最後に極めて短い描画が残らないよう、残りが間隔の 1/1000 以下なら終わりに合わせる。
       while (end - this.current > frameSeconds * 1e-3) {
         this.current = Math.min(this.current + frameSeconds, end);
