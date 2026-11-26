@@ -101,17 +101,17 @@ describe.skipIf(NESTED || !chromium)('表示の言語', () => {
     await page.goto(appUrl(origin, BASE, hash, APP));
     await page.evaluate(`(() => { localStorage.clear(); for (const [k, v] of Object.entries(${JSON.stringify(seed)})) localStorage.setItem(k, v); })()`);
     if (init) await page.addInitScript(init);
-    await page.evaluate('location.reload()');
-    await ready(page);
+    await reload(page);
     return page;
   }
 
-  /** 読み込みが終わり、トップ画面のカードが出るまで待つ。 */
-  const ready = (page: Page) => page.waitFor(`document.readyState === 'complete' && document.querySelectorAll('#mode-cards .card').length === 4`, 15_000);
-
+  /**
+   * 読み込み直し、新しい文書の読み込みが終わってトップ画面のカードが出るまで待つ。
+   * 読み込み直す前の文書に印を付け、印のない文書になるまで待つ（遅いマシンで、読み込み直す前の文書を見て終わったと思わないように）。
+   */
   async function reload(page: Page): Promise<void> {
-    await page.evaluate('location.reload()');
-    await ready(page);
+    await page.evaluate('window.__beforeReload = true; location.reload()');
+    await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && document.querySelectorAll('#mode-cards .card').length === 4`, 15_000);
   }
 
   /** トップ画面で武器・モード・回数・練習の選択肢を選んで「開始」を押し、練習が始まるまで進める。 */
