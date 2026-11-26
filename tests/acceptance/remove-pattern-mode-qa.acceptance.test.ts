@@ -36,6 +36,22 @@ const OLD_HISTORY_KEY = 'apex-training:history:mouse:lstar:pattern';
 const CENTER_BEST_KEY = 'apex-training:best:mouse:lstar:center';
 const CENTER_HISTORY_KEY = 'apex-training:history:mouse:lstar:center';
 const COMMON_SETTINGS_KEY = 'apex-training:settings:common';
+/**
+ * 変更の前のビルド（センター維持と補正のパネルの設定があったとき）で、設定画面の補正のパネルを OFF にし、FOV を 100 にしたときに
+ * 保存された共通の設定の値そのもの（QA が変更の前のビルドの画面を操作して localStorage から写した）。
+ */
+const LEGACY_COMMON = JSON.stringify({
+  inputMethod: 'auto',
+  fov: 100,
+  crosshairShape: 'dot',
+  crosshairColor: '#77ccff',
+  ghost: false,
+  correctionPanel: false,
+  patternDisplay: 'detailed',
+  sound: true,
+});
+const PAD_CENTER_BEST_KEY = 'apex-training:best:pad:lstar:center';
+const PAD_GHOST_BEST_KEY = 'apex-training:best:pad:lstar:ghost';
 
 interface WeaponJson {
   id: string;
@@ -129,12 +145,17 @@ async function openHistory(page: Page) {
   await settle(page, 2);
 }
 
-/** 画面（top・history）のモードの欄。選択肢の select が見えているかと、画面の文字。 */
+/**
+ * 画面（top・history）のモードの欄。選択肢の select が画面に描かれているかと、画面の文字。
+ * hidden 属性が CSS の display で上書きされて描かれていることもあるので、属性ではなく描かれているか（大きさと可視性）で見る。
+ */
 const modeView = (page: Page, screen: 'top' | 'history') =>
   page.evaluate<{ selectShown: boolean; text: string }>(`(() => {
     const root = document.querySelector('[data-screen="${screen}"]');
     const select = root.querySelector('select[id$="mode"]');
-    return { selectShown: !!select && window.__vis(select), text: root.innerText }; })()`);
+    const r = select ? select.getBoundingClientRect() : null;
+    const shown = !!select && select.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && !!r && r.width > 0 && r.height > 0;
+    return { selectShown: shown, text: root.innerText }; })()`);
 
 const storageKeys = (page: Page) => page.evaluate<string[]>('Object.keys(localStorage)');
 
@@ -380,7 +401,57 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
       expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(CENTER_HISTORY_KEY)})`)).toBe(history);
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
+
+    it('変更の前のビルドが保存した共通の設定（補正のパネル OFF）と、以前のセンター維持の自己ベストがあっても、反復練習はパネル付きで始まり、センター維持の自己ベストを使わずに採点・保存する', async () => {
+      // パッドの L-STAR の以前のセンター維持の自己ベストは、どの結果にも負けない小さな値にしておく。
+      const padCenterBest = JSON.stringify({ version: 1, meanError: 0.0001, groupingRadius: 0, hitRate: 100, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
+      const page = await openFresh({ ...seed, [COMMON_SETTINGS_KEY]: LEGACY_COMMON, [PAD_CENTER_BEST_KEY]: padCenterBest });
+      const view = await modeView(page, 'top');
+      expect(view.selectShown).toBe(false);
+      expect(view.text).toMatch(/モード\s*反復練習/);
+      await start(page, LSTAR, undefined);
+      await page.advanceClockUntil(`window.__vis('.correction-panel')`, { limit: 5 });
+      expect(await page.evaluate<boolean>(`window.__vis('.correction-panel')`), '補正のパネルが表示されない').toBe(true);
+      await padFireAll(page);
+      await waitResult(page);
+      const result = await page.evaluate<string>(`document.querySelector('[data-screen="result"]').innerText`);
+      expect(result).toMatch(/平均ズレ\s*[\d.]+\s*°/);
+      // 反復練習の自己ベストはまだないので更新になる（センター維持の自己ベストと比べない）。
+      expect(result).toContain('自己ベスト更新');
+      expect(result).not.toContain(CENTER);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(PAD_GHOST_BEST_KEY)})`)).not.toBeNull();
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(PAD_CENTER_BEST_KEY)})`)).toBe(padCenterBest);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(CENTER_BEST_KEY)})`)).toBe(best);
+      expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(CENTER_HISTORY_KEY)})`)).toBe(history);
+      // 設定画面は変更の前に保存した FOV 100 を表示し、補正のパネルの項目はない。
+      await page.evaluate(`location.hash = '#/settings'`);
+      await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
+      expect(await page.evaluate<string>(`document.getElementById('setting-fov').value`)).toBe('100');
+      expect(await page.evaluate<boolean>(`!!document.getElementById('setting-correction-panel')`)).toBe(false);
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 90_000);
   });
+
+  // -------------------------------------------------------------------------
+  it('UI-75: 変更の前のビルドが保存した共通の設定（補正のパネル OFF・FOV 100）そのままでも、設定画面は FOV 100 を表示して補正のパネルの項目を出さず、反復練習ではパネルが表示される', async () => {
+    const page = await openFresh({ [COMMON_SETTINGS_KEY]: LEGACY_COMMON });
+    await page.evaluate(`location.hash = '#/settings'`);
+    await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
+    expect(await page.evaluate<string>(`document.getElementById('setting-fov').value`)).toBe('100');
+    const settings = await page.evaluate<{ text: string; panelInputs: number }>(`(() => {
+      const root = document.querySelector('[data-screen="settings"]');
+      const labelOf = (el) => ((el.closest('label')?.textContent ?? '') + (el.labels ? [...el.labels].map((l) => l.textContent).join('') : ''));
+      return { text: root.innerText,
+        panelInputs: (root.querySelector('#setting-correction-panel') ? 1 : 0)
+          + [...root.querySelectorAll('input, select')].filter((el) => el.id !== 'setting-pattern-display' && labelOf(el).includes('補正のパネル')).length }; })()`);
+    expect(settings.panelInputs, '補正のパネルの項目がある').toBe(0);
+    expect(settings.text).not.toContain('補正のパネル（センター維持）');
+    expect(settings.text).not.toContain(CENTER);
+    await start(page, LSTAR, undefined);
+    await page.advanceClockUntil(`window.__vis('.correction-panel')`, { limit: 5 });
+    expect(await page.evaluate<boolean>(`window.__vis('.correction-panel')`), '補正のパネルが表示されない').toBe(true);
+    expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+  }, 60_000);
 
   // -------------------------------------------------------------------------
   it('UI-75: 古い補正のパネルの項目（OFF）と FOV 100 を保存した共通の設定でも、設定画面は FOV 100 を表示して補正のパネルの項目を出さず、反復練習ではパネルが表示される', async () => {

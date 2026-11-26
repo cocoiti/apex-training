@@ -841,6 +841,38 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
 
   // -------------------------------------------------------------------------
   describe('MODE-24: 反復練習では設定によらずパネルが表示され、ゴースト表示を ON にするとゴースト（パッドのときはガイド）と同時に表示される', () => {
+    it('設定画面には補正のパネルを消す項目がなく、設定の項目をすべて既定と違う値にしても、マウスとパッドの反復練習でパネルが表示される', async () => {
+      const page = await openFresh();
+      await page.evaluate(`location.hash = '#/settings'`);
+      await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);
+      // 補正のパネルを出すか消すかの項目（以前の「補正のパネル（センター維持）」）はない。パターンの表示（補正のパネル）は消す項目ではない。
+      const toggles = await page.evaluate<string[]>(`(() => {
+        const root = document.querySelector('[data-screen="settings"]');
+        const labelOf = (el) => ((el.closest('label')?.textContent ?? '') + (el.labels ? [...el.labels].map((l) => l.textContent).join('') : '')).trim();
+        const found = [...root.querySelectorAll('input, select')]
+          .filter((el) => el.id !== 'setting-pattern-display' && labelOf(el).includes('補正のパネル')).map((el) => el.id || labelOf(el));
+        if (root.querySelector('#setting-correction-panel')) found.push('#setting-correction-panel');
+        return found; })()`);
+      expect(toggles, '補正のパネルを消す項目がある').toEqual([]);
+      const options = await page.evaluate<string[]>(`[...document.getElementById('setting-pattern-display').options].map((o) => o.textContent.trim())`);
+      expect(options.some((o) => /なし|OFF|非表示|消す/.test(o)), options.join(',')).toBe(false);
+      // 共通の設定を既定と違う値にする（ゴースト表示 ON・パターンの表示は簡易・音 OFF・十字）。
+      await choose(page, '#setting-pattern-display', '簡易');
+      await choose(page, '#setting-crosshair-shape', '十字');
+      await setCheck(page, 'setting-ghost', true);
+      await setCheck(page, 'setting-sound', false);
+      for (const input of ['マウス', 'パッド'] as const) {
+        await configure(page, { input });
+        await start(page, byId('lstar'), GHOST);
+        expect(await panelVisible(page), `${input}: 補正のパネルが表示されない`).toBe(true);
+        // 入力方式をマウスに固定しているときはパッドで撃てないので、時計だけを進めて表示が続くことを見る。
+        if (input === 'パッド') await padFire(page, 3);
+        else await settle(page, 30);
+        expect(await panelVisible(page), `${input}: 練習中にパネルが消えた`).toBe(true);
+      }
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 90_000);
+
     it('反復練習・マウス・ゴースト表示 ON: パネルとゴーストが同時に表示される', async () => {
       const base = await baseline();
       const page = await openFresh('', { render: true });

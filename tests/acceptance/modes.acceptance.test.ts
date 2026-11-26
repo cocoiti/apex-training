@@ -205,6 +205,8 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
   let mainDist = '';
   let copyDist = '';
   let copyBuild = { status: null as number | null, output: '' };
+  let firstCopyDist = '';
+  let firstCopyBuild = { status: null as number | null, output: '' };
   let server: Server | undefined;
   let browser: Browser | undefined;
   let origin = '';
@@ -248,6 +250,16 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       env: { ...process.env, APEX_ACCEPTANCE_NESTED: '1', FORCE_COLOR: '0' },
     });
     copyBuild = { status: r.status, output: `${r.stdout ?? ''}${r.stderr ?? ''}` };
+    // MODE-5: 同じ写しの足したモードのファイルを、並び順が反復練習より前のものに書き換えてもう一度ビルドする（足したファイルは 1 つのまま）。
+    writeFileSync(join(copy, 'src/modes/recoil/acceptance-extra.ts'), EXTRA_MODE.replace('order: 100000', 'order: -100000'));
+    firstCopyDist = join(work, 'copy-first-dist');
+    const r2 = spawnSync(`npm run build -- --outDir "${firstCopyDist}" --emptyOutDir`, {
+      cwd: copy,
+      shell: true,
+      encoding: 'utf8',
+      env: { ...process.env, APEX_ACCEPTANCE_NESTED: '1', FORCE_COLOR: '0' },
+    });
+    firstCopyBuild = { status: r2.status, output: `${r2.stdout ?? ''}${r2.stderr ?? ''}` };
 
     site = join(work, 'site');
     serveDist(mainDist);
@@ -333,6 +345,23 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       expect(await page.evaluate<boolean>(`document.querySelector('#mode').getClientRects().length > 0 && !document.querySelector('#mode').closest('[hidden]')`)).toBe(true);
       // 足したモードで練習を始められる。
       await start(page, origin, 'L-STAR', '受け入れの追加モード');
+      expect(await hash(page)).toBe('#/play');
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 60_000);
+
+    it('MODE-5: 足したモードの並び順が反復練習より小さいときは、足したモードが反復練習の前に並び、開いたときに選ばれている', async () => {
+      expect(firstCopyBuild.status, firstCopyBuild.output).toBe(0);
+      serveDist(firstCopyDist);
+      const page = await newPage();
+      await page.goto(`${origin}${BASE}#/`);
+      await page.waitFor(`document.querySelector('#mode').options.length > 0`);
+      const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
+      expect(modes).toEqual(['受け入れの追加モード', '反復練習']);
+      expect(await page.evaluate<boolean>(`document.querySelector('#mode').getClientRects().length > 0 && !document.querySelector('#mode').closest('[hidden]')`)).toBe(true);
+      // 開いたときは並び順の最初のモードが選ばれている（screens.md「トップ画面」）。
+      expect(await page.evaluate<string>(`document.querySelector('#mode').selectedOptions[0]?.textContent.trim() ?? ''`)).toBe('受け入れの追加モード');
+      // 反復練習も選んで始められる。
+      await start(page, origin, 'L-STAR', '反復練習');
       expect(await hash(page)).toBe('#/play');
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);

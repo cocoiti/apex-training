@@ -571,7 +571,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(h.selects.find((s) => s.label.startsWith('モード')), JSON.stringify(h.selects)).toBeUndefined();
       expect(h.selects.map((s) => s.label.split(' ')[0])).toEqual(['武器', '入力方式']);
       expect(h.text).toMatch(/モード\s*反復練習/);
-      expect(h.text).not.toContain('反復練習');
+      expect(h.text).not.toContain('センター維持');
       expect(h.text).not.toContain('パターン観察');
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
@@ -581,7 +581,8 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       const others = {
         [historyKey('mouse', 'car', 'ghost')]: stored([entry(4.56)]),
         [historyKey('pad', 'lstar', 'ghost')]: stored([entry(5.67)]),
-        [historyKey('mouse', 'lstar', 'ghost')]: stored([entry(6.78)]),
+        // 以前のセンター維持の履歴（登録されていないモードの id）も消さない。
+        [historyKey('mouse', 'lstar', 'center')]: stored([entry(6.78)]),
       };
       const best = { [bestKey('mouse', 'lstar', 'ghost')]: JSON.stringify({ version: 1, meanError: 1.11, groupingRadius: 0.5, hitRate: 40, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' }) };
       const page = await openFresh({ [target]: stored([entry(1.5), entry(2.5, '2026-01-02T00:00:00.000Z')]), ...others, ...best });
