@@ -43,6 +43,7 @@ GitHub Actions は有効で、GitHub がホストする標準の Linux の runne
 - `npm ci` → `npm run lint` → `npm run test:unit` → Chromium の導入（Playwright のキャッシュの場所）→ `npm run test:browser` → `npm run build` →
   `npm run check:subpath` → `npm run check:assets` の順に流し、どれかが失敗したらそこで止まってチェックが失敗になる。
 - CI では `APEX_REQUIRE_CHROMIUM=1` にして、Chromium が見つからなければブラウザを使うテストを飛ばさずに失敗にする。
+- CI では `APEX_BROWSER_WORKERS=2` にして、ブラウザを使うテストのファイルを 2 つずつ流す（runner の CPU が 4 つで、3 つでは実時間で動くテストが待ちの上限に当たる）。
 - 同じブランチ（同じ PR）に新しい push があると、走っている古い実行は取り消される。
 
 ## 守ること

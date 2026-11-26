@@ -151,7 +151,7 @@ src/
   2. lint・型の確認（`npm run lint`）
   3. ブラウザを使わないテスト（`npm run test:unit`）
   4. ブラウザを使うテストが探す場所（Playwright が置く Chromium のキャッシュ）への Chromium の導入。導入した Chromium はキャッシュして次の実行で使う。
-  5. ブラウザを使うテスト（`npm run test:browser`）
+  5. ブラウザを使うテスト（`npm run test:browser`）。runner の CPU が少ないので、同時に流すファイルの数は 2 にする（`APEX_BROWSER_WORKERS=2`）。
   6. ビルド（`npm run build`）
   7. サブパスでの配信の確認（`npm run check:subpath`）と、配布物が素材の一覧に載っていることの確認（`npm run check:assets`）
 - どれかの段が失敗したら、それより後の段は実行せず、ジョブ（PR のチェック）は失敗になる。すべての段が成功したときだけ成功になる。

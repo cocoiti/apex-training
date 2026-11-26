@@ -18,6 +18,10 @@ CI でそのまま流すと、Chromium の導入に失敗しても全部飛ば�
   `actions/cache` に置く。Playwright は package.json の依存に足さない。キャッシュがあってもこの手順で OS のライブラリだけは入れる。
 - `tests/helpers/browser.ts` の `findChromium` は、環境変数 `APEX_REQUIRE_CHROMIUM=1` のとき見つからなければ例外を投げる。
   ブラウザを使うテストのファイルの読み込みが失敗になり、`npm run test:browser` が失敗する。CI のそのステップだけで 1 にする。
+- CI のブラウザを使うテストは `APEX_BROWSER_WORKERS=2` で 2 ファイルずつ流す。runner の CPU は 4 つで、ソフトウェアの WebGL で描く
+  Chromium を既定の 3 つ並べると、実時間で動くテスト（練習の時間切れ・10 秒の待ち）が落ちた。
+- Chromium は新しいプロセスグループで起動し、閉じるときは子のプロセスまで止めてからプロファイルを消す。Linux では本体だけを止めると
+  子のプロセスが残ってプロファイルに書き続け（消すときに ENOTEMPTY）、CPU を使い続けた。
 - Linux では Chromium を `--no-sandbox` で起動する（Ubuntu の runner は権限のない利用者の名前空間を制限していてサンドボックスが起動しない）。
   開くのはテストが立てた手元のサーバーのページだけ。
 - Node.js は `22`（22 系の最新）。CLAUDE.md の「22.12 以上」を満たし、ESLint 10 が求める 22.13 以上も満たす。

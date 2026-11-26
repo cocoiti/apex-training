@@ -60,8 +60,11 @@ jobs:
       - name: ブラウザを使うテスト
         # Chromium が見つからなければ、テストを飛ばして成功にせず失敗にする（ARC-47）。
         run: npm run test:browser
+        # runner の CPU は 4 つで、ソフトウェアの WebGL で描く Chromium を 3 つ並べると実時間で動くテストが待ちの上限に当たる。
+        # CI では同時に流すファイルを 2 つにする。
         env:
           APEX_REQUIRE_CHROMIUM: '1'
+          APEX_BROWSER_WORKERS: '2'
 
       - name: ビルド
         run: npm run build
