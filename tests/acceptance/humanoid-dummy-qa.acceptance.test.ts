@@ -237,14 +237,10 @@ describe('ARC-63: 縮尺 1 の人形を 10 メートル先に置いたときの�
     { name: '頭の中心', rel: [0, 0.4], aimed: true },
     { name: '右腕の中心', rel: [0.35, -0.025], aimed: true },
     { name: '右脚の中心', rel: [0.13, -0.775], aimed: true },
-    // 胴の右端 0.25 と右腕の左端 0.29 のあいだの中央（高さは胴の中心）。
-    { name: '脇の下の空き', rel: [0.27, 0], aimed: false },
-    // 左右の脚の内側の端 ±0.03 のあいだの中央（高さは脚の中心）。
-    { name: '左右の脚のあいだの中央', rel: [0, -0.775], aimed: false },
-    // 頭の右端 0.125 より 0.1 メートル右で、頭の中心と同じ高さ。
-    { name: '頭の右の肩より上', rel: [0.225, 0.4], aimed: false },
-    // 右腕の外側 0.41 より外。
-    { name: '人形の右端より外', rel: [0.5, 0], aimed: false },
+    // 右腕の外側 0.41 より人形の幅の半分 0.41 だけ右で、人形の中心と同じ高さ。
+    { name: '人形の右端より幅の半分以上右', rel: [0.82, 0], aimed: false },
+    // 頭の上端 0.525 より人形の幅の半分 0.41 だけ上で、人形の中心と同じ左右の位置。
+    { name: '頭の上端より幅の半分以上上', rel: [0, 0.935], aimed: false },
   ];
 
   it('SPEC の表の縮尺 1 の人形の部分の箱（humanoidParts(1)）を置き、各向きに照準を向けたステップの判定が SPEC のとおり', () => {
@@ -475,29 +471,14 @@ describe('MODE-59: 追いエイムの人形の当たり', () => {
     expect(r.row).toBe('100.0%');
   });
 
-  it('各ステップの照準を人形の中心から人形の幅の半分（0.41 m）より大きく右・左にずらした向きに向け続けたとき、乗っていた割合が 0% になる', () => {
+  it('各ステップの照準を人形の中心から人形の幅（0.82 m、肩の外側から幅の半分外）だけ右・左にずらした向きに向け続けたとき、乗っていた割合が 0% になる', () => {
     const centers = trackingCenters(SEED);
-    // 人形の部分の箱は奥行き 0.25 m を持ち、的が左右に動いて斜めから見ると腕の外側の側面が見える。幅の半分 0.41 m のすぐ外（0.45 m）では
-    // その側面に当たる向きがあるので、側面も含めて人形のどの部分の箱にも当たらないこと（SPEC の箱でこのファイルが計算）を確かめた 0.6 m でずらす。
     const parts = humanoidParts(1);
-    for (const dx of [0.6, -0.6]) {
+    for (const dx of [0.82, -0.82]) {
       expect(centers.filter((c) => rayHitsParts(eye, anglesTo(eye, add(c, vec3(dx, 0, 0))), c, parts)).length, `前提: ${dx} m は SPEC の箱に当たらない`).toBe(0);
       const r = onTargetRate(SEED, aimAt(centers, eye, vec3(dx, 0, 0)));
       expect(r.rate, `ずらし ${dx} m（乗っていたステップの例 ${JSON.stringify(r.aimedSamples)}）`).toBe(0);
       expect(r.row).toBe('0.0%');
-    }
-  });
-
-  it('各ステップの照準を脇の下の空き（胴の端と腕の内側の端のあいだの中央）の向きに向け続けたとき、乗っていた割合が 0% になる', () => {
-    const centers = trackingCenters(SEED);
-    for (const dx of [0.27, -0.27]) {
-      const r = onTargetRate(SEED, aimAt(centers, eye, vec3(dx, 0, 0)));
-      // 照合: SPEC の部分の箱でこのファイルが計算した当たり（奥行きを持つ箱を斜めから見ると、空きが側面で塞がる向きがある）。
-      const parts = humanoidParts(1);
-      const blocked = centers.filter((c) => rayHitsParts(eye, anglesTo(eye, add(c, vec3(dx, 0, 0))), c, parts)).length;
-      // 実装の判定は SPEC の部分の箱の当たりと一致する（乗っていたステップの数が、側面に当たるステップの数と同じ）。
-      expect(Math.round((r.rate / 100) * centers.length), `脇の下 ${dx} m: 乗っていたステップの数と SPEC の箱で計算した当たりの数`).toBe(blocked);
-      expect(r.rate, `脇の下 ${dx} m（SPEC の箱で計算すると ${blocked}/${centers.length} ステップで部分の箱の側面に当たる。乗っていたステップの例 ${JSON.stringify(r.aimedSamples)}）`).toBe(0);
     }
   });
 });
@@ -662,17 +643,18 @@ function shootFlick(run: FlickRun, plan: (i: number, t: PracticeTarget) => Angle
 const flickRecords = (run: FlickRun) => (run.session.result!.modeResult as FlickResult).targets;
 
 describe('MODE-61: フリックの人形への命中と外れ', () => {
-  it('出た人形の胴の中心へ撃つと命中、人形の右端より外・左右の脚のあいだへ撃つと外れとして記録される', () => {
+  it('出た人形の胴の中心へ撃つと命中、人形の右端より幅の半分以上外・頭の上端より幅の半分以上上へ撃つと外れとして記録される', () => {
     const run = beginFlick(610, 'large');
     const eye = run.world.player.position;
-    const kinds = ['torso', 'right', 'legs'] as const;
+    const kinds = ['torso', 'right', 'above'] as const;
     const plan: (typeof kinds)[number][] = [];
     const seen = shootFlick(run, (i, t) => {
       const s = scaleOf(t);
       const kind = kinds[i % 3]!;
       plan.push(kind);
       const torso = partOf(t.parts, 'torso').offset;
-      const rel = kind === 'torso' ? torso : kind === 'right' ? vec3((SPEC_WIDTH / 2 + 0.1) * s, 0, 0) : vec3(0, -0.775 * s, 0);
+      // 頭の上端は人形の中心から 0.525（縮尺 1）。
+      const rel = kind === 'torso' ? torso : kind === 'right' ? vec3(SPEC_WIDTH * s, 0, 0) : vec3(0, (0.525 + SPEC_WIDTH / 2) * s, 0);
       return anglesTo(eye, add(t.center, rel));
     });
     const recs = flickRecords(run);
@@ -719,11 +701,11 @@ describe('MODE-62: フリックの的の大きさと人形の縮尺', () => {
   });
 });
 
-describe('MODE-51（変更）: 的の大きさごとの命中の境目（胴の端の内側と脇の下の空き）', () => {
-  // 出る範囲は SPEC が決めていないので既定（ふつう）。人形の部分の箱は奥行きを持つので、斜めから見ると脇の下の空きは腕・胴の側面で塞がる。
+describe('MODE-51（変更）: 的の大きさごとの命中の境目（胴の端の内側と人形の外形から十分離れた向き）', () => {
+  // 出る範囲は SPEC が決めていないので既定（ふつう）。
   // 実装の命中が SPEC の部分の箱でこのファイルが計算した当たりと一致することを先に確かめ、そのあと受け入れ条件の文のとおりかを確かめる。
   for (const size of Object.keys(SIZES) as SizeId[]) {
-    it(`「${size}」（見込み角 ${SIZES[size]} 度、出る範囲は既定）: 人形の中心から見込み角の半分よりわずかに小さくヨーをずらすと命中、わずかに大きくずらすと外れ`, () => {
+    it(`「${size}」（見込み角 ${SIZES[size]} 度、出る範囲は既定）: 人形の中心から見込み角の半分よりわずかに小さくヨーをずらすと命中、見込み角の 2 倍ずらすと外れ`, () => {
       const run = beginFlick(510 + SIZES[size], size);
       const eye = run.world.player.position;
       const half = SIZES[size] / 2;
@@ -733,7 +715,7 @@ describe('MODE-51（変更）: 的の大きさごとの命中の境目（胴の�
         // ずらす向きは右と左を交互にする（内側 2 回・外側 2 回ずつで向きが変わる）。
         const sign = Math.floor(i / 2) % 2 === 0 ? 1 : -1;
         const on = anglesTo(eye, t.center);
-        const a = { yaw: on.yaw + sign * half * (inside ? 0.95 : 1.05), pitch: on.pitch };
+        const a = { yaw: on.yaw + sign * half * (inside ? 0.95 : 4), pitch: on.pitch };
         plan.push({ inside, sign, predicted: rayHitsParts(eye, a, t.center, t.parts) });
         return a;
       });

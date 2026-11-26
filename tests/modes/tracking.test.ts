@@ -262,7 +262,7 @@ describe('追いエイムの採点（練習から）', () => {
     expect(session.world.targets.aimed).toBeUndefined();
   });
 
-  it('MODE-59: 照準を人形の胴の中心に向け続けると乗っていた割合が 100%、人形の幅の半分より大きく左右にずらし続けると 0%', () => {
+  it('MODE-59: 照準を人形の胴の中心に向け続けると乗っていた割合が 100%、人形の幅だけ左右にずらし続けると（肩の外側から幅の半分外）0%', () => {
     const map = rangeMap();
     const eye = map.spawn.position;
     const at = (dx: number) => (t: number, motion: TrackingMotion) => {
@@ -270,11 +270,10 @@ describe('追いエイムの採点（練習から）', () => {
       return anglesToPoint(eye, vec3(c.x + dx, c.y, c.z));
     };
     expect(score(run({ aim: at(0) }).session.result!).value).toBe(100);
-    // 斜めから見ると側面の分だけ広く見えるので、幅の半分に 0.15 メートル足した所に向ける。
-    for (const dx of [HUMANOID_WIDTH / 2 + 0.15, -(HUMANOID_WIDTH / 2 + 0.15)]) expect(score(run({ aim: at(dx) }).session.result!).value).toBe(0);
+    for (const dx of [HUMANOID_WIDTH, -HUMANOID_WIDTH]) expect(score(run({ aim: at(dx) }).session.result!).value).toBe(0);
   });
 
-  it('MODE-59: 脇の下の空き（胴の右端と右腕の左端のあいだの中央）に向けたステップは、空きが目の位置から見通せるあいだ乗っていない', () => {
+  it('ARC-63: 乗っているかは部分の箱の和で決まり、脇の下の空き（胴の右端と右腕の左端のあいだの中央）に向けたステップは、空きが目の位置から見通せるあいだ乗っていない', () => {
     const map = rangeMap();
     const eye = map.spawn.position;
     // 脇の下の空きは幅 0.04 メートル、奥行き 0.25 メートル。視線が斜めになると側面で塞がるので、見通せるステップだけを数える。

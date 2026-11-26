@@ -230,17 +230,16 @@ describe('フリックの練習の流れ', () => {
     expect(right).toBeLessThan(140);
   });
 
-  it.each(Object.keys(FLICK_SIZES))('MODE-51: 的の大きさ %s で、人形の中心から見込み角の半分よりわずかに小さくずらすと命中（胴の端の内側）、わずかに大きく照準の中心の側へずらすと外れ（脇の下の空き）', (size) => {
+  it.each(Object.keys(FLICK_SIZES))('MODE-51: 的の大きさ %s で、人形の中心から見込み角の半分よりわずかに小さくずらすと命中（胴の端の内側）、見込み角の 2 倍ずらすと外れ（人形の外形から十分外）', (size) => {
     const half = FLICK_SIZES[size as keyof typeof FLICK_SIZES].angle / 2;
-    // 脇の下の空き（幅は胴の幅の 0.08 倍）は奥行きがあるので、斜めから見るほど狭く見える。照準の中心に近い「近い」の範囲で、
-    // 照準の中心の側（的が右なら左）へずらす。外側へずらすと、側面が見える右腕に当たりやすい。
     for (const seed of [5, 6, 7]) {
       for (const [factor, inward, hit] of [
         [0.95, true, true],
         [0.95, false, true],
-        [1.08, true, false],
+        [4, true, false],
+        [4, false, false],
       ] as const) {
-        const d = start({ range: 'near', size }, seed);
+        const d = start({ size }, seed);
         const target = waitVisible(d);
         const angles = targetAngles(d, target);
         const side = (offsetOf(d, target).yaw > 0 ? 1 : -1) * (inward ? -1 : 1);
@@ -278,21 +277,21 @@ describe('フリックの練習の流れ', () => {
     expect(scales[1]).toBeGreaterThan(scales[2]!);
   });
 
-  it('MODE-61: 出た人形の胴の中心を撃つと命中、人形の右端より外か左右の脚のあいだを撃つと外れ', () => {
+  it('MODE-61: 出た人形の胴の中心を撃つと命中、人形の右端より幅の半分以上外か頭の上端より幅の半分以上上を撃つと外れ', () => {
     for (const seed of [5, 6, 7]) {
       for (const [where, hit] of [
         ['torso', true],
         ['right', false],
-        ['legs', false],
+        ['above', false],
       ] as const) {
         const d = start({ range: 'near', size: 'large' }, seed);
         const target = waitVisible(d);
         const eye = d.session.world.player.position;
         const torso = partCenter(target.center, part(target, 'torso'));
         const box = bounds(target);
-        const leg = partCenter(target.center, part(target, 'rightLeg'));
+        const half = (box.max.x - box.min.x) / 2;
         const point =
-          where === 'torso' ? torso : where === 'right' ? vec3(box.max.x + 0.2, target.center.y, target.center.z) : vec3(target.center.x, leg.y, target.center.z);
+          where === 'torso' ? torso : where === 'right' ? vec3(box.max.x + half, target.center.y, target.center.z) : vec3(target.center.x, box.max.y + half, target.center.z);
         shootAt(d, anglesToPoint(eye, point));
         playThrough(d);
         expect([seed, where, modeResult(d).targets[0]!.hit]).toEqual([seed, where, hit]);

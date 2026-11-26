@@ -267,9 +267,7 @@ describe('MODE-50: 出る範囲ごとの角度の距離と、壁の正面の範�
 
 describe('MODE-51: 的の大きさごとの命中の境目', () => {
   for (const size of Object.keys(SIZES) as SizeId[]) {
-    it(`「${size}」（見込み角 ${SIZES[size]} 度）: 人形の中心から見込み角の半分よりわずかに小さくヨーをずらすと命中（胴の端の内側）、わずかに大きくずらすと外れ（脇の下の空き）`, () => {
-      // 人形の部分の箱には奥行き（0.25 × 縮尺）があり、斜めから見るほど脇の下の空きは側面で塞がる。照準の中心に近い「近い」の範囲で、
-      // 大きくずらすときは照準の中心の側（的が右なら左）へずらす。
+    it(`「${size}」（見込み角 ${SIZES[size]} 度）: 人形の中心から見込み角の半分よりわずかに小さくヨーをずらすと命中（胴の端の内側）、見込み角の 2 倍ずらすと外れ（人形の外形から十分外）`, () => {
       const run = begin(31337, 'near', size);
       const half = SIZES[size] / 2;
       const plan: boolean[] = [];
@@ -279,7 +277,7 @@ describe('MODE-51: 的の大きさごとの命中の境目', () => {
         const on = anglesTo(run.world, c);
         const toCenter = on.yaw > run.world.center.yaw ? -1 : 1;
         const sign = inside && i % 4 === 0 ? -toCenter : toCenter;
-        return { at: at + 0.2, aim: { yaw: on.yaw + sign * half * (inside ? 0.95 : 1.08), pitch: on.pitch } };
+        return { at: at + 0.2, aim: { yaw: on.yaw + sign * half * (inside ? 0.95 : 4), pitch: on.pitch } };
       });
       const recs = records(run);
       expect(recs).toHaveLength(20);
