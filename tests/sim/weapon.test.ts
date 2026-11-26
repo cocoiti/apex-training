@@ -188,6 +188,21 @@ describe('武器の一覧', () => {
     expect(weapon.pattern).toHaveLength(weapon.magSize);
   });
 
+  it.each(['lstar', 'car'])('WPN-30: %s の source と計測の記録には撮影の条件（FOV 104・壁まで 10 m・射撃中の照準の操作なし）が確認済みとして書かれ、仮定の一覧はない', (id) => {
+    const weapon = buildWeaponList(readWeaponFiles()).weapons.find((w) => w.id === id)!;
+    const text = readFileSync(join(MEASUREMENTS_DIR, `${id}.json`), 'utf8');
+    const record = JSON.parse(text) as Record<string, unknown> & {
+      conditions: { fovSetting: unknown; distanceToWallMeters: unknown; aimInputWhileFiring: unknown; confirmation: unknown };
+    };
+    for (const word of ['FOV 104', '壁まで 10 m', '射撃中の照準操作なし', '確認済み']) expect(weapon.source, `source に「${word}」`).toContain(word);
+    expect(record.conditions.fovSetting).toBe(104);
+    expect(record.conditions.distanceToWallMeters).toBe(10);
+    expect(record.conditions.aimInputWhileFiring).toMatch(/^なし/);
+    expect(record.conditions.confirmation).toMatch(/FOV 104・壁まで 10 m・.*射撃中の照準の操作なし.*撮影者に確かめた/);
+    expect(record).not.toHaveProperty('assumptions');
+    for (const s of [weapon.source, text]) expect(s).not.toMatch(/未確認|仮定|前提/);
+  });
+
   it('WPN-20: C.A.R. SMG は category が SMG で magSize が 30', () => {
     const car = buildWeaponList(readWeaponFiles()).weapons.find((w) => w.name === 'C.A.R. SMG')!;
     expect(car.category).toBe('SMG');

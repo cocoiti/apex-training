@@ -2,7 +2,7 @@
 
 ## 状態
 
-承認
+一部置き換え済み → [2026-11-26-car-conditions-confirmed](2026-11-26-car-conditions-confirmed.md)（C.A.R. SMG の撮影の条件の仮定）
 
 ## 背景
 

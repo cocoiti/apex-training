@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import range from '../../src/data/maps/range.json';
@@ -24,6 +26,7 @@ import { fieldOfView } from '../../src/render/fov';
 import { ImpactMarks } from '../../src/render/impacts';
 import { interpolateAngles, ViewScene } from '../../src/render/scene';
 import { viewAngles } from '../../src/sim/player';
+import { DEFAULT_COMMON_SETTINGS } from '../../src/ui/settings';
 import type { RecoilStep, WeaponData } from '../../src/sim/weapon';
 import { loadWorld, type World } from '../../src/sim/world';
 
@@ -36,6 +39,11 @@ function rangeWorld(): World {
 function zeroWeapon(): WeaponData {
   const pattern: RecoilStep[] = Array.from({ length: 10 }, () => ({ dx: 0, dy: 0 }));
   return { id: 'zero', name: 'ゼロ', category: 'AR', version: 'v', source: '仮データ', rpm: 600, magSize: 10, pattern, randomness: 0, measured: true };
+}
+
+function upwardWeapon(): WeaponData {
+  const pattern: RecoilStep[] = Array.from({ length: 10 }, () => ({ dx: 0, dy: 0.5 }));
+  return { id: 'up', name: '上向き', category: 'AR', version: 'v', source: '仮データ', rpm: 600, magSize: 10, pattern, randomness: 0, measured: true };
 }
 
 function recoilWeapon(): WeaponData {
@@ -297,6 +305,51 @@ describe('見た目と練習の結果', () => {
       expect(Math.hypot(m.position.x - center.x, m.position.y - center.y)).toBeLessThan(dot);
       expect(m.position.z).toBeGreaterThan(center.z + 0.004);
     }
+  });
+
+  it('randomness 0 で上向きの pattern の武器で照準を動かさずに数発撃つと、カメラが上を向き、的の中心は画面上で撃つ前より下に表示される（UI-76）', () => {
+    const world = rangeWorld();
+    const view = new ViewScene(world);
+    view.setAspect(16 / 9);
+    const [group] = byName(view.scene, 'target-rings-target');
+    const c = group!.userData.center as { x: number; y: number; z: number };
+    const screenY = () => {
+      view.scene.updateMatrixWorld();
+      return new THREE.Vector3(c.x, c.y, c.z).project(view.camera).y;
+    };
+    view.update(world, viewAngles(world.player));
+    const before = screenY();
+    expect(before).toBeCloseTo(0, 9);
+    const input = new RecordingInput(3);
+    input.push(0, { type: 'fire', pressed: true });
+    const session = new PracticeSession({ world, weapon: upwardWeapon(), mode: centerMode(), input, seed: input.seed });
+    for (let i = 0; i < 120 && session.gun.shots.length < 4; i += 1) session.step();
+    expect(session.gun.shots.length).toBeGreaterThanOrEqual(4);
+    // 利用者の照準は動かず、カメラの向きはリコイルのオフセットの分だけ上を向く。
+    expect(world.player.aim).toEqual(world.center);
+    const angles = viewAngles(world.player);
+    expect(angles.pitch).toBeGreaterThan(world.center.pitch);
+    view.update(world, angles);
+    expect(screenY()).toBeLessThan(before);
+    // 画面の中心（クロスヘアの位置）はカメラの向きのまま。
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(view.camera.quaternion);
+    expect(THREE.MathUtils.radToDeg(Math.asin(forward.y))).toBeCloseTo(angles.pitch, 9);
+  });
+
+  it('クロスヘアは画面の中心に固定され、設定画面に視点の跳ねとカメラの固定を切り替える項目はない（UI-76）', () => {
+    const root = resolve(__dirname, '../..');
+    const css = readFileSync(resolve(root, 'src/ui/style.css'), 'utf8');
+    const rule = /\n\.crosshair \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule).toMatch(/position: fixed;/);
+    expect(rule).toMatch(/left: 50%;/);
+    expect(rule).toMatch(/top: 50%;/);
+    const html = readFileSync(resolve(root, 'index.html'), 'utf8');
+    const form = /<form id="settings-form"[\s\S]*?<\/form>/.exec(html)?.[0] ?? '';
+    expect(form).toContain('setting-fov');
+    expect(form).not.toMatch(/視点の跳ね|カメラ|跳ね|リコイルの(表示|見せ方)|固定/);
+    expect(Object.keys(DEFAULT_COMMON_SETTINGS).sort()).toEqual(
+      ['correctionPanel', 'crosshairColor', 'crosshairShape', 'fov', 'ghost', 'inputMethod', 'patternDisplay', 'sound'].sort(),
+    );
   });
 
   it('ads を押している間と離している間で、カメラの視野角は同じ FOV から求めた値のまま（UI-22）', () => {
