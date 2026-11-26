@@ -82,6 +82,7 @@
 | MODE-55 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
 | MODE-56 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/top-cards-qa.acceptance.test.ts` |
 | MODE-57 | [modes.md](../../docs/spec/modes.md) | `tests/ui/language-browser.test.ts` |
+| MODE-58 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/humanoid-dummy-browser-qa.acceptance.test.ts` |
 | MOU-2 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-3 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-4 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
@@ -296,6 +297,8 @@
 | UI-132 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/language-qa.acceptance.test.ts` |
 | UI-133 | [screens.md](../../docs/spec/screens.md) | `tests/ui/language-browser.test.ts` |
 | UI-134 | [screens.md](../../docs/spec/screens.md) | `tests/ui/language-browser.test.ts` |
+| UI-135 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/humanoid-dummy-browser-qa.acceptance.test.ts` |
+| UI-137 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/humanoid-dummy-browser-qa.acceptance.test.ts` |
 | WPN-1 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-2 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-3 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
