@@ -1,13 +1,15 @@
 import type { ModeOption, TrainingMode } from '../modes/types';
 
 /**
- * 練習の選択肢（追いエイムの速さなど、docs/spec/screens.md「トップ画面」「履歴の画面」）の欄。
- * 決定の理由は docs/adr/2026-11-26-mode-practice-option.md。
+ * 練習の選択肢（追いエイムの速さ、フリックの出る範囲と的の大きさなど、docs/spec/screens.md「トップ画面」「履歴の画面」）の欄。
+ * 選択肢の id ごとに欄を 1 つ作り、同じ id の選択肢を持つモードで共有する。決定の理由は docs/adr/2026-11-26-mode-practice-option.md。
  */
 
-/** 登録されたモードのうち、最初に練習の選択肢を持つモードの選択肢。どれも持たなければ undefined。 */
-export function firstModeOption(modes: readonly Pick<TrainingMode, 'option'>[]): ModeOption | undefined {
-  return modes.find((m) => m.option)?.option;
+/** 登録されたモードの練習の選択肢を、id ごとに 1 つ（最初に出たもの）ずつ、モードの並び順・選択肢の並び順に並べる。 */
+export function modeOptionsOf(modes: readonly Pick<TrainingMode, 'options'>[]): ModeOption[] {
+  const seen = new Map<string, ModeOption>();
+  for (const option of modes.flatMap((m) => m.options ?? [])) if (!seen.has(option.id)) seen.set(option.id, option);
+  return [...seen.values()];
 }
 
 /** select の今の選択肢の値の id（option は select の直下に置く）。 */
@@ -44,13 +46,54 @@ export interface OptionChoiceElements {
 }
 
 /**
- * 選んでいるモードに合わせて練習の選択肢の欄を出すか決める。持つモードでは欄を出し、その選択肢の値を入れる（同じ選択肢なら選んでいる値を残す）。
- * 持たないモードでは欄を隠すだけで、select の値は残す。隠した欄にはパッドでの項目の移動でもフォーカスが移らない（src/ui/pad-menu.ts）。
+ * 練習の選択肢の欄を出すか決める。選択肢を渡したら欄を出し、その選択肢の値を入れる（同じ値の並びなら選んでいる値を残す）。
+ * undefined なら欄を隠すだけで、select の値は残す。隠した欄にはパッドでの項目の移動でもフォーカスが移らない（src/ui/pad-menu.ts）。
  */
-export function showOptionChoice(elements: OptionChoiceElements, mode: Pick<TrainingMode, 'option'> | undefined): void {
-  const option = mode?.option;
+export function showOptionChoice(elements: OptionChoiceElements, option: ModeOption | undefined): void {
   elements.choice.hidden = option === undefined;
   if (!option) return;
   if (elements.name && elements.name.textContent !== option.label) elements.name.textContent = option.label;
   fillOptionSelect(elements.select, option);
+}
+
+/** 練習の選択肢 1 つの欄。id は選択肢の id。 */
+export interface OptionField extends OptionChoiceElements {
+  readonly id: string;
+  /** 欄を作ったときの選択肢。履歴の画面を開くときの既定の値に使う。 */
+  readonly option: ModeOption;
+}
+
+/**
+ * 練習の選択肢ごとに欄（`<label class="choice">` の中に見出しと select）を作って container に入れる。どれも既定の値を選び、隠した状態で作る。
+ * 要素の id は `<prefix><選択肢の id>`（select）・`<prefix><選択肢の id>-choice`（欄）・`<prefix><選択肢の id>-label`（見出し）
+ * （例: `speed`、履歴の画面は `history-speed`）。
+ */
+export function buildOptionFields(container: HTMLElement, options: readonly ModeOption[], prefix = ''): OptionField[] {
+  const doc = container.ownerDocument;
+  const fields = options.map((option): OptionField => {
+    const choice = doc.createElement('label');
+    choice.className = 'choice';
+    choice.id = `${prefix}${option.id}-choice`;
+    choice.hidden = true;
+    const name = doc.createElement('span');
+    name.id = `${prefix}${option.id}-label`;
+    name.textContent = option.label;
+    const select = doc.createElement('select');
+    select.id = `${prefix}${option.id}`;
+    fillOptionSelect(select, option);
+    choice.append(name, ' ', select);
+    return { id: option.id, option, select, choice, name };
+  });
+  container.replaceChildren(...fields.map((f) => f.choice as HTMLElement));
+  return fields;
+}
+
+/** 選んでいるモードが持つ選択肢の欄だけを出す。持たない選択肢の欄は隠すだけで値を残す。 */
+export function showOptionFields(fields: readonly OptionField[], mode: Pick<TrainingMode, 'options'> | undefined): void {
+  for (const field of fields) showOptionChoice(field, mode?.options?.find((o) => o.id === field.id));
+}
+
+/** 欄で選んでいる値（選択肢の id → 値の id）。 */
+export function optionFieldValues(fields: readonly Pick<OptionField, 'id' | 'select'>[]): Record<string, string> {
+  return Object.fromEntries(fields.map((f) => [f.id, f.select.value]));
 }

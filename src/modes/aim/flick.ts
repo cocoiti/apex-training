@@ -4,11 +4,11 @@ import { anglesToPoint } from '../../sim/hit';
 import type { Box } from '../../sim/map';
 import { vec3, type Vec3 } from '../../sim/vec3';
 import type { World } from '../../sim/world';
-import type { CompareMetric, MetricSpec, ModeContext, ModeScore, ModeScoring, ModeSetting, ModeSettingValues, ScoringInput, TrainingMode } from '../types';
+import type { CompareMetric, MetricSpec, ModeContext, ModeOption, ModeOptionValues, ModeScore, ModeScoring, ScoringInput, TrainingMode } from '../types';
 
 /**
  * フリック（docs/spec/modes.md「フリック」）。壁の上のランダムな位置に的が 1 つずつ出て、照準を素早く合わせて 1 発撃つことを繰り返す。
- * 武器を使わないモードで、的の位置の並びは練習の始めに種付きの乱数と練習の設定だけから決める。
+ * 武器を使わないモードで、的の位置の並びは練習の始めに種付きの乱数と練習の選択肢の値だけから決める。
  * 採点は docs/spec/scoring.md「フリックの採点」。決定の理由は docs/adr/2026-11-26-flick-targets-planned-at-setup.md。
  */
 
@@ -38,31 +38,36 @@ export const FLICK_SIZES = {
 export type FlickRange = keyof typeof FLICK_RANGES;
 export type FlickSize = keyof typeof FLICK_SIZES;
 
-/** 練習の設定の項目（出る範囲と的の大きさ）。開いたときは「ふつう」「中」。 */
-export const FLICK_SETTINGS: readonly ModeSetting[] = [
-  {
-    id: 'range',
-    label: '出る範囲',
-    choices: (Object.keys(FLICK_RANGES) as FlickRange[]).map((id) => ({ id, name: FLICK_RANGES[id].name })),
-    default: 'normal',
-  },
-  {
-    id: 'size',
-    label: '的の大きさ',
-    choices: (Object.keys(FLICK_SIZES) as FlickSize[]).map((id) => ({ id, name: FLICK_SIZES[id].name })),
-    default: 'medium',
-  },
-];
+/** 出る範囲の選択肢。開いたときは「ふつう」。 */
+export const FLICK_RANGE_OPTION: ModeOption = {
+  id: 'flick-range',
+  label: '出る範囲',
+  choices: (Object.keys(FLICK_RANGES) as FlickRange[]).map((id) => ({ id, name: FLICK_RANGES[id].name })),
+  defaultChoice: 'normal',
+};
+
+/** 的の大きさの選択肢。開いたときは「中」。 */
+export const FLICK_SIZE_OPTION: ModeOption = {
+  id: 'flick-size',
+  label: '的の大きさ',
+  choices: (Object.keys(FLICK_SIZES) as FlickSize[]).map((id) => ({ id, name: FLICK_SIZES[id].name })),
+  defaultChoice: 'medium',
+};
+
+/** 練習の選択肢（出る範囲、的の大きさの順。保存のキーにもこの順に値の id を足す）。 */
+export const FLICK_OPTIONS: readonly ModeOption[] = [FLICK_RANGE_OPTION, FLICK_SIZE_OPTION];
 
 /** 的の板の奥行き（メートル）。 */
 const PLATE_DEPTH = 0.02;
 /** マップの箱のいちばん手前の面と、的の板の奥の面のあいだ（メートル）。 */
 const PLATE_GAP = 0.05;
 
-/** 練習の設定の値から出る範囲と的の大きさを読む。選べない値は既定の値。 */
-export function flickSettings(values: ModeSettingValues): { readonly range: FlickRange; readonly size: FlickSize } {
-  const range = values.range && values.range in FLICK_RANGES ? (values.range as FlickRange) : 'normal';
-  const size = values.size && values.size in FLICK_SIZES ? (values.size as FlickSize) : 'medium';
+/** 練習の選択肢の値から出る範囲と的の大きさを読む。選べない値は既定の値。 */
+export function flickSettings(values: ModeOptionValues): { readonly range: FlickRange; readonly size: FlickSize } {
+  const rangeId = values[FLICK_RANGE_OPTION.id];
+  const sizeId = values[FLICK_SIZE_OPTION.id];
+  const range = rangeId !== undefined && rangeId in FLICK_RANGES ? (rangeId as FlickRange) : 'normal';
+  const size = sizeId !== undefined && sizeId in FLICK_SIZES ? (sizeId as FlickSize) : 'medium';
   return { range, size };
 }
 
@@ -242,14 +247,14 @@ const flick: TrainingMode<FlickResult> = {
   id: 'flick',
   name: 'フリック',
   category: 'aim',
-  // 反復練習（20）のあとに並ぶ（docs/spec/modes.md「モードの登録」）。
-  order: 30,
+  // 反復練習（20）・追いエイム（30）・追いエイム＋リコイル（40）のあとに並ぶ（docs/spec/modes.md「モードの登録」）。
+  order: 50,
   usesWeapon: false,
   scoring: FLICK_SCORING,
-  settings: FLICK_SETTINGS,
+  options: FLICK_OPTIONS,
 
   setup(context) {
-    const { range, size } = flickSettings(context.settings);
+    const { range, size } = flickSettings(context.options);
     const state: FlickState = { offsets: flickOffsets(context.random, range), size, records: [], seenShots: 0, current: undefined };
     states.set(context, state);
     placeTarget(context, state, 0, FLICK_FIRST_APPEAR);
@@ -280,7 +285,7 @@ const flick: TrainingMode<FlickResult> = {
 
   result(context) {
     const state = stateOf(context);
-    return { settings: flickSettings(context.settings), offsets: state.offsets, targets: [...state.records] };
+    return { settings: flickSettings(context.options), offsets: state.offsets, targets: [...state.records] };
   },
 
   // 状態は context と一緒に捨てられる（WeakMap）。終わったあとの HUD の表示（20 / 20）にも使うので、ここでは消さない。

@@ -22,8 +22,9 @@
           <!-- 登録されたモードが 1 つのときは選択肢の欄を隠し、名前だけを出す（docs/spec/screens.md「トップ画面」）。 -->
           <label class="choice" id="mode-choice">モード <select id="mode"></select></label>
           <p class="choice" id="mode-only" hidden>モード <span id="mode-name" class="mode-name"></span></p>
-          <!-- 練習の選択肢（追いエイムの速さ）。持つモードを選んでいるときだけ出す（docs/spec/screens.md「トップ画面」）。 -->
-          <label class="choice" id="speed-choice" hidden><span id="speed-label">速さ</span> <select id="speed"></select></label>
+          <!-- 練習の選択肢（追いエイムの速さ、フリックの出る範囲と的の大きさ）の欄を選択肢ごとに入れる（src/ui/option-choices.ts）。
+               持つモードを選んでいるときだけ出す（docs/spec/screens.md「トップ画面」）。 -->
+          <div id="mode-options" class="option-list"></div>
           <label class="choice">回数 <select id="count"></select></label>
           <nav class="menu">
             <a href="#/play" id="start">開始</a>
@@ -198,6 +199,8 @@
         <div class="hud">
           <p class="hud-weapon" data-hud="weapon"></p>
           <p class="hud-ammo" data-hud="ammo"></p>
+          <!-- モードが出すもの（フリックの「的: 3 / 20」など、docs/spec/modes.md「共通」）。出さないモードでは隠す。 -->
+          <p class="hud-mode" data-hud="mode" hidden></p>
           <p class="hud-time" data-hud="time"></p>
           <p class="hud-input" data-hud="input"></p>
           <p class="hud-round" data-hud="round"></p>
@@ -315,7 +318,7 @@
               <label class="choice" id="history-weapon-choice">武器 <select id="history-weapon"></select></label>
               <label class="choice" id="history-mode-choice">モード <select id="history-mode"></select></label>
               <p class="choice" id="history-mode-only" hidden>モード <span id="history-mode-name" class="mode-name"></span></p>
-              <label class="choice" id="history-speed-choice" hidden><span id="history-speed-label">速さ</span> <select id="history-speed"></select></label>
+              <div id="history-mode-options" class="option-list"></div>
               <label class="choice">入力方式
                 <select id="history-input">
                   <option value="mouse">マウス</option>

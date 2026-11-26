@@ -1,4 +1,4 @@
-import { modeOptionChoice, modeUsesWeakSections, modeUsesWeapon, type CompareMetric, type MetricSpec, type TrainingMode } from '../modes/types';
+import { modeOptionChoices, modeUsesWeakSections, modeUsesWeapon, type CompareMetric, type MetricSpec, type ModeOption, type TrainingMode } from '../modes/types';
 import { compareMetric, formatMetric, historyColumns, NO_WEAPON_ID, SHOT_DEVIATION_COLUMNS, SHOT_DEVIATION_METRIC } from './mode-scoring';
 import type { InputMethod } from './personal-best';
 import {
@@ -253,10 +253,11 @@ export interface HistoryElements {
   /** 武器の選択肢の欄。武器を使わないモードを選んでいるあいだは隠す。 */
   readonly weaponChoice?: Pick<HTMLElement, 'hidden'>;
   readonly mode: ChoiceElement;
-  /** 練習の選択肢（速さ）の選択肢。練習の選択肢を持つモードを選んでいるときだけ使う。 */
-  readonly option?: ChoiceElement;
-  /** 練習の選択肢の欄。練習の選択肢を持たないモードを選んでいるあいだは隠す。 */
-  readonly optionChoice?: Pick<HTMLElement, 'hidden'>;
+  /**
+   * 練習の選択肢（速さ、出る範囲、的の大きさなど）の欄。選択肢ごとに 1 つ（src/ui/option-choices.ts）。
+   * 選んでいるモードが持つ選択肢の欄だけを出し、ほかの欄は隠す。
+   */
+  readonly options?: readonly HistoryOptionField[];
   readonly input: ChoiceElement;
   readonly averages: Pick<HTMLElement, 'innerHTML'>;
   readonly plot: Pick<HTMLElement, 'innerHTML'>;
@@ -279,13 +280,21 @@ export interface HistoryElements {
   };
 }
 
+/** 履歴の画面の練習の選択肢 1 つの欄。id は選択肢の id、option は欄を作ったときの選択肢（既定の値に使う）。 */
+export interface HistoryOptionField {
+  readonly id: string;
+  readonly option: Pick<ModeOption, 'defaultChoice'>;
+  readonly select: ChoiceElement;
+  readonly choice: Pick<HTMLElement, 'hidden'>;
+}
+
 /** click を登録できる要素。 */
 export interface Clickable {
   addEventListener(type: 'click', listener: () => void): void;
 }
 
 /** 履歴の画面が使うモードの項目。 */
-export type HistoryMode = Pick<TrainingMode, 'id' | 'usesWeapon' | 'scoring' | 'weakSections' | 'option'>;
+export type HistoryMode = Pick<TrainingMode, 'id' | 'usesWeapon' | 'scoring' | 'weakSections' | 'options'>;
 
 export interface HistoryViewOptions {
   readonly storage: Pick<SafeStorage, 'get' | 'remove' | 'onUnavailable'>;
@@ -311,14 +320,17 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
   const mode = (): HistoryMode => options.modes?.find((m) => m.id === elements.mode.value) ?? { id: elements.mode.value };
   // 武器を使わないモードの組は、武器の id の代わりに NO_WEAPON_ID のキーで持つ（docs/spec/scoring.md「保存の形」）。
   // 武器の選択肢は隠すだけで値を残すので、武器を使うモードに選び直すと前に選んでいた武器の組になる。
-  // 練習の選択肢を持つモードの組は、選んだ値（速さ）ごとのキーで持つ。選択肢の値は隠しているあいだも残し、同じ選択肢を持つモードで共有する。
+  // 練習の選択肢を持つモードの組は、選んだ値（速さ、出る範囲と的の大きさ）の組ごとのキーで持つ。選択肢の値は隠しているあいだも残し、
+  // 同じ選択肢を持つモードで共有する。
+  const fields = elements.options ?? [];
   const selection = (): HistorySelection => {
-    const option = modeOptionChoice(mode(), elements.option?.value);
+    const given = Object.fromEntries(fields.map((f) => [f.id, f.select.value]));
+    const chosen = modeOptionChoices(mode(), given).map((s) => s.choice.id);
     return {
       input: INPUT_IDS.includes(elements.input.value) ? (elements.input.value as InputMethod) : 'mouse',
       weaponId: modeUsesWeapon(mode()) ? elements.weapon.value : NO_WEAPON_ID,
       modeId: elements.mode.value,
-      ...(option ? { option: option.id } : {}),
+      ...(chosen.length > 0 ? { options: chosen } : {}),
     };
   };
   const entriesOf = () => loadModeHistory(options.storage, selection(), compareMetric(mode()));
@@ -328,7 +340,7 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
     const metric = compareMetric(current);
     const entries = entriesOf();
     if (elements.weaponChoice) elements.weaponChoice.hidden = !modeUsesWeapon(current);
-    if (elements.optionChoice) elements.optionChoice.hidden = current.option === undefined;
+    for (const field of fields) field.choice.hidden = !current.options?.some((o) => o.id === field.id);
     elements.averages.innerHTML = historyAveragesHtml(entries, options.now(), metric);
     elements.plot.innerHTML = historyPlotHtml(entries, metric);
     // 発の区間ごとのズレの図と苦手な区間は、苦手な区間を使うモード（反復練習）だけで出す。
@@ -345,7 +357,7 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
     elements.body.inert = shown;
   };
 
-  for (const choice of [elements.weapon, elements.mode, elements.input, ...(elements.option ? [elements.option] : [])]) {
+  for (const choice of [elements.weapon, elements.mode, elements.input, ...fields.map((f) => f.select)]) {
     choice.addEventListener('change', render);
   }
   elements.clear.addEventListener('click', () => {
@@ -369,9 +381,10 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
       if (next.weaponId !== NO_WEAPON_ID) elements.weapon.value = next.weaponId;
       elements.mode.value = next.modeId;
       elements.input.value = next.input;
-      // 練習の選択肢は、このページで終えた練習の値か、なければ既定の値（ふつう）にする。
-      const option = options.modes?.find((m) => m.id === next.modeId)?.option ?? options.modes?.find((m) => m.option)?.option;
-      if (elements.option && option) elements.option.value = next.option ?? option.defaultChoice;
+      // 練習の選択肢は、このページで終えた練習の値か、なければ既定の値（速さはふつう）にする。
+      const nextOptions = options.modes?.find((m) => m.id === next.modeId)?.options ?? [];
+      const given = new Map(nextOptions.map((o, i) => [o.id, next.options?.[i]]));
+      for (const field of fields) field.select.value = given.get(field.id) ?? field.option.defaultChoice;
       showConfirm(false);
       render();
     },
