@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { t } from '../../src/ui/i18n';
+import { setLanguage, t } from '../../src/ui/i18n';
 import { FLICK_RANGE_OPTION, FLICK_SIZE_OPTION, TIME_PER_HIT_METRIC } from '../../src/modes/aim/flick';
 import { modes } from '../../src/modes/registry';
 import { score } from '../../src/sim/scoring';
@@ -290,6 +290,21 @@ describe('履歴の画面', () => {
     expect(page.elements.unavailable).toEqual({ hidden: false, textContent: t('history.unavailable') });
     expect(t('history.unavailable')).toBe('この環境では履歴を保存できません。ページを開いているあいだの練習だけが表示されます。');
     expect(listedMeans(page.elements.list.innerHTML)).toEqual(['1.00°', '2.00°']);
+  });
+
+  it('UI-134: 保存できない文言は、表示の言語を切り替えるとその言語の文言に書き直す', () => {
+    const backing = new FakeBacking();
+    backing.failWrites = true;
+    const page = openPage(backing);
+    recordHistory(page.storage, LSTAR_GHOST, result(1), NOW);
+    page.view.open(LSTAR_GHOST);
+    try {
+      setLanguage('en');
+      expect(page.elements.unavailable).toEqual({ hidden: false, textContent: t('history.unavailable') });
+      expect(page.elements.unavailable.textContent).toBe("History can't be saved in this environment. Only practice from this page session is shown.");
+    } finally {
+      setLanguage('ja');
+    }
   });
 
   it('保存できる環境では保存できない文言を出さない', () => {

@@ -10,7 +10,7 @@ import {
   type HistorySelection,
   type StoredEntry,
 } from './practice-history';
-import { t } from './i18n';
+import { onLanguageChange, t } from './i18n';
 import { escapeHtml } from './result-plot';
 import type { SafeStorage } from './storage';
 import {
@@ -362,6 +362,10 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
   options.storage.onUnavailable(() => {
     elements.unavailable.textContent = t('history.unavailable');
     elements.unavailable.hidden = false;
+  });
+  // 保存できないことの知らせは、表示の言語を切り替えたときにその言語の文言に書き直す。
+  onLanguageChange(() => {
+    if (!elements.unavailable.hidden) elements.unavailable.textContent = t('history.unavailable');
   });
 
   return {
