@@ -86,48 +86,87 @@ export function previewCues(weapon: Pick<WeaponData, 'pattern' | 'magSize' | 'rp
   return simplePattern(weapon).segments.map((segment) => ({ time: segment.from * interval, direction: segment.direction }));
 }
 
-/** 時刻を待って呼ぶもの。ブラウザでは setTimeout と clearTimeout。 */
-export interface PreviewTimers {
-  set(callback: () => void, ms: number): unknown;
-  clear(handle: unknown): void;
+/** 試聴の音を、鳴らす時刻よりどれだけ前（秒）に Web Audio へ予約するか。描画が遅れても、この時間までなら音は遅れない。 */
+export const PREVIEW_LOOKAHEAD = 0.25;
+
+/** 試聴の時刻を数えるページの時計（src/core/frame-clock.ts の FrameClock の、試聴に使う部分）。 */
+export interface PreviewClock {
+  /** 今の時刻（秒）。 */
+  now(): number;
+  /** 次の描画で cb を 1 回呼ぶ。 */
+  requestFrame(cb: () => void): void;
+}
+
+/** 予約した 1 つの音。cancel で、まだ鳴っていなければ鳴らさず、鳴っていれば止める。 */
+export interface ScheduledTone {
+  cancel(): void;
+}
+
+/** 試聴の音を鳴らす先。ブラウザでは DirectionSound。 */
+export interface PreviewOutput {
+  /** 音の時計（AudioContext.currentTime）の今の時刻（秒）。音を鳴らせないあいだは undefined。 */
+  now(): number | undefined;
+  /** direction の向きの音を、音の時計の when 秒に鳴らすよう予約する。鳴らせないときは undefined。 */
+  schedule(direction: string, when: number): ScheduledTone | undefined;
 }
 
 /**
  * トップ画面の「パターンの音を聞く」（docs/spec/screens.md「音」の「試聴」）。区切りの順に向きの音を鳴らし、
  * 止めたときは残りの音を鳴らさない。鳴らすかどうか（音の設定）は呼ぶ側が決める。
+ * どの音まで予約したかはページの時計で数え、予約した音は「押した時点の音の時計 + 区切りの時刻」に鳴らす。
+ * 音の時刻を押した時点からの経過で決めるので、描画やタイマーが遅れても次の音に遅れが積み重ならない。
  */
 export class SoundPreview {
-  private handles: unknown[] = [];
+  /** 今の試聴。始め直す・止めるたびに新しいものに替え、前の試聴の描画の呼び出しは何もしない。 */
+  private current: { readonly tones: ScheduledTone[] } | undefined;
 
   constructor(
     private readonly options: {
-      readonly timers: PreviewTimers;
+      readonly clock: PreviewClock;
       /** 試聴が始まった・終わった（最後の音を鳴らした、または止めた）。 */
       readonly onChange: (playing: boolean) => void;
     },
   ) {}
 
   get playing(): boolean {
-    return this.handles.length > 0;
+    return this.current !== undefined;
   }
 
   /** weapon の試聴を最初から始める。試聴の途中なら止めてから始める。 */
-  start(weapon: Pick<WeaponData, 'pattern' | 'magSize' | 'rpm'>, play: (direction: string) => void): void {
+  start(weapon: Pick<WeaponData, 'pattern' | 'magSize' | 'rpm'>, output: PreviewOutput): void {
     this.cancel();
     const cues = previewCues(weapon);
     if (cues.length === 0) return;
-    let left = cues.length;
-    this.handles = cues.map((cue) =>
-      this.options.timers.set(() => {
-        play(cue.direction);
-        left -= 1;
-        if (left === 0) {
-          this.handles = [];
-          this.options.onChange(false);
-        }
-      }, cue.time * 1000),
-    );
+    const { clock } = this.options;
+    const run = { tones: [] as ScheduledTone[] };
+    this.current = run;
+    const startedAt = clock.now();
+    const lastAt = (cues[cues.length - 1] as PreviewCue).time;
+    // 押した時点の音の時計。音を鳴らせるようになった時点で、ページの時計の経過から逆算して決める。
+    let audioStart: number | undefined;
+    let next = 0;
+    const tick = () => {
+      if (this.current !== run) return;
+      const elapsed = clock.now() - startedAt;
+      if (audioStart === undefined) {
+        const audioNow = output.now();
+        if (audioNow !== undefined) audioStart = audioNow - elapsed;
+      }
+      // 音を鳴らせないあいだに時刻が来た音は鳴らさずに進める。
+      for (; next < cues.length && (cues[next] as PreviewCue).time <= elapsed + PREVIEW_LOOKAHEAD; next += 1) {
+        const cue = cues[next] as PreviewCue;
+        const tone = audioStart === undefined ? undefined : output.schedule(cue.direction, audioStart + cue.time);
+        if (tone) run.tones.push(tone);
+      }
+      if (elapsed >= lastAt) {
+        this.current = undefined;
+        this.options.onChange(false);
+        return;
+      }
+      clock.requestFrame(tick);
+    };
     this.options.onChange(true);
+    clock.requestFrame(tick);
   }
 
   /** 試聴を止める。試聴していなければ何もしない。 */
@@ -138,8 +177,8 @@ export class SoundPreview {
   }
 
   private cancel(): void {
-    for (const handle of this.handles) this.options.timers.clear(handle);
-    this.handles = [];
+    for (const tone of this.current?.tones ?? []) tone.cancel();
+    this.current = undefined;
   }
 }
 
@@ -152,6 +191,7 @@ interface ParamLike {
 
 interface NodeLike {
   connect(destination: unknown): unknown;
+  disconnect(): void;
 }
 
 /** Web Audio の AudioContext の、音に使う部分。テストでは偽物を渡す。 */
@@ -206,14 +246,28 @@ export class DirectionSound {
     }
   }
 
-  /** direction の向きの音を、音量 volume（0〜100）に比例した大きさで 1 回鳴らす。 */
+  /** 音の時計（AudioContext.currentTime）の今の時刻（秒）。音を鳴らせないあいだ（操作の前・ブラウザが許さない・Web Audio がない）は undefined。 */
+  now(): number | undefined {
+    const context = this.context;
+    return context && context.state === 'running' ? context.currentTime : undefined;
+  }
+
+  /** direction の向きの音を、音量 volume（0〜100）に比例した大きさで今すぐ 1 回鳴らす。 */
   play(direction: string, volume: number): void {
+    this.schedule(direction, volume);
+  }
+
+  /**
+   * direction の向きの音を、音量 volume（0〜100）に比例した大きさで、音の時計の when 秒（省略時は今）に 1 回鳴らす。
+   * 鳴らせないときは undefined を返す。
+   */
+  schedule(direction: string, volume: number, when?: number): ScheduledTone | undefined {
     const tone = DIRECTION_TONES[direction];
     const context = this.context;
-    if (!tone || !context || context.state !== 'running' || volume <= 0) return;
+    if (!tone || !context || context.state !== 'running' || volume <= 0) return undefined;
     try {
       const peak = (MAX_TONE_GAIN * Math.min(100, volume)) / 100;
-      const start = context.currentTime;
+      const start = Math.max(context.currentTime, when ?? 0);
       const end = start + TONE_DURATION;
       const oscillator = context.createOscillator();
       oscillator.type = tone.wave;
@@ -227,8 +281,19 @@ export class DirectionSound {
       gain.connect(context.destination);
       oscillator.start(start);
       oscillator.stop(end);
+      return {
+        cancel: () => {
+          try {
+            oscillator.stop(0);
+            gain.disconnect();
+          } catch {
+            // 止められなくても練習と画面は続ける。
+          }
+        },
+      };
     } catch {
       // 鳴らせなくても練習は続ける。
+      return undefined;
     }
   }
 }

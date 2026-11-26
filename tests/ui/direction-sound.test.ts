@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { TimedAction } from '../../src/input/actions';
+import { ManualFrameClock } from '../../src/core/frame-clock';
 import { RecordingInput } from '../../src/input/recording';
 import { modes } from '../../src/modes/registry';
 import { PracticeSession, replayPracticeSession } from '../../src/modes/session';
@@ -22,7 +23,9 @@ import {
   SoundPreview,
   TONE_DURATION,
   type AudioContextLike,
-  type PreviewTimers,
+  PREVIEW_LOOKAHEAD,
+  type PreviewOutput,
+  type ScheduledTone,
 } from '../../src/ui/direction-sound';
 
 function wallWorld(): World {
@@ -63,7 +66,7 @@ function practiceSounds(actions: TimedAction[], options: { weapon?: WeaponData; 
   const weapon = options.weapon ?? threeSegmentWeapon();
   const input = new RecordingInput(1);
   for (const { time, action } of actions) input.push(time, action);
-  const session = new PracticeSession({ world: wallWorld(), weapon, mode: modeById(options.mode ?? 'pattern'), input, seed: input.seed });
+  const session = new PracticeSession({ world: wallWorld(), weapon, mode: modeById(options.mode ?? 'ghost'), input, seed: input.seed });
   const played: { shot: number; direction: string }[] = [];
   const sounds = new ShotSounds(
     simplePattern(weapon),
@@ -153,8 +156,8 @@ describe('練習中の向きの音', () => {
     expect(interval).toBeCloseTo(0.1, 9);
   });
 
-  it('MODE-28: どのモードでも 1 発目で最初の区切りの向きの音が鳴る', () => {
-    for (const mode of ['pattern', 'ghost', 'center']) {
+  it('MODE-29: どのモードでも 1 発目で最初の区切りの向きの音が鳴る', () => {
+    for (const mode of ['ghost', 'center']) {
       const { played } = practiceSounds([press(0)], { mode });
       expect(played).toEqual([
         { shot: 1, direction: '下' },
@@ -164,7 +167,7 @@ describe('練習中の向きの音', () => {
     }
   });
 
-  it('MODE-29: 練習を作り直したあとに撃ち始めると、1 発目で最初の区切りの音が鳴る', () => {
+  it('MODE-30: 練習を作り直したあとに撃ち始めると、1 発目で最初の区切りの音が鳴る', () => {
     const first = practiceSounds([press(0), release(0.55)]);
     expect(first.played).toEqual([{ shot: 1, direction: '下' }]);
     const again = practiceSounds([press(0.2)]);
@@ -192,33 +195,22 @@ describe('練習中の向きの音', () => {
   });
 });
 
-/** 時刻を手で進めるタイマー。 */
-class FakeTimers implements PreviewTimers {
-  now = 0;
-  private next = 0;
-  private readonly pending = new Map<number, { at: number; callback: () => void }>();
-
-  set(callback: () => void, ms: number): unknown {
-    const id = this.next++;
-    this.pending.set(id, { at: this.now + ms, callback });
-    return id;
-  }
-
-  clear(handle: unknown): void {
-    this.pending.delete(handle as number);
-  }
-
-  advance(ms: number): void {
-    const end = this.now + ms;
-    for (;;) {
-      const due = [...this.pending.entries()].filter(([, t]) => t.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
-      if (!due) break;
-      this.pending.delete(due[0]);
-      this.now = due[1].at;
-      due[1].callback();
-    }
-    this.now = end;
-  }
+/** 予約された音を記録する、試聴の音の出口の偽物。音の時計はページの時計から offset 秒ずれて進む。 */
+function fakeOutput(clock: ManualFrameClock, offset = 100) {
+  const scheduled: { direction: string; when: number; calledAt: number; cancelledAt: number | undefined }[] = [];
+  let available = true;
+  const output: PreviewOutput = {
+    now: () => (available ? clock.now() + offset : undefined),
+    schedule: (direction, when): ScheduledTone | undefined => {
+      if (!available) return undefined;
+      const entry = { direction, when, calledAt: clock.now() + offset, cancelledAt: undefined as number | undefined };
+      scheduled.push(entry);
+      return { cancel: () => void (entry.cancelledAt ??= clock.now() + offset) };
+    },
+  };
+  /** 鳴った（予約されて、鳴る時刻より前に取り消されなかった）音。 */
+  const heard = () => scheduled.filter((e) => e.cancelledAt === undefined || e.cancelledAt > e.when);
+  return { output, scheduled, heard, setAvailable: (on: boolean) => void (available = on) };
 }
 
 describe('試聴', () => {
@@ -226,55 +218,108 @@ describe('試聴', () => {
     const weapon = lstar();
     const segments = simplePattern(weapon).segments;
     const interval = fireInterval(weapon);
-    const timers = new FakeTimers();
+    const clock = new ManualFrameClock(undefined, 5);
+    const { output, scheduled } = fakeOutput(clock);
     const changes: boolean[] = [];
-    const played: { time: number; direction: string }[] = [];
-    const preview = new SoundPreview({ timers, onChange: (playing) => changes.push(playing) });
-    preview.start(weapon, (direction) => played.push({ time: timers.now, direction }));
+    const preview = new SoundPreview({ clock, onChange: (playing) => changes.push(playing) });
+    preview.start(weapon, output);
     expect(preview.playing).toBe(true);
     expect(changes).toEqual([true]);
-    timers.advance(60_000);
-    expect(played.map((p) => p.direction)).toEqual(segments.map((s) => s.direction));
-    played.forEach((p, i) => expect(p.time).toBeCloseTo(segments[i]!.from * interval * 1000, 6));
-    expect(previewCues(weapon).map((c) => c.time)).toEqual(segments.map((s) => s.from * interval));
+    const lastAt = segments.at(-1)!.from * interval;
+    clock.advance(lastAt - 0.02);
+    expect(changes).toEqual([true]);
+    clock.advance(0.05);
     expect(changes).toEqual([true, false]);
     expect(preview.playing).toBe(false);
+    clock.advance(10);
+    expect(scheduled.map((p) => p.direction)).toEqual(segments.map((s) => s.direction));
+    // 押した時点（音の時計で 105 秒）からの時刻に、区切りごとに予約する。
+    scheduled.forEach((p, i) => expect(p.when).toBeCloseTo(105 + segments[i]!.from * interval, 9));
+    expect(previewCues(weapon).map((c) => c.time)).toEqual(segments.map((s) => s.from * interval));
+  });
+
+  it('UI-78: 描画が大きく遅れても、音の時刻は押した時点からの経過で決まり、遅れが積み重ならない', () => {
+    const weapon = lstar();
+    const segments = simplePattern(weapon).segments;
+    const interval = fireInterval(weapon);
+    const clock = new ManualFrameClock(undefined, 0);
+    const { output, scheduled } = fakeOutput(clock);
+    const preview = new SoundPreview({ clock, onChange: () => {} });
+    preview.start(weapon, output);
+    clock.advance(1 / 60);
+    // そのあとの描画が 0.2 秒ずつ遅れる。
+    clock.advance(10, 0.2);
+    expect(scheduled.map((p) => p.direction)).toEqual(segments.map((s) => s.direction));
+    scheduled.forEach((p, i) => expect(p.when).toBeCloseTo(100 + segments[i]!.from * interval, 9));
+    // 押した直後の最初の音のほかは、遅れが先読み（PREVIEW_LOOKAHEAD）より短ければ、鳴る時刻より前に予約できている。
+    scheduled.slice(1).forEach((p) => expect(p.calledAt).toBeLessThanOrEqual(p.when + 1e-9));
+    expect(PREVIEW_LOOKAHEAD).toBeGreaterThan(0.2);
   });
 
   it('UI-78: 途中で止めると、それより後の音は鳴らない', () => {
     const weapon = lstar();
     const cues = previewCues(weapon);
     expect(cues.length).toBeGreaterThanOrEqual(2);
-    const timers = new FakeTimers();
+    const clock = new ManualFrameClock(undefined, 0);
+    const { output, scheduled, heard } = fakeOutput(clock);
     const changes: boolean[] = [];
-    const played: string[] = [];
-    const preview = new SoundPreview({ timers, onChange: (playing) => changes.push(playing) });
-    preview.start(weapon, (direction) => played.push(direction));
-    timers.advance(cues[1]!.time * 1000 - 1);
-    expect(played).toEqual([cues[0]!.direction]);
+    const preview = new SoundPreview({ clock, onChange: (playing) => changes.push(playing) });
+    preview.start(weapon, output);
+    // 2 つ目の音を先読みで予約したあと、鳴る前に止める。
+    clock.advance(cues[1]!.time - 0.01);
+    expect(scheduled.map((p) => p.direction)).toEqual([cues[0]!.direction, cues[1]!.direction]);
     preview.stop();
-    timers.advance(60_000);
-    expect(played).toEqual([cues[0]!.direction]);
+    clock.advance(60);
+    expect(scheduled).toHaveLength(2);
+    expect(heard().map((p) => p.direction)).toEqual([cues[0]!.direction]);
     expect(changes).toEqual([true, false]);
     preview.stop();
     expect(changes).toEqual([true, false]);
   });
 
   it('UI-79: 試聴を始め直すと、前の試聴の残りの音は鳴らない', () => {
-    const timers = new FakeTimers();
-    const played: string[] = [];
-    const preview = new SoundPreview({ timers, onChange: () => {} });
-    preview.start(lstar(), (d) => played.push(`lstar:${d}`));
-    timers.advance(1);
-    preview.start(threeSegmentWeapon(), (d) => played.push(`w:${d}`));
-    timers.advance(60_000);
-    expect(played).toEqual([`lstar:${previewCues(lstar())[0]!.direction}`, 'w:下', 'w:左下', 'w:右下']);
+    const clock = new ManualFrameClock(undefined, 0);
+    const first = fakeOutput(clock);
+    const second = fakeOutput(clock);
+    const preview = new SoundPreview({ clock, onChange: () => {} });
+    preview.start(lstar(), first.output);
+    clock.advance(0.01);
+    preview.start(threeSegmentWeapon(), second.output);
+    clock.advance(60);
+    expect(first.heard().map((p) => p.direction)).toEqual([previewCues(lstar())[0]!.direction]);
+    expect(second.heard().map((p) => p.direction)).toEqual(['下', '左下', '右下']);
+  });
+
+  it('UI-83: 音を鳴らせないあいだに時刻が来た音は鳴らさず、鳴らせるようになったあとの音は押した時点からの時刻に鳴らす', () => {
+    const weapon = threeSegmentWeapon();
+    const interval = fireInterval(weapon);
+    const clock = new ManualFrameClock(undefined, 0);
+    const { output, scheduled, setAvailable } = fakeOutput(clock);
+    const changes: boolean[] = [];
+    const preview = new SoundPreview({ clock, onChange: (playing) => changes.push(playing) });
+    setAvailable(false);
+    preview.start(weapon, output);
+    clock.advance(0.5);
+    setAvailable(true);
+    clock.advance(60);
+    expect(scheduled.map((p) => [p.direction, p.when])).toEqual([
+      ['左下', 100 + 8 * interval],
+      ['右下', 100 + 20 * interval],
+    ]);
+    expect(changes).toEqual([true, false]);
   });
 });
 
 /** 作った音の高さ・波形・大きさの変化を記録する AudioContext の偽物。 */
 function fakeContext(state = 'running') {
-  const tones: { type: string; frequency: number; start?: number | undefined; stop?: number | undefined; gain: [string, number, number][] }[] = [];
+  const tones: {
+    type: string;
+    frequency: number;
+    start?: number | undefined;
+    stop?: number | undefined;
+    disconnected?: boolean;
+    gain: [string, number, number][];
+  }[] = [];
   const context = {
     state,
     currentTime: 2,
@@ -301,6 +346,7 @@ function fakeContext(state = 'running') {
           linearRampToValueAtTime: () => {},
         },
         connect: () => {},
+        disconnect: () => {},
         start: (when?: number) => void (tone.start = when),
         stop: (when?: number) => void (tone.stop = when),
       };
@@ -314,6 +360,7 @@ function fakeContext(state = 'running') {
           linearRampToValueAtTime: (v: number, t: number) => void tone.gain.push(['ramp', v, t]),
         },
         connect: () => {},
+        disconnect: () => void (tone.disconnected = true),
       };
     },
   };
@@ -370,6 +417,25 @@ describe('Web Audio での合成', () => {
     const rejecting = fakeContext('suspended');
     rejecting.resume.mockImplementation(() => Promise.reject(new Error('許さない')));
     expect(() => new DirectionSound(() => rejecting.context).unlock()).not.toThrow();
+  });
+
+  it('UI-78: 音の時計の指定した時刻に予約でき、取り消すと止めてつなぎを外す。過ぎた時刻は今に鳴らし、鳴らせないときは undefined', () => {
+    const { context, tones } = fakeContext();
+    const sound = new DirectionSound(() => context);
+    expect(sound.now()).toBeUndefined();
+    expect(sound.schedule('下', 50, 3)).toBeUndefined();
+    sound.unlock();
+    expect(sound.now()).toBe(2);
+    const tone = sound.schedule('下', 50, 3.5)!;
+    expect(tones.at(-1)!.start).toBe(3.5);
+    expect(tones.at(-1)!.stop).toBeCloseTo(3.5 + TONE_DURATION, 9);
+    tone.cancel();
+    expect(tones.at(-1)!.stop).toBe(0);
+    expect(tones.at(-1)!.disconnected).toBe(true);
+    sound.schedule('下', 50, 1);
+    expect(tones.at(-1)!.start).toBe(2);
+    expect(sound.schedule('斜め', 50, 3)).toBeUndefined();
+    expect(new DirectionSound(() => fakeContext('suspended').context).now()).toBeUndefined();
   });
 
   it('音量 0 と知らない向きは鳴らさない', () => {

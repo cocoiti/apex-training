@@ -527,7 +527,7 @@ async function start(): Promise<void> {
   const previewNote = document.querySelector<HTMLElement>('#preview-sound-note');
   const previewLabel = previewButton?.textContent ?? '';
   const preview = new SoundPreview({
-    timers: { set: (callback, ms) => window.setTimeout(callback, ms), clear: (handle) => window.clearTimeout(handle as number) },
+    clock,
     onChange: (playing) => {
       if (previewButton) previewButton.textContent = playing ? '止める' : previewLabel;
     },
@@ -550,7 +550,10 @@ async function start(): Promise<void> {
     const weapon = weapons.find((w) => w.id === weaponSelect.value);
     if (soundBlockedReason(common) || !weapon) return;
     directionSound.unlock();
-    preview.start(weapon, (direction) => directionSound.play(direction, common.volume));
+    preview.start(weapon, {
+      now: () => directionSound.now(),
+      schedule: (direction, when) => directionSound.schedule(direction, common.volume, when),
+    });
   });
   // 武器の選択を変えたら試聴を止める。
   weaponSelect.addEventListener('change', () => preview.stop());
