@@ -109,9 +109,10 @@ const PAGE_INIT = `
   window.__focused = () => {
     const els = [...document.querySelectorAll('.pad-focus')];
     if (els.length === 0) return '';
-    if (els.length > 1) return 'MULTIPLE:' + els.map((e) => e.id || e.textContent.trim()).join(',');
+    if (els.length > 1) return 'MULTIPLE:' + els.map((e) => e.getAttribute('data-card-choice') || e.id || e.textContent.trim()).join(',');
     const el = els[0];
-    return el.id || el.textContent.replace(/\\s+/g, ' ').trim();
+    // トップ画面のカードの並びは、並びが選んでいる値を持つ select の id（weapon・mode）で表す。
+    return el.getAttribute('data-card-choice') || el.id || el.textContent.replace(/\\s+/g, ' ').trim();
   };
 
 })();
@@ -465,7 +466,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     expect(await value(page, '#weapon')).toBe(weaponBefore);
     await page.frames(3);
     const weaponFocused = await screenshot(page);
-    const weaponRect = await rectOf(page, '#weapon');
+    const weaponRect = await rectOf(page, '#weapon-cards');
     expect(ringDiff(noFocus, weaponFocused, weaponRect), '武器の欄の周りに、フォーカスがないときと見分けられる枠が出る').toBeGreaterThan(20);
 
     // 武器の次の項目は「パターンの音を聞く」、その次がモード、その次が回数（反復練習では速さの欄は隠れていて、フォーカスが移らない）。

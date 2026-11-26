@@ -342,7 +342,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
       expect(modes).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック', '受け入れの追加モード']);
       // モードが 2 つ以上なので、選択肢の欄が見えている。
-      expect(await page.evaluate<boolean>(`document.querySelector('#mode').getClientRects().length > 0 && !document.querySelector('#mode').closest('[hidden]')`)).toBe(true);
+      expect(await page.evaluate<boolean>(`document.querySelector('#mode-cards').getClientRects().length > 0 && !document.querySelector('#mode-cards').closest('[hidden]')`)).toBe(true);
       // 足したモードで練習を始められる。
       await start(page, origin, 'L-STAR', '受け入れの追加モード');
       expect(await hash(page)).toBe('#/play');
@@ -357,7 +357,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
       expect(modes).toEqual(['受け入れの追加モード', '反復練習', '追いエイム', '追いエイム＋リコイル', 'フリック']);
-      expect(await page.evaluate<boolean>(`document.querySelector('#mode').getClientRects().length > 0 && !document.querySelector('#mode').closest('[hidden]')`)).toBe(true);
+      expect(await page.evaluate<boolean>(`document.querySelector('#mode-cards').getClientRects().length > 0 && !document.querySelector('#mode-cards').closest('[hidden]')`)).toBe(true);
       // 開いたときは並び順の最初のモードが選ばれている（screens.md「トップ画面」）。
       expect(await page.evaluate<string>(`document.querySelector('#mode').selectedOptions[0]?.textContent.trim() ?? ''`)).toBe('受け入れの追加モード');
       // 反復練習も選んで始められる。
@@ -610,6 +610,8 @@ const EXTRA_MODE = `import type { TrainingMode } from '../types';
 const mode: TrainingMode = {
   id: 'acceptance-extra',
   name: '受け入れの追加モード',
+  description: '受け入れテストで足したモードの説明',
+  icon: 'spray',
   category: 'recoil',
   order: 100000,
   setup() {},

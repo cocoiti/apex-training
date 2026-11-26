@@ -37,7 +37,9 @@ import { renderHud, type HudElements } from './ui/hud';
 import { renderCalibration, calibrationRadii, type CalibrationElements } from './ui/pad-calibration';
 import { MappingAutoOpen, PadMappingScreen, PadMappingStore } from './ui/pad-mappings';
 import { bindCalibrationDeadzone, bindPadSettingsForm, type PadFormBinding, type PadSettingsFormElements } from './ui/pad-settings-form';
+import { CardChoice } from './ui/card-choices';
 import { fillModeChoice, fillModeSelect, type ModeChoiceElements } from './ui/mode-choices';
+import { modeBestSummary, modeCardContent, setModeBest } from './ui/mode-cards';
 import { compareMetric } from './ui/mode-scoring';
 import { buildOptionFields, modeOptionsOf, optionFieldValues, showOptionFields, type OptionField } from './ui/option-choices';
 import { PadMenu } from './ui/pad-menu';
@@ -240,11 +242,11 @@ function padGuideElements(): PadGuideElements | undefined {
   return root && ideal && current && name ? { root, ideal, current, name } : undefined;
 }
 
-/** モードの欄の要素（prefix はトップ画面なら空、履歴の画面なら `history-`）。どれかが欠けていれば undefined。 */
-function modeChoiceElements(prefix: string, select: HTMLSelectElement): ModeChoiceElements | undefined {
-  const choice = document.querySelector<HTMLElement>(`#${prefix}mode-choice`);
-  const only = document.querySelector<HTMLElement>(`#${prefix}mode-only`);
-  const name = document.querySelector<HTMLElement>(`#${prefix}mode-name`);
+/** 履歴の画面のモードの欄の要素。どれかが欠けていれば undefined。 */
+function historyModeChoiceElements(select: HTMLSelectElement): ModeChoiceElements | undefined {
+  const choice = document.querySelector<HTMLElement>('#history-mode-choice');
+  const only = document.querySelector<HTMLElement>('#history-mode-only');
+  const name = document.querySelector<HTMLElement>('#history-mode-name');
   return choice && only && name ? { select, choice, only, name } : undefined;
 }
 
@@ -580,10 +582,26 @@ async function start(): Promise<void> {
   }
   fillWeaponSelect(weaponSelect, weapons);
   weaponSelect.value = weapons[0]?.id ?? '';
-  // 登録されたモードが 1 つ（今は反復練習だけ）のときは、選択肢の欄を出さずに名前だけを出す（docs/spec/screens.md「トップ画面」）。
-  const topModeChoice = modeChoiceElements('', modeSelect);
-  if (topModeChoice) fillModeChoice(topModeChoice, modes);
-  else fillModeSelect(modeSelect, modes);
+  fillModeSelect(modeSelect, modes);
+  // 武器とモードはカードの並びで選ぶ（docs/spec/screens.md「トップ画面」）。選んでいる値は隠した select が持つ。
+  // 登録されたモードが 1 つのときは、そのカードを選べない形で 1 枚だけ出す。
+  const weaponCardsRoot = document.querySelector<HTMLElement>('#weapon-cards');
+  const weaponCards = weaponCardsRoot ? new CardChoice({ select: weaponSelect, container: weaponCardsRoot, label: '武器' }) : undefined;
+  weaponCards?.rebuild();
+  const modeCardsRoot = document.querySelector<HTMLElement>('#mode-cards');
+  const modeById = new Map(modes.map((m) => [m.id, m]));
+  const modeCards = modeCardsRoot
+    ? new CardChoice({
+        select: modeSelect,
+        container: modeCardsRoot,
+        label: 'モード',
+        content: (card, doc) => {
+          const mode = modeById.get(card.value);
+          return mode ? modeCardContent(doc, mode) : [card.label];
+        },
+      })
+    : undefined;
+  modeCards?.rebuild();
 
   // 「パターンの音を聞く」（docs/spec/screens.md「音」の「試聴」）。音が OFF・音量 0 のときは押せない。
   const previewButton = document.querySelector<HTMLButtonElement>('#preview-sound');
@@ -649,7 +667,7 @@ async function start(): Promise<void> {
   let openHistory = () => {};
   if (historyEls) {
     fillWeaponSelect(historyEls.weapon as HTMLSelectElement, weapons);
-    const historyModeChoice = modeChoiceElements('history-', historyEls.mode as HTMLSelectElement);
+    const historyModeChoice = historyModeChoiceElements(historyEls.mode as HTMLSelectElement);
     if (historyModeChoice) fillModeChoice(historyModeChoice, modes);
     else fillModeSelect(historyEls.mode as HTMLSelectElement, modes);
     const historyView = bindHistoryView(historyEls, { storage: appStorage, now: () => new Date(), modes });
@@ -707,6 +725,20 @@ async function start(): Promise<void> {
   };
   // 今の入力方式のデバイスのアクションだけを積む。今の入力方式はページを開いている間、練習をまたいで引き継ぐ。
   const inputs = new InputSwitch({ preference: () => inputPreference, emit: push });
+
+  // モードのカードの自己ベストの要約（docs/spec/screens.md「モードの選択」）。選んでいる武器・練習の選択肢の値・今の入力方式の組で読む。
+  // 武器と練習の選択肢を変えたとき、トップ画面に入ったとき（設定の入力方式と、練習で変わった今の入力方式を読み直す）に書き直す。
+  const refreshModeBests = () => {
+    if (!modeCards) return;
+    const selection = { input: inputs.current, weaponId: weaponSelect.value, options: optionFieldValues(optionFields) };
+    for (const mode of modes) {
+      const card = modeCards.card(mode.id);
+      if (card) setModeBest(card, modeBestSummary(appStorage, mode, selection));
+    }
+  };
+  weaponSelect.addEventListener('change', refreshModeBests);
+  for (const field of optionFields) field.select.addEventListener('change', refreshModeBests);
+  refreshModeBests();
   // 操作とみなすのはプレイ画面を表示している間の入力だけ。メニューをパッドで操作しても今の入力方式は変えない
   // （docs/spec/input.md「入力方式の切替」）。
   const activity = (device: InputMethod) => {
@@ -1038,8 +1070,12 @@ async function start(): Promise<void> {
 
   // トップ画面に入るたびに、音の設定に合わせて試聴のボタンを押せるかを決め直す。ほかの画面に移ったら試聴を止める。
   const enter = (screen: ScreenId) => {
-    if (screen === 'top') refreshPreview();
-    else preview.stop();
+    if (screen === 'top') {
+      refreshPreview();
+      // 設定画面で入力方式を変えたときも、トップ画面の自己ベストの要約をその入力方式で読む。練習中でないので練習の入力方式は変わらない。
+      if (!running) inputPreference = loadCommonSettings(appStorage).inputMethod;
+      refreshModeBests();
+    } else preview.stop();
   };
 
   readyApp = { begin, abort, openHistory, control, enter };

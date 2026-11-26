@@ -61,6 +61,8 @@ describe('反復練習のモード', () => {
     const withoutGhost: TrainingMode = {
       id: 'plain',
       name: 'ゴーストなし',
+      description: 'ゴーストなし',
+      icon: 'spray',
       category: 'recoil',
       order: 0,
       setup() {},

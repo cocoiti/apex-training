@@ -61,7 +61,7 @@ const PAGE_INIT = `
   window.__ammo = () => window.__num('[data-hud="ammo"]');
   window.__clockNow = () => window.__apexTestClock.now();
   window.__interlude = () => window.__vis('#interlude');
-  window.__focused = () => { const els = [...document.querySelectorAll('.pad-focus')]; return els.length === 1 ? (els[0].id || els[0].textContent.trim()) : ''; };
+  window.__focused = () => { const els = [...document.querySelectorAll('.pad-focus')]; return els.length === 1 ? (els[0].getAttribute('data-card-choice') || els[0].id || els[0].textContent.trim()) : ''; };
   window.__resultAt = undefined;
   addEventListener('hashchange', () => { if (location.hash === '#/result' && window.__apexTestClock) window.__resultAt = window.__apexTestClock.now(); });
   window.__shareCalls = [];
@@ -124,7 +124,7 @@ const topState = (page: Page) =>
     const mode = document.querySelector('#mode'); const weapon = document.querySelector('#weapon'); const speed = document.querySelector('#speed');
     const preview = [...document.querySelectorAll('[data-screen="top"] button')].find((b) => b.textContent.trim() === ${JSON.stringify(PREVIEW)});
     return { modes: [...mode.options].map((o) => o.textContent.trim()), mode: mode.selectedOptions[0]?.textContent.trim() ?? '',
-      weaponVisible: window.__vis(weapon), weapon: weapon.selectedOptions[0]?.textContent.trim() ?? '', previewVisible: !!preview && window.__vis(preview),
+      weaponVisible: window.__vis('#weapon-cards'), weapon: weapon.selectedOptions[0]?.textContent.trim() ?? '', previewVisible: !!preview && window.__vis(preview),
       speedVisible: !!speed && window.__vis(speed), speeds: speed ? [...speed.options].map((o) => o.textContent.trim()) : [],
       speed: speed?.selectedOptions[0]?.textContent.trim() ?? '' }; })()`);
 

@@ -49,6 +49,8 @@ function mode(spec: ModeSpec = {}): TrainingMode {
   return {
     id: 'qa-aim',
     name: 'QA エイム',
+    description: 'QA のエイム',
+    icon: 'track',
     category: 'aim',
     order: 1,
     usesWeapon: spec.usesWeapon ?? false,

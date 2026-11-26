@@ -109,6 +109,8 @@ export function trackingSpeed(id: string | undefined): number {
 export interface TrackingModeSpec {
   readonly id: string;
   readonly name: string;
+  /** トップ画面のモードのカードに出すひとこと説明。 */
+  readonly description: string;
   readonly order: number;
   /** リコイルをかけるか。かけるモードは武器を使い、撃ち切ったあと fire を離すと残弾を戻す。 */
   readonly recoil: boolean;
@@ -122,6 +124,8 @@ export function createTrackingMode(spec: TrackingModeSpec): TrainingMode<Trackin
   return {
     id: spec.id,
     name: spec.name,
+    description: spec.description,
+    icon: spec.recoil ? 'track-spray' : 'track',
     category: 'aim',
     order: spec.order,
     usesWeapon: spec.recoil,
