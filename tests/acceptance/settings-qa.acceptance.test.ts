@@ -407,6 +407,7 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
         crosshairShape: 'dot',
         ghost: false,
         sound: true,
+        volume: '50',
         dpi: '800',
         sensitivity: s.sensitivity,
         adsMultiplier: s.adsMultiplier,
