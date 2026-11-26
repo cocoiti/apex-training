@@ -17,6 +17,12 @@ function pad(a: boolean, b: boolean, mapping = 'standard'): GamepadLike {
   return { connected: true, mapping, axes: [0, 0, 0, 0], buttons: [button(a), button(b), ...Array.from({ length: 14 }, () => button(false))] };
 }
 
+/** Y / △（ボタン 3）だけを押した標準配置のパッド。 */
+function padY(y: boolean): GamepadLike {
+  const button = (pressed: boolean) => ({ pressed, value: pressed ? 1 : 0 });
+  return { connected: true, mapping: 'standard', axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, (_, i) => button(i === 3 && y)) };
+}
+
 describe('画面の操作のキー', () => {
   it.each([
     ['KeyR', 'r'],
@@ -71,5 +77,16 @@ describe('画面の操作のパッドのボタン', () => {
     buttons.poll(pad(false, false));
     buttons.poll(null);
     expect(buttons.poll(pad(true, false))).toEqual([]);
+  });
+});
+
+describe('結果をシェアのパッドのボタン（docs/spec/screens.md「結果のシェア」）', () => {
+  it('UI-93: Y / △ は押し始めに 1 回だけ操作になり、押し続けても繰り返さない', () => {
+    const buttons = new PadButtons();
+    buttons.poll(padY(false));
+    expect(buttons.poll(padY(true))).toEqual(['pad-y']);
+    for (let i = 0; i < 100; i += 1) expect(buttons.poll(padY(true))).toEqual([]);
+    buttons.poll(padY(false));
+    expect(buttons.poll(padY(true))).toEqual(['pad-y']);
   });
 });

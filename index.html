@@ -262,6 +262,15 @@
           <div id="result-plots" class="result-plots"></div>
           <!-- 右スティックの入力推移のグラフは練習の入力方式がパッドのときだけ表示する（docs/spec/pad.md）。 -->
           <section id="result-pad" class="result-pad" hidden></section>
+          <!-- 結果のシェア（docs/spec/screens.md「結果のシェア」）。渡すのは成績の要約の文だけ。 -->
+          <div class="share" data-share>
+            <div class="menu menu-row">
+              <button type="button" id="result-share">結果をシェア</button> <span class="controls-hint"><kbd>Y / △</kbd></span>
+              <a id="result-share-post" href="https://x.com/intent/post" target="_blank" rel="noopener noreferrer">X に投稿</a>
+            </div>
+            <p id="result-share-message" class="share-message" role="status" hidden></p>
+            <textarea id="result-share-text" class="share-text" rows="5" readonly hidden aria-label="シェアの文"></textarea>
+          </div>
           <nav class="menu menu-row">
             <a href="#/play" id="retry">もう一度</a> <span class="controls-hint"><kbd>R</kbd>・<kbd>Space</kbd> / <kbd>A / ×</kbd></span>
             <a href="#/" id="change-weapon">武器変更</a> <span class="controls-hint"><kbd>B / ○</kbd></span>
@@ -278,6 +287,15 @@
           </div>
           <p id="set-average" class="set-average"></p>
           <p id="set-best" class="set-best"></p>
+          <!-- 結果のシェア（docs/spec/screens.md「結果のシェア」）。渡すのは成績の要約の文だけ。 -->
+          <div class="share" data-share>
+            <div class="menu menu-row">
+              <button type="button" id="set-share">結果をシェア</button> <span class="controls-hint"><kbd>Y / △</kbd></span>
+              <a id="set-share-post" href="https://x.com/intent/post" target="_blank" rel="noopener noreferrer">X に投稿</a>
+            </div>
+            <p id="set-share-message" class="share-message" role="status" hidden></p>
+            <textarea id="set-share-text" class="share-text" rows="5" readonly hidden aria-label="シェアの文"></textarea>
+          </div>
           <nav class="menu menu-row">
             <a href="#/play" id="set-retry">もう一度</a> <span class="controls-hint"><kbd>R</kbd>・<kbd>Space</kbd> / <kbd>A / ×</kbd></span>
             <a href="#/" id="set-change-weapon">武器変更</a> <span class="controls-hint"><kbd>B / ○</kbd></span>

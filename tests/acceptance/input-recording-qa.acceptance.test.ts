@@ -334,7 +334,9 @@ const SPY = `
 const CONTROLS = (screen: string) => `(() => {
   const s = document.querySelector('[data-screen="${screen}"]');
   if (!s) return null;
-  const els = [...s.querySelectorAll('a, button, input, select, textarea, form, [download], [contenteditable], [role="button"], [role="link"], [onclick]')];
+  // 結果のシェアの区画（screens.md「結果のシェア」）は成績の要約の文だけを渡すので、入力の記録を外に出す操作には数えない。
+  const els = [...s.querySelectorAll('a, button, input, select, textarea, form, [download], [contenteditable], [role="button"], [role="link"], [onclick]')]
+    .filter((el) => !el.closest('[data-share]'));
   return els.map((el) => ({
     tag: el.tagName.toLowerCase(),
     text: (el.textContent || el.getAttribute('value') || el.getAttribute('aria-label') || el.getAttribute('title') || '').trim(),

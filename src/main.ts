@@ -51,6 +51,7 @@ import { adsAfter, applyReticleColor, showAimDisplay, type AimDisplayElements } 
 import { SCREEN_HASHES, watchScreen, type ScreenId } from './ui/router';
 import { screenCommand, type PlayPhase, type ScreenCommand } from './ui/screen-commands';
 import { renderSetSummary, setSummaryHeading, summarizeSet, type SetSummaryElements } from './ui/set-summary';
+import { resultShare, resultShareText, setShare, setShareText, ShareControl, type ShareElements } from './ui/share';
 import { effectivePadSettings, loadCommonSettings, loadMouseSettings, loadPadSettings } from './ui/settings';
 import { bindSettingsForm, type SettingsFormElements } from './ui/settings-form';
 import { showScreen, showStorageNotice } from './ui/shell';
@@ -464,6 +465,15 @@ async function start(): Promise<void> {
     plots: document.querySelector<HTMLElement>('#result-plots'),
     padTrace: document.querySelector<HTMLElement>('#result-pad'),
   };
+  // 結果のシェア（docs/spec/screens.md「結果のシェア」）。リザルト画面とセットのまとめに 1 つずつ。
+  const shareElements = (prefix: 'result' | 'set') => ({
+    button: document.querySelector<HTMLButtonElement>(`#${prefix}-share`),
+    post: document.querySelector<HTMLAnchorElement>(`#${prefix}-share-post`),
+    message: document.querySelector<HTMLElement>(`#${prefix}-share-message`),
+    fallback: document.querySelector<HTMLTextAreaElement>(`#${prefix}-share-text`),
+  });
+  const resultShareElements = shareElements('result');
+  const setShareElements = shareElements('set');
   const lockNotice = document.querySelector<HTMLElement>('#pointer-lock-notice');
   const pausedNotice = document.querySelector<HTMLElement>('#paused');
   const hud: Partial<Record<keyof HudElements, HTMLElement | null>> = {
@@ -486,6 +496,8 @@ async function start(): Promise<void> {
     Object.values(roundElements).some((element) => !element) ||
     Object.values(setElements).some((element) => !element) ||
     Object.values(resultElements).some((element) => !element) ||
+    Object.values(resultShareElements).some((element) => !element) ||
+    Object.values(setShareElements).some((element) => !element) ||
     !lockNotice ||
     !pausedNotice ||
     !hud.weapon ||
@@ -501,6 +513,10 @@ async function start(): Promise<void> {
   const resultView = resultElements as ResultElements;
   const roundView = roundElements as RoundResultElements;
   const setView = setElements as SetSummaryElements;
+  const resultSharing = new ShareControl(resultShareElements as ShareElements);
+  const setSharing = new ShareControl(setShareElements as ShareElements);
+  resultShareElements.button?.addEventListener('click', () => void resultSharing.share());
+  setShareElements.button?.addEventListener('click', () => void setSharing.share());
 
   const parsed = parseMap(await fetchMapJson('range'));
   if (!parsed.ok) {
@@ -739,6 +755,7 @@ async function start(): Promise<void> {
     interlude.hidden = true;
     const summary = summarizeSet(current.rounds, current.count);
     renderSetSummary(setView, setSummaryHeading(setup.weapon.name, setup.mode.name, setInput, summary), summary);
+    setSharing.set(setShareText(setShare(setup.weapon.name, setup.mode.name, summary)));
     flow.finishSet();
     location.hash = SCREEN_HASHES['set-result'];
   };
@@ -773,9 +790,10 @@ async function start(): Promise<void> {
     );
     lastFinished = { input: result.inputMethod, weaponId: result.weapon.id, modeId: result.mode.id };
     setInput = result.inputMethod;
-    const phase = set.completeRound(view.meanDeviation, now());
+    const phase = set.completeRound(view.meanDeviation, now(), view.bestUpdated);
     if (!set.isSet) {
       renderResult(resultView, view);
+      resultSharing.set(resultShareText(resultShare(result, view)));
       flow.finish();
       location.hash = SCREEN_HASHES.result;
       return;
@@ -827,6 +845,10 @@ async function start(): Promise<void> {
       case 'change-weapon':
         location.hash = SCREEN_HASHES.top;
         return;
+      case 'share':
+        // 画面は移らず、練習の結果と保存も変えない（docs/spec/screens.md「結果のシェア」）。
+        void (currentScreen === 'set-result' ? setSharing : resultSharing).share();
+        return;
     }
   };
 
@@ -861,7 +883,7 @@ async function start(): Promise<void> {
   window.addEventListener('resize', () => view.resize());
   const hint = 'クリックで照準の操作を始める（パッドは右スティックと R2 / RT）';
 
-  // パッドの A / × と B / ○ は、どの画面でも読み、押し始めだけを画面の操作にする（docs/spec/screens.md「画面の操作」）。
+  // パッドの A / ×・B / ○・Y / △ は、どの画面でも読み、押し始めだけを画面の操作にする（docs/spec/screens.md「画面の操作」）。
   const padButtons = new PadButtons();
 
   const tick = () => {

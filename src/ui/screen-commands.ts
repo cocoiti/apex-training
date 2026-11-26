@@ -8,8 +8,9 @@ import type { ScreenId } from './router';
  * - quit: セットをやめる。
  * - again: リザルト画面・セットのまとめの「もう一度」。
  * - change-weapon: リザルト画面・セットのまとめの「武器変更」。
+ * - share: リザルト画面・セットのまとめの「結果をシェア」（screens.md「結果のシェア」）。
  */
-export type ScreenCommand = 'restart' | 'next' | 'quit' | 'again' | 'change-weapon';
+export type ScreenCommand = 'restart' | 'next' | 'quit' | 'again' | 'change-weapon' | 'share';
 
 /** プレイ画面の状態。practicing は練習中、interlude は短いリザルトの表示中、paused は一時停止中、idle はそのどれでもない。 */
 export type PlayPhase = 'practicing' | 'interlude' | 'paused' | 'idle';
@@ -46,6 +47,8 @@ export function screenCommand(state: ScreenState, control: ScreenControl): Scree
       if (isPrimary(control)) return 'again';
       // 武器変更はパッドの B / ○ だけ（キーボードの Q は割り当てない）。
       if (control === 'pad-b') return 'change-weapon';
+      // 結果をシェアはパッドの Y / △ だけ（キーボードには割り当てない）。
+      if (control === 'pad-y') return 'share';
       return undefined;
     default:
       return undefined;

@@ -50,6 +50,8 @@ export interface ResultView {
   readonly best: string;
   /** 平均ズレ（度）。「なし」のときは null。連続練習の短いリザルトとセットのまとめに使う。 */
   readonly meanDeviation: number | null;
+  /** 命中率（%）。「なし」のときは null。シェアの文に使う。 */
+  readonly hitRate: number | null;
   /** この練習で自己ベストを更新したか。 */
   readonly bestUpdated: boolean;
   readonly plots: readonly Plot[];
@@ -156,6 +158,7 @@ export function completePractice(
     comments: scored.comments,
     best: personalBestText(outcome),
     meanDeviation: scored.meanDeviation,
+    hitRate: scored.hitRate,
     bestUpdated: outcome.updated,
     padTrace: result.inputMethod === 'pad' ? padTraceView(practice) : null,
     weakSection: weak ? `${WEAK_SECTION_LABEL}: ${weakSectionText(weak)}` : null,

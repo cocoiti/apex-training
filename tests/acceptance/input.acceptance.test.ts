@@ -191,13 +191,17 @@ describe('INP-8: 入力の記録を外に出す操作がない', () => {
   const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
 
   function screenHtml(name: string): string {
-    const match = new RegExp(`<section[^>]*data-screen="${name}"[\\s\\S]*?</section>`).exec(html);
+    // 画面の中に入れ子の section（#result-pad など）があるので、次の画面の section の手前までを 1 つの画面とする。
+    const match = new RegExp(`<section[^>]*data-screen="${name}"[\\s\\S]*?(?=<section class="screen"|$)`).exec(html);
     if (!match) throw new Error(`画面 ${name} がない`);
     return match[0];
   }
 
-  it.each(['play', 'result'])('%s の画面に、保存・コピー・送信の操作がない', (name) => {
-    const section = screenHtml(name);
+  /** 結果のシェア（screens.md「結果のシェア」）の区画。渡すのは成績の要約の文だけで、入力の記録は渡さない（OVR-5, OVR-20）。 */
+  const SHARE_BLOCK = /<div class="share" data-share>[\s\S]*?<\/textarea>\s*<\/div>/;
+
+  it.each(['play', 'result'])('%s の画面に、保存・コピー・送信の操作がない（結果のシェアの区画を除く）', (name) => {
+    const section = screenHtml(name).replace(SHARE_BLOCK, '');
     expect(section).not.toMatch(/\bdownload\b/i);
     expect(section).not.toMatch(/<form\b/i);
     expect(section).not.toMatch(/保存|コピー|送信|書き出|エクスポート|共有/);
@@ -211,10 +215,23 @@ describe('INP-8: 入力の記録を外に出す操作がない', () => {
     });
   }
 
-  it('src/ のコードが、ファイルへの書き出し・クリップボード・外部への送信の API を使わない', () => {
-    const forbidden = /navigator\.clipboard|execCommand\(|sendBeacon|createObjectURL|\.download\s*=|XMLHttpRequest|WebSocket|method:\s*['"]POST/;
-    for (const file of sourceFiles(join(ROOT, 'src'))) {
+  it('結果のシェアの区画は、リザルト画面の「結果をシェア」のボタンと「X に投稿」のリンクと表示の欄だけ', () => {
+    const block = SHARE_BLOCK.exec(screenHtml('result'))?.[0] ?? '';
+    expect(block).toContain('結果をシェア');
+    expect(block).not.toMatch(/\bdownload\b|<form\b|<input\b/i);
+    expect([...block.matchAll(/<(a|button|textarea)\b/g)].map((m) => m[1])).toEqual(['button', 'a', 'textarea']);
+    expect(block).toMatch(/href="https:\/\/x\.com\/intent\/post"/);
+    expect(block).toMatch(/<textarea[^>]*\breadonly\b/);
+  });
+
+  it('src/ のコードが、ファイルへの書き出し・クリップボード・外部への送信の API を使わない（シェアの文のコピーを除く）', () => {
+    const forbidden = /navigator\.clipboard|\.clipboard\b|execCommand\(|sendBeacon|createObjectURL|\.download\s*=|XMLHttpRequest|WebSocket|method:\s*['"]POST/;
+    const share = join(ROOT, 'src/ui/share.ts');
+    for (const file of sourceFiles(join(ROOT, 'src')).filter((f) => f !== share)) {
       expect(readFileSync(file, 'utf8'), file).not.toMatch(forbidden);
     }
+    // シェアの文のコピーは src/ui/share.ts だけが行い、クリップボードには writeText で文字列だけを渡す。
+    const source = readFileSync(share, 'utf8');
+    expect(source).not.toMatch(/execCommand\(|sendBeacon|createObjectURL|\.download\s*=|XMLHttpRequest|WebSocket|fetch\(|clipboard\.write\(/);
   });
 });

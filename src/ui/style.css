@@ -856,6 +856,31 @@ polyline.plot-history {
   margin-left: -16px;
 }
 
+/* 結果のシェア。メッセージと、コピーできなかったときの文の欄はボタンのすぐ下に出す。 */
+.share {
+  margin: 16px 0 8px;
+}
+
+.share-message {
+  margin: 8px 0 0;
+  color: #f2c14e;
+}
+
+.share-text {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  margin-top: 8px;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.share-text[hidden] {
+  display: none;
+}
+
 /* 連続練習の短いリザルトは画面の中央に出す。クリックはキャンバスに通す。 */
 .interlude {
   position: absolute;

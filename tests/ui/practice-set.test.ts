@@ -14,7 +14,15 @@ describe('連続練習（セット）', () => {
     const set = new PracticeSet(1);
     expect(set.isSet).toBe(false);
     expect(set.completeRound(0.5, 0)).toBe('done');
-    expect(set.rounds).toEqual([{ round: 1, meanDeviation: 0.5 }]);
+    expect(set.rounds).toEqual([{ round: 1, meanDeviation: 0.5, bestUpdated: false }]);
+  });
+
+  it('回ごとに自己ベストを更新したかを残す（省いたときは更新していない）', () => {
+    const set = new PracticeSet(3);
+    set.completeRound(1.0, 0, true);
+    set.next();
+    set.completeRound(0.8, 1);
+    expect(set.rounds.map((r) => r.bestUpdated)).toEqual([true, false]);
   });
 
   it('MODE-17: 最後でない回を終えると短いリザルトになり、3 秒たつと次の回にできる', () => {
