@@ -340,8 +340,8 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       await page.goto(`${origin}${BASE}#/`);
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
-      expect(modes).toEqual(['反復練習', '受け入れの追加モード']);
-      // モードが 2 つになったので、選択肢の欄が見えている。
+      expect(modes).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル', '受け入れの追加モード']);
+      // モードが 2 つ以上なので、選択肢の欄が見えている。
       expect(await page.evaluate<boolean>(`document.querySelector('#mode').getClientRects().length > 0 && !document.querySelector('#mode').closest('[hidden]')`)).toBe(true);
       // 足したモードで練習を始められる。
       await start(page, origin, 'L-STAR', '受け入れの追加モード');
@@ -356,7 +356,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
       await page.goto(`${origin}${BASE}#/`);
       await page.waitFor(`document.querySelector('#mode').options.length > 0`);
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
-      expect(modes).toEqual(['受け入れの追加モード', '反復練習']);
+      expect(modes).toEqual(['受け入れの追加モード', '反復練習', '追いエイム', '追いエイム＋リコイル']);
       expect(await page.evaluate<boolean>(`document.querySelector('#mode').getClientRects().length > 0 && !document.querySelector('#mode').closest('[hidden]')`)).toBe(true);
       // 開いたときは並び順の最初のモードが選ばれている（screens.md「トップ画面」）。
       expect(await page.evaluate<string>(`document.querySelector('#mode').selectedOptions[0]?.textContent.trim() ?? ''`)).toBe('受け入れの追加モード');

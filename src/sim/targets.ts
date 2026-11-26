@@ -24,6 +24,8 @@ export interface PracticeTargetSpec {
   readonly appearAt?: number;
   /** 消える時刻（秒）。省くと、モードが消すまで出現している。 */
   readonly disappearAt?: number;
+  /** 照準が乗っているあいだ、乗っていないときと違う色で表示するか（docs/spec/screens.md「3D の表示」）。省くと同じ色。表示だけのもの。 */
+  readonly highlightAimed?: boolean;
 }
 
 /** 練習の的の今の状態。シミュレーションが書き換え、描画とモードは読むだけ。 */
@@ -38,6 +40,8 @@ export interface PracticeTarget {
   readonly visible: boolean;
   readonly appearAt: number;
   readonly disappearAt: number | undefined;
+  /** 照準が乗っているあいだ違う色で表示するか。 */
+  readonly highlightAimed: boolean;
 }
 
 interface Entry {
@@ -105,7 +109,16 @@ export class PracticeTargets {
     const timing = { appearAt, disappearAt };
     this.entries.push({
       spec,
-      state: { id: spec.id, size: spec.size, center, previousCenter: center, visible: this.time > 0 && visibleInStep(timing, this.time), appearAt, disappearAt },
+      state: {
+        id: spec.id,
+        size: spec.size,
+        center,
+        previousCenter: center,
+        visible: this.time > 0 && visibleInStep(timing, this.time),
+        appearAt,
+        disappearAt,
+        highlightAimed: spec.highlightAimed ?? false,
+      },
     });
   }
 

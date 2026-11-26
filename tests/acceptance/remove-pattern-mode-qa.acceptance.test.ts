@@ -29,7 +29,10 @@ const GHOST = '反復練習';
 const CENTER = 'センター維持';
 const PATTERN = 'パターン観察';
 const OLD_GHOST = 'ゴースト追従';
+/** セットを最後まで練習して確かめるモード（反復練習）。 */
 const MODES = [GHOST];
+/** 登録されたモード（docs/spec/modes.md「モードの登録」）。 */
+const ALL_MODES = [GHOST, '追いエイム', '追いエイム＋リコイル'];
 const PAD_NAME = 'acceptance pad (STANDARD GAMEPAD)';
 const OLD_BEST_KEY = 'apex-training:best:mouse:lstar:pattern';
 const OLD_HISTORY_KEY = 'apex-training:history:mouse:lstar:pattern';
@@ -175,9 +178,9 @@ describe('SPEC: パターン観察の受け入れ条件は欠番になってい�
     for (const id of ['MODE-29', 'UI-75', 'SCO-39']) expect(ids, id).toContain(id);
   });
 
-  it('SPEC のモードは反復練習の 1 つで、パターン観察とセンター維持はモードとして書かれていない', () => {
+  it('SPEC のモードは反復練習・追いエイム・追いエイム＋リコイルの 3 つで、パターン観察とセンター維持はモードとして書かれていない', () => {
     const modes = SPEC('modes.md');
-    expect(modes).toContain('モードは反復練習の 1 つ');
+    expect(modes).toContain('今のモードは反復練習（リコイル）と、追いエイム・追いエイム＋リコイル（エイム）の 3 つ');
     expect(modes).not.toMatch(/^### パターン観察/m);
     expect(modes).not.toMatch(/^### センター維持/m);
   });
@@ -253,11 +256,12 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
 
   // -------------------------------------------------------------------------
   describe('MODE-27: モードの選択肢と「反復練習」の言葉', () => {
-    it('トップ画面にモードの選択肢が出ず、モードとして「反復練習」だけが表示され、「ゴースト追従」「パターン観察」「センター維持」は出ない', async () => {
+    it('トップ画面のモードの選択肢に「反復練習」「追いエイム」「追いエイム＋リコイル」が並んで「反復練習」が選ばれ、「ゴースト追従」「パターン観察」「センター維持」は出ない', async () => {
       const page = await openFresh();
       const view = await modeView(page, 'top');
-      expect(view.selectShown, 'モードの選択肢の欄が見えている').toBe(false);
-      expect(view.text).toMatch(/モード\s*反復練習/);
+      expect(view.selectShown, 'モードの選択肢の欄が見えていない').toBe(true);
+      expect(await selected(page, '#mode')).toBe(GHOST);
+      expect(await options(page, '#mode')).toEqual(ALL_MODES);
       const top = view.text;
       expect(top).not.toContain(OLD_GHOST);
       expect(top).not.toContain(PATTERN);
@@ -306,14 +310,14 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
 
   // -------------------------------------------------------------------------
   describe('MODE-28: 以前のパターン観察のキーがあっても開ける', () => {
-    it('トップ画面が開き、モードは反復練習だけが表示され、そのまま開始すると反復練習が始まり、履歴の画面にもパターン観察が出ず、キーは残る', async () => {
+    it('トップ画面が開き、モードの選択肢にパターン観察は出ず「反復練習」が選ばれ、そのまま開始すると反復練習が始まり、履歴の画面にもパターン観察が出ず、キーは残る', async () => {
       const best = JSON.stringify({ version: 1, meanError: 1.23, groupingRadius: 1, hitRate: 50, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
       const history = JSON.stringify({ version: 1, entries: [{ at: '2026-01-01T00:00:00.000Z', meanError: 4.56, hitRate: 50, groupingRadius: 1, shots: 28 }] });
       const page = await openFresh({ [OLD_BEST_KEY]: best, [OLD_HISTORY_KEY]: history });
       expect(await page.evaluate<string[]>('window.__screens()')).toEqual(['top']);
       const view = await modeView(page, 'top');
-      expect(view.selectShown).toBe(false);
-      expect(view.text).toMatch(/モード\s*反復練習/);
+      expect(view.selectShown, 'モードの選択肢の欄が見えていない').toBe(true);
+      expect(await selected(page, '#mode')).toBe(GHOST);
       expect(view.text).not.toContain(PATTERN);
       expect(await selected(page, '#mode')).toBe(GHOST);
       // モードは選び直さずに「開始」を押す（武器も既定のまま）。
@@ -326,8 +330,8 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
       expect(await page.evaluate<string>(`document.querySelector('#result-summary').innerText`)).toContain(GHOST);
       // 履歴の画面のモードにもパターン観察は出ない。
       await openHistory(page);
-      expect((await modeView(page, 'history')).selectShown).toBe(false);
-      expect(await options(page, '#history-mode')).toEqual(MODES);
+      expect((await modeView(page, 'history')).selectShown).toBe(true);
+      expect(await options(page, '#history-mode')).toEqual(ALL_MODES);
       expect(await page.evaluate<string>(`document.querySelector('[data-screen="history"]').innerText`)).not.toContain(PATTERN);
       // 2 つのキーは消されずに残る。
       expect(await page.evaluate<string | null>(`localStorage.getItem(${JSON.stringify(OLD_BEST_KEY)})`)).toBe(best);
@@ -335,13 +339,13 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 90_000);
 
-    it('以前のキーがある状態で履歴の画面を直接開いても、エラーにならずモードは反復練習だけで、キーは残る', async () => {
+    it('以前のキーがある状態で履歴の画面を直接開いても、エラーにならずモードの選択肢は登録されたモードだけで、キーは残る', async () => {
       const best = JSON.stringify({ version: 1, meanError: 1.23, groupingRadius: 1, hitRate: 50, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
       const history = JSON.stringify({ version: 1, entries: [{ at: '2026-01-01T00:00:00.000Z', meanError: 4.56, hitRate: 50, groupingRadius: 1, shots: 28 }] });
       const page = await openFresh({ [OLD_BEST_KEY]: best, [OLD_HISTORY_KEY]: history });
       await page.goto(appUrl(origin, BASE, '#/history', APP));
       await openHistory(page);
-      expect(await options(page, '#history-mode')).toEqual(MODES);
+      expect(await options(page, '#history-mode')).toEqual(ALL_MODES);
       for (const m of MODES) {
         await choose(page, '#history-mode', m);
         await settle(page, 2);
@@ -360,12 +364,12 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
     const oldCommon = JSON.stringify({ correctionPanel: false });
     const seed = { [CENTER_BEST_KEY]: best, [CENTER_HISTORY_KEY]: history, [COMMON_SETTINGS_KEY]: oldCommon };
 
-    it('トップ画面のモードは反復練習だけで、そのまま開始すると補正のパネル付きで反復練習が始まり、撃ち切ると採点結果が出て、キーは残る', async () => {
+    it('トップ画面のモードの選択肢にセンター維持は出ず「反復練習」が選ばれ、そのまま開始すると補正のパネル付きで反復練習が始まり、撃ち切ると採点結果が出て、キーは残る', async () => {
       const page = await openFresh(seed);
       expect(await page.evaluate<string[]>('window.__screens()')).toEqual(['top']);
       const view = await modeView(page, 'top');
-      expect(view.selectShown).toBe(false);
-      expect(view.text).toMatch(/モード\s*反復練習/);
+      expect(view.selectShown, 'モードの選択肢の欄が見えていない').toBe(true);
+      expect(await selected(page, '#mode')).toBe(GHOST);
       expect(view.text).not.toContain(CENTER);
       await page.clickSelector('[data-screen="top"] a[href="#/play"]');
       await page.waitFor(`location.hash === '#/play' && window.__vis('[data-screen="play"]') && window.__ammo() > 0`, 10_000);
@@ -392,7 +396,7 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
       expect(settings.panelChecks, '補正のパネルの ON/OFF の項目がある').toBe(0);
       await openHistory(page);
       const view = await modeView(page, 'history');
-      expect(view.selectShown).toBe(false);
+      expect(view.selectShown).toBe(true);
       expect(view.text).not.toContain(CENTER);
       expect(view.text).not.toContain('補正のパネル');
       // 以前のセンター維持の履歴（平均ズレ 4.56）は表示しない。
@@ -407,8 +411,8 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
       const padCenterBest = JSON.stringify({ version: 1, meanError: 0.0001, groupingRadius: 0, hitRate: 100, shots: 28, achievedAt: '2026-01-01T00:00:00.000Z' });
       const page = await openFresh({ ...seed, [COMMON_SETTINGS_KEY]: LEGACY_COMMON, [PAD_CENTER_BEST_KEY]: padCenterBest });
       const view = await modeView(page, 'top');
-      expect(view.selectShown).toBe(false);
-      expect(view.text).toMatch(/モード\s*反復練習/);
+      expect(view.selectShown, 'モードの選択肢の欄が見えていない').toBe(true);
+      expect(await selected(page, '#mode')).toBe(GHOST);
       await start(page, LSTAR, undefined);
       await page.advanceClockUntil(`window.__vis('.correction-panel')`, { limit: 5 });
       expect(await page.evaluate<boolean>(`window.__vis('.correction-panel')`), '補正のパネルが表示されない').toBe(true);

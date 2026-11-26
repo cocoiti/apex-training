@@ -9,7 +9,7 @@ import { Simulation } from '../sim/simulation';
 import { TapFire } from '../sim/tap-fire';
 import { idealCorrectionRate, type WeaponData } from '../sim/weapon';
 import type { World } from '../sim/world';
-import { modeUsesWeapon, type ModeContext, type ModeResult, type TrainingMode } from './types';
+import { modeOptionChoice, modeUsesWeapon, type ModeContext, type ModeOptionChoice, type ModeResult, type TrainingMode } from './types';
 
 /** リザルト画面が使うモードの項目。 */
 export type PracticeResultMode = Pick<TrainingMode, 'id' | 'name' | 'category' | 'usesWeapon' | 'scoring' | 'weakSections'>;
@@ -32,6 +32,14 @@ export interface PracticeResult {
   /** 練習の開始から終わりまでの時間（秒、固定ステップの時刻）。 */
   readonly duration: number;
   readonly modeResult: ModeResult;
+  /** 練習の選択肢を持つモードで選んだ値（docs/spec/modes.md「共通」）。持たないモードでは undefined。 */
+  readonly option: PracticeResultOption | undefined;
+}
+
+/** リザルト画面に渡す、練習の選択肢の値。 */
+export interface PracticeResultOption extends ModeOptionChoice {
+  /** 選択肢の表示名（例: 「速さ」）。 */
+  readonly label: string;
 }
 
 /** 武器を使うモードの練習では Gun、武器を使わないモードの練習では undefined。 */
@@ -47,6 +55,8 @@ export interface PracticeSessionOptions<W extends WeaponData | undefined = Weapo
   readonly input: InputSource;
   /** 乱数の種。 */
   readonly seed: number;
+  /** 練習の選択肢で選んだ値の id。持たないモードでは使わない。省いたとき・選択肢にない値のときは既定の値。 */
+  readonly option?: string;
   /** 今の入力方式。1 発目を撃ったステップで 1 回だけ読む。省いたときはマウス。 */
   readonly inputMethod?: () => InputMethod;
   /** 入力に使っているパッドの名前。入力方式と同じく、1 発目を撃ったステップで 1 回だけ読む。省いたときは分からない。 */
@@ -66,6 +76,8 @@ export class PracticeSession<W extends WeaponData | undefined = WeaponData> {
   readonly sim: Simulation;
   /** 練習の武器の発射・リコイル。武器を使わないモードでは undefined。 */
   readonly gun: SessionGun<W>;
+  /** 練習の選択肢で選んだ値。持たないモードでは undefined。 */
+  readonly option: ModeOptionChoice | undefined;
   private readonly shooter: Shooter;
   private readonly context: ModeContext;
   private readonly endRule = new PracticeEndRule();
@@ -89,7 +101,9 @@ export class PracticeSession<W extends WeaponData | undefined = WeaponData> {
     const weapon: WeaponData | undefined = options.weapon;
     const usesWeapon = modeUsesWeapon(options.mode);
     if (usesWeapon && !weapon) throw new Error(`モード ${options.mode.id} は武器を使うので、武器を渡す`);
-    const gun = usesWeapon && weapon ? new Gun(weapon, random) : undefined;
+    this.option = modeOptionChoice(options.mode, options.option);
+    const refill = options.mode.refillOnRelease === true;
+    const gun = usesWeapon && weapon ? new Gun(weapon, random, { refillOnRelease: refill }) : undefined;
     this.gun = gun as SessionGun<W>;
     this.shooter = gun ?? new TapFire();
     this.sim = new Simulation(options.world, options.input, options.dt);
@@ -101,6 +115,7 @@ export class PracticeSession<W extends WeaponData | undefined = WeaponData> {
       shots: shooter.shots,
       targets: options.world.targets,
       random,
+      option: this.option?.id,
       // setup では 0、ステップごとの処理ではそのステップの終わりの時刻（フックはステップの数を数える前に呼ばれる）。
       get time() {
         return inStep ? (sim.stepCount + 1) * sim.dt : sim.time;
@@ -118,8 +133,9 @@ export class PracticeSession<W extends WeaponData | undefined = WeaponData> {
       }
       // 照準と的の当たりは、そのステップの入力と射撃を適用したあとの照準で求める（docs/spec/architecture.md「照準と的の当たり」）。
       world.targets.setAimed(aimedTarget(world));
-      // 撃ち切りと撃たない時間で終わるのは武器を使うモードだけ。武器を使わないモードはモードが決めた終わりの条件だけで終わる。
-      const reason = (gun ? this.endRule.step(world.player, gun, dt) : undefined) ?? (timeLimitReached((sim.stepCount + 1) * dt, this.mode.timeLimit) ? 'time' : undefined);
+      // 撃ち切りと撃たない時間で終わるのは武器を使うモードだけ。武器を使わないモードと、撃ち切ったあとに残弾を戻すモードは
+      // モードが決めた終わりの条件だけで終わる。
+      const reason = (gun && !refill ? this.endRule.step(world.player, gun, dt) : undefined) ?? (timeLimitReached((sim.stepCount + 1) * dt, this.mode.timeLimit) ? 'time' : undefined);
       const keepGoing = this.mode.step(this.context, dt);
       inStep = false;
       if (reason || !keepGoing) this.finish(reason ?? 'mode', dt);
@@ -212,6 +228,7 @@ export class PracticeSession<W extends WeaponData | undefined = WeaponData> {
       // フックはステップの数を数える前に呼ばれるので、このステップの終わりの時刻はステップの数 + 1 から求める。
       duration: (this.sim.stepCount + 1) * dt,
       modeResult,
+      option: this.option && this.mode.option ? { ...this.option, label: this.mode.option.label } : undefined,
     };
   }
 }

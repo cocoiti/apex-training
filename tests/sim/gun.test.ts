@@ -5,7 +5,7 @@ import { createRandom } from '../../src/core/random';
 import { ManualTimeSource } from '../../src/core/time';
 import type { TimedAction } from '../../src/input/actions';
 import { inputFromTimedActions } from '../../src/input/queue';
-import { Gun, RECOIL_RECOVERY_TIME } from '../../src/sim/gun';
+import { Gun, RECOIL_RECOVERY_TIME, type GunOptions } from '../../src/sim/gun';
 import { Simulation } from '../../src/sim/simulation';
 import { vec3 } from '../../src/sim/vec3';
 import type { RecoilStep, WeaponData } from '../../src/sim/weapon';
@@ -36,9 +36,9 @@ function makeWeapon(extra: Partial<WeaponData> = {}): WeaponData {
 const press = (time: number): TimedAction => ({ time, action: { type: 'fire', pressed: true } });
 const release = (time: number): TimedAction => ({ time, action: { type: 'fire', pressed: false } });
 
-function setup(weapon: WeaponData, actions: TimedAction[], world = wallWorld(), seed = 1) {
+function setup(weapon: WeaponData, actions: TimedAction[], world = wallWorld(), seed = 1, options: GunOptions = {}) {
   const sim = new Simulation(world, inputFromTimedActions(actions));
-  const gun = new Gun(weapon, createRandom(seed));
+  const gun = new Gun(weapon, createRandom(seed), options);
   sim.addStepHook((w, dt) => gun.step(w, dt));
   return { sim, gun, world };
 }
@@ -97,6 +97,34 @@ describe('発射', () => {
     sim.advance(2);
     expect(gun.shots).toHaveLength(8);
     expect(gun.ammo).toBe(22);
+  });
+});
+
+describe('撃ち切ったあと離すと残弾を戻す（refillOnRelease、docs/spec/modes.md「追いエイム」）', () => {
+  it('撃ち切っても押し続けているあいだは残弾 0 のまま撃たず、離したステップで装弾数に戻る', () => {
+    const { sim, gun } = setup(makeWeapon({ magSize: 10 }), [press(0), release(2), press(2.5), release(2.75)], wallWorld(), 1, { refillOnRelease: true });
+    sim.advance(1.9);
+    expect(gun.shots).toHaveLength(10);
+    expect(gun.ammo).toBe(0);
+    sim.advance(0.2);
+    expect(gun.ammo).toBe(10);
+    expect(gun.shots).toHaveLength(10);
+    // 戻したあとの最初の弾はパターンの 1 発目（2.5, 2.6, 2.7 の 3 発）。
+    sim.advance(1);
+    expect(gun.shots.slice(10).map((s) => s.patternShot)).toEqual([1, 2, 3]);
+    expect(gun.ammo).toBe(7);
+  });
+
+  it('撃ち切る前に離したときは残弾を戻さない', () => {
+    const { sim, gun } = setup(makeWeapon({ magSize: 10 }), [press(0), release(0.25)], wallWorld(), 1, { refillOnRelease: true });
+    sim.advance(1);
+    expect(gun.ammo).toBe(7);
+  });
+
+  it('戻りの途中で押し直しても、戻したあとの最初の弾はパターンの 1 発目', () => {
+    const { sim, gun } = setup(makeWeapon({ magSize: 5 }), [press(0), release(0.6), press(0.7), release(0.75)], wallWorld(), 1, { refillOnRelease: true });
+    sim.advance(1);
+    expect(gun.shots.map((s) => s.patternShot)).toEqual([1, 2, 3, 4, 5, 1]);
   });
 });
 

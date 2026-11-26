@@ -564,13 +564,13 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-26: 履歴の画面にモードの選択肢の欄が出ず、モードとして「反復練習」だけが表示され、センター維持とパターン観察は出ない', async () => {
+    it('UI-26: 履歴の画面のモードの選択肢に「反復練習」「追いエイム」「追いエイム＋リコイル」が並び、センター維持とパターン観察は出ない', async () => {
       const page = await openFresh();
       await openHistory(page);
       const h = await historyState(page);
-      expect(h.selects.find((s) => s.label.startsWith('モード')), JSON.stringify(h.selects)).toBeUndefined();
-      expect(h.selects.map((s) => s.label.split(' ')[0])).toEqual(['武器', '入力方式']);
-      expect(h.text).toMatch(/モード\s*反復練習/);
+      expect(h.selects.map((s) => s.label.split(' ')[0])).toEqual(['武器', 'モード', '入力方式']);
+      const modeOptions = await page.evaluate<string[]>(`[...document.querySelector('#history-mode').options].map((o) => o.textContent.trim())`);
+      expect(modeOptions).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル']);
       expect(h.text).not.toContain('センター維持');
       expect(h.text).not.toContain('パターン観察');
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
@@ -661,8 +661,8 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
         if (c.href !== null) expect(c.href, JSON.stringify(c)).toMatch(/^#/);
         if (c.tag === 'input') expect(c.type, JSON.stringify(c)).not.toBe('file');
       }
-      // 見えている操作は、武器と入力方式の 2 つの選択（モードの選択肢の欄は出ない: UI-26）・「この履歴を消す」・トップ画面へ戻るリンクだけ。
-      expect(h.controls.filter((c) => c.tag === 'select')).toHaveLength(2);
+      // 見えている操作は、武器・モード・入力方式の 3 つの選択（反復練習では速さの欄は出ない）・「この履歴を消す」・トップ画面へ戻るリンクだけ。
+      expect(h.controls.filter((c) => c.tag === 'select')).toHaveLength(3);
       expect(h.controls.filter((c) => c.tag === 'button').map((c) => c.text)).toEqual([CLEAR]);
       expect(h.controls.filter((c) => c.tag === 'a')).toHaveLength(1);
       expect(h.controls.filter((c) => !['select', 'button', 'a'].includes(c.tag))).toEqual([]);

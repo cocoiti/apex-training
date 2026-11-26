@@ -104,6 +104,19 @@ describe('シェアの文（docs/spec/screens.md「シェアの文」）', () =>
     expect(lines).toEqual(['リコイル練習（非公式ファンツール）の結果', 'モード: フリック', '命中数: 13', PUBLIC_URL]);
   });
 
+  it('UI-105: 追いエイムでは 2 行目の最後に「 / 速さ: <速さ>」を足し、3 行目が乗っていた割合', () => {
+    const tracking = { weapon: undefined, mode: { name: '追いエイム' }, option: { label: '速さ', name: 'ふつう' } };
+    const lines = resultShareText(resultShare(tracking, { shareScore: '乗っていた割合: 72.0%', bestUpdated: false })).split('\n');
+    expect(lines.slice(1, 3)).toEqual(['モード: 追いエイム / 速さ: ふつう', '乗っていた割合: 72.0%']);
+    const recoil = { weapon: { name: 'L-STAR' }, mode: { name: '追いエイム＋リコイル' }, option: { label: '速さ', name: '速い' } };
+    expect(resultShareText(resultShare(recoil, { shareScore: '', bestUpdated: false })).split('\n')[1]).toBe('武器: L-STAR / モード: 追いエイム＋リコイル / 速さ: 速い');
+  });
+
+  it('追いエイムのセットの文も 2 行目に速さを書く', () => {
+    const summary = summarizeSet([{ round: 1, value: 50 }], 1, HIT_COUNT);
+    expect(setShareText(setShare(undefined, '追いエイム', summary, '速さ: 遅い')).split('\n')[1]).toBe('モード: 追いエイム / 速さ: 遅い');
+  });
+
   it('ほかのモードのセットの文は、3 行目をセットの平均の比べる指標にし、武器を使わないモードでは武器を書かない', () => {
     const summary = summarizeSet(
       [

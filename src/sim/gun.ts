@@ -63,6 +63,15 @@ export function traceShot(world: World, angles: Angles): Pick<ShotRecord, 'posit
   return hit.target ? { position: hit.position, deviation, target: hit.target.id } : { position: hit.position, deviation };
 }
 
+/** Gun の振る舞いの選び方。 */
+export interface GunOptions {
+  /**
+   * 撃ち切ったあと fire を離したステップで残弾を装弾数に戻し、次に撃つ弾をパターンの 1 発目にする（docs/spec/modes.md「追いエイム」）。
+   * 省くと戻さず、撃ち切ったあとに押し直したときに戻す。
+   */
+  readonly refillOnRelease?: boolean;
+}
+
 /**
  * 武器の発射・リコイル・当たり判定（docs/spec/weapons.md）。Simulation のステップごとの処理として step を呼ぶ。
  * リコイルの累積は Player の recoilOffset に持つ。
@@ -82,10 +91,12 @@ export class Gun implements Shooter {
   /** 戻りの途中なら、撃ち終わり時点の累積と経過時間。 */
   private recovery: { from: Angles; elapsed: number } | undefined;
   private steps = 0;
+  private readonly refillOnRelease: boolean;
 
-  constructor(weapon: WeaponData, random: Random) {
+  constructor(weapon: WeaponData, random: Random, options: GunOptions = {}) {
     this.weapon = weapon;
     this.random = random;
+    this.refillOnRelease = options.refillOnRelease ?? false;
     this.interval = fireInterval(weapon);
     this.ammoLeft = weapon.magSize;
   }
@@ -115,7 +126,14 @@ export class Gun implements Shooter {
     if (this.recovery) this.advanceRecovery(world, dt);
 
     const pressedNow = player.fire && !this.wasPressed;
+    const releasedNow = !player.fire && this.wasPressed;
     this.wasPressed = player.fire;
+
+    if (releasedNow && this.refillOnRelease && this.ammoLeft === 0) {
+      // リロードの時間はなく、離したステップで装弾数に戻す。戻したあとに撃つ最初の弾はパターンの 1 発目。
+      this.ammoLeft = this.weapon.magSize;
+      this.patternIndex = 0;
+    }
 
     if (pressedNow) {
       // 残弾が 0 のときに押し直すと装弾数に戻る（リロードの時間は扱わない）。新しいマガジンはパターンの 1 発目から。

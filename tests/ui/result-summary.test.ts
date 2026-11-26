@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ShotRecord } from '../../src/sim/gun';
 import type { WeaponData } from '../../src/sim/weapon';
-import { resultSummaryText } from '../../src/ui/result-summary';
+import { optionText, resultSummaryText } from '../../src/ui/result-summary';
 
 const shot = (n: number, position: ShotRecord['position']): ShotRecord => ({
   shot: n,
@@ -22,5 +22,12 @@ describe('リザルトの要約', () => {
     });
     expect(text).toBe('L-STAR / 反復練習 — 3 発');
     expect(text).not.toContain('当たり');
+  });
+
+  it('練習の選択肢を持つモードは、モードのあとに選んだ値を書く', () => {
+    const option = { id: 'fast', name: '速い', label: '速さ' };
+    expect(resultSummaryText({ weapon: undefined, mode: { id: 'tracking', name: '追いエイム', category: 'aim' }, shots: [], option })).toBe('追いエイム / 速さ: 速い — 0 発');
+    expect(optionText(option)).toBe('速さ: 速い');
+    expect(optionText(undefined)).toBeUndefined();
   });
 });

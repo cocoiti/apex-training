@@ -93,8 +93,30 @@ describe('エイムのモードと採点の仕方', () => {
 });
 
 describe('登録されたモード', () => {
-  it('MODE-27: src/modes/ のファイルから集めたモードは反復練習だけ', () => {
-    expect(modes.map((m) => [m.id, m.name])).toEqual([['ghost', '反復練習']]);
+  it('練習の選択肢の形が合わないモードは外し、合うモードは残す', () => {
+    const speed = { id: 'speed', label: '速さ', choices: [{ id: 'slow', name: '遅い' }, { id: 'normal', name: 'ふつう' }], defaultChoice: 'normal' };
+    const logs: string[] = [];
+    const list = buildModeList(
+      [
+        file('aim/a.ts', mode('a', 1, { option: speed })),
+        file('aim/b.ts', mode('b', 2, { option: { ...speed, defaultChoice: 'fast' } })),
+        file('aim/c.ts', mode('c', 3, { option: { ...speed, choices: [] } })),
+        file('aim/d.ts', mode('d', 4, { option: { ...speed, choices: [{ id: 'a:b', name: 'x' }], defaultChoice: 'a:b' } })),
+        file('aim/e.ts', mode('e', 5, { option: { ...speed, choices: [...speed.choices, { id: 'slow', name: '遅い' }] } })),
+        file('aim/f.ts', mode('f', 6, { refillOnRelease: 'yes' as unknown as boolean })),
+      ],
+      (m) => logs.push(m),
+    );
+    expect(list.map((m) => m.id)).toEqual(['a']);
+    expect(logs).toHaveLength(5);
+  });
+
+  it('MODE-27: src/modes/ のファイルから集めたモードは反復練習・追いエイム・追いエイム＋リコイルの順', () => {
+    expect(modes.map((m) => [m.id, m.name])).toEqual([
+      ['ghost', '反復練習'],
+      ['tracking', '追いエイム'],
+      ['tracking-recoil', '追いエイム＋リコイル'],
+    ]);
     expect(modes.map((m) => m.id)).not.toContain('center');
     expect(modes.map((m) => m.name)).not.toContain('センター維持');
     expect(modes.map((m) => m.name)).not.toContain('パターン観察');

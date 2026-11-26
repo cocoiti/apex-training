@@ -28,6 +28,31 @@ export interface ModeContext {
   readonly random: Random;
   /** 練習の開始から今のステップの終わりまでの時間（秒、固定ステップの時刻）。setup では 0。 */
   readonly time: number;
+  /** 練習の選択肢（option）で選んだ値の id。練習の選択肢を持たないモードでは undefined。 */
+  readonly option: string | undefined;
+}
+
+/** 練習の選択肢の 1 つの値（例: 速さの「ふつう」）。 */
+export interface ModeOptionChoice {
+  /** 保存のキーの末尾に足す id（例: `normal`）。英小文字・数字・`-` だけ。 */
+  readonly id: string;
+  /** 表示名（例: 「ふつう」）。 */
+  readonly name: string;
+}
+
+/**
+ * 練習の選択肢（docs/spec/modes.md「モードの登録」。追いエイムの速さなど）。持つモードはトップ画面でその値を選んで練習を始め、
+ * 自己ベストと履歴を値ごとに分ける。決定の理由は docs/adr/2026-11-26-mode-practice-option.md。
+ */
+export interface ModeOption {
+  /** 選択肢の id（例: `speed`）。同じ id の選択肢を持つモードどうしは、トップ画面と履歴の画面で選んだ値を共有する。 */
+  readonly id: string;
+  /** 表示名（例: 「速さ」）。 */
+  readonly label: string;
+  /** 選べる値。並び順に表示する。 */
+  readonly choices: readonly ModeOptionChoice[];
+  /** 開いたときに選んでいる値の id。choices のどれか。 */
+  readonly defaultChoice: string;
 }
 
 /**
@@ -123,6 +148,13 @@ export interface TrainingMode<TResult extends ModeResult = ModeResult> {
   readonly directionSound?: boolean;
   /** 補正のパネルの出し方。持たないモードでは出さない。武器を使わないモードでは出さない。 */
   readonly correctionPanel?: CorrectionPanelUse;
+  /** 練習の選択肢。省くと持たない（反復練習）。 */
+  readonly option?: ModeOption;
+  /**
+   * 撃ち切ったあと fire を離すと残弾を装弾数に戻すか（docs/spec/modes.md「追いエイム」）。武器を使うモードだけで意味を持ち、省くと戻さない。
+   * 戻すモードは撃ち切りと「離して 2 秒」では終わらず、モードが決めた終わりの条件（制限時間など）だけで終わる。
+   */
+  readonly refillOnRelease?: boolean;
   /** 練習の開始時に 1 回呼ぶ。練習の的はここで足せる。 */
   setup(context: ModeContext): void;
   /**
@@ -154,4 +186,11 @@ export function modeUsesWeakSections(mode: Pick<TrainingMode, 'scoring' | 'weakS
 /** モードが向きの音を使うか。武器を使うモードで、directionSound が false でないとき。 */
 export function modeUsesDirectionSound(mode: Pick<TrainingMode, 'usesWeapon' | 'directionSound'>): boolean {
   return modeUsesWeapon(mode) && mode.directionSound !== false;
+}
+
+/** 選んだ値の id から、モードの練習の選択肢の値を決める。持たないモードでは undefined、選択肢にない値は既定の値。 */
+export function modeOptionChoice(mode: Pick<TrainingMode, 'option'>, choiceId: string | undefined): ModeOptionChoice | undefined {
+  const option = mode.option;
+  if (!option) return undefined;
+  return option.choices.find((c) => c.id === choiceId) ?? option.choices.find((c) => c.id === option.defaultChoice) ?? option.choices[0];
 }

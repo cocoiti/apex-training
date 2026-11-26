@@ -80,9 +80,9 @@ const pointCount = (html: string) => Number(/data-series="history" data-count="(
 const listedMeans = (html: string) => [...html.matchAll(/data-field="meanError">([^<]*)</g)].map((m) => m[1]);
 
 describe('履歴の画面の選択肢', () => {
-  it('UI-26: モードにする登録されたモードは反復練習だけで、センター維持とパターン観察はない', () => {
-    expect(modes.map((m) => m.name)).toEqual(['反復練習']);
-    expect(modes.map((m) => m.id)).toEqual(['ghost']);
+  it('UI-26: モードにする登録されたモードは反復練習・追いエイム・追いエイム＋リコイルで、センター維持とパターン観察はない', () => {
+    expect(modes.map((m) => m.name)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル']);
+    expect(modes.map((m) => m.id)).toEqual(['ghost', 'tracking', 'tracking-recoil']);
   });
 
   it('入力方式はマウスとパッド', () => {
@@ -382,5 +382,87 @@ describe('武器を使わないモードの履歴の画面', () => {
     page.elements.confirm.ok.fire();
     expect(backing.items.has(historyKey(FLICK))).toBe(false);
     expect(backing.items.has(historyKey(LSTAR_GHOST))).toBe(true);
+  });
+});
+
+describe('追いエイムの履歴の画面（速さの選択肢）', () => {
+  const tracking = modes.find((m) => m.id === 'tracking')!;
+  const trackingRecoil = modes.find((m) => m.id === 'tracking-recoil')!;
+  const ghost = modes.find((m) => m.id === 'ghost')!;
+  const metric = tracking.scoring!.compare;
+  const key = (option: string) => ({ input: 'mouse', weaponId: NO_WEAPON_ID, modeId: 'tracking', option }) as const;
+
+  function openTrackingPage(backing: FakeBacking) {
+    const storage = new SafeStorage(() => backing as unknown as Storage);
+    storage.probe();
+    const elements = {
+      weapon: new FakeControl(),
+      weaponChoice: { hidden: false },
+      mode: new FakeControl(),
+      option: new FakeControl(),
+      optionChoice: { hidden: false },
+      input: new FakeControl(),
+      averages: { innerHTML: '' },
+      plot: { innerHTML: '' },
+      weak: { innerHTML: '' },
+      list: { innerHTML: '' },
+      empty: { hidden: true, textContent: '' },
+      clear: new FakeControl(),
+      unavailable: { hidden: true, textContent: '' },
+      body: { inert: false },
+      confirm: { root: { hidden: true }, message: { textContent: '' }, ok: new FakeControl(), cancel: new FakeControl() },
+    };
+    const view = bindHistoryView(elements satisfies HistoryElements, { storage, now: () => NOW, modes: [ghost, tracking, trackingRecoil] });
+    return { storage, elements, view };
+  }
+
+  const listed = (html: string) => [...html.matchAll(/data-field="onTargetRate">([^<]*)</g)].map((m) => m[1]);
+
+  it('UI-104: 追いエイム・ふつう・マウスを選ぶと武器の欄が隠れて 2 回分の乗っていた割合が出て、「速い」に選び直すと 1 回分になる', () => {
+    const page = openTrackingPage(new FakeBacking());
+    recordHistoryEntry(page.storage, key('normal'), metric, { value: 60, fields: { reacquireTime: 0.3 } }, NOW);
+    recordHistoryEntry(page.storage, key('normal'), metric, { value: 72.5, fields: { reacquireTime: 0.2 } }, NOW);
+    recordHistoryEntry(page.storage, key('fast'), metric, { value: 40, fields: {} }, NOW);
+    page.view.open({ input: 'mouse', weaponId: 'lstar', modeId: 'ghost' });
+    // 開いたときの速さは「ふつう」。反復練習では速さの欄を出さない。
+    expect(page.elements.option.value).toBe('normal');
+    expect(page.elements.optionChoice.hidden).toBe(true);
+
+    page.elements.mode.select('tracking');
+    expect(page.elements.weaponChoice.hidden).toBe(true);
+    expect(page.elements.optionChoice.hidden).toBe(false);
+    expect(pointCount(page.elements.plot.innerHTML)).toBe(2);
+    expect(page.elements.plot.innerHTML).toContain('乗っていた割合の推移');
+    expect(listed(page.elements.list.innerHTML)).toEqual(['60.0%', '72.5%']);
+    expect(page.elements.list.innerHTML).toContain('<th>乗っていた割合</th><th>外していたときのズレ</th><th>乗り直すまでの時間</th>');
+    expect(page.elements.weak.innerHTML).toBe('');
+
+    page.elements.option.select('fast');
+    expect(listed(page.elements.list.innerHTML)).toEqual(['40.0%']);
+  });
+
+  it('このページで終えた練習の速さで開き、追いエイム＋リコイルでは武器と速さの両方の組の履歴を出す', () => {
+    const page = openTrackingPage(new FakeBacking());
+    const recoil = { input: 'mouse', weaponId: 'car', modeId: 'tracking-recoil', option: 'slow' } as const;
+    recordHistoryEntry(page.storage, recoil, metric, { value: 33, fields: { hitRate: 50, shots: 40 } }, NOW);
+    recordHistoryEntry(page.storage, { ...recoil, weaponId: 'lstar' }, metric, { value: 90, fields: {} }, NOW);
+    page.view.open(recoil);
+    expect(page.elements.option.value).toBe('slow');
+    expect(page.elements.weaponChoice.hidden).toBe(false);
+    expect(page.elements.optionChoice.hidden).toBe(false);
+    expect(listed(page.elements.list.innerHTML)).toEqual(['33.0%']);
+    expect(page.elements.list.innerHTML).toContain('<th>命中率</th><th>撃った弾数</th>');
+  });
+
+  it('SCO-52: 速さ・リコイルのあり / なしで別のキーの履歴を読み、「この履歴を消す」は選んでいる組だけを消す', () => {
+    const backing = new FakeBacking();
+    const page = openTrackingPage(backing);
+    recordHistoryEntry(page.storage, key('normal'), metric, { value: 60, fields: {} }, NOW);
+    recordHistoryEntry(page.storage, { input: 'mouse', weaponId: 'lstar', modeId: 'tracking-recoil', option: 'normal' }, metric, { value: 70, fields: {} }, NOW);
+    page.view.open(key('normal'));
+    page.elements.clear.fire();
+    page.elements.confirm.ok.fire();
+    expect(backing.getItem('apex-training:history:mouse:-:tracking:normal')).toBeNull();
+    expect(backing.getItem('apex-training:history:mouse:lstar:tracking-recoil:normal')).not.toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { modeUsesWeakSections, modeUsesWeapon, type CompareMetric, type MetricSpec, type TrainingMode } from '../modes/types';
+import { modeOptionChoice, modeUsesWeakSections, modeUsesWeapon, type CompareMetric, type MetricSpec, type TrainingMode } from '../modes/types';
 import { compareMetric, formatMetric, historyColumns, NO_WEAPON_ID, SHOT_DEVIATION_COLUMNS, SHOT_DEVIATION_METRIC } from './mode-scoring';
 import type { InputMethod } from './personal-best';
 import {
@@ -253,6 +253,10 @@ export interface HistoryElements {
   /** 武器の選択肢の欄。武器を使わないモードを選んでいるあいだは隠す。 */
   readonly weaponChoice?: Pick<HTMLElement, 'hidden'>;
   readonly mode: ChoiceElement;
+  /** 練習の選択肢（速さ）の選択肢。練習の選択肢を持つモードを選んでいるときだけ使う。 */
+  readonly option?: ChoiceElement;
+  /** 練習の選択肢の欄。練習の選択肢を持たないモードを選んでいるあいだは隠す。 */
+  readonly optionChoice?: Pick<HTMLElement, 'hidden'>;
   readonly input: ChoiceElement;
   readonly averages: Pick<HTMLElement, 'innerHTML'>;
   readonly plot: Pick<HTMLElement, 'innerHTML'>;
@@ -281,7 +285,7 @@ export interface Clickable {
 }
 
 /** 履歴の画面が使うモードの項目。 */
-export type HistoryMode = Pick<TrainingMode, 'id' | 'usesWeapon' | 'scoring' | 'weakSections'>;
+export type HistoryMode = Pick<TrainingMode, 'id' | 'usesWeapon' | 'scoring' | 'weakSections' | 'option'>;
 
 export interface HistoryViewOptions {
   readonly storage: Pick<SafeStorage, 'get' | 'remove' | 'onUnavailable'>;
@@ -307,11 +311,16 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
   const mode = (): HistoryMode => options.modes?.find((m) => m.id === elements.mode.value) ?? { id: elements.mode.value };
   // 武器を使わないモードの組は、武器の id の代わりに NO_WEAPON_ID のキーで持つ（docs/spec/scoring.md「保存の形」）。
   // 武器の選択肢は隠すだけで値を残すので、武器を使うモードに選び直すと前に選んでいた武器の組になる。
-  const selection = (): HistorySelection => ({
-    input: INPUT_IDS.includes(elements.input.value) ? (elements.input.value as InputMethod) : 'mouse',
-    weaponId: modeUsesWeapon(mode()) ? elements.weapon.value : NO_WEAPON_ID,
-    modeId: elements.mode.value,
-  });
+  // 練習の選択肢を持つモードの組は、選んだ値（速さ）ごとのキーで持つ。選択肢の値は隠しているあいだも残し、同じ選択肢を持つモードで共有する。
+  const selection = (): HistorySelection => {
+    const option = modeOptionChoice(mode(), elements.option?.value);
+    return {
+      input: INPUT_IDS.includes(elements.input.value) ? (elements.input.value as InputMethod) : 'mouse',
+      weaponId: modeUsesWeapon(mode()) ? elements.weapon.value : NO_WEAPON_ID,
+      modeId: elements.mode.value,
+      ...(option ? { option: option.id } : {}),
+    };
+  };
   const entriesOf = () => loadModeHistory(options.storage, selection(), compareMetric(mode()));
 
   const render = () => {
@@ -319,6 +328,7 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
     const metric = compareMetric(current);
     const entries = entriesOf();
     if (elements.weaponChoice) elements.weaponChoice.hidden = !modeUsesWeapon(current);
+    if (elements.optionChoice) elements.optionChoice.hidden = current.option === undefined;
     elements.averages.innerHTML = historyAveragesHtml(entries, options.now(), metric);
     elements.plot.innerHTML = historyPlotHtml(entries, metric);
     // 発の区間ごとのズレの図と苦手な区間は、苦手な区間を使うモード（反復練習）だけで出す。
@@ -335,7 +345,9 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
     elements.body.inert = shown;
   };
 
-  for (const choice of [elements.weapon, elements.mode, elements.input]) choice.addEventListener('change', render);
+  for (const choice of [elements.weapon, elements.mode, elements.input, ...(elements.option ? [elements.option] : [])]) {
+    choice.addEventListener('change', render);
+  }
   elements.clear.addEventListener('click', () => {
     if (entriesOf().length === 0) return;
     showConfirm(true);
@@ -357,6 +369,9 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
       if (next.weaponId !== NO_WEAPON_ID) elements.weapon.value = next.weaponId;
       elements.mode.value = next.modeId;
       elements.input.value = next.input;
+      // 練習の選択肢は、このページで終えた練習の値か、なければ既定の値（ふつう）にする。
+      const option = options.modes?.find((m) => m.id === next.modeId)?.option ?? options.modes?.find((m) => m.option)?.option;
+      if (elements.option && option) elements.option.value = next.option ?? option.defaultChoice;
       showConfirm(false);
       render();
     },

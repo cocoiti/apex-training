@@ -15,7 +15,7 @@ import { canRumble, rumbleShot } from './input/pad-rumble';
 import { createSeed, RecordingInput } from './input/recording';
 import { keyControl, PadButtons, type ScreenControl } from './input/screen-controls';
 import { modes } from './modes/registry';
-import { modeUsesDirectionSound, modeUsesWeakSections, modeUsesWeapon, type TrainingMode } from './modes/types';
+import { modeOptionChoice, modeUsesDirectionSound, modeUsesWeakSections, modeUsesWeapon, type ModeOptionChoice, type TrainingMode } from './modes/types';
 import { PracticeSession } from './modes/session';
 import { GhostMarker } from './render/ghost';
 import { ImpactMarks } from './render/impacts';
@@ -38,6 +38,7 @@ import { MappingAutoOpen, PadMappingScreen, PadMappingStore } from './ui/pad-map
 import { bindCalibrationDeadzone, bindPadSettingsForm, type PadFormBinding, type PadSettingsFormElements } from './ui/pad-settings-form';
 import { fillModeChoice, fillModeSelect, type ModeChoiceElements } from './ui/mode-choices';
 import { compareMetric } from './ui/mode-scoring';
+import { fillOptionSelect, firstModeOption, showOptionChoice } from './ui/option-choices';
 import { PadMenu } from './ui/pad-menu';
 import { showPaused, showPointerLockNotice } from './ui/pointer-lock-notice';
 import { padGuideState, padGuideVisible, renderPadGuide, type PadGuideElements } from './ui/pad-guide';
@@ -47,7 +48,8 @@ import { applyPracticeSettings } from './ui/practice-settings';
 import { loadHistory, type HistorySelection } from './ui/practice-history';
 import type { InputMethod } from './ui/personal-best';
 import { parsePracticeCount, PracticeSet } from './ui/practice-set';
-import { completePractice, renderResult, resultWeaponId, type ResultElements, type ResultView } from './ui/result-view';
+import { completePractice, renderResult, resultSelection, type ResultElements, type ResultView } from './ui/result-view';
+import { optionText } from './ui/result-summary';
 import { renderRoundResult, roundResultTexts, type RoundResultElements } from './ui/round-result';
 import { adsAfter, applyReticleColor, showAimDisplay, type AimDisplayElements } from './ui/scope';
 import { SCREEN_HASHES, watchScreen, type ScreenId } from './ui/router';
@@ -285,7 +287,15 @@ function historyElements(): HistoryElements | null {
   };
   if ([...Object.values(elements), ...Object.values(confirm)].some((element) => !element)) return null;
   const weaponChoice = byId('weapon-choice');
-  return { ...elements, confirm, ...(weaponChoice ? { weaponChoice } : {}) } as HistoryElements;
+  // 練習の選択肢（速さ）の欄。練習の選択肢を持つモードを選んでいるときだけ出す。
+  const option = byId<HTMLSelectElement>('speed');
+  const optionChoice = byId('speed-choice');
+  return {
+    ...elements,
+    confirm,
+    ...(weaponChoice ? { weaponChoice } : {}),
+    ...(option && optionChoice ? { option, optionChoice } : {}),
+  } as HistoryElements;
 }
 
 /** 画面に入ったときに、パッドの画面の表示を保存された値に揃える。 */
@@ -442,6 +452,7 @@ async function start(): Promise<void> {
   const status = document.querySelector<HTMLElement>('#status');
   const weaponSelect = document.querySelector<HTMLSelectElement>('#weapon');
   const modeSelect = document.querySelector<HTMLSelectElement>('#mode');
+  const speedSelect = document.querySelector<HTMLSelectElement>('#speed');
   const countSelect = document.querySelector<HTMLSelectElement>('#count');
   const interlude = document.querySelector<HTMLElement>('#interlude');
   const playControls = document.querySelector<HTMLElement>('#play-controls');
@@ -583,11 +594,19 @@ async function start(): Promise<void> {
   const weaponChoice = document.querySelector<HTMLElement>('#weapon-choice');
   const previewChoice = document.querySelector<HTMLElement>('#preview-sound-choice');
   const selectedMode = () => modes.find((m) => m.id === modeSelect.value) ?? modes[0];
+  // 練習の選択肢（追いエイムの速さ）は、持つモードを選んでいるときだけ欄を出す。選んだ値は隠しているあいだも残り、
+  // 同じ選択肢を持つモード（追いエイムと追いエイム＋リコイル）で共有する（docs/spec/screens.md「トップ画面」）。
+  const speedChoice = document.querySelector<HTMLElement>('#speed-choice');
+  const firstOption = firstModeOption(modes);
+  if (speedSelect && firstOption) fillOptionSelect(speedSelect, firstOption);
   const refreshWeaponChoice = () => {
     const mode = selectedMode();
     const shown = mode ? modeUsesWeapon(mode) : true;
     if (!shown) preview.stop();
     showWeaponChoice({ weapon: weaponChoice, preview: previewChoice }, shown);
+    if (speedSelect && speedChoice) {
+      showOptionChoice({ select: speedSelect, choice: speedChoice, name: document.querySelector<HTMLElement>('#speed-label') }, mode);
+    }
   };
   modeSelect.addEventListener('change', refreshWeaponChoice);
   refreshWeaponChoice();
@@ -603,6 +622,7 @@ async function start(): Promise<void> {
     const historyModeChoice = modeChoiceElements('history-', historyEls.mode as HTMLSelectElement);
     if (historyModeChoice) fillModeChoice(historyModeChoice, modes);
     else fillModeSelect(historyEls.mode as HTMLSelectElement, modes);
+    if (historyEls.option && firstOption) fillOptionSelect(historyEls.option as HTMLSelectElement, firstOption);
     const historyView = bindHistoryView(historyEls, { storage: appStorage, now: () => new Date(), modes });
     const weaponIds = weapons.map((w) => w.id);
     const modeIds = modes.map((m) => m.id);
@@ -672,8 +692,8 @@ async function start(): Promise<void> {
 
   // 今のセット（回数が 1 のときも 1 回のセットとして持つ）と、その武器とモード。回ごと・やり直しごとに同じものを使う。
   let set: PracticeSet | undefined;
-  // 武器を使わないモードでは weapon は undefined。
-  let setup: { readonly weapon: WeaponData | undefined; readonly mode: TrainingMode } | undefined;
+  // 武器を使わないモードでは weapon は undefined。練習の選択肢を持たないモードでは option は undefined。
+  let setup: { readonly weapon: WeaponData | undefined; readonly mode: TrainingMode; readonly option: ModeOptionChoice | undefined } | undefined;
   // セットで最後に終えた回の入力方式（1 発目を撃ったときの入力方式）。セットのまとめに表示する。
   let setInput: InputMethod = 'mouse';
   // 直前に終えた回のリザルト。短いリザルトの残り秒数を描き直すのに使う。
@@ -684,7 +704,7 @@ async function start(): Promise<void> {
   /** 今のセットの今の回の練習を最初から始める。やり直しもこれで始め直す（docs/spec/modes.md「やり直し」）。 */
   const startRound = () => {
     if (!setup) return;
-    const { weapon, mode } = setup;
+    const { weapon, mode, option } = setup;
     impacts.clear();
     targetMarks.clear();
     ghost.hide();
@@ -710,6 +730,7 @@ async function start(): Promise<void> {
       mode,
       input,
       seed: input.seed,
+      ...(option ? { option: option.id } : {}),
       inputMethod: () => inputs.current,
       padName: () => pad.name,
     });
@@ -723,8 +744,8 @@ async function start(): Promise<void> {
       render: (alpha) => {
         // 撃ち切ったときと練習が終わったときはゴーストを消す（session.ghost が undefined）。
         ghost.update(world.player.position, showGhost ? session.ghost : undefined);
-        // 練習の的は読むだけで、シミュレーションの状態を変えない（ARC-43）。
-        targetMarks.update(world.targets.all, alpha);
+        // 練習の的は読むだけで、シミュレーションの状態を変えない（ARC-43）。照準が乗っている的は違う色で出す（MODE-40）。
+        targetMarks.update(world.targets.all, alpha, world.targets.aimed);
         // テストが時計を進めている途中の描画（clock.draws が false）では 3D を描かず、次の実際の描画で最後の状態を描く。
         if (clock.draws) view.render(world, interpolateAngles(session.previousViewAngles, viewAngles(world.player), alpha));
       },
@@ -761,7 +782,8 @@ async function start(): Promise<void> {
     // 武器を使わないモードは、トップ画面の武器の選択を使わない（docs/spec/modes.md「モードの登録」）。
     const weapon = modeUsesWeapon(mode) ? (weapons.find((w) => w.id === weaponSelect.value) ?? weapons[0]) : undefined;
     if (modeUsesWeapon(mode) && !weapon) return;
-    setup = { weapon, mode };
+    // 練習の選択肢を持つモードは、トップ画面で選んだ値（速さ）で始める。
+    setup = { weapon, mode, option: modeOptionChoice(mode, speedSelect?.value) };
     set = new PracticeSet(parsePracticeCount(countSelect.value));
     quitHint.hidden = !set.isSet;
     startRound();
@@ -786,8 +808,10 @@ async function start(): Promise<void> {
     running = undefined;
     interlude.hidden = true;
     const summary = summarizeSet(current.rounds, current.count, compareMetric(setup.mode));
-    renderSetSummary(setView, setSummaryHeading(setup.weapon?.name, setup.mode.name, setInput, summary), summary);
-    setSharing.set(setShareText(setShare(setup.weapon?.name, setup.mode.name, summary)));
+    const label = setup.mode.option?.label;
+    const option = setup.option && label ? optionText({ label, name: setup.option.name }) : undefined;
+    renderSetSummary(setView, setSummaryHeading(setup.weapon?.name, setup.mode.name, setInput, summary, option), summary);
+    setSharing.set(setShareText(setShare(setup.weapon?.name, setup.mode.name, summary, option)));
     flow.finishSet();
     location.hash = SCREEN_HASHES['set-result'];
   };
@@ -821,7 +845,7 @@ async function start(): Promise<void> {
       appStorage,
       new Date(),
     );
-    lastFinished = { input: result.inputMethod, weaponId: resultWeaponId(result), modeId: result.mode.id };
+    lastFinished = resultSelection(result, result.inputMethod);
     setInput = result.inputMethod;
     const phase = set.completeRound(view.value, now(), view.bestUpdated);
     if (!set.isSet) {
