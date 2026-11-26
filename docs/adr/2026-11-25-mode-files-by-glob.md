@@ -1,6 +1,6 @@
 # 練習モードは `src/modes/<category>/*.ts` のファイルの default export を import.meta.glob で集め、並び順とファイル名で並べる
 
-状態: 承認
+状態: 一部置き換え済み → [2026-11-26-mode-scoring-and-weaponless-modes](2026-11-26-mode-scoring-and-weaponless-modes.md)（モードの種類に aim を足し、撃ち切りと「離して 2 秒」の終わりは武器を使うモードだけにする）
 
 ## 背景
 

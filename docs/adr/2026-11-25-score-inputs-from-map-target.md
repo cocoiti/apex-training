@@ -1,6 +1,6 @@
 # 的の半径はマップの的の箱の見込み角から求め、外れの弾のズレは弾の向きと中心との差にする
 
-状態: 承認
+状態: 一部置き換え済み → [2026-11-26-mode-scoring-and-weaponless-modes](2026-11-26-mode-scoring-and-weaponless-modes.md)（採点の入力を弾痕のズレだけとする部分）
 
 ## 背景
 
