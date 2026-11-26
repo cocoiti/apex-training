@@ -1,5 +1,6 @@
-// docs/spec/modes.md（MODE-5〜MODE-11）、docs/spec/screens.md（UI-1・UI-10）と
+// docs/spec/modes.md（MODE-5〜MODE-11）、docs/spec/screens.md（UI-1）と
 // docs/spec/weapons.md（WPN-1・WPN-2・WPN-3 のトップ画面の部分）の受け入れテスト。WPN-21 は measured-weapons-qa が確かめる。
+// UI-10（武器のカード）は top-cards-qa が確かめる。
 // 公開された入口（ビルドの結果を /apex-training/ で配信した画面、武器の JSON、モードの共通の型）だけを使い、実装の内部には依存しない。
 // 画面はヘッドレスの Chromium で開き（tests/helpers/browser.ts）、パッドは Gamepad API（navigator.getGamepads）の形で与える。
 // 弾痕は、撃つ前と撃ったあと（リコイルが戻りきってから）の画面写しの差として読む（tests/helpers/png.ts）。
@@ -285,7 +286,7 @@ describe.skipIf(NESTED || !chromium)('練習モードの画面', () => {
 
   // -------------------------------------------------------------------------
   describe('トップ画面', () => {
-    it('UI-10 / WPN-3: 武器の選択肢が category ごとにまとめて表示され、一覧のすべての武器（L-STAR と C.A.R. SMG の 2 つだけ）が選択肢に出る', async () => {
+    it('WPN-3: 武器の選択肢が category ごとにまとめて表示され、一覧のすべての武器（L-STAR と C.A.R. SMG の 2 つだけ）が選択肢に出る', async () => {
       serveDist(mainDist);
       const page = await newPage();
       await page.goto(`${origin}${BASE}#/`);

@@ -72,6 +72,7 @@
 | MODE-46 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
 | MODE-53 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
 | MODE-55 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| MODE-56 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/top-cards-qa.acceptance.test.ts` |
 | MOU-2 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-3 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-4 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
@@ -164,7 +165,7 @@
 | UI-6 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/screens.acceptance.test.ts` |
 | UI-8 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/screens.acceptance.test.ts` |
 | UI-9 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/screens.acceptance.test.ts` |
-| UI-10 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/modes.acceptance.test.ts` |
+| UI-10 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/top-cards-qa.acceptance.test.ts` |
 | UI-11 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
 | UI-12 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
 | UI-13 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
@@ -266,6 +267,14 @@
 | UI-114 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
 | UI-115 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
 | UI-116 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
+| UI-117 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/top-cards-qa.acceptance.test.ts` |
+| UI-118 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/top-cards-qa.acceptance.test.ts` |
+| UI-119 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/top-cards-qa.acceptance.test.ts` |
+| UI-120 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/top-cards-qa.acceptance.test.ts` |
+| UI-121 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/top-cards-qa.acceptance.test.ts` |
+| UI-122 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/top-cards-qa.acceptance.test.ts` |
+| UI-123 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/top-cards-qa.acceptance.test.ts` |
+| UI-124 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/top-cards-qa.acceptance.test.ts` |
 | WPN-1 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-2 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-3 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
