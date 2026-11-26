@@ -59,6 +59,10 @@
 | MODE-29 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/remove-pattern-mode-qa.acceptance.test.ts` |
 | MODE-30 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
 | MODE-31 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/direction-sounds-qa.acceptance.test.ts` |
+| MODE-32 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
+| MODE-33 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
+| MODE-34 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
+| MODE-35 | [modes.md](../../docs/spec/modes.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
 | MOU-2 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-3 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/mouse-qa.acceptance.test.ts` |
 | MOU-4 | [mouse.md](../../docs/spec/mouse.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
@@ -122,6 +126,11 @@
 | SCO-36 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/weak-sections-qa.acceptance.test.ts` |
 | SCO-37 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/weak-sections-qa.acceptance.test.ts` |
 | SCO-39 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/weak-sections-qa.acceptance.test.ts` |
+| SCO-40 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
+| SCO-41 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
+| SCO-42 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
+| SCO-43 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
+| SCO-44 | [scoring.md](../../docs/spec/scoring.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
 | UI-1 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | UI-2 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/settings-qa.acceptance.test.ts` |
 | UI-4 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/ghost-follow-qa.acceptance.test.ts` |
@@ -210,6 +219,10 @@
 | UI-93 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/share-results-qa.acceptance.test.ts` |
 | UI-94 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/share-results-qa.acceptance.test.ts` |
 | UI-95 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/share-results-qa.acceptance.test.ts` |
+| UI-96 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
+| UI-97 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
+| UI-99 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
+| UI-100 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/aim-modes-qa.acceptance.test.ts` |
 | WPN-1 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-2 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-3 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
