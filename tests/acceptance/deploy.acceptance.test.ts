@@ -122,7 +122,9 @@ beforeAll(() => {
 
   // 手元の origin（bare）と、そこから clone した作業用のリポジトリを作る。既定ブランチ main と作業中のブランチ work を持つ。
   git(`init --bare --initial-branch=main "${bare}"`, work);
-  git(`clone --quiet "${ROOT}" "${clone}"`, work);
+  // Docker のコンテナの中（npm run test:remote）では ROOT がイメージの層、一時ディレクトリがコンテナの層にあり、
+  // overlayfs によっては git の hardlink の確認が失敗する（hardlink different from source）。hardlink を使わずにコピーする。
+  git(`clone --quiet --no-hardlinks "${ROOT}" "${clone}"`, work);
   git('checkout --quiet -B main', clone);
   git(`remote set-url origin "${bare}"`, clone);
   git('config user.name "Acceptance Test"', clone);
