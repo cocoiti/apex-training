@@ -54,10 +54,11 @@ const INPUT_LABELS: Readonly<Record<InputMethod, string>> = { mouse: 'マウス'
 
 /**
  * 見出しの 1 行。武器・モード・入力方式と、終えた回の数と選んだ回数（例: 「L-STAR / 反復練習 / マウス — 3 / 5 回」）。
- * 武器を使わないモードでは武器の名前を undefined にし、モード・入力方式から書く。
+ * 武器を使わないモードでは武器の名前を undefined にし、モード・入力方式から書く。練習の選択肢を持つモードでは、モードのあとに
+ * option（例: 「速さ: ふつう」）を書く。
  */
-export function setSummaryHeading(weaponName: string | undefined, modeName: string, input: InputMethod, summary: SetSummary): string {
-  const names = [...(weaponName === undefined ? [] : [weaponName]), modeName, INPUT_LABELS[input]].join(' / ');
+export function setSummaryHeading(weaponName: string | undefined, modeName: string, input: InputMethod, summary: SetSummary, option?: string): string {
+  const names = [...(weaponName === undefined ? [] : [weaponName]), modeName, ...(option === undefined ? [] : [option]), INPUT_LABELS[input]].join(' / ');
   return `${names} — ${summary.rounds.length} / ${summary.count} 回`;
 }
 

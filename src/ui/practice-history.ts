@@ -1,7 +1,7 @@
 import type { CompareMetric } from '../modes/types';
 import { SHOT_SECTION_SIZE, type ScoreResult, type ShotSection } from '../sim/scoring';
 import { isMetricValue, SHOT_DEVIATION_METRIC } from './mode-scoring';
-import type { BestCandidate, InputMethod } from './personal-best';
+import { modeKeyPart, type BestCandidate, type InputMethod } from './personal-best';
 import type { SafeStorage } from './storage';
 
 /** 保存の形の版（docs/spec/scoring.md「履歴の保存の形」）。 */
@@ -50,11 +50,16 @@ export interface HistorySelection {
   readonly input: InputMethod;
   readonly weaponId: string;
   readonly modeId: string;
+  /** 練習の選択肢を持つモードで選んだ値の id（例: `normal`）。持たないモードでは省く。 */
+  readonly option?: string;
 }
 
-/** 履歴のキー。`apex-training:history:<入力方式>:<武器の id>:<モードの id>`。武器を使わないモードの武器の id は NO_WEAPON_ID（`-`）。 */
+/**
+ * 履歴のキー。`apex-training:history:<入力方式>:<武器の id>:<モードの id>`。武器を使わないモードの武器の id は NO_WEAPON_ID（`-`）。
+ * 練習の選択肢を持つモードでは末尾に `:<値の id>` を足す（docs/spec/scoring.md「履歴の保存の形」）。
+ */
 export function historyKey(selection: HistorySelection): string {
-  return `apex-training:history:${selection.input}:${selection.weaponId}:${selection.modeId}`;
+  return `apex-training:history:${selection.input}:${selection.weaponId}:${modeKeyPart(selection.modeId, selection.option)}`;
 }
 
 function isFiniteNumber(value: unknown): value is number {

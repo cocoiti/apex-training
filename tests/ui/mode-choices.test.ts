@@ -24,10 +24,10 @@ describe('fillModeSelect', () => {
     expect(element.value).toBe(modes[0]?.id);
   });
 
-  it('MODE-27: 登録されたモードは「反復練習」だけで、「反復練習」を選ぶ', () => {
+  it('MODE-27: 登録されたモードは「反復練習」「追いエイム」「追いエイム＋リコイル」の順で、「反復練習」を選ぶ', () => {
     const { select, element } = createFakeSelect();
     fillModeSelect(select, modes);
-    expect(element.children.map((o) => o.textContent)).toEqual(['反復練習']);
+    expect(element.children.map((o) => o.textContent)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル']);
     expect(element.value).toBe('ghost');
   });
 
@@ -45,9 +45,9 @@ function choiceElements() {
 }
 
 describe('fillModeChoice', () => {
-  it('MODE-27・UI-26: 登録されたモードが 1 つ（反復練習）のときは選択肢の欄を隠し、名前だけを出す', () => {
+  it('登録されたモードが 1 つのときは選択肢の欄を隠し、名前だけを出す', () => {
     const { element, elements } = choiceElements();
-    fillModeChoice(elements, modes);
+    fillModeChoice(elements, [{ id: 'ghost', name: '反復練習' }]);
     expect(elements.choice.hidden).toBe(true);
     expect(elements.only.hidden).toBe(false);
     expect(elements.name.textContent).toBe('反復練習');
@@ -57,12 +57,21 @@ describe('fillModeChoice', () => {
 
   it('MODE-5: モードが 2 つ以上になると選択肢の欄を出し、名前だけの欄を隠して並び順の順に並べる', () => {
     const { element, elements } = choiceElements();
-    fillModeChoice(elements, modes);
-    fillModeChoice(elements, [...modes, { id: 'new', name: '新しいモード' }]);
+    fillModeChoice(elements, [{ id: 'ghost', name: '反復練習' }]);
+    fillModeChoice(elements, [{ id: 'ghost', name: '反復練習' }, { id: 'new', name: '新しいモード' }]);
     expect(elements.choice.hidden).toBe(false);
     expect(elements.only.hidden).toBe(true);
     expect(elements.name.textContent).toBe('');
     expect(element.children.map((o) => o.textContent)).toEqual(['反復練習', '新しいモード']);
+    expect(element.value).toBe('ghost');
+  });
+
+  it('MODE-27・UI-26: 登録されたモード（3 つ）では選択肢の欄を出し、名前だけの欄を隠して「反復練習」を選ぶ', () => {
+    const { element, elements } = choiceElements();
+    fillModeChoice(elements, modes);
+    expect(elements.choice.hidden).toBe(false);
+    expect(elements.only.hidden).toBe(true);
+    expect(element.children.map((o) => o.textContent)).toEqual(['反復練習', '追いエイム', '追いエイム＋リコイル']);
     expect(element.value).toBe('ghost');
   });
 });

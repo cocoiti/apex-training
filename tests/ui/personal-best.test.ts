@@ -29,6 +29,9 @@ describe('自己ベストのキー', () => {
   it('apex-training:best:<入力方式>:<武器の id>:<モードの id>', () => {
     expect(personalBestKey('mouse', 'lstar', 'ghost')).toBe(KEY);
     expect(personalBestKey('pad', 'car', 'ghost')).toBe('apex-training:best:pad:car:ghost');
+    // 練習の選択肢を持つモードは、末尾に選んだ値の id を足す（SCO-50）。
+    expect(personalBestKey('mouse', '-', 'tracking', 'normal')).toBe('apex-training:best:mouse:-:tracking:normal');
+    expect(personalBestKey('mouse', 'lstar', 'tracking-recoil', 'fast')).toBe('apex-training:best:mouse:lstar:tracking-recoil:fast');
   });
 });
 

@@ -395,7 +395,7 @@ describe.skipIf(NESTED || !chromium)('QA: エイムのモード（src/modes/aim/
       const page = await openFresh();
       const top = await topState(page);
       expect(top.modeVisible).toBe(true);
-      expect(top.modes).toEqual([WEAPON_MODE, REPEAT, TAP_MODE]);
+      expect(top.modes).toEqual([WEAPON_MODE, REPEAT, '追いエイム', '追いエイム＋リコイル', TAP_MODE]);
       await start(page, { mode: WEAPON_MODE, weapon: CAR.name });
       expect(await hud(page, 'weapon')).toContain(CAR.name);
       expect(num(await hud(page, 'ammo'))).toBe(CAR.magSize);

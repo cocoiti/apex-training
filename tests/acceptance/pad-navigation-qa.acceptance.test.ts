@@ -468,9 +468,12 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
     const weaponRect = await rectOf(page, '#weapon');
     expect(ringDiff(noFocus, weaponFocused, weaponRect), '武器の欄の周りに、フォーカスがないときと見分けられる枠が出る').toBeGreaterThan(20);
 
-    // 武器の次の項目は「パターンの音を聞く」、その次が回数（モードは反復練習だけで、モードの欄はない）。
+    // 武器の次の項目は「パターンの音を聞く」、その次がモード、その次が回数（反復練習では速さの欄は隠れていて、フォーカスが移らない）。
     await tap(page, DOWN);
     expect(await focused(page)).toBe('preview-sound');
+    await tap(page, DOWN);
+    expect(await focused(page)).toBe('mode');
+    expect(await value(page, '#mode')).toBe('ghost');
     await tap(page, DOWN);
     expect(await focused(page)).toBe('count');
     expect(await value(page, '#weapon')).toBe(weaponBefore);

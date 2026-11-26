@@ -1,8 +1,9 @@
-import type { PracticeResult } from '../modes/session';
+import type { PracticeResult, PracticeResultOption } from '../modes/session';
 import type { CompareMetric } from '../modes/types';
 import type { WeaponData } from '../sim/weapon';
 import { formatMetric, HIT_RATE_METRIC, SHOT_DEVIATION_METRIC } from './mode-scoring';
 import type { ResultView } from './result-view';
+import { optionText } from './result-summary';
 import type { SetSummary } from './set-summary';
 
 /**
@@ -22,6 +23,8 @@ export interface ResultShare {
   /** 武器の表示名。武器を使わないモードでは undefined。 */
   readonly weaponName: string | undefined;
   readonly modeName: string;
+  /** 練習の選択肢の値の書き方（例: 「速さ: ふつう」）。持たないモードでは undefined。 */
+  readonly option?: string | undefined;
   /** 3 行目。反復練習は「平均ズレ: 0.85° / 命中率: 72.0%」、ほかのモードは比べる指標（例: 「命中数: 13」）。 */
   readonly score: string;
   readonly bestUpdated: boolean;
@@ -32,6 +35,8 @@ export interface SetShare {
   /** 武器の表示名。武器を使わないモードでは undefined。 */
   readonly weaponName: string | undefined;
   readonly modeName: string;
+  /** 練習の選択肢の値の書き方（例: 「速さ: ふつう」）。持たないモードでは undefined。 */
+  readonly option?: string | undefined;
   /** 終えた回の数。 */
   readonly rounds: number;
   /** 選んだ回数。 */
@@ -52,32 +57,40 @@ export function metricShareScore(metric: Pick<CompareMetric, 'label' | 'format'>
   return `${metric.label}: ${formatMetric(metric, value)}`;
 }
 
-/** 2 行目。武器を使わないモードでは「モード: <モード>」だけ（docs/spec/screens.md「シェアの文」）。 */
-function choiceLine(weaponName: string | undefined, modeName: string): string {
-  return weaponName === undefined ? `モード: ${modeName}` : `武器: ${weaponName} / モード: ${modeName}`;
+/**
+ * 2 行目。武器を使わないモードでは「モード: <モード>」だけ。練習の選択肢を持つモードでは最後に「 / 速さ: <速さ>」を足す
+ * （docs/spec/screens.md「シェアの文」）。
+ */
+function choiceLine(weaponName: string | undefined, modeName: string, option: string | undefined): string {
+  const choice = weaponName === undefined ? `モード: ${modeName}` : `武器: ${weaponName} / モード: ${modeName}`;
+  return option === undefined ? choice : `${choice} / ${option}`;
 }
 
-function lines(title: string, weaponName: string | undefined, modeName: string, score: string, bestUpdated: boolean): string {
-  return [title, choiceLine(weaponName, modeName), score, ...(bestUpdated ? [BEST_UPDATED] : []), PUBLIC_URL].join('\n');
+function lines(title: string, share: Pick<ResultShare, 'weaponName' | 'modeName' | 'option' | 'bestUpdated'>, score: string): string {
+  return [title, choiceLine(share.weaponName, share.modeName, share.option), score, ...(share.bestUpdated ? [BEST_UPDATED] : []), PUBLIC_URL].join('\n');
 }
 
 /** リザルト画面のシェアの文。数の書き方はリザルト画面の表示と同じ。 */
 export function resultShareText(share: ResultShare): string {
-  return lines(`${APP_NAME}の結果`, share.weaponName, share.modeName, share.score, share.bestUpdated);
+  return lines(`${APP_NAME}の結果`, share, share.score);
 }
 
 /** セットのまとめのシェアの文。 */
 export function setShareText(share: SetShare): string {
   const score = `回数: ${share.rounds} / ${share.count} 回 / ${share.average}`;
-  return lines(`${APP_NAME}のセットの結果`, share.weaponName, share.modeName, score, share.bestUpdated);
+  return lines(`${APP_NAME}のセットの結果`, share, score);
 }
 
 /** リザルト画面の練習の結果と表示から、シェアの文に入れるものを取り出す。 */
 export function resultShare(
-  result: { readonly weapon: Pick<WeaponData, 'name'> | undefined; readonly mode: Pick<PracticeResult['mode'], 'name'> },
+  result: {
+    readonly weapon: Pick<WeaponData, 'name'> | undefined;
+    readonly mode: Pick<PracticeResult['mode'], 'name'>;
+    readonly option?: Pick<PracticeResultOption, 'label' | 'name'> | undefined;
+  },
   view: Pick<ResultView, 'shareScore' | 'bestUpdated'>,
 ): ResultShare {
-  return { weaponName: result.weapon?.name, modeName: result.mode.name, score: view.shareScore, bestUpdated: view.bestUpdated };
+  return { weaponName: result.weapon?.name, modeName: result.mode.name, option: optionText(result.option), score: view.shareScore, bestUpdated: view.bestUpdated };
 }
 
 /** セットの平均の書き方。反復練習（平均ズレ）は「セットの平均ズレ: 0.85°」、ほかのモードは「セットの平均<指標の名前>: <値>」。 */
@@ -86,15 +99,20 @@ export function setAverageShareText(summary: Pick<SetSummary, 'metric' | 'averag
   return `セットの${label}: ${formatMetric(summary.metric, summary.average)}`;
 }
 
-/** セットのまとめから、シェアの文に入れるものを取り出す。武器を使わないモードでは weaponName を undefined にする。 */
+/**
+ * セットのまとめから、シェアの文に入れるものを取り出す。武器を使わないモードでは weaponName を undefined にする。
+ * option は練習の選択肢の値の書き方（例: 「速さ: ふつう」）で、持たないモードでは省く。
+ */
 export function setShare(
   weaponName: string | undefined,
   modeName: string,
   summary: Pick<SetSummary, 'metric' | 'rounds' | 'count' | 'average' | 'bestUpdated'>,
+  option?: string,
 ): SetShare {
   return {
     weaponName,
     modeName,
+    option,
     rounds: summary.rounds.length,
     count: summary.count,
     average: setAverageShareText(summary),

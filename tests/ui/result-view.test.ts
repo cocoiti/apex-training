@@ -558,3 +558,109 @@ describe('モードごとの採点', () => {
     expect(view.best).toMatch(/^自己ベスト 平均ズレ \d+\.\d{2}°$/);
   });
 });
+
+describe('追いエイムのリザルト（docs/spec/scoring.md「追いエイムの採点」）', () => {
+  const SPEEDS = { slow: '遅い', normal: 'ふつう', fast: '速い' } as const;
+
+  /** 乗っていた割合が rate（%）になる、200 ステップの追いエイムの練習の結果。 */
+  function trackingPractice(
+    rate: number,
+    options: { modeId?: 'tracking' | 'tracking-recoil'; speed?: keyof typeof SPEEDS; weapon?: WeaponData; shots?: ShotRecord[] } = {},
+  ): FinishedPractice {
+    const mode = modeById(options.modeId ?? 'tracking');
+    const speed = options.speed ?? 'normal';
+    const n = 200;
+    const dt = 0.1;
+    const steps = Array.from({ length: n }, (_, i) => ({ on: i < (rate / 100) * n, offAngle: i < (rate / 100) * n ? 0 : 1.5 }));
+    const result: PracticeResult = {
+      weapon: options.weapon,
+      mode,
+      shots: options.shots ?? [],
+      endReason: 'time',
+      inputMethod: 'mouse',
+      padName: undefined,
+      duration: n * dt,
+      modeResult: { steps, reversals: [], dt },
+      option: { id: speed, name: SPEEDS[speed], label: '速さ' },
+    };
+    return { result, recording: { actions: [] }, world: rangeWorld(), input: 'mouse', dt };
+  }
+
+  it('SCO-49: 乗っていた割合・外していたときのズレ・乗り直すまでの時間・速さ・自己ベストを出し、平均ズレ・グルーピング半径・散布図・軌道・苦手な区間を出さない', () => {
+    const view = completePractice(trackingPractice(75), memoryStorage(), NOW);
+    expect(view.metrics).toEqual([
+      { label: '乗っていた割合', value: '75.0%' },
+      { label: '外していたときのズレ', value: '1.50°' },
+      { label: '乗り直すまでの時間', value: 'なし' },
+      { label: '速さ', value: 'ふつう' },
+    ]);
+    expect(view.best).toBe('自己ベスト更新');
+    expect(view.summary).toBe('追いエイム / 速さ: ふつう — 0 発');
+    expect(view.plots).toEqual([]);
+    expect(view.weakSection).toBeNull();
+    expect(view.padTrace).toBeNull();
+    expect(view.comments).toEqual([]);
+    expect(view.metrics.map((m) => m.label).join(' ')).not.toMatch(/平均ズレ|グルーピング半径/);
+    expect(view.shareScore).toBe('乗っていた割合: 75.0%');
+  });
+
+  it('SCO-50: マウス・ふつうで終えると、- と :normal のキーに version 1 と onTargetRate が保存される', () => {
+    const storage = memoryStorage();
+    completePractice(trackingPractice(42), storage, NOW);
+    const best = JSON.parse(storage.items.get('apex-training:best:mouse:-:tracking:normal') ?? '') as Record<string, unknown>;
+    expect(best).toEqual({ version: 1, onTargetRate: 42, offTargetError: 1.5, achievedAt: NOW.toISOString() });
+    const history = JSON.parse(storage.items.get('apex-training:history:mouse:-:tracking:normal') ?? '') as { version: number; entries: unknown[] };
+    expect(history).toEqual({ version: 1, entries: [{ at: NOW.toISOString(), onTargetRate: 42, offTargetError: 1.5 }] });
+    expect([...storage.items.keys()].sort()).toEqual(['apex-training:best:mouse:-:tracking:normal', 'apex-training:history:mouse:-:tracking:normal']);
+  });
+
+  it('SCO-51: 60% の自己ベストがあると、60% と 55% では更新せず、65% で更新する', () => {
+    const storage = memoryStorage();
+    const key = 'apex-training:best:mouse:-:tracking:normal';
+    completePractice(trackingPractice(60), storage, NOW);
+    const same = completePractice(trackingPractice(60), storage, NOW);
+    expect(same.bestUpdated).toBe(false);
+    expect(same.best).toBe('自己ベスト 乗っていた割合 60.0%');
+    expect(completePractice(trackingPractice(55), storage, NOW).bestUpdated).toBe(false);
+    expect((JSON.parse(storage.items.get(key)!) as { onTargetRate: number }).onTargetRate).toBe(60);
+    const better = completePractice(trackingPractice(65), storage, NOW);
+    expect(better.best).toBe('自己ベスト更新');
+    expect((JSON.parse(storage.items.get(key)!) as { onTargetRate: number }).onTargetRate).toBe(65);
+  });
+
+  it('SCO-52: 速さ・リコイルのあり / なし・武器で別のキーに保存し、追いエイムのふつうの自己ベストと履歴は変わらない', () => {
+    const storage = memoryStorage();
+    completePractice(trackingPractice(80), storage, NOW);
+    const before = [storage.items.get('apex-training:best:mouse:-:tracking:normal'), storage.items.get('apex-training:history:mouse:-:tracking:normal')];
+    const views = [
+      completePractice(trackingPractice(30, { speed: 'fast' }), storage, NOW),
+      completePractice(trackingPractice(30, { modeId: 'tracking-recoil', weapon: loadWeapon('lstar') }), storage, NOW),
+      completePractice(trackingPractice(30, { modeId: 'tracking-recoil', weapon: loadWeapon('car') }), storage, NOW),
+    ];
+    expect(views.map((v) => v.best)).toEqual(['自己ベスト更新', '自己ベスト更新', '自己ベスト更新']);
+    expect([storage.items.get('apex-training:best:mouse:-:tracking:normal'), storage.items.get('apex-training:history:mouse:-:tracking:normal')]).toEqual(before);
+    for (const key of ['mouse:-:tracking:fast', 'mouse:lstar:tracking-recoil:normal', 'mouse:car:tracking-recoil:normal']) {
+      expect(storage.items.has(`apex-training:best:${key}`)).toBe(true);
+      expect(storage.items.has(`apex-training:history:${key}`)).toBe(true);
+    }
+  });
+
+  it('SCO-53: 追いエイム＋リコイルでは、命中率と撃った弾数を出し、自己ベストと履歴に hitRate と shots を保存する', () => {
+    const storage = memoryStorage();
+    const shot = (n: number, target?: string): ShotRecord => ({ shot: n, patternShot: n, time: n * 0.1, angles: { yaw: 0, pitch: 0 }, position: null, deviation: null, ...(target ? { target } : {}) });
+    const shots = [shot(1, 'tracking'), shot(2, 'tracking'), shot(3), shot(4, 'tracking')];
+    const view = completePractice(trackingPractice(50, { modeId: 'tracking-recoil', weapon: loadWeapon('lstar'), shots }), storage, NOW);
+    expect(view.metrics).toContainEqual({ label: '命中率', value: '75.0%' });
+    expect(view.metrics).toContainEqual({ label: '撃った弾数', value: '4' });
+    expect(view.summary).toBe('L-STAR / 追いエイム＋リコイル / 速さ: ふつう — 4 発');
+    expect(JSON.parse(storage.items.get('apex-training:best:mouse:lstar:tracking-recoil:normal')!)).toMatchObject({ hitRate: 75, shots: 4 });
+    const history = JSON.parse(storage.items.get('apex-training:history:mouse:lstar:tracking-recoil:normal')!) as { entries: Record<string, unknown>[] };
+    expect(history.entries[0]).toMatchObject({ onTargetRate: 50, hitRate: 75, shots: 4 });
+  });
+
+  it('SCO-54: 追いエイム（リコイルなし）では、撃った弾があっても命中率と撃った弾数を出さない', () => {
+    const shots: ShotRecord[] = [{ shot: 1, patternShot: 1, time: 0, angles: { yaw: 0, pitch: 0 }, position: null, deviation: null, target: 'tracking' }];
+    const view = completePractice(trackingPractice(50, { shots }), memoryStorage(), NOW);
+    expect(view.metrics.map((m) => m.label)).toEqual(['乗っていた割合', '外していたときのズレ', '乗り直すまでの時間', '速さ']);
+  });
+});

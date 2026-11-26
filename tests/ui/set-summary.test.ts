@@ -10,6 +10,7 @@ import {
   summarizeSet,
 } from '../../src/ui/set-summary';
 import { HIT_COUNT } from '../helpers/aim-modes';
+import { modes } from '../../src/modes/registry';
 
 const rounds = (means: readonly (number | null)[]): RoundRecord[] => means.map((value, i) => ({ round: i + 1, value }));
 const count = (html: string, pattern: RegExp) => html.match(pattern)?.length ?? 0;
@@ -112,6 +113,15 @@ describe('セットのまとめ', () => {
 
   it('大きいほど良い指標で最も大きい回が複数あるときは番号の小さい回', () => {
     expect(summarizeSet(rounds([3, 5, 5]), 3, HIT_COUNT).best).toEqual({ round: 2, value: 5 });
+  });
+
+  it('UI-106: 追いエイムの見出しにモードと速さを書き、乗っていた割合がいちばん大きい回に印を付ける', () => {
+    const tracking = modes.find((m) => m.id === 'tracking')!;
+    const summary = summarizeSet(rounds([55, 72.5, 60]), 3, tracking.scoring!.compare);
+    expect(setSummaryHeading(undefined, '追いエイム', 'mouse', summary, '速さ: ふつう')).toBe('追いエイム / 速さ: ふつう / マウス — 3 / 3 回');
+    const html = setRoundsHtml(summary);
+    expect([...html.matchAll(/<li data-round="(\d)"[^>]*>/g)].map((m) => m[0].includes('data-best') ? m[1] : null).filter(Boolean)).toEqual(['2']);
+    expect(html).toContain('72.5%');
   });
 
   it('武器を使わないモードの見出しは武器を書かない', () => {

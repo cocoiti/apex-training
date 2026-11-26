@@ -6,6 +6,12 @@ import type { DisplayLayer } from './layer';
 /** 練習の的の色。壁（灰）・的の板（白に近い色）・リング（暗い色）・弾痕（黄）・ゴースト（緑）と見分けられるマゼンタ。 */
 export const PRACTICE_TARGET_COLOR = 0xe040c8;
 
+/**
+ * 照準が乗っている練習の的の色（docs/spec/screens.md「3D の表示」）。乗っていないときのマゼンタ・壁・リング・弾痕・ゴースト（緑）と見分けられる水色。
+ * 乗っているときに色を変える的（highlightAimed）だけに使う。
+ */
+export const PRACTICE_TARGET_AIMED_COLOR = 0x30c8ff;
+
 /** 練習の的の表示物の名前。層の中で練習の的を見分けるのに使う。userData.targetId に的の識別子を持つ。 */
 export const PRACTICE_TARGET_NAME = 'practice-target';
 
@@ -27,8 +33,11 @@ export class TargetMarks {
     this.layer = layer;
   }
 
-  /** 描画のたびに呼ぶ。targets はシミュレーションの今の練習の的、alpha は補間の係数（0 以上 1 未満）。 */
-  update(targets: readonly PracticeTarget[], alpha: number): void {
+  /**
+   * 描画のたびに呼ぶ。targets はシミュレーションの今の練習の的、alpha は補間の係数（0 以上 1 未満）、
+   * aimed は最後のステップで照準が乗っている的の識別子。乗っているときに色を変える的は、乗っているあいだ乗っているときの色にする。
+   */
+  update(targets: readonly PracticeTarget[], alpha: number, aimed?: string): void {
     const seen = new Set<string>();
     for (const target of targets) {
       seen.add(target.id);
@@ -44,6 +53,9 @@ export class TargetMarks {
         this.layer.add(mesh);
       }
       mesh.visible = target.visible;
+      const color = target.highlightAimed && target.id === aimed ? PRACTICE_TARGET_AIMED_COLOR : PRACTICE_TARGET_COLOR;
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      if (material.color.getHex() !== color) material.color.setHex(color);
       const p = interpolatePosition(target.previousCenter, target.center, alpha);
       mesh.position.set(p.x, p.y, p.z);
     }

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { inputFromTimedActions } from '../../src/input/queue';
 import { PracticeSession } from '../../src/modes/session';
 import { ViewScene } from '../../src/render/scene';
-import { interpolatePosition, PRACTICE_TARGET_COLOR, PRACTICE_TARGET_NAME, TargetMarks } from '../../src/render/targets';
+import { interpolatePosition, PRACTICE_TARGET_AIMED_COLOR, PRACTICE_TARGET_COLOR, PRACTICE_TARGET_NAME, TargetMarks } from '../../src/render/targets';
 import { IMPACT_COLOR } from '../../src/render/impacts';
 import { GHOST_COLOR } from '../../src/render/ghost';
 import { ENVIRONMENT_COLORS } from '../../src/render/environment';
@@ -119,9 +119,28 @@ describe('練習の的の表示', () => {
     expect(run(true)).toEqual(run(false));
   });
 
-  it('色は壁・的の板・リング・弾痕・ゴーストと違う', () => {
+  it('色は壁・的の板・リング・弾痕・ゴーストと違い、乗っているときの色は乗っていないときの色とも違う', () => {
     const others = [ENVIRONMENT_COLORS.wall, ENVIRONMENT_COLORS.board, ENVIRONMENT_COLORS.ring, IMPACT_COLOR, GHOST_COLOR];
     expect(others).not.toContain(PRACTICE_TARGET_COLOR);
+    expect([...others, PRACTICE_TARGET_COLOR]).not.toContain(PRACTICE_TARGET_AIMED_COLOR);
+  });
+
+  it('MODE-40: 乗っているときに色を変える的は、照準が乗っているあいだ乗っているときの色にし、外すと乗っていないときの色に戻す', () => {
+    const w = world();
+    w.targets.add({ id: 'track', size: TARGET_SIZE, position: vec3(0, 1.6, -10), highlightAimed: true });
+    w.targets.add({ id: 'plain', size: TARGET_SIZE, position: vec3(3, 1.6, -10) });
+    w.targets.update(1 / 120);
+    const view = new ViewScene(w);
+    const marks = new TargetMarks(view.layer);
+    const color = (id: string) => (meshes(view).find((m) => m.userData.targetId === id)!.material as THREE.MeshBasicMaterial).color.getHex();
+    marks.update(w.targets.all, 0, 'track');
+    expect(color('track')).toBe(PRACTICE_TARGET_AIMED_COLOR);
+    marks.update(w.targets.all, 0, undefined);
+    expect(color('track')).toBe(PRACTICE_TARGET_COLOR);
+    // 色を変えない的は、乗っていても同じ色。
+    marks.update(w.targets.all, 0, 'plain');
+    expect(color('plain')).toBe(PRACTICE_TARGET_COLOR);
+    expect(color('track')).toBe(PRACTICE_TARGET_COLOR);
   });
 
   it('位置の補間', () => {

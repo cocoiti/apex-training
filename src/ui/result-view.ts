@@ -16,7 +16,7 @@ import {
   type InputMethod,
   type PersonalBestOutcome,
 } from './personal-best';
-import { recordHistoryEntry, shotDeviationHistoryCandidate, type HistoryEntry } from './practice-history';
+import { recordHistoryEntry, shotDeviationHistoryCandidate, type HistoryEntry, type HistorySelection } from './practice-history';
 import { escapeHtml, plotHtml, tracePlotHtml, type Plot, type TracePlot } from './result-plot';
 import { resultSummaryText } from './result-summary';
 import { metricShareScore, shotDeviationShareScore } from './share';
@@ -147,6 +147,11 @@ export function padTraceView(
   };
 }
 
+/** 練習の結果の、保存の組（入力方式・武器・モード・練習の選択肢の値）。 */
+export function resultSelection(result: Pick<PracticeResult, 'weapon' | 'mode' | 'option'>, input: InputMethod): HistorySelection {
+  return { input, weaponId: resultWeaponId(result), modeId: result.mode.id, ...(result.option ? { option: result.option.id } : {}) };
+}
+
 /** 保存のキーの武器の id。武器を使わないモードの練習では NO_WEAPON_ID（`-`）。 */
 export function resultWeaponId(result: Pick<PracticeResult, 'weapon'>): string {
   return result.weapon?.id ?? NO_WEAPON_ID;
@@ -167,13 +172,15 @@ export function completePractice(
   if (!scoring) return completeShotDeviation(practice, storage, now);
   const metric = compareMetric(result.mode);
   const scored = scoring.score({ shots: result.shots, duration: result.duration, modeResult: result.modeResult });
-  const selection = { input: practice.input, weaponId: resultWeaponId(result), modeId: result.mode.id };
+  const selection = resultSelection(result, practice.input);
   const candidate = { value: scored.value, fields: scored.fields ?? {} };
-  const outcome = recordBest(storage, personalBestKey(selection.input, selection.weaponId, selection.modeId), metric, candidate, now);
+  const outcome = recordBest(storage, personalBestKey(selection.input, selection.weaponId, selection.modeId, selection.option), metric, candidate, now);
   recordHistoryEntry(storage, selection, metric, candidate, now);
+  // 練習の選択肢を持つモードは、選んだ値（速さ）も指標の行に並べる（docs/spec/scoring.md「追いエイムの採点」）。
+  const option = result.option ? [{ label: result.option.label, value: result.option.name }] : [];
   return {
     summary: resultSummaryText(result),
-    metrics: scored.metrics,
+    metrics: [...scored.metrics, ...option],
     comments: scored.comments ?? [],
     best: personalBestText(outcome, metric),
     metric,
@@ -196,8 +203,8 @@ function completeShotDeviation(practice: FinishedPractice, storage: Pick<SafeSto
 
   const radius = targetRadius(world);
   const scored = scoreShots(result.shots, world, radius);
-  const selection = { input: practice.input, weaponId: resultWeaponId(result), modeId: result.mode.id };
-  const key = personalBestKey(selection.input, selection.weaponId, selection.modeId);
+  const selection = resultSelection(result, practice.input);
+  const key = personalBestKey(selection.input, selection.weaponId, selection.modeId, selection.option);
   const outcome = recordBest(storage, key, SHOT_DEVIATION_METRIC, shotDeviationBestCandidate(scored), now);
   // 履歴は自己ベストとは別のキーに足す（docs/spec/scoring.md「練習の履歴」）。
   const history = recordHistoryEntry(storage, selection, SHOT_DEVIATION_METRIC, shotDeviationHistoryCandidate(scored), now) as HistoryEntry[];
