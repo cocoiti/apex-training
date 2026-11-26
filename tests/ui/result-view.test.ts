@@ -11,7 +11,7 @@ import type { TrainingMode } from '../../src/modes/types';
 import type { ShotRecord } from '../../src/sim/gun';
 import { parseMap, type MapData } from '../../src/sim/map';
 import { replayRecording } from '../../src/sim/practice';
-import { score, scoreShots } from '../../src/sim/scoring';
+import { score, scoreShots, targetRadius } from '../../src/sim/scoring';
 import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
 import { createWorld, type World } from '../../src/sim/world';
 import { parsePersonalBest, personalBestKey } from '../../src/ui/personal-best';
@@ -159,6 +159,14 @@ describe('リザルト画面に出すもの', () => {
     expect(first.meanDeviation).toBeCloseTo(meanOf(storage.items.get(LSTAR_GHOST)) ?? NaN, 9);
     expect(first.bestUpdated).toBe(true);
     expect(completePractice(practice('lstar', 'ghost'), storage, NOW).bestUpdated).toBe(false);
+  });
+
+  it('命中率（%）を出す（シェアの文に使う）', () => {
+    const p = practice('lstar', 'ghost');
+    const view = completePractice(p, memoryStorage(), NOW);
+    const world = rangeWorld();
+    expect(view.hitRate).toBe(scoreShots(p.result.shots, world, targetRadius(world)).hitRate);
+    expect(view.metrics.find((row) => row.label === '命中率')?.value).toBe(`${view.hitRate?.toFixed(1)}%`);
   });
 
   it('MODE-23: 連続練習で回ごとに採点すると、自己ベストには回のうち平均ズレが最も小さい回の平均ズレが残る', () => {

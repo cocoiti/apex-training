@@ -14,6 +14,15 @@ const rounds = (means: readonly (number | null)[]): RoundRecord[] => means.map((
 const count = (html: string, pattern: RegExp) => html.match(pattern)?.length ?? 0;
 
 describe('セットのまとめ', () => {
+  it('どれかの回で自己ベストを更新したかをまとめる', () => {
+    expect(summarizeSet(rounds([1.0, 0.8]), 5).bestUpdated).toBe(false);
+    const updated: RoundRecord[] = [
+      { round: 1, meanDeviation: 1.0, bestUpdated: false },
+      { round: 2, meanDeviation: 0.8, bestUpdated: true },
+    ];
+    expect(summarizeSet(updated, 5).bestUpdated).toBe(true);
+  });
+
   it('UI-34: 各回の平均ズレを回の順に並べ、推移の図に点を打ち、セットの平均といちばん良かった回を出す', () => {
     const summary = summarizeSet(rounds([1.0, 0.8, 1.2, 0.6, 0.9]), 5);
     expect(summary.rounds.map((r) => r.meanDeviation)).toEqual([1.0, 0.8, 1.2, 0.6, 0.9]);

@@ -4,7 +4,7 @@ import { isStandardMapping, STANDARD_LAYOUT, type GamepadLike } from './pad';
  * 画面の操作に使うキーとボタン（docs/spec/screens.md「画面の操作」）。照準と射撃のアクションにはせず、入力の記録にも入れない。
  * 何の操作になるかは画面ごとに src/ui/screen-commands.ts で決める。
  */
-export type ScreenControl = 'r' | 'space' | 'q' | 'pad-a' | 'pad-b';
+export type ScreenControl = 'r' | 'space' | 'q' | 'pad-a' | 'pad-b' | 'pad-y';
 
 const KEY_CONTROLS: Readonly<Record<string, ScreenControl>> = {
   KeyR: 'r',
@@ -27,10 +27,11 @@ export function keyControl(event: KeyLike): ScreenControl | undefined {
 const PAD_CONTROLS: readonly (readonly [number, ScreenControl])[] = [
   [STANDARD_LAYOUT.confirm, 'pad-a'],
   [STANDARD_LAYOUT.back, 'pad-b'],
+  [STANDARD_LAYOUT.share, 'pad-y'],
 ];
 
 /**
- * パッドの A / × と B / ○ を読み、離した状態から押した状態になったときだけ画面の操作にする。
+ * パッドの A / ×・B / ○・Y / △ を読み、離した状態から押した状態になったときだけ画面の操作にする。
  * 押し続けても繰り返さないので、画面が変わる前から押し続けていたボタンは、一度離すまで次の画面の操作にならない。
  * パッドをつないだ（標準配置で読めるようになった）ときに押していたボタンも、一度離すまで操作にしない。
  * 標準配置として扱えないパッドでは操作にしない（docs/spec/pad.md）。

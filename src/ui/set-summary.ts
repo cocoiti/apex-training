@@ -21,6 +21,8 @@ export interface SetSummary {
   readonly average: number | null;
   /** 平均ズレが最も小さい回（同じなら番号の小さい回）。対象の回がないときは null。 */
   readonly best: { readonly round: number; readonly meanDeviation: number } | null;
+  /** どれかの回で自己ベストを更新したか。シェアの文に使う。 */
+  readonly bestUpdated: boolean;
 }
 
 /** 終えた回からセットのまとめを作る。 */
@@ -36,6 +38,7 @@ export function summarizeSet(rounds: readonly RoundRecord[], count: number): Set
     rounds: rounds.map((r) => ({ round: r.round, meanDeviation: r.meanDeviation, best: best !== null && r.round === best.round })),
     average,
     best,
+    bestUpdated: rounds.some((r) => r.bestUpdated === true),
   };
 }
 

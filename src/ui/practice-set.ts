@@ -16,6 +16,8 @@ export interface RoundRecord {
   readonly round: number;
   /** 平均ズレ（度）。「なし」の回は null。 */
   readonly meanDeviation: number | null;
+  /** その回で自己ベストを更新したか。省いたときは更新していない。 */
+  readonly bestUpdated?: boolean;
 }
 
 /** セットの状態。playing は回の練習中、interlude は短いリザルトの表示中、done はセットを終えた。 */
@@ -60,9 +62,9 @@ export class PracticeSet {
    * 今の回を最後まで終えた。最後の回なら done、そうでなければ短いリザルトを始めて interlude を返す。
    * 回数が 1 のときも done を返す（呼び出し側はリザルト画面を出す）。
    */
-  completeRound(meanDeviation: number | null, now: number): SetPhase {
+  completeRound(meanDeviation: number | null, now: number, bestUpdated = false): SetPhase {
     if (this.state !== 'playing') return this.state;
-    this.finished.push({ round: this.current, meanDeviation });
+    this.finished.push({ round: this.current, meanDeviation, bestUpdated });
     if (this.finished.length >= this.count) {
       this.state = 'done';
     } else {
