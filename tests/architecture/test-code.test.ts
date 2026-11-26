@@ -1,4 +1,5 @@
-// テストの実行（docs/spec/architecture.md「テストの実行」、ARC-18・ARC-21・ARC-22・ARC-32・ARC-33）の確認。
+// テストの実行（docs/spec/architecture.md「テストの実行」、ARC-18・ARC-21・ARC-22・ARC-32・ARC-33）と、
+// ブラウザのテストの入力の与え方（「テストのための描画の省略と時計の差し替え」、ARC-64）の確認。
 // ARC-35（CLAUDE.md の書き方）は tests/acceptance/parallel-browser-qa.acceptance.test.ts だけで確かめる。
 // このファイルは決まったポート番号や sleep の書き方を例として持つので、ARC-18 の確認の対象から外す。
 import { spawnSync } from 'node:child_process';
@@ -8,7 +9,7 @@ import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import config, { BROWSER_WORKERS_ENV, browserTestFiles, browserWorkers, DEFAULT_BROWSER_WORKERS, listTestFiles, usesChromium } from '../../vite.config';
 import { listenOnFreePort, originOf, portOf } from '../helpers/server';
-import { codeOnly, findFixedPorts, findFixedSleeps } from '../helpers/test-code';
+import { codeOnly, findFixedPorts, findFixedSleeps, findRealTimeHolds } from '../helpers/test-code';
 import { waitUntil } from '../helpers/wait';
 
 const ROOT = resolve(__dirname, '../..');
@@ -199,5 +200,54 @@ describe('ARC-22: ブラウザを使うテストは決まった時間の sleep �
     let n = 0;
     expect(await waitUntil(() => (n += 1) >= 3 && n, '3 回目', { interval: 0 })).toBe(3);
     await expect(waitUntil(() => false, '来ない状態', { timeout: 30, interval: 5 })).rejects.toThrow(/来ない状態/);
+  });
+});
+
+describe('ARC-64: ブラウザを使うテストは、スティックを倒している長さやボタンを押している長さを実時間や描画の回数で決めない', () => {
+  it('ブラウザを使うテストのコードに、倒している・押している長さを実時間や描画の回数で決めている箇所がない', () => {
+    const files = browserTestFiles(ROOT);
+    expect(files.length).toBeGreaterThan(0);
+    const found = files.flatMap((f) => findRealTimeHolds(f, readFileSync(join(ROOT, f), 'utf8')));
+    expect(found).toEqual([]);
+  });
+
+  it.each([
+    // 決まった ms のタイマーまで待つ。
+    ["await page.evaluate('window.__pad.axes[2] = 0.4');\nawait page.waitFor(`performance.now() >= ${t0 + 150}`);\nawait page.evaluate('window.__pad.axes[2] = 0');", 1],
+    // 描画の回数だけ押す。
+    ["await page.evaluate('window.__btn(7, true)');\nawait page.frames(6);\nawait page.evaluate('window.__btn(7, false)');", 1],
+    // 実際の描画を待ちながら、条件まで押す（長さが描画の速さで決まる）。
+    ["await page.evaluate(`(async () => { window.__setR2(1); const t0 = performance.now();\n  while (window.__ammo() > 3 && performance.now() - t0 < 15000) await window.__nextFrame();\n  window.__setR2(0); })()`);", 1],
+    // 時計を進めずに条件を待つ。
+    ["await mouseButton(page, 'mousePressed', cx, cy, 'left');\nawait page.waitFor(`${AMMO} <= 27`, 5000);\nawait mouseButton(page, 'mouseReleased', cx, cy, 'left');", 1],
+    // 描画を待つ関数を、ファイルの中で定義して呼ぶ。
+    ["const settle = (page: Page, n: number) => page.frames(n);\nawait page.evaluate('window.__axis(0, 2, 0.8)');\nawait settle(page, 30);\nawait page.evaluate('window.__axis(0, 2, 0)');", 2],
+    // clock=manual かどうかで待ち方を変える関数は、時計を進める関数と見なさない。
+    [
+      "const settle = async (page: Page, n: number) => {\n  if (await page.evaluate<boolean>('!!window.__apexTestClock')) await page.advanceClock(n / 60);\n  else await page.frames(n);\n};\nawait page.evaluate('window.__pad.axes[2] = 0.4');\nawait settle(page, 9);\nawait page.evaluate('window.__pad.axes[2] = 0');",
+      5,
+    ],
+  ])('倒している・押している長さを実時間や描画の回数で決めている書き方を見つける: %s', (source, line) => {
+    expect(findRealTimeHolds('x.ts', source)).toMatchObject([{ file: 'x.ts', line }]);
+  });
+
+  it.each([
+    // 倒す → 時計を決まった秒数だけ進める → 戻す。
+    "await page.evaluate('window.__pad.axes[2] = 0.4');\nawait page.advanceClock(0.25);\nawait page.evaluate('window.__pad.axes[2] = 0');",
+    // 押す → 条件まで時計を固定ステップで進める → 離す。
+    "await page.evaluate('window.__btn(7, true)');\nawait page.advanceClockUntil('window.__ammo() === 0');\nawait page.evaluate('window.__btn(7, false)');",
+    // 時計を進めているなら、間に実時間で待っても長さは進めた秒数で決まる（ARC-63 の確かめ方）。
+    "await tilt(page, 0.4);\nawait page.waitFor(`performance.now() > ${t0 + 1000}`);\nawait page.advanceClock(0.25);\nawait page.evaluate('window.__pad.axes[2] = 0');",
+    // 時計を進める関数を、ファイルの中で定義して呼ぶ。
+    "const settle = (page: Page, n: number) => page.advanceClock(n / 60);\nawait mouseButton(page, 'mousePressed', CX, CY);\nawait settle(page, 38);\nawait mouseButton(page, 'mouseReleased', CX, CY);",
+    // 画面の操作のボタン（A）やキーは、押し始めだけが操作になるので見ない。
+    "await page.evaluate('window.__btn(0, true)');\nawait page.frames(6);\nawait page.evaluate('window.__btn(0, false)');",
+    // 離してから待つのは、押している長さに入らない。
+    "await page.evaluate('window.__setR2(1)');\nawait page.advanceClock(1 / 60);\nawait page.evaluate('window.__setR2(0)');\nawait page.frames(2);",
+    // パッドの関数の定義（押した値を引数で受け取る）は、押す書き方ではない。
+    "window.__setR2 = (v) => { window.__pad.buttons[7] = { value: v, pressed: v >= 0.5, touched: v > 0 }; };\nawait page.frames(2);",
+    "const mouseButton = (page: Page, type: 'mousePressed' | 'mouseReleased') =>\n  page.send('Input.dispatchMouseEvent', { type });\nawait page.frames(2);",
+  ])('ページの時計を進めて長さを決める書き方は見つけない: %s', (source) => {
+    expect(findRealTimeHolds('x.ts', source)).toEqual([]);
   });
 });

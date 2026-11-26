@@ -193,10 +193,11 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
   });
 
   /** 新しいタブでトップ画面から「開始」を押してプレイ画面に入る。 */
-  async function openPlay(init?: string): Promise<Page> {
+  /** プレイ画面を開く。manualClock なら clock=manual で開き、練習の時間はテストが時計を進めて決める。 */
+  async function openPlay(init?: string, { manualClock = false }: { manualClock?: boolean } = {}): Promise<Page> {
     const page = await browser!.newPage();
     if (init) await page.addInitScript(init);
-    await page.goto(appUrl(staticOrigin, BASE, '', { seed: SEED }));
+    await page.goto(appUrl(staticOrigin, BASE, '', { manualClock, seed: SEED }));
     await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden && ${AMMO} > 0`);
@@ -299,14 +300,15 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
   // -------------------------------------------------------------------------
   describe('MOU-3: Esc で練習が止まり一時停止の表示が出る。もう一度クリックすると表示が消えて再開する', () => {
     it('画面: Esc でロックが外れて一時停止の表示が出て、止まっている間はリコイルの戻りも進まない。クリックで表示が消えて再開する', async () => {
-      const page = await openPlay();
+      // 撃つ長さと止まっている間の時間は、ページの時計で決める（clock=manual）。
+      const page = await openPlay(undefined, { manualClock: true });
       await page.click(CX, CY);
       await page.waitFor('!!document.pointerLockElement', 5000);
       expect((await playState(page)).paused.hidden).toBe(true);
 
       // 数発撃って離し、リコイルの戻り（0.5 秒）の途中で Esc を押す。
       await mouseButton(page, 'mousePressed', CX, CY);
-      await page.waitFor(`${AMMO} <= 27`, 5000);
+      await page.advanceClockUntil(`${AMMO} <= 27`, { limit: 2 });
       await mouseButton(page, 'mouseReleased', CX, CY);
       await keyEscape(page);
       await page.waitFor('!document.pointerLockElement', 5000);
@@ -320,8 +322,8 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
 
       // 止まっている間は描画が変わらない（リコイルの戻りが進まない）。
       const frozenA = await canvasOnly(page);
-      // 止まっている間に何度描画されても（およそ 0.8 秒ぶん）変わらない。
-      await page.frames(48);
+      // 止まっている間にページの時計を 0.8 秒進めても（何度描画されても）変わらない。
+      await page.advanceClock(0.8);
       const frozenB = await canvasOnly(page);
       expect(differingPixels(frozenA, frozenB)).toBe(0);
       expect((await playState(page)).ammo).toBe(state.ammo);
@@ -331,12 +333,13 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
       await page.waitFor(`document.querySelector('#paused').hidden`, 5000);
       state = await playState(page);
       expect(state.paused.hidden).toBe(true);
-      // 止まっていた戻りが進み、描画が変わるまで待つ。
-      await waitUntil(async () => differingPixels(frozenB, await canvasOnly(page)) > 0, '再開してリコイルの戻りが描画に出る');
+      // 時計を進めると、止まっていた戻りが進み、描画が変わる。
+      await page.advanceClock(0.1);
+      expect(differingPixels(frozenB, await canvasOnly(page)), '再開してリコイルの戻りが描画に出る').toBeGreaterThan(0);
       // 再開後は撃てる（練習が動いている）。
       const before = state.ammo!;
       await mouseButton(page, 'mousePressed', CX, CY);
-      await page.waitFor(`${AMMO} < ${before}`, 5000);
+      await page.advanceClockUntil(`${AMMO} < ${before}`, { limit: 1 });
       await mouseButton(page, 'mouseReleased', CX, CY);
       expect((await playState(page)).ammo!).toBeLessThan(before);
       noExceptions(page);
@@ -402,7 +405,7 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
   // -------------------------------------------------------------------------
   describe('MOU-8: 一時停止中に左ボタンを押したまま移動しても、照準のヨー・ピッチは変わらず、弾は出ない', () => {
     it('画面: 一時停止中に左ボタンを押したまま動かしても、描画も残弾も変わらない', async () => {
-      const page = await openPlay();
+      const page = await openPlay(undefined, { manualClock: true });
       await page.click(CX, CY);
       await page.waitFor('!!document.pointerLockElement', 5000);
       await page.frames(2);
@@ -415,8 +418,8 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
 
       await mouseButton(page, 'mousePressed', 300, 300);
       await drag(page, 300, 300, 10, -5, 60, 1);
-      // 動かしたあとも何度か描画されるまで待つ（照準が動くなら描画に出る）。
-      await page.frames(30);
+      // 押したまま、ページの時計を 0.5 秒進める（照準が動く・弾が出るなら、描画と残弾に出る）。
+      await page.advanceClock(0.5);
       const state = await playState(page);
       const after = await canvasOnly(page);
       await mouseButton(page, 'mouseReleased', 900, 0);
