@@ -3,30 +3,52 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>リコイル練習（非公式）</title>
-    <script type="module" crossorigin src="/apex-training/assets/index-DkMj9M6P.js"></script>
-    <link rel="stylesheet" crossorigin href="/apex-training/assets/index-Bm2Ziap4.css">
+    <title>Hyper Aim Training（非公式）</title>
+    <script type="module" crossorigin src="/apex-training/assets/index-Fm0qZ2rl.js"></script>
+    <link rel="stylesheet" crossorigin href="/apex-training/assets/index-rFUsgL-V.css">
   </head>
   <body>
     <!-- 3D のキャンバスを画面いっぱいに置き、その上に各画面の HTML を重ねる（docs/spec/overview.md「公開」）。 -->
     <canvas id="view"></canvas>
     <div id="ui">
+      <!-- 計測の同意の案内（docs/spec/screens.md「計測の同意の案内」）。コンテナ ID があり未選択のとき、トップ・設定・履歴・パッドの画面の上に出す。
+           GTM の断片と noscript の iframe は置かない。許可したときだけ src/ui/analytics.ts が gtm.js を読み込む。 -->
+      <div id="consent-banner" class="consent-banner" role="region" aria-label="計測の同意" hidden>
+        <p id="consent-message"></p>
+        <div class="menu menu-row consent-actions">
+          <button type="button" id="consent-grant">許可</button>
+          <button type="button" id="consent-deny">許可しない</button>
+        </div>
+      </div>
       <section class="screen" data-screen="top">
-        <div class="panel">
-          <h1>リコイル練習</h1>
-          <label class="choice">武器 <select id="weapon"></select></label>
+        <div class="panel panel-top">
+          <h1>Hyper Aim Training</h1>
+          <!-- 武器のカードの並び（docs/spec/screens.md「武器の選択」）。選んでいる武器は隠した select が持ち、カードはその選択肢から作る
+               （src/ui/card-choices.ts）。武器を使わないモードを選んでいるあいだは、見出しを含めて並びと試聴を隠す。 -->
+          <div class="top-section" id="weapon-choice">
+            <h2 class="top-label" id="weapon-label">武器</h2>
+            <select id="weapon" hidden aria-labelledby="weapon-label"></select>
+            <div id="weapon-cards" class="card-choice"></div>
+          </div>
           <!-- 選んでいる武器の簡易版のパターンを向きの音だけで流す（docs/spec/screens.md「音」の「試聴」）。 -->
-          <div class="choice sound-preview">
+          <div class="choice sound-preview" id="preview-sound-choice">
             <button type="button" id="preview-sound">パターンの音を聞く</button>
             <p class="note" id="preview-sound-note" hidden></p>
           </div>
-          <!-- 登録されたモードが 1 つのときは選択肢の欄を隠し、名前だけを出す（docs/spec/screens.md「トップ画面」）。 -->
-          <label class="choice" id="mode-choice">モード <select id="mode"></select></label>
-          <p class="choice" id="mode-only" hidden>モード <span id="mode-name" class="mode-name"></span></p>
+          <!-- モードのカードの並び（docs/spec/screens.md「モードの選択」）。登録されたモードが 1 つのときは、そのカードを選べない形で 1 枚だけ出す。 -->
+          <div class="top-section" id="mode-choice">
+            <h2 class="top-label" id="mode-label">モード</h2>
+            <select id="mode" hidden aria-labelledby="mode-label"></select>
+            <div id="mode-cards" class="card-choice card-choice-modes"></div>
+          </div>
+          <!-- 練習の選択肢（追いエイムの速さ、フリックの出る範囲と的の大きさ）の欄を選択肢ごとに入れる（src/ui/option-choices.ts）。
+               持つモードを選んでいるときだけ出す（docs/spec/screens.md「トップ画面」）。 -->
+          <div id="mode-options" class="option-list"></div>
           <label class="choice">回数 <select id="count"></select></label>
-          <nav class="menu">
-            <a href="#/play" id="start">開始</a>
-            <a href="#/settings">設定</a>
+          <!-- 「開始」はトップ画面でいちばん大きく、アクセント色で塗る。「設定」「履歴」は控えめなリンクにする（docs/spec/screens.md「並びと見た目」）。 -->
+          <a href="#/play" id="start" class="start-button">開始</a>
+          <nav class="menu menu-row top-links">
+            <a href="#/settings" id="open-settings">設定</a>
             <a href="#/history" id="open-history">履歴</a>
           </nav>
         </div>
@@ -121,6 +143,12 @@
                 <span id="settings-pad-vibration-notice" class="note" hidden>このパッドまたはブラウザは振動に対応していません</span>
               </p>
             </fieldset>
+            <!-- 計測の区分（docs/spec/screens.md「計測の設定」）。コンテナ ID が空のビルドでは隠したままにする。 -->
+            <fieldset id="settings-analytics" class="analytics-settings" hidden>
+              <legend>計測</legend>
+              <label class="setting">画面の表示の計測（Google Analytics） <input id="setting-analytics" type="checkbox" /></label>
+              <p class="note" id="settings-analytics-note"></p>
+            </fieldset>
           </form>
           <nav class="menu">
             <a href="#/">トップへ戻る</a>
@@ -197,6 +225,8 @@
         <div class="hud">
           <p class="hud-weapon" data-hud="weapon"></p>
           <p class="hud-ammo" data-hud="ammo"></p>
+          <!-- モードが出すもの（フリックの「的: 3 / 20」など、docs/spec/modes.md「共通」）。出さないモードでは隠す。 -->
+          <p class="hud-mode" data-hud="mode" hidden></p>
           <p class="hud-time" data-hud="time"></p>
           <p class="hud-input" data-hud="input"></p>
           <p class="hud-round" data-hud="round"></p>
@@ -311,9 +341,10 @@
           <p id="history-unavailable" class="history-unavailable" role="status" hidden></p>
           <div id="history-body">
             <div class="history-choices">
-              <label class="choice">武器 <select id="history-weapon"></select></label>
+              <label class="choice" id="history-weapon-choice">武器 <select id="history-weapon"></select></label>
               <label class="choice" id="history-mode-choice">モード <select id="history-mode"></select></label>
               <p class="choice" id="history-mode-only" hidden>モード <span id="history-mode-name" class="mode-name"></span></p>
+              <div id="history-mode-options" class="option-list"></div>
               <label class="choice">入力方式
                 <select id="history-input">
                   <option value="mouse">マウス</option>
