@@ -1,7 +1,7 @@
-// docs/spec/screens.md「音」の UI-84 と UI-80（入力の記録の再生）の QA の受け入れテスト。
+// docs/spec/screens.md「音」の UI-86 と UI-82（入力の記録の再生）の QA の受け入れテスト。
 // 公開された入口（npm run build、npm run check:assets、RecordingInput・createPractice・practiceOutcome・replayRecording、
 // 固定ステップのループ、武器とマップの JSON）だけを使う。
-// UI-80 の画面での確認（リザルトのための計算し直し）は direction-sounds-qa.acceptance.test.ts にある。ここでは、
+// UI-82 の画面での確認（リザルトのための計算し直し）は direction-sounds-qa.acceptance.test.ts にある。ここでは、
 // 記録の再生で Web Audio の入口（AudioContext）が作られないことと、結果が一致することを確かめる。
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
@@ -30,7 +30,7 @@ function walk(dir: string): string[] {
   });
 }
 
-describe.skipIf(NESTED)('UI-84: 配布物に音声のファイルがない', () => {
+describe.skipIf(NESTED)('UI-86: 配布物に音声のファイルがない', () => {
   it('npm run build のあと npm run check:assets が成功し、ビルド結果に音声のファイル（と音声の data: URL）が 1 つもない', () => {
     const out = mkdtempSync(join(tmpdir(), 'direction-sounds-dist-'));
     temps.push(out);
@@ -48,7 +48,7 @@ describe.skipIf(NESTED)('UI-84: 配布物に音声のファイルがない', () 
   }, 300_000);
 });
 
-describe('UI-80: 入力の記録の再生では音を鳴らさない', () => {
+describe('UI-82: 入力の記録の再生では音を鳴らさない', () => {
   it('同じ記録を再生すると練習と弾痕・採点が一致し、再生のあいだに AudioContext は作られない', () => {
     const mapRes = parseMap(JSON.parse(readFileSync(join(ROOT, 'src/data/maps/range.json'), 'utf8')));
     if (!mapRes.ok) throw new Error('range を読み込めない');

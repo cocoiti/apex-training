@@ -5,9 +5,9 @@
 ## 背景
 
 Issue #54 で、簡易版のパターンの区切りの最初の発を撃つたびに、その区切りの補正の向きの音を鳴らす（screens.md「音」）。
-音声のファイルは配布物に入れない（UI-84、overview.md「権利」）。発の番号はシミュレーションが撃つときに使う pattern の発で、
-戻りの時間がたつ前の押し直しでは続きの番号になる（UI-81）。記録の再生とリザルトの計算し直しでは鳴らさず（UI-80）、
-Web Audio が使えない・操作の前でもエラーにしない（UI-83）。トップ画面の試聴は途中で止められる（UI-78, UI-79）。
+音声のファイルは配布物に入れない（UI-86、overview.md「権利」）。発の番号はシミュレーションが撃つときに使う pattern の発で、
+戻りの時間がたつ前の押し直しでは続きの番号になる（UI-83）。記録の再生とリザルトの計算し直しでは鳴らさず（UI-82）、
+Web Audio が使えない・操作の前でもエラーにしない（UI-85）。トップ画面の試聴は途中で止められる（UI-80, UI-81）。
 
 ## 決定
 
@@ -37,6 +37,6 @@ Web Audio が使えない・操作の前でもエラーにしない（UI-83）�
 
 ## 影響
 
-- spec/screens.md（音、設定項目、UI-11, UI-13, UI-75〜UI-84）, spec/modes.md（MODE-29, MODE-30）, spec/weapons.md（簡易版のパターン）
+- spec/screens.md（音、設定項目、UI-11, UI-13, UI-77〜UI-86）, spec/modes.md（MODE-30, MODE-31）, spec/weapons.md（簡易版のパターン）
 - src/ui/direction-sound.ts, src/core/frame-clock.ts（試聴の時計に使う）, src/sim/gun.ts, src/ui/settings.ts, src/ui/settings-form.ts, src/ui/practice-settings.ts, src/ui/pad-menu.ts,
   src/main.ts, index.html, src/ui/style.css

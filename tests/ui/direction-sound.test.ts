@@ -81,7 +81,7 @@ function practiceSounds(actions: TimedAction[], options: { weapon?: WeaponData; 
 }
 
 describe('向きの音の高さと波形', () => {
-  it('UI-76: 9 つの向きの音は表のとおりで、高さと波形の組がどの 2 つでも異なる', () => {
+  it('UI-78: 9 つの向きの音は表のとおりで、高さと波形の組がどの 2 つでも異なる', () => {
     expect(DIRECTION_TONES).toEqual({
       左上: { frequency: 330, wave: 'square' },
       上: { frequency: 440, wave: 'square' },
@@ -117,7 +117,7 @@ describe('練習中の向きの音', () => {
     for (const shot of [2, 8, 10, 20, 22, 28]) expect(segmentStartingAt(pattern, shot)).toBeUndefined();
   });
 
-  it('UI-75: 撃ち切ると 1・9・21 発目にこの順で下・左下・右下が 1 回ずつ鳴り、ほかの発では鳴らない', () => {
+  it('UI-77: 撃ち切ると 1・9・21 発目にこの順で下・左下・右下が 1 回ずつ鳴り、ほかの発では鳴らない', () => {
     const { session, played } = practiceSounds([press(0)]);
     expect(session.gun.shots).toHaveLength(28);
     expect(played).toEqual([
@@ -127,13 +127,13 @@ describe('練習中の向きの音', () => {
     ]);
   });
 
-  it('UI-77: 音を鳴らす処理を渡さない（音が OFF・音量 0）ときは、撃ち切っても鳴らさずエラーにもならない', () => {
+  it('UI-79: 音を鳴らす処理を渡さない（音が OFF・音量 0）ときは、撃ち切っても鳴らさずエラーにもならない', () => {
     const { session, played } = practiceSounds([press(0)], { play: false });
     expect(session.gun.shots).toHaveLength(28);
     expect(played).toEqual([]);
   });
 
-  it('UI-81: 12 発で離して戻りの前に押し直すと次は 21 発目の右下だけ、戻りより長く待つと押し直した 1 発目で下', () => {
+  it('UI-83: 12 発で離して戻りの前に押し直すと次は 21 発目の右下だけ、戻りより長く待つと押し直した 1 発目で下', () => {
     const interval = fireInterval(threeSegmentWeapon());
     // 0〜1.1 秒の 12 発。1.15 秒に離す。
     const before = practiceSounds([press(0), release(1.15), press(1.15 + RECOIL_RECOVERY_TIME / 2)]);
@@ -156,8 +156,8 @@ describe('練習中の向きの音', () => {
     expect(interval).toBeCloseTo(0.1, 9);
   });
 
-  it('MODE-29: どのモードでも 1 発目で最初の区切りの向きの音が鳴る', () => {
-    for (const mode of ['ghost', 'center']) {
+  it('MODE-30: 反復練習で 1 発目で最初の区切りの向きの音が鳴る', () => {
+    for (const mode of ['ghost']) {
       const { played } = practiceSounds([press(0)], { mode });
       expect(played).toEqual([
         { shot: 1, direction: '下' },
@@ -167,28 +167,28 @@ describe('練習中の向きの音', () => {
     }
   });
 
-  it('MODE-30: 練習を作り直したあとに撃ち始めると、1 発目で最初の区切りの音が鳴る', () => {
+  it('MODE-31: 練習を作り直したあとに撃ち始めると、1 発目で最初の区切りの音が鳴る', () => {
     const first = practiceSounds([press(0), release(0.55)]);
     expect(first.played).toEqual([{ shot: 1, direction: '下' }]);
     const again = practiceSounds([press(0.2)]);
     expect(again.played[0]).toEqual({ shot: 1, direction: '下' });
   });
 
-  it('UI-82: 簡易版は武器だけから求めるので、パターンの表示によらず同じ発と向きで鳴る', () => {
+  it('UI-84: 簡易版は武器だけから求めるので、パターンの表示によらず同じ発と向きで鳴る', () => {
     // 簡易版は武器データだけから求める（設定のパターンの表示は使わない）。同じ武器なら何度求めても同じ区切りになる。
     const a = practiceSounds([press(0)]);
     const b = practiceSounds([press(0)]);
     expect(b.played).toEqual(a.played);
   });
 
-  it('UI-80: 弾痕と採点は音の有無で変わらず、記録の再生は ShotSounds を通らないので鳴らない', () => {
-    const on = practiceSounds([press(0)], { mode: 'center' });
-    const off = practiceSounds([press(0)], { mode: 'center', play: false });
+  it('UI-82: 弾痕と採点は音の有無で変わらず、記録の再生は ShotSounds を通らないので鳴らない', () => {
+    const on = practiceSounds([press(0)], { mode: 'ghost' });
+    const off = practiceSounds([press(0)], { mode: 'ghost', play: false });
     expect(off.session.gun.shots).toEqual(on.session.gun.shots);
     expect(off.session.result?.modeResult).toEqual(on.session.result?.modeResult);
     const played = on.played.length;
     for (const recording of [on.recording, off.recording]) {
-      const replayed = replayPracticeSession(recording, { world: wallWorld(), weapon: threeSegmentWeapon(), mode: modeById('center') });
+      const replayed = replayPracticeSession(recording, { world: wallWorld(), weapon: threeSegmentWeapon(), mode: modeById('ghost') });
       expect(replayed.gun.shots).toEqual(on.session.gun.shots);
     }
     expect(on.played).toHaveLength(played);
@@ -214,7 +214,7 @@ function fakeOutput(clock: ManualFrameClock, offset = 100) {
 }
 
 describe('試聴', () => {
-  it('UI-78: L-STAR の区切りの順に、（区切りの最初の発の番号 − 1）× 発射間隔 の時刻に 1 回ずつ鳴り、最後の音のあとに表示が戻る', () => {
+  it('UI-80: L-STAR の区切りの順に、（区切りの最初の発の番号 − 1）× 発射間隔 の時刻に 1 回ずつ鳴り、最後の音のあとに表示が戻る', () => {
     const weapon = lstar();
     const segments = simplePattern(weapon).segments;
     const interval = fireInterval(weapon);
@@ -238,7 +238,7 @@ describe('試聴', () => {
     expect(previewCues(weapon).map((c) => c.time)).toEqual(segments.map((s) => s.from * interval));
   });
 
-  it('UI-78: 描画が大きく遅れても、音の時刻は押した時点からの経過で決まり、遅れが積み重ならない', () => {
+  it('UI-80: 描画が大きく遅れても、音の時刻は押した時点からの経過で決まり、遅れが積み重ならない', () => {
     const weapon = lstar();
     const segments = simplePattern(weapon).segments;
     const interval = fireInterval(weapon);
@@ -256,7 +256,7 @@ describe('試聴', () => {
     expect(PREVIEW_LOOKAHEAD).toBeGreaterThan(0.2);
   });
 
-  it('UI-78: 途中で止めると、それより後の音は鳴らない', () => {
+  it('UI-80: 途中で止めると、それより後の音は鳴らない', () => {
     const weapon = lstar();
     const cues = previewCues(weapon);
     expect(cues.length).toBeGreaterThanOrEqual(2);
@@ -277,7 +277,7 @@ describe('試聴', () => {
     expect(changes).toEqual([true, false]);
   });
 
-  it('UI-79: 試聴を始め直すと、前の試聴の残りの音は鳴らない', () => {
+  it('UI-81: 試聴を始め直すと、前の試聴の残りの音は鳴らない', () => {
     const clock = new ManualFrameClock(undefined, 0);
     const first = fakeOutput(clock);
     const second = fakeOutput(clock);
@@ -290,7 +290,7 @@ describe('試聴', () => {
     expect(second.heard().map((p) => p.direction)).toEqual(['下', '左下', '右下']);
   });
 
-  it('UI-83: 音を鳴らせないあいだに時刻が来た音は鳴らさず、鳴らせるようになったあとの音は押した時点からの時刻に鳴らす', () => {
+  it('UI-85: 音を鳴らせないあいだに時刻が来た音は鳴らさず、鳴らせるようになったあとの音は押した時点からの時刻に鳴らす', () => {
     const weapon = threeSegmentWeapon();
     const interval = fireInterval(weapon);
     const clock = new ManualFrameClock(undefined, 0);
@@ -368,7 +368,7 @@ function fakeContext(state = 'running') {
 }
 
 describe('Web Audio での合成', () => {
-  it('UI-76: 向きごとの高さと波形で 0.12 秒鳴らし、鳴り始めと終わりを 0 から上げ下げし、大きさは音量に比例する', () => {
+  it('UI-78: 向きごとの高さと波形で 0.12 秒鳴らし、鳴り始めと終わりを 0 から上げ下げし、大きさは音量に比例する', () => {
     const { context, tones } = fakeContext();
     const sound = new DirectionSound(() => context);
     sound.unlock();
@@ -386,7 +386,7 @@ describe('Web Audio での合成', () => {
     expect(Math.max(...tones.at(-1)!.gain.map((g) => g[1]))).toBeCloseTo(MAX_TONE_GAIN / 2, 9);
   });
 
-  it('UI-83: 操作の前は AudioContext を作らず鳴らさない', () => {
+  it('UI-85: 操作の前は AudioContext を作らず鳴らさない', () => {
     const create = vi.fn(() => fakeContext().context);
     const sound = new DirectionSound(create);
     expect(() => sound.play('下', 50)).not.toThrow();
@@ -396,7 +396,7 @@ describe('Web Audio での合成', () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
-  it('UI-83: Web Audio が使えない・作るときに投げる・音を許さない（running でない）ときもエラーにならず鳴らさない', () => {
+  it('UI-85: Web Audio が使えない・作るときに投げる・音を許さない（running でない）ときもエラーにならず鳴らさない', () => {
     const missing = new DirectionSound(() => undefined);
     missing.unlock();
     expect(() => missing.play('下', 50)).not.toThrow();
@@ -419,7 +419,7 @@ describe('Web Audio での合成', () => {
     expect(() => new DirectionSound(() => rejecting.context).unlock()).not.toThrow();
   });
 
-  it('UI-78: 音の時計の指定した時刻に予約でき、取り消すと止めてつなぎを外す。過ぎた時刻は今に鳴らし、鳴らせないときは undefined', () => {
+  it('UI-80: 音の時計の指定した時刻に予約でき、取り消すと止めてつなぎを外す。過ぎた時刻は今に鳴らし、鳴らせないときは undefined', () => {
     const { context, tones } = fakeContext();
     const sound = new DirectionSound(() => context);
     expect(sound.now()).toBeUndefined();

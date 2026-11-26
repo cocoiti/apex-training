@@ -1,4 +1,4 @@
-// docs/spec/screens.md「音」（UI-75〜UI-83）、docs/spec/modes.md の MODE-29・MODE-30 の QA の受け入れテスト。
+// docs/spec/screens.md「音」（UI-77〜UI-85）、docs/spec/modes.md の MODE-30・MODE-31 の QA の受け入れテスト。
 // 公開された入口だけを使う: ビルドの結果を /apex-training/ で配信した画面（トップ・設定・プレイ・リザルト）、index.html の要素
 // （#preview-sound・#preview-sound-note・#setting-sound・#setting-volume）、武器の JSON。画面はヘッドレスの Chromium で開く。
 //
@@ -11,8 +11,8 @@
 // 発射の間隔は描画の間隔より十分に長くする（rpm 200 = 0.3 秒、L-STAR は 0.1 秒）。
 //
 // リポジトリの写しに受け入れテスト用の武器（measured が true、randomness 0）を足してビルドした画面で確かめる。
-// - QA-三方向: 28 発。1〜8 発目で照準を下へ、9〜20 発目で左下へ、21〜28 発目で右下へ動かす直線（簡易版の区切りが UI-75 のとおり）。
-// - QA-向き-<向き>: 9 つの向きそれぞれの、区切りが 1 本だけの武器（UI-76 の試聴に使う）。
+// - QA-三方向: 28 発。1〜8 発目で照準を下へ、9〜20 発目で左下へ、21〜28 発目で右下へ動かす直線（簡易版の区切りが UI-77 のとおり）。
+// - QA-向き-<向き>: 9 つの向きそれぞれの、区切りが 1 本だけの武器（UI-78 の試聴に使う）。
 // パッドは Gamepad API（navigator.getGamepads）の形で与え、R2 で撃つ。サーバーと DevTools のポートは OS に選ばせる。
 // 画面は render=off（3D を描かない）で開く。試聴は clock=manual で開き、ページの時計を進めて確かめる（実時間で測らない）。
 // 待ちは sleep にせず、画面の状態か時計の条件で待つ。Chromium がなければ飛ばす。ARC-13 の clone の中で入れ子に実行したときも飛ばす。
@@ -30,8 +30,6 @@ const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
 const BASE = '/apex-training/';
 const chromium = findChromium();
 
-const GHOST = '反復練習';
-const CENTER = 'センター維持';
 const PREVIEW_LABEL = 'パターンの音を聞く';
 const STOP_LABEL = '止める';
 /** 試聴が音を予約する先読み（秒。src/ui/direction-sound.ts の PREVIEW_LOOKAHEAD と同じ値）。 */
@@ -289,7 +287,6 @@ async function typeAndEnter(page: Page, id: string, text: string) {
 interface Opts {
   sound?: boolean;
   volume?: number;
-  panel?: boolean;
   display?: '詳細' | '簡易';
 }
 async function openSettings(page: Page) {
@@ -301,7 +298,6 @@ async function configure(page: Page, opts: Opts) {
   await choose(page, '#setting-input-method', 'パッド');
   if (opts.sound !== undefined) await setCheck(page, 'setting-sound', opts.sound);
   if (opts.volume !== undefined) await typeAndEnter(page, 'setting-volume', String(opts.volume));
-  if (opts.panel !== undefined) await setCheck(page, 'setting-correction-panel', opts.panel);
   if (opts.display) await choose(page, '#setting-pattern-display', opts.display);
   await page.frames(3);
   await gotoTop(page);
@@ -311,10 +307,10 @@ async function gotoTop(page: Page) {
   await page.waitFor(`window.__vis('[data-screen="top"]') && document.querySelector('#weapon').options.length > 0 && document.querySelector('#mode').options.length > 0`);
 }
 
-async function start(page: Page, w: WeaponJson, mode: string, count = 1) {
+/** 反復練習（今のモードはこれだけで、トップ画面にモードの選択肢は出ない）を始める。 */
+async function start(page: Page, w: WeaponJson, count = 1) {
   await gotoTop(page);
   await choose(page, '#weapon', w.name);
-  await choose(page, '#mode', mode);
   await choose(page, '#count', count);
   await page.clickSelector('[data-screen="top"] a[href="#/play"]');
   await waitRoundStart(page, w);
@@ -357,7 +353,7 @@ const resultOf = (page: Page) =>
 
 // ---------------------------------------------------------------------------
 
-describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83・MODE-29・MODE-30）', () => {
+describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85・MODE-30・MODE-31）', () => {
   const temps: string[] = [];
   let server: Server | undefined;
   let browser: Browser | undefined;
@@ -416,7 +412,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
     for (const dir of temps) rmSync(dir, { recursive: true, force: true });
   });
 
-  it('前提: QA-三方向の簡易版の区切りの言葉が UI-75 のとおり、QA-向き-<向き> の区切りが 1 本でその向き', () => {
+  it('前提: QA-三方向の簡易版の区切りの言葉が UI-77 のとおり、QA-向き-<向き> の区切りが 1 本でその向き', () => {
     expect(oracleSimplePattern(THREE).segments.map((s) => s.label)).toEqual(THREE_LABELS);
     for (const [k, [name]] of DIRS.entries()) {
       const segs = oracleSimplePattern(DIR_WEAPONS[k]!).segments;
@@ -426,10 +422,10 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
 
   // -------------------------------------------------------------------------
   describe('練習中の音', () => {
-    it('UI-75: 音 ON・音量 50 で QA-三方向を撃ち切ると、1・9・21 発目にこの順で下・左下・右下の音が 1 回ずつ鳴り、ほかの発では鳴らない', async () => {
+    it('UI-77: 音 ON・音量 50 で QA-三方向を撃ち切ると、1・9・21 発目にこの順で下・左下・右下の音が 1 回ずつ鳴り、ほかの発では鳴らない', async () => {
       const page = await openFresh();
       await configure(page, { sound: true, volume: 50 });
-      await start(page, THREE, CENTER);
+      await start(page, THREE);
       const t0 = await page.evaluate<number>('performance.now()');
       await padFireAll(page);
       await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
@@ -449,13 +445,13 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 90_000);
 
-    it('UI-82: パターンの表示が詳細と簡易で、QA-三方向と L-STAR を撃ち切ったときの音の発と向きが一致する', async () => {
+    it('UI-84: パターンの表示が詳細と簡易で、QA-三方向と L-STAR を撃ち切ったときの音の発と向きが一致する', async () => {
       const page = await openFresh();
       const runs: Record<string, [number, string][]> = {};
       for (const w of [THREE, LSTAR]) {
         for (const display of ['詳細', '簡易'] as const) {
           await configure(page, { display });
-          await start(page, w, GHOST);
+          await start(page, w);
           const t0 = await page.evaluate<number>('performance.now()');
           await padFireAll(page);
           await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
@@ -471,12 +467,12 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 180_000);
 
-    it('UI-81: 12 発撃って離し、0.5 秒より前に押し直すと鳴るのは 21 発目の右下だけ。0.5 秒より長く待って押し直すと 1 発目で下が鳴る', async () => {
+    it('UI-83: 12 発撃って離し、0.5 秒より前に押し直すと鳴るのは 21 発目の右下だけ。0.5 秒より長く待って押し直すと 1 発目で下が鳴る', async () => {
       const page = await openFresh();
       await configure(page, {});
 
       // 戻りの時間より前に押し直す。
-      await start(page, THREE, CENTER);
+      await start(page, THREE);
       await padFireUntil(page, THREE.magSize - 12);
       const released = await page.evaluate<number>('performance.now()');
       expect(await page.evaluate<number>('window.__ammo()')).toBe(THREE.magSize - 12);
@@ -493,7 +489,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       ).toEqual([[21, '右下']]);
 
       // 戻りの時間より長く待ってから押し直す（2 秒の終わりの時間より前）。
-      await start(page, THREE, CENTER);
+      await start(page, THREE);
       await padFireUntil(page, THREE.magSize - 12);
       const releasedAt = await page.evaluate<number>('window.__time()');
       await page.waitFor(`window.__time() >= ${releasedAt + 0.9}`, 5000);
@@ -512,7 +508,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 120_000);
 
-    it('UI-77: 音を OFF（または音量を 0）にして撃ち切ると、音を鳴らす処理は 1 回も呼ばれず、「パターンの音を聞く」は押せない', async () => {
+    it('UI-79: 音を OFF（または音量を 0）にして撃ち切ると、音を鳴らす処理は 1 回も呼ばれず、「パターンの音を聞く」は押せない', async () => {
       for (const [opts, note] of [
         [{ sound: false }, '設定で音が OFF です'],
         [{ sound: true, volume: 0 }, '設定の音量が 0 です'],
@@ -531,7 +527,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
         await elapse(page, 400);
         expect(await page.evaluate<string>('window.__label()')).toBe(PREVIEW_LABEL);
 
-        await start(page, THREE, CENTER);
+        await start(page, THREE);
         await padFireAll(page);
         await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
         await page.frames(5);
@@ -541,12 +537,12 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       }
     }, 120_000);
 
-    it('UI-80: 同じ入力で音 ON と OFF の練習のリザルト（計算し直し）の弾痕と採点が一致し、計算し直しでは音が鳴らない', async () => {
+    it('UI-82: 同じ入力で音 ON と OFF の練習のリザルト（計算し直し）の弾痕と採点が一致し、計算し直しでは音が鳴らない', async () => {
       const outcomes: Awaited<ReturnType<typeof resultOf>>[] = [];
       for (const sound of [true, false]) {
         const page = await openFresh();
         await configure(page, { sound });
-        await start(page, THREE, CENTER);
+        await start(page, THREE);
         await padFireAll(page);
         const ended = await page.evaluate<number>('performance.now()');
         await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
@@ -576,7 +572,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       return page.evaluate<number>(`window.__clicks[${before}]`);
     }
 
-    it('UI-76: 9 つの向きの音の高さと波形が表のとおりで、どの 2 つの向きでも高さと波形の組が異なる', async () => {
+    it('UI-78: 9 つの向きの音の高さと波形が表のとおりで、どの 2 つの向きでも高さと波形の組が異なる', async () => {
       const page = await openFresh('', { manualClock: true });
       const heard: Record<string, { freq: number; type: string }> = {};
       for (const [k, [name]] of DIRS.entries()) {
@@ -613,7 +609,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       return Math.min(0.1, second - PREVIEW_LOOKAHEAD - 0.02);
     };
 
-    it('UI-78: L-STAR の試聴で、区切りの順に向きの音が（最初の発 − 1）× 発射間隔の時刻に 1 回ずつ鳴り、最後の音のあとに表示が戻る', async () => {
+    it('UI-80: L-STAR の試聴で、区切りの順に向きの音が（最初の発 − 1）× 発射間隔の時刻に 1 回ずつ鳴り、最後の音のあとに表示が戻る', async () => {
       const page = await openFresh('', { manualClock: true });
       const o = oracleSimplePattern(LSTAR);
       const interval = 60 / LSTAR.rpm;
@@ -635,7 +631,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-78: 試聴の途中で「止める」を押すと、それより後の音は鳴らず、表示が戻る', async () => {
+    it('UI-80: 試聴の途中で「止める」を押すと、それより後の音は鳴らず、表示が戻る', async () => {
       const page = await openFresh('', { manualClock: true });
       const o = oracleSimplePattern(LSTAR);
       expect(o.segments.length).toBeGreaterThanOrEqual(2);
@@ -656,7 +652,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('UI-79: 試聴のあいだに武器を C.A.R. SMG に変えると、L-STAR の残りの音は鳴らず、試聴が止まる', async () => {
+    it('UI-81: 試聴のあいだに武器を C.A.R. SMG に変えると、L-STAR の残りの音は鳴らず、試聴が止まる', async () => {
       const page = await openFresh('', { manualClock: true });
       const o = oracleSimplePattern(LSTAR);
       const interval = 60 / LSTAR.rpm;
@@ -677,7 +673,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
   });
 
   // -------------------------------------------------------------------------
-  describe('UI-83: 音が出せないとき', () => {
+  describe('UI-85: 音が出せないとき', () => {
     it('Web Audio が使えない環境で、撃ち切っても試聴を始めても、エラーで止まらずに練習と画面が続く', async () => {
       const page = await openFresh('window.__noAudio = true;');
       expect(await page.evaluate<string>('typeof window.AudioContext')).toBe('undefined');
@@ -685,7 +681,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       await page.clickSelector('#preview-sound');
       await page.frames(10);
       await gotoTop(page);
-      await start(page, THREE, CENTER);
+      await start(page, THREE);
       await padFireAll(page);
       await page.waitFor(`location.hash === '#/result' && window.__vis('[data-screen="result"]')`, 15_000);
       expect((await resultOf(page)).metrics.length).toBeGreaterThan(0);
@@ -701,7 +697,6 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       await page.evaluate(`document.getElementById('preview-sound').click()`);
       await page.frames(5);
       await choose(page, '#weapon', THREE.name);
-      await choose(page, '#mode', CENTER);
       await choose(page, '#count', 1);
       await page.evaluate(`document.querySelector('[data-screen="top"] a[href="#/play"]').click()`);
       await waitRoundStart(page, THREE);
@@ -716,33 +711,27 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
   });
 
   // -------------------------------------------------------------------------
-  describe('MODE-29・MODE-30: モードと始め直し', () => {
+  describe('MODE-30・MODE-31: モードと始め直し', () => {
     const firstSound = async (page: Page, since: number) => {
       await page.waitFor(`window.__oscs.some((r) => r.call >= ${since})`, 5000).catch(() => undefined);
       return shotsOfSounds(await sounds(page), await ammoLog(page), THREE.magSize, since).map((m) => [m.shot, m.dir]);
     };
 
-    for (const [mode, panel] of [
-      [GHOST, true],
-      [CENTER, true],
-      [CENTER, false],
-    ] as const) {
-      it(`MODE-29: ${mode}（補正のパネル ${panel ? 'ON' : 'OFF'}）で 1 発目を撃つと、最初の区切りの下の音が 1 回鳴る`, async () => {
-        const page = await openFresh();
-        await configure(page, { panel });
-        await start(page, THREE, mode);
-        const t0 = await page.evaluate<number>('performance.now()');
-        await padFireUntil(page, THREE.magSize - 3);
-        await page.frames(5);
-        expect(await firstSound(page, t0)).toEqual([[1, '下']]);
-        expect(exceptions(page), page.errors.join('\n')).toEqual([]);
-      }, 60_000);
-    }
-
-    it('MODE-30: やり直しのあとに撃ち始めると、1 発目で下の音が鳴る', async () => {
+    it('MODE-30: 反復練習で 1 発目を撃つと、最初の区切りの下の音が 1 回鳴る', async () => {
       const page = await openFresh();
       await configure(page, {});
-      await start(page, THREE, CENTER);
+      await start(page, THREE);
+      const t0 = await page.evaluate<number>('performance.now()');
+      await padFireUntil(page, THREE.magSize - 3);
+      await page.frames(5);
+      expect(await firstSound(page, t0)).toEqual([[1, '下']]);
+      expect(exceptions(page), page.errors.join('\n')).toEqual([]);
+    }, 60_000);
+
+    it('MODE-31: やり直しのあとに撃ち始めると、1 発目で下の音が鳴る', async () => {
+      const page = await openFresh();
+      await configure(page, {});
+      await start(page, THREE);
       await padFireUntil(page, THREE.magSize - 3);
       // 戻りの時間がたつ前にやり直す（パッドの A）。
       await padTap(page, 0);
@@ -754,10 +743,10 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-75〜UI-83�
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);
 
-    it('MODE-30: 連続練習（回数 5）の次の回で撃ち始めると、1 発目で下の音が鳴る', async () => {
+    it('MODE-31: 連続練習（回数 5）の次の回で撃ち始めると、1 発目で下の音が鳴る', async () => {
       const page = await openFresh();
       await configure(page, {});
-      await start(page, THREE, CENTER, 5);
+      await start(page, THREE, 5);
       await padFireUntil(page, THREE.magSize - 3);
       // 2 秒撃たずに回を終え、短いリザルトで「次へ」（パッドの A）。
       await page.waitFor('window.__interlude()', 6000);
