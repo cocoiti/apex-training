@@ -293,6 +293,7 @@
 | UI-129 | [screens.md](../../docs/spec/screens.md) | `tests/ui/language-browser.test.ts` |
 | UI-130 | [screens.md](../../docs/spec/screens.md) | `tests/ui/language-browser.test.ts` |
 | UI-131 | [screens.md](../../docs/spec/screens.md) | `tests/ui/language-browser.test.ts` |
+| UI-132 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/language-qa.acceptance.test.ts` |
 | UI-133 | [screens.md](../../docs/spec/screens.md) | `tests/ui/language-browser.test.ts` |
 | UI-134 | [screens.md](../../docs/spec/screens.md) | `tests/ui/language-browser.test.ts` |
 | WPN-1 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
