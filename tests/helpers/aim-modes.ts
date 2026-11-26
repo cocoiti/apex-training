@@ -43,8 +43,8 @@ export interface AimModeOptions {
 export function aimMode(options: AimModeOptions = {}): TrainingMode {
   return {
     id: options.id ?? 'aim-test',
-    name: 'エイムのテスト',
-    description: 'エイムのテスト',
+    name: { ja: 'エイムのテスト', en: 'エイムのテスト' },
+    description: { ja: 'エイムのテスト', en: 'エイムのテスト' },
     icon: 'flick',
     category: 'aim',
     order: 100,

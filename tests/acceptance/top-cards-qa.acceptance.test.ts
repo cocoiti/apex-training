@@ -59,8 +59,8 @@ const EXTRA_MODE = `import type { TrainingMode } from '../types';
 
 const mode: TrainingMode = {
   id: 'acceptance-card',
-  name: '${EXTRA_NAME}',
-  description: '${EXTRA_DESCRIPTION}',
+  name: { ja: '${EXTRA_NAME}', en: 'QA extra mode' },
+  description: { ja: '${EXTRA_DESCRIPTION}', en: 'A QA mode added last' },
   icon: 'flick',
   category: 'recoil',
   order: 100000,

@@ -9,6 +9,7 @@ import {
   type MappingSource,
   type PadLayout,
 } from '../input/pad-layout';
+import { t, type MessageKey } from './i18n';
 import { loadPadMappings, savePadMapping } from './settings';
 import type { SafeStorage } from './storage';
 
@@ -36,23 +37,21 @@ export class PadMappingStore {
 }
 
 /** ボタン割り当ての項目の名前と、「割り当てる」を押したあとの案内。 */
-export const MAPPING_LABELS: Readonly<Record<MappingItem, { name: string; guide: string }>> = {
-  fire: { name: '射撃（fire）', guide: '射撃に使うボタンを押してください' },
-  ads: { name: 'ADS（ads）', guide: 'ADS に使うボタンを押してください' },
-  lookX: { name: '右スティックの左右', guide: '右に倒してください' },
-  lookY: { name: '右スティックの上下', guide: '上に倒してください' },
+export const MAPPING_LABELS: Readonly<Record<MappingItem, { name: MessageKey; guide: MessageKey }>> = {
+  fire: { name: 'mapping.fire', guide: 'mapping.fireGuide' },
+  ads: { name: 'mapping.ads', guide: 'mapping.adsGuide' },
+  lookX: { name: 'mapping.lookX', guide: 'mapping.lookXGuide' },
+  lookY: { name: 'mapping.lookY', guide: 'mapping.lookYGuide' },
 };
-
-export const NO_NONSTANDARD_PAD_MESSAGE = '標準配置でないパッドがつながっていません';
 
 /** 割り当てた番号の表示。まだなら「未割り当て」。 */
 export function assignmentText(item: MappingItem, assignment: Readonly<MappingAssignment>): string {
   if (item === 'fire' || item === 'ads') {
     const button = assignment[item];
-    return button === undefined ? '未割り当て' : `ボタン ${button}`;
+    return button === undefined ? t('mapping.unassigned') : t('mapping.button', { index: button });
   }
   const axis = assignment[item];
-  return axis ? `軸 ${axis.axis}${axis.invert ? '（反転）' : ''}` : '未割り当て';
+  return axis ? t(axis.invert ? 'mapping.axisInverted' : 'mapping.axis', { index: axis.axis }) : t('mapping.unassigned');
 }
 
 /** ボタン割り当て画面の対象。接続している標準配置でないパッドのうち番号が最も小さいもの。 */
@@ -130,7 +129,7 @@ export class PadMappingScreen<P extends DetectedGamepadLike & MappingSource> {
     const shown: Readonly<MappingAssignment> = this.capture.assignment;
     const items = {} as Record<MappingItem, string>;
     for (const item of MAPPING_ITEMS) {
-      items[item] = this.capture.pending === item ? MAPPING_LABELS[item].guide : assignmentText(item, shown);
+      items[item] = this.capture.pending === item ? t(MAPPING_LABELS[item].guide) : assignmentText(item, shown);
     }
     return { target: id, items, saved: saved !== undefined };
   }

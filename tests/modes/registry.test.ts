@@ -5,8 +5,8 @@ import { modeUsesDirectionSound, modeUsesWeakSections, modeUsesWeapon, type Trai
 function mode(id: string, order: number, extra: Partial<TrainingMode> = {}): TrainingMode {
   return {
     id,
-    name: id,
-    description: `${id} の説明`,
+    name: { ja: id, en: id },
+    description: { ja: `${id} の説明`, en: `${id} の説明` },
     icon: 'spray',
     category: 'recoil',
     order,
@@ -57,7 +57,7 @@ describe('モードの一覧を作る', () => {
     expect(list.map((m) => m.id)).toEqual(['a', 'f']);
     expect(logs).toHaveLength(4);
     expect(logs[0]).toContain('recoil/b.ts');
-    expect(logs[0]).toContain('重複');
+    expect(logs[0]).toContain('duplicate');
     expect(logs.slice(1).map((l) => l.match(/recoil\/\w\.ts/)?.[0])).toEqual(['recoil/c.ts', 'recoil/d.ts', 'recoil/e.ts']);
   });
 });
@@ -108,7 +108,7 @@ describe('カードの説明とアイコン', () => {
   });
 
   it('MODE-56: 登録されたモードは表のひとこと説明と、モードごとに違うアイコンの形を持つ', () => {
-    expect(modes.map((m) => [m.name, m.description])).toEqual([
+    expect(modes.map((m) => [m.name.ja, m.description.ja])).toEqual([
       ['反復練習', '同じ武器のリコイルを繰り返し撃って、パターンを手に覚えさせる'],
       ['追いエイム', '左右に動く的に照準を乗せ続ける'],
       ['追いエイム＋リコイル', 'リコイルを抑えながら、動く的に照準を乗せ続ける'],
@@ -118,9 +118,9 @@ describe('カードの説明とアイコン', () => {
   });
 
   it('MODE-56: ファイルを 1 つ足すと、そのモードの名前と説明が一覧に出る', () => {
-    const extra = { ...mode('new', 100), name: '足したモード', description: '足したモードの説明' };
+    const extra = { ...mode('new', 100), name: { ja: '足したモード', en: 'Added mode' }, description: { ja: '足したモードの説明', en: 'An added mode' } };
     const list = buildModeList([file('recoil/ghost.ts', mode('ghost', 20)), file('aim/new.ts', extra)]);
-    expect(list.map((m) => [m.name, m.description])).toEqual([
+    expect(list.map((m) => [m.name.ja, m.description.ja])).toEqual([
       ['ghost', 'ghost の説明'],
       ['足したモード', '足したモードの説明'],
     ]);
@@ -129,20 +129,28 @@ describe('カードの説明とアイコン', () => {
 
 describe('登録されたモード', () => {
   it('練習の選択肢の形が合わないモードは外し、合うモードは残す', () => {
-    const speed = { id: 'speed', label: '速さ', choices: [{ id: 'slow', name: '遅い' }, { id: 'normal', name: 'ふつう' }], defaultChoice: 'normal' };
+    const speed = {
+      id: 'speed',
+      label: { ja: '速さ', en: 'Speed' },
+      choices: [
+        { id: 'slow', name: { ja: '遅い', en: 'Slow' } },
+        { id: 'normal', name: { ja: 'ふつう', en: 'Normal' } },
+      ],
+      defaultChoice: 'normal',
+    };
     const logs: string[] = [];
     const list = buildModeList(
       [
         file('aim/a.ts', mode('a', 1, { options: [speed] })),
         file('aim/b.ts', mode('b', 2, { options: [{ ...speed, defaultChoice: 'fast' }] })),
         file('aim/c.ts', mode('c', 3, { options: [{ ...speed, choices: [] }] })),
-        file('aim/d.ts', mode('d', 4, { options: [{ ...speed, choices: [{ id: 'a:b', name: 'x' }], defaultChoice: 'a:b' }] })),
-        file('aim/e.ts', mode('e', 5, { options: [{ ...speed, choices: [...speed.choices, { id: 'slow', name: '遅い' }] }] })),
+        file('aim/d.ts', mode('d', 4, { options: [{ ...speed, choices: [{ id: 'a:b', name: { ja: 'x', en: 'x' } }], defaultChoice: 'a:b' }] })),
+        file('aim/e.ts', mode('e', 5, { options: [{ ...speed, choices: [...speed.choices, { id: 'slow', name: { ja: '遅い', en: 'Slow' } }] }] })),
         file('aim/f.ts', mode('f', 6, { refillOnRelease: 'yes' as unknown as boolean })),
         // 選択肢の id が重なるモード、並びでない選択肢、2 つの選択肢を持つモード。
         file('aim/g.ts', mode('g', 7, { options: [speed, speed] })),
         file('aim/h.ts', mode('h', 8, { options: speed as unknown as [] })),
-        file('aim/i.ts', mode('i', 9, { options: [speed, { ...speed, id: 'size', label: '大きさ' }] })),
+        file('aim/i.ts', mode('i', 9, { options: [speed, { ...speed, id: 'size', label: { ja: '大きさ', en: 'Size' } }] })),
         file('aim/j.ts', mode('j', 10, { status: 'x' as unknown as () => undefined })),
       ],
       (m) => logs.push(m),
@@ -152,7 +160,7 @@ describe('登録されたモード', () => {
   });
 
   it('MODE-27: src/modes/ のファイルから集めたモードは反復練習・追いエイム・追いエイム＋リコイル・フリックの順', () => {
-    expect(modes.map((m) => [m.id, m.name])).toEqual([
+    expect(modes.map((m) => [m.id, m.name.ja])).toEqual([
       ['ghost', '反復練習'],
       ['tracking', '追いエイム'],
       ['tracking-recoil', '追いエイム＋リコイル'],

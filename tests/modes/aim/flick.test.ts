@@ -280,7 +280,7 @@ describe('フリックの練習の流れ', () => {
       const l = Math.hypot(target.center.x - eye.x, target.center.y - eye.y, target.center.z - eye.z);
       expect(target.size.x).toBeCloseTo(2 * l * Math.tan((0.5 * Math.PI) / 180), 12);
     }
-    expect(d.session.result!.options.map((o) => [o.optionId, o.id, o.label, o.name])).toEqual([
+    expect(d.session.result!.options.map((o) => [o.optionId, o.id, o.label.ja, o.name.ja])).toEqual([
       ['flick-range', 'far', '出る範囲', '遠い'],
       ['flick-size', 'small', '的の大きさ', '小'],
     ]);

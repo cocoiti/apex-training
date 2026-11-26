@@ -85,8 +85,8 @@ export interface CardChoiceOptions {
   readonly select: HTMLSelectElement;
   /** カードを入れる要素。並び全体の枠になる。 */
   readonly container: HTMLElement;
-  /** 並びの名前（読み上げ用）。 */
-  readonly label: string;
+  /** 並びの名前（読み上げ用）。関数なら作り直すたびに呼ぶ（表示の言語を選び直したとき）。 */
+  readonly label: string | (() => string);
   /** カードの中身。省くと表示名だけ。 */
   readonly content?: (card: CardItem, doc: Document) => readonly (Node | string)[];
 }
@@ -96,8 +96,8 @@ export class CardChoice {
   private readonly cards = new Map<string, HTMLElement>();
 
   constructor(private readonly options: CardChoiceOptions) {
-    const { container, select, label } = options;
-    container.setAttribute('aria-label', label);
+    const { container, select } = options;
+    this.applyLabel();
     container.addEventListener('click', (event) => {
       const card = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-value]') : null;
       if (!card || !this.selectable || !container.contains(card)) return;
@@ -119,9 +119,15 @@ export class CardChoice {
     return this.cards.size > 1;
   }
 
-  /** select の選択肢からカードを作り直し、選んでいる値に合わせる。 */
+  private applyLabel(): void {
+    const { label } = this.options;
+    this.options.container.setAttribute('aria-label', typeof label === 'function' ? label() : label);
+  }
+
+  /** select の選択肢からカードを作り直し、選んでいる値に合わせる。並びの名前も付け直す。 */
   rebuild(): void {
     const { container, select, content } = this.options;
+    this.applyLabel();
     const doc = container.ownerDocument;
     this.cards.clear();
     const groups = cardGroupsOf(select.children as unknown as ArrayLike<SelectChildLike>);

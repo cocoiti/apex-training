@@ -8,7 +8,8 @@ import { modes } from '../../src/modes/registry';
 import { PracticeSession, replayPracticeSession } from '../../src/modes/session';
 import type { TrainingMode } from '../../src/modes/types';
 import { RECOIL_RECOVERY_TIME } from '../../src/sim/gun';
-import { simplePattern } from '../../src/sim/simple-pattern';
+import { simplePattern, type SegmentDirection } from '../../src/sim/simple-pattern';
+import { segmentLabel } from '../../src/ui/correction-panel';
 import { vec3 } from '../../src/sim/vec3';
 import { fireInterval, parseWeapon, type RecoilStep, type WeaponData } from '../../src/sim/weapon';
 import { createWorld, type World } from '../../src/sim/world';
@@ -83,15 +84,15 @@ function practiceSounds(actions: TimedAction[], options: { weapon?: WeaponData; 
 describe('向きの音の高さと波形', () => {
   it('UI-78: 9 つの向きの音は表のとおりで、高さと波形の組がどの 2 つでも異なる', () => {
     expect(DIRECTION_TONES).toEqual({
-      左上: { frequency: 330, wave: 'square' },
-      上: { frequency: 440, wave: 'square' },
-      右上: { frequency: 660, wave: 'square' },
-      左: { frequency: 330, wave: 'triangle' },
-      動かさない: { frequency: 440, wave: 'triangle' },
-      右: { frequency: 660, wave: 'triangle' },
-      左下: { frequency: 330, wave: 'sine' },
-      下: { frequency: 440, wave: 'sine' },
-      右下: { frequency: 660, wave: 'sine' },
+      'up-left': { frequency: 330, wave: 'square' },
+      up: { frequency: 440, wave: 'square' },
+      'up-right': { frequency: 660, wave: 'square' },
+      left: { frequency: 330, wave: 'triangle' },
+      still: { frequency: 440, wave: 'triangle' },
+      right: { frequency: 660, wave: 'triangle' },
+      'down-left': { frequency: 330, wave: 'sine' },
+      down: { frequency: 440, wave: 'sine' },
+      'down-right': { frequency: 660, wave: 'sine' },
     });
     const pairs = new Set(Object.values(DIRECTION_TONES).map((t) => `${t.frequency}:${t.wave}`));
     expect(pairs.size).toBe(9);
@@ -110,10 +111,10 @@ describe('音を鳴らさないとき', () => {
 describe('練習中の向きの音', () => {
   it('区切りの最初の発だけが音を鳴らす発になる', () => {
     const pattern = simplePattern(threeSegmentWeapon());
-    expect(pattern.segments.map((s) => s.label)).toEqual(['1〜8 発: ↓ 下', '9〜20 発: ↙ 左下', '21〜28 発: ↘ 右下']);
-    expect(segmentStartingAt(pattern, 1)?.direction).toBe('下');
-    expect(segmentStartingAt(pattern, 9)?.direction).toBe('左下');
-    expect(segmentStartingAt(pattern, 21)?.direction).toBe('右下');
+    expect(pattern.segments.map(segmentLabel)).toEqual(['1〜8 発: ↓ 下', '9〜20 発: ↙ 左下', '21〜28 発: ↘ 右下']);
+    expect(segmentStartingAt(pattern, 1)?.direction).toBe('down');
+    expect(segmentStartingAt(pattern, 9)?.direction).toBe('down-left');
+    expect(segmentStartingAt(pattern, 21)?.direction).toBe('down-right');
     for (const shot of [2, 8, 10, 20, 22, 28]) expect(segmentStartingAt(pattern, shot)).toBeUndefined();
   });
 
@@ -121,9 +122,9 @@ describe('練習中の向きの音', () => {
     const { session, played } = practiceSounds([press(0)]);
     expect(session.gun.shots).toHaveLength(28);
     expect(played).toEqual([
-      { shot: 1, direction: '下' },
-      { shot: 9, direction: '左下' },
-      { shot: 21, direction: '右下' },
+      { shot: 1, direction: 'down' },
+      { shot: 9, direction: 'down-left' },
+      { shot: 21, direction: 'down-right' },
     ]);
   });
 
@@ -139,19 +140,19 @@ describe('練習中の向きの音', () => {
     const before = practiceSounds([press(0), release(1.15), press(1.15 + RECOIL_RECOVERY_TIME / 2)]);
     expect(before.session.gun.shots).toHaveLength(28);
     expect(before.played).toEqual([
-      { shot: 1, direction: '下' },
-      { shot: 9, direction: '左下' },
-      { shot: 21, direction: '右下' },
+      { shot: 1, direction: 'down' },
+      { shot: 9, direction: 'down-left' },
+      { shot: 21, direction: 'down-right' },
     ]);
     expect(before.session.gun.shots[20]?.patternShot).toBe(21);
 
     const after = practiceSounds([press(0), release(1.15), press(1.15 + RECOIL_RECOVERY_TIME + 0.2)], { seconds: 6 });
     expect(after.session.gun.shots[12]?.patternShot).toBe(1);
     expect(after.played).toEqual([
-      { shot: 1, direction: '下' },
-      { shot: 9, direction: '左下' },
-      { shot: 13, direction: '下' },
-      { shot: 21, direction: '左下' },
+      { shot: 1, direction: 'down' },
+      { shot: 9, direction: 'down-left' },
+      { shot: 13, direction: 'down' },
+      { shot: 21, direction: 'down-left' },
     ]);
     expect(interval).toBeCloseTo(0.1, 9);
   });
@@ -160,18 +161,18 @@ describe('練習中の向きの音', () => {
     for (const mode of ['ghost']) {
       const { played } = practiceSounds([press(0)], { mode });
       expect(played).toEqual([
-        { shot: 1, direction: '下' },
-        { shot: 9, direction: '左下' },
-        { shot: 21, direction: '右下' },
+        { shot: 1, direction: 'down' },
+        { shot: 9, direction: 'down-left' },
+        { shot: 21, direction: 'down-right' },
       ]);
     }
   });
 
   it('MODE-31: 練習を作り直したあとに撃ち始めると、1 発目で最初の区切りの音が鳴る', () => {
     const first = practiceSounds([press(0), release(0.55)]);
-    expect(first.played).toEqual([{ shot: 1, direction: '下' }]);
+    expect(first.played).toEqual([{ shot: 1, direction: 'down' }]);
     const again = practiceSounds([press(0.2)]);
-    expect(again.played[0]).toEqual({ shot: 1, direction: '下' });
+    expect(again.played[0]).toEqual({ shot: 1, direction: 'down' });
   });
 
   it('UI-84: 簡易版は武器だけから求めるので、パターンの表示によらず同じ発と向きで鳴る', () => {
@@ -287,7 +288,7 @@ describe('試聴', () => {
     preview.start(threeSegmentWeapon(), second.output);
     clock.advance(60);
     expect(first.heard().map((p) => p.direction)).toEqual([previewCues(lstar())[0]!.direction]);
-    expect(second.heard().map((p) => p.direction)).toEqual(['下', '左下', '右下']);
+    expect(second.heard().map((p) => p.direction)).toEqual(['down', 'down-left', 'down-right']);
   });
 
   it('UI-85: 音を鳴らせないあいだに時刻が来た音は鳴らさず、鳴らせるようになったあとの音は押した時点からの時刻に鳴らす', () => {
@@ -303,8 +304,8 @@ describe('試聴', () => {
     setAvailable(true);
     clock.advance(60);
     expect(scheduled.map((p) => [p.direction, p.when])).toEqual([
-      ['左下', 100 + 8 * interval],
-      ['右下', 100 + 20 * interval],
+      ['down-left', 100 + 8 * interval],
+      ['down-right', 100 + 20 * interval],
     ]);
     expect(changes).toEqual([true, false]);
   });
@@ -372,7 +373,7 @@ describe('Web Audio での合成', () => {
     const { context, tones } = fakeContext();
     const sound = new DirectionSound(() => context);
     sound.unlock();
-    for (const direction of Object.keys(DIRECTION_TONES)) sound.play(direction, 100);
+    for (const direction of Object.keys(DIRECTION_TONES) as SegmentDirection[]) sound.play(direction, 100);
     expect(tones.map((t) => [t.type, t.frequency])).toEqual(Object.values(DIRECTION_TONES).map((t) => [t.wave, t.frequency]));
     const first = tones[0]!;
     expect(first.start).toBe(2);
@@ -382,14 +383,14 @@ describe('Web Audio での合成', () => {
     expect(first.gain.at(-1)?.[2]).toBeCloseTo(2 + TONE_DURATION, 9);
     expect(Math.max(...first.gain.map((g) => g[1]))).toBeCloseTo(MAX_TONE_GAIN, 9);
 
-    sound.play('下', 50);
+    sound.play('down', 50);
     expect(Math.max(...tones.at(-1)!.gain.map((g) => g[1]))).toBeCloseTo(MAX_TONE_GAIN / 2, 9);
   });
 
   it('UI-85: 操作の前は AudioContext を作らず鳴らさない', () => {
     const create = vi.fn(() => fakeContext().context);
     const sound = new DirectionSound(create);
-    expect(() => sound.play('下', 50)).not.toThrow();
+    expect(() => sound.play('down', 50)).not.toThrow();
     expect(create).not.toHaveBeenCalled();
     sound.unlock();
     sound.unlock();
@@ -399,18 +400,18 @@ describe('Web Audio での合成', () => {
   it('UI-85: Web Audio が使えない・作るときに投げる・音を許さない（running でない）ときもエラーにならず鳴らさない', () => {
     const missing = new DirectionSound(() => undefined);
     missing.unlock();
-    expect(() => missing.play('下', 50)).not.toThrow();
+    expect(() => missing.play('down', 50)).not.toThrow();
 
     const throwing = new DirectionSound(() => {
       throw new Error('使えない');
     });
     expect(() => throwing.unlock()).not.toThrow();
-    expect(() => throwing.play('下', 50)).not.toThrow();
+    expect(() => throwing.play('down', 50)).not.toThrow();
 
     const suspended = fakeContext('suspended');
     const blocked = new DirectionSound(() => suspended.context);
     blocked.unlock();
-    blocked.play('下', 50);
+    blocked.play('down', 50);
     expect(suspended.tones).toHaveLength(0);
     expect(suspended.resume).toHaveBeenCalled();
 
@@ -423,18 +424,18 @@ describe('Web Audio での合成', () => {
     const { context, tones } = fakeContext();
     const sound = new DirectionSound(() => context);
     expect(sound.now()).toBeUndefined();
-    expect(sound.schedule('下', 50, 3)).toBeUndefined();
+    expect(sound.schedule('down', 50, 3)).toBeUndefined();
     sound.unlock();
     expect(sound.now()).toBe(2);
-    const tone = sound.schedule('下', 50, 3.5)!;
+    const tone = sound.schedule('down', 50, 3.5)!;
     expect(tones.at(-1)!.start).toBe(3.5);
     expect(tones.at(-1)!.stop).toBeCloseTo(3.5 + TONE_DURATION, 9);
     tone.cancel();
     expect(tones.at(-1)!.stop).toBe(0);
     expect(tones.at(-1)!.disconnected).toBe(true);
-    sound.schedule('下', 50, 1);
+    sound.schedule('down', 50, 1);
     expect(tones.at(-1)!.start).toBe(2);
-    expect(sound.schedule('斜め', 50, 3)).toBeUndefined();
+    expect(sound.schedule('diagonal' as SegmentDirection, 50, 3)).toBeUndefined();
     expect(new DirectionSound(() => fakeContext('suspended').context).now()).toBeUndefined();
   });
 
@@ -442,8 +443,8 @@ describe('Web Audio での合成', () => {
     const { context, tones } = fakeContext();
     const sound = new DirectionSound(() => context);
     sound.unlock();
-    sound.play('下', 0);
-    sound.play('斜め', 50);
+    sound.play('down', 0);
+    sound.play('diagonal' as SegmentDirection, 50);
     expect(tones).toHaveLength(0);
   });
 });

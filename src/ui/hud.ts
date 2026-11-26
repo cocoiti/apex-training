@@ -1,4 +1,5 @@
-import { INPUT_METHOD_LABELS, type InputMethod } from '../input/input-switch';
+import { inputMethodLabel, type InputMethod } from '../input/input-switch';
+import { t } from './i18n';
 
 /** HUD に出すもの（docs/spec/modes.md「共通」）。 */
 export interface HudState {
@@ -32,20 +33,20 @@ export interface HudTexts {
   readonly pad: string;
 }
 
-/** 経過時間を秒の小数第 1 位までにする。切り捨てるので、2 秒たつまで「2.0」にならない。 */
+/** 経過時間を秒の小数第 1 位までにする（「2.0 秒」、英語は `2.0 s`）。切り捨てるので、2 秒たつまで「2.0」にならない。 */
 export function formatElapsed(seconds: number): string {
   // 固定ステップの時刻の浮動小数の誤差で 0.1 秒の境目を切り捨てすぎないよう、わずかに足してから切り捨てる。
   const tenths = Math.floor(Math.max(seconds, 0) * 10 + 1e-6);
-  return `${(tenths / 10).toFixed(1)} 秒`;
+  return t('unit.secondsValue', { value: (tenths / 10).toFixed(1) });
 }
 
 export function hudTexts(state: HudState): HudTexts {
   return {
     weapon: state.weapon?.name ?? '',
-    ammo: state.weapon ? `残弾 ${state.weapon.ammo} / ${state.weapon.magSize}` : '',
+    ammo: state.weapon ? t('play.ammo', { ammo: state.weapon.ammo, magSize: state.weapon.magSize }) : '',
     mode: state.mode ?? '',
     time: formatElapsed(state.elapsed),
-    input: INPUT_METHOD_LABELS[state.inputMethod],
+    input: inputMethodLabel(state.inputMethod),
     round: state.round && state.round.count >= 2 ? `${state.round.index} / ${state.round.count}` : '',
     pad: state.padStatus ?? '',
   };

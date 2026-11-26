@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SIMPLE_PATTERN_MAX_SEGMENTS, SIMPLE_PATTERN_TOLERANCE, simplePattern } from '../../src/sim/simple-pattern';
 import { idealCorrection, parseWeapon, type RecoilStep, type WeaponData } from '../../src/sim/weapon';
+import { segmentLabel } from '../../src/ui/correction-panel';
 
 const WEAPONS_DIR = resolve(__dirname, '../../src/data/weapons');
 
@@ -43,7 +44,7 @@ describe('簡易版のパターン', () => {
   it('WPN-25: まっすぐ下に補正する武器は区切り 1 本で「1〜10 発: ↓ 下」', () => {
     const simple = simplePattern(weaponOf(Array.from({ length: 10 }, () => ({ dx: 0, dy: 1 }))));
     expect(simple.vertices).toEqual([0, 10]);
-    expect(simple.segments.map((s) => s.label)).toEqual(['1〜10 発: ↓ 下']);
+    expect(simple.segments.map(segmentLabel)).toEqual(['1〜10 発: ↓ 下']);
     expect(simple.maxError).toBeCloseTo(0, 12);
   });
 
@@ -51,7 +52,7 @@ describe('簡易版のパターン', () => {
     const pattern = Array.from({ length: 10 }, (_, i) => (i < 5 ? { dx: 0, dy: 1 } : { dx: 1, dy: 0 }));
     const simple = simplePattern(weaponOf(pattern));
     expect(simple.vertices).toEqual([0, 5, 10]);
-    expect(simple.segments.map((s) => s.label)).toEqual(['1〜5 発: ↓ 下', '6〜10 発: ← 左']);
+    expect(simple.segments.map(segmentLabel)).toEqual(['1〜5 発: ↓ 下', '6〜10 発: ← 左']);
     expect(simple.points).toEqual([{ yaw: 0, pitch: 0 }, { yaw: 0, pitch: -5 }, { yaw: -5, pitch: -5 }]);
   });
 
@@ -60,7 +61,7 @@ describe('簡易版のパターン', () => {
     const results = [0, 0, 0.5, 0.5].map((r) => simplePattern(weaponOf(pattern, r)));
     for (const result of results) {
       expect(result.vertices).toEqual(results[0]?.vertices);
-      expect(result.segments.map((s) => s.label)).toEqual(results[0]?.segments.map((s) => s.label));
+      expect(result.segments.map(segmentLabel)).toEqual(results[0]?.segments.map(segmentLabel));
     }
   });
 
@@ -105,7 +106,7 @@ describe('簡易版のパターン', () => {
       [{ dx: 0.05, dy: 0 }, '・ 動かさない'],
     ];
     for (const [step, words] of cases) {
-      expect(simplePattern(weaponOf([step])).segments.map((s) => s.label)).toEqual([`1 発: ${words}`]);
+      expect(simplePattern(weaponOf([step])).segments.map(segmentLabel)).toEqual([`1 発: ${words}`]);
     }
   });
 

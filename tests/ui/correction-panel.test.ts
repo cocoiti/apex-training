@@ -10,6 +10,7 @@ import {
   correctionPanelShown,
   correctionPanelState,
   weakIdealPoints,
+  segmentLabel,
   segmentListHtml,
   segmentOfShot,
   type CorrectionPanelElements,
@@ -307,7 +308,7 @@ describe('パターンの表示が簡易の補正のパネル', () => {
     expect(e.segments.hidden).toBe(false);
     expect(e.segments.attrs.get('data-count')).toBe(String(simple.segments.length));
     const labels = [...e.segments.innerHTML.matchAll(/<li[^>]*>([^<]*)<\/li>/g)].map((m) => m[1]);
-    expect(labels).toEqual(simple.segments.map((s) => s.label));
+    expect(labels).toEqual(simple.segments.map(segmentLabel));
   });
 
   it('UI-69: 詳細のときは理想の線が 1〜装弾数発目の理想の補正軌道で、区切りの言葉は出さない', () => {
@@ -336,7 +337,7 @@ describe('パターンの表示が簡易の補正のパネル', () => {
       const segment = simple.segments.findIndex((s) => s.from < i + 1 && i + 1 <= s.to);
       expect(e.segments.attrs.get('data-current')).toBe(String(segment));
       const current = [...e.segments.innerHTML.matchAll(/<li[^>]*class="current"[^>]*>([^<]*)<\/li>/g)].map((m) => m[1]);
-      expect(current).toEqual([simple.segments[segment]?.label]);
+      expect(current).toEqual([segmentLabel(simple.segments[segment]!)]);
     }
     panel.update({ nextShot: weapon.magSize + 1, ammo: 0, shotAims: shotsBefore(weapon.magSize), aim: O });
     expect(e.current.attrs.get('visibility')).toBe('hidden');
@@ -386,7 +387,7 @@ describe('パターンの表示が簡易の補正のパネル', () => {
     expect(segmentOfShot(simple.segments, weapon.magSize)).toBe(simple.segments.length - 1);
     expect(segmentOfShot(simple.segments, undefined)).toBeUndefined();
     expect(segmentOfShot(simple.segments, weapon.magSize + 1)).toBeUndefined();
-    expect(segmentListHtml([{ from: 0, to: 3, arrow: '↓', direction: '下', label: '1〜3 発: ↓ 下' }], 0)).toBe(
+    expect(segmentListHtml([{ from: 0, to: 3, arrow: '↓', direction: 'down' }], 0)).toBe(
       '<li data-from="1" data-to="3" class="current" aria-current="step">1〜3 発: ↓ 下</li>',
     );
   });

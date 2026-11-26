@@ -10,6 +10,7 @@ import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { simplePattern } from '../../src/sim/simple-pattern';
 import { parseWeapon } from '../../src/sim/weapon';
+import { segmentLabel } from '../../src/ui/correction-panel';
 import { appUrl, findChromium, launchBrowser, originOf, serveStatic, type Browser, type Page } from '../helpers/browser';
 
 const ROOT = resolve(__dirname, '../..');
@@ -142,9 +143,9 @@ describe.skipIf(NESTED || !chromium)('補正のパネルのパターンの表示
     expect(before.idealCount).toBe(String(simple.segments.length + 1));
     expect(before.legend).toBe('理想（簡易）');
     expect(before.segmentsHidden).toBe(false);
-    expect(before.labels).toEqual(simple.segments.map((s) => s.label));
+    expect(before.labels).toEqual(simple.segments.map(segmentLabel));
     expect(before.shot).toBe('1');
-    expect(before.current).toEqual([simple.segments[0]?.label]);
+    expect(before.current).toEqual([segmentLabel(simple.segments[0]!)]);
     expect(before.viewBox).toBe(detailed.viewBox);
 
     // 2 本目の区切りが受け持つ発まで撃つと、強調がその発を受け持つ区切りに移る。
@@ -153,7 +154,7 @@ describe.skipIf(NESTED || !chromium)('補正のパネルのパターンの表示
       const shot = await fireUntil(page, second.from + 1);
       const owner = simple.segments.find((s) => s.from < shot && shot <= s.to);
       expect(owner).toBeDefined();
-      expect((await readPanel(page)).current).toEqual([owner?.label]);
+      expect((await readPanel(page)).current).toEqual([owner && segmentLabel(owner)]);
     }
     await page.evaluate(`window.__pad.buttons = [${R2}]`);
     await page.advanceClockUntil(`document.querySelector('[data-panel="current"]').getAttribute('visibility') === 'hidden'`, { limit: 15 });

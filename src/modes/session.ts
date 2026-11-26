@@ -9,7 +9,7 @@ import { Simulation } from '../sim/simulation';
 import { TapFire } from '../sim/tap-fire';
 import { idealCorrectionRate, type WeaponData } from '../sim/weapon';
 import type { World } from '../sim/world';
-import { modeOptionChoices, modeOptionValues, modeUsesWeapon, type ModeContext, type ModeOptionChoice, type ModeOptionSelection, type ModeResult, type TrainingMode } from './types';
+import { modeOptionChoices, modeOptionValues, modeUsesWeapon, type Localized, type ModeContext, type ModeOptionChoice, type ModeOptionSelection, type ModeResult, type TrainingMode } from './types';
 
 /** リザルト画面が使うモードの項目。 */
 export type PracticeResultMode = Pick<TrainingMode, 'id' | 'name' | 'category' | 'usesWeapon' | 'scoring' | 'weakSections'>;
@@ -40,8 +40,8 @@ export interface PracticeResult {
 export interface PracticeResultOption extends ModeOptionChoice {
   /** 選択肢の id（例: `speed`）。 */
   readonly optionId: string;
-  /** 選択肢の表示名（例: 「速さ」）。 */
-  readonly label: string;
+  /** 選択肢の表示名（日本語と英語。例: 「速さ」・`Speed`）。 */
+  readonly label: Localized;
 }
 
 /** 武器を使うモードの練習では Gun、武器を使わないモードの練習では undefined。 */
@@ -102,7 +102,7 @@ export class PracticeSession<W extends WeaponData | undefined = WeaponData> {
     const random = createRandom(options.seed);
     const weapon: WeaponData | undefined = options.weapon;
     const usesWeapon = modeUsesWeapon(options.mode);
-    if (usesWeapon && !weapon) throw new Error(`モード ${options.mode.id} は武器を使うので、武器を渡す`);
+    if (usesWeapon && !weapon) throw new Error(`mode ${options.mode.id} uses a weapon, so pass a weapon`);
     this.options = modeOptionChoices(options.mode, options.options);
     const refill = options.mode.refillOnRelease === true;
     const gun = usesWeapon && weapon ? new Gun(weapon, random, { refillOnRelease: refill }) : undefined;

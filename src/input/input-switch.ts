@@ -1,3 +1,4 @@
+import { t } from '../ui/i18n';
 import type { Action } from './actions';
 
 /** 練習で使う入力方式（今の入力方式、docs/spec/input.md「入力方式の切替」）。 */
@@ -6,8 +7,10 @@ export type InputMethod = 'mouse' | 'pad';
 /** 設定で選ぶ入力方式。auto は最後に操作したデバイスの入力方式にする。 */
 export type InputPreference = InputMethod | 'auto';
 
-/** 入力方式を HUD に出す文字。 */
-export const INPUT_METHOD_LABELS: Readonly<Record<InputMethod, string>> = { mouse: 'マウス', pad: 'パッド' };
+/** 入力方式を HUD などに出す文字（今の表示の言語）。 */
+export function inputMethodLabel(method: InputMethod): string {
+  return t(method === 'mouse' ? 'input.mouse' : 'input.pad');
+}
 
 export interface InputSwitchOptions {
   /** 設定で選んだ入力方式。呼ぶたびに今の値を返す。 */

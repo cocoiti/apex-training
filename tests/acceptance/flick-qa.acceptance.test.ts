@@ -40,7 +40,7 @@ function flickMode(): TrainingMode {
 function settingsOf(range: RangeId, size: SizeId): ModeOptionValues {
   const m = flickMode();
   const item = (label: string) => {
-    const s = m.options?.find((x) => x.label === label);
+    const s = m.options?.find((x) => x.label.ja === label);
     if (!s) throw new Error(`練習の選択肢に「${label}」がない`);
     return s.id;
   };
@@ -137,17 +137,17 @@ const status = (run: Run) => run.session.status ?? '';
 describe('フリックのモードの登録', () => {
   it('モードの id は flick・表示名「フリック」・種類 aim で、武器を使わず、出る範囲と的の大きさの練習の設定を持ち、既定は「ふつう」「中」', () => {
     const m = flickMode();
-    expect(m.name).toBe('フリック');
+    expect(m.name).toEqual({ ja: 'フリック', en: 'Flick' });
     expect(m.category).toBe('aim');
     expect(m.usesWeapon).toBe(false);
-    const range = m.options?.find((s) => s.label === '出る範囲');
-    const size = m.options?.find((s) => s.label === '的の大きさ');
-    expect(range?.choices.map((c) => [c.id, c.name])).toEqual([
+    const range = m.options?.find((s) => s.label.ja === '出る範囲');
+    const size = m.options?.find((s) => s.label.ja === '的の大きさ');
+    expect(range?.choices.map((c) => [c.id, c.name.ja])).toEqual([
       ['near', '近い'],
       ['normal', 'ふつう'],
       ['far', '遠い'],
     ]);
-    expect(size?.choices.map((c) => [c.id, c.name])).toEqual([
+    expect(size?.choices.map((c) => [c.id, c.name.ja])).toEqual([
       ['large', '大'],
       ['medium', '中'],
       ['small', '小'],

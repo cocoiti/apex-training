@@ -1,12 +1,12 @@
-// docs/spec/architecture.md「継続的インテグレーション（CI）」の受け入れ条件（ARC-52〜ARC-57）の受け入れテスト。
+// docs/spec/architecture.md「継続的インテグレーション（CI）」の受け入れ条件（ARC-57〜ARC-62）の受け入れテスト。
 // 公開された入口（.github/workflows/ 以下のワークフローの設定、npm のコマンド、CLAUDE.md、GitHub の CI の実行の記録）だけを使い、
 // 実装の内部には依存しない。
 //
 // いつも流す確認:
 // - ワークフローの設定を読み、走るきっかけ・runner・段の順・失敗で止まること・取り消し・公開の手順がないことを確かめる。
-// - CI が実行するコマンド（ワークフローの run と env）を手元でそのとおりに実行し、テストの失敗・lint の誤りで失敗すること（ARC-53）、
-//   Chromium が見つからないときにブラウザを使うテストが飛ばされて成功にならないこと（ARC-55）を確かめる。
-// GitHub での実際の実行の確認（ARC-52・ARC-54・ARC-55 の実行の記録）は、ネットワークと push が要るため APEX_ACCEPTANCE_LIVE=1 のときだけ流す。
+// - CI が実行するコマンド（ワークフローの run と env）を手元でそのとおりに実行し、テストの失敗・lint の誤りで失敗すること（ARC-58）、
+//   Chromium が見つからないときにブラウザを使うテストが飛ばされて成功にならないこと（ARC-60）を確かめる。
+// GitHub での実際の実行の確認（ARC-57・ARC-59・ARC-60 の実行の記録）は、ネットワークと push が要るため APEX_ACCEPTANCE_LIVE=1 のときだけ流す。
 //   見る実行のブランチは APEX_ACCEPTANCE_CI_BRANCH（なければ今のブランチ）。
 // ARC-13 の clone の中で npm test を実行したときに入れ子で重い確認をしないよう、APEX_ACCEPTANCE_NESTED が立っていたら子のプロセスを使う確認を飛ばす。
 // このファイルはブラウザを使う組に入らない（Chromium は子のプロセスの Vitest が使う）。
@@ -375,7 +375,7 @@ function checkRunSteps(run: Run): void {
 
 // ---- 受け入れテスト ----
 
-describe('ARC-52: PR・PR のブランチへの push・main への push で、ubuntu-latest の CI が決まった順に段を流す', () => {
+describe('ARC-57: PR・PR のブランチへの push・main への push で、ubuntu-latest の CI が決まった順に段を流す', () => {
   it('PR を作ったとき・PR を更新したとき・main に push したときに走る', () => {
     const w = ciWorkflow();
     const on = (w.doc.on ?? w.doc.true) as Obj;
@@ -471,7 +471,7 @@ describe('ARC-52: PR・PR のブランチへの push・main への push で、ub
   });
 });
 
-describe('ARC-53: テストの失敗や lint の誤りがあると CI のチェックが失敗になる', () => {
+describe('ARC-58: テストの失敗や lint の誤りがあると CI のチェックが失敗になる', () => {
   it('どの段も失敗を無視しない（continue-on-error・always などで後の段へ進めない）', () => {
     const w = ciWorkflow();
     const job = onlyJob(w);
@@ -510,12 +510,12 @@ describe('ARC-53: テストの失敗や lint の誤りがあると CI のチェ�
       const file = 'tests/zz-arc45-fail.test.ts';
       writeFileSync(
         join(dir, file),
-        "import { expect, it } from 'vitest';\nit('ARC-53 でわざと失敗させるテスト', () => {\n  expect(1 + 1).toBe(3);\n});\n",
+        "import { expect, it } from 'vitest';\nit('ARC-58 でわざと失敗させるテスト', () => {\n  expect(1 + 1).toBe(3);\n});\n",
       );
       try {
         // CI の段の run（npm run test:unit）に、この 1 ファイルだけを流すよう引数を足す。
         const r = sh(`${runFor('npm run test:unit')} -- ${file}`, dir, { CI: 'true' });
-        expect(r.output).toMatch(/ARC-53 でわざと失敗させるテスト/);
+        expect(r.output).toMatch(/ARC-58 でわざと失敗させるテスト/);
         expect(r.status, r.output).not.toBe(0);
       } finally {
         rmSync(join(dir, file), { force: true });
@@ -539,7 +539,7 @@ describe('ARC-53: テストの失敗や lint の誤りがあると CI のチェ�
   });
 });
 
-describe('ARC-54: 同じブランチに新しい push があると、走っている古い実行が取り消される', () => {
+describe('ARC-59: 同じブランチに新しい push があると、走っている古い実行が取り消される', () => {
   const concurrencyOf = (): Obj => {
     const w = ciWorkflow();
     const job = onlyJob(w);
@@ -585,7 +585,7 @@ describe('ARC-54: 同じブランチに新しい push があると、走って�
   });
 });
 
-describe('ARC-55: CI で Chromium が見つからないとき、ブラウザを使うテストを飛ばして成功にしない', () => {
+describe('ARC-60: CI で Chromium が見つからないとき、ブラウザを使うテストを飛ばして成功にしない', () => {
   /** 既存のブラウザを使うテストのうち小さい 1 ファイル（Chromium がないと飛ばされる）。 */
   const browserFile = 'tests/ui/correction-panel-browser.test.ts';
 
@@ -662,7 +662,7 @@ describe('ARC-55: CI で Chromium が見つからないとき、ブラウザを�
   });
 });
 
-describe('ARC-56: CI は ubuntu-latest の runner だけを使い、GitHub Pages への公開をしない', () => {
+describe('ARC-61: CI は ubuntu-latest の runner だけを使い、GitHub Pages への公開をしない', () => {
   it('どのワークフローのジョブも ubuntu-latest だけで動き、macOS・Windows の runner を使わない', () => {
     const all = workflows();
     expect(all.length).toBeGreaterThan(0);
@@ -688,7 +688,7 @@ describe('ARC-56: CI は ubuntu-latest の runner だけを使い、GitHub Pages
   });
 });
 
-describe('ARC-57: CLAUDE.md に CI のことと GitHub Actions の今の状態が書いてある', () => {
+describe('ARC-62: CLAUDE.md に CI のことと GitHub Actions の今の状態が書いてある', () => {
   const text = readFileSync(join(ROOT, 'CLAUDE.md'), 'utf8');
 
   it('CI があること、走るきっかけ（PR・PR のブランチへの push・main への push）が書いてある', () => {

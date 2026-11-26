@@ -1,3 +1,5 @@
+import { t } from './i18n';
+
 /** 全画面の切替（docs/spec/mouse.md「全画面」）。 */
 
 export interface FullscreenDocument {
@@ -21,5 +23,5 @@ export async function toggleFullscreen(doc: FullscreenDocument, target: Fullscre
 
 /** 切替ボタンの文言。 */
 export function fullscreenLabel(doc: Pick<FullscreenDocument, 'fullscreenElement'>): string {
-  return doc.fullscreenElement ? '全画面を解除' : '全画面';
+  return doc.fullscreenElement ? t('play.exitFullscreen') : t('play.fullscreen');
 }

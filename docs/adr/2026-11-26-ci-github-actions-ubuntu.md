@@ -40,5 +40,5 @@ CI でそのまま流すと、Chromium の導入に失敗しても全部飛ば�
 
 ## 影響
 
-- spec/architecture.md（継続的インテグレーション（CI）、ARC-52〜ARC-57）
+- spec/architecture.md（継続的インテグレーション（CI）、ARC-57〜ARC-62）
 - .github/workflows/ci.yml, tests/helpers/browser.ts, tests/architecture/ci.test.ts, CLAUDE.md

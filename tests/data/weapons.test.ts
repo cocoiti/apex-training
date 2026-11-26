@@ -63,11 +63,11 @@ describe('武器の JSON の一覧と取得', () => {
         { file: 'a.json', url: 'u/a' },
         { file: 'gone.json', url: 'u/gone' },
       ],
-      fetchJson: (url) => (url === 'u/a' ? Promise.resolve(weapon('a')) : Promise.reject(new Error('取得できない（404）'))),
+      fetchJson: (url) => (url === 'u/a' ? Promise.resolve(weapon('a')) : Promise.reject(new Error("can't fetch (404)"))),
       log: (m) => logs.push(m),
     });
     expect(weapons.map((w) => w.id)).toEqual(['a']);
-    expect(logs).toEqual(['武器のデータ gone.json を読み込めないので一覧から外す: 取得できない（404）']);
+    expect(logs).toEqual(["weapon data gone.json can't be loaded, so it is left out of the list: can't fetch (404)"]);
   });
 
   it('WPN-21: measured が false の武器は返らず、誤りも出力されない。true にすると返る', async () => {
@@ -103,16 +103,16 @@ describe('武器の JSON の一覧と取得', () => {
     });
     expect(weapons).toEqual([]);
     expect(logs).toEqual([
-      '武器のデータ missing.json を読み込めないので一覧から外す: measured: 必須の項目がない',
-      '武器のデータ text.json を読み込めないので一覧から外す: measured: 真偽値ではない',
+      "weapon data missing.json can't be loaded, so it is left out of the list: measured: required field is missing",
+      "weapon data text.json can't be loaded, so it is left out of the list: measured: not a boolean",
     ]);
   });
 
   it('WPN-12: 外した武器の出力にファイル名と pattern の誤りが入る', () => {
     const logs: string[] = [];
-    reportRejectedWeapons([{ file: 'short.json', errors: [{ path: 'pattern', message: '要素数（1）が magSize（2）より少ない' }] }], (m) =>
+    reportRejectedWeapons([{ file: 'short.json', errors: [{ path: 'pattern', message: 'has fewer elements (1) than magSize (2)' }] }], (m) =>
       logs.push(m),
     );
-    expect(logs).toEqual(['武器のデータ short.json を読み込めないので一覧から外す: pattern: 要素数（1）が magSize（2）より少ない']);
+    expect(logs).toEqual(["weapon data short.json can't be loaded, so it is left out of the list: pattern: has fewer elements (1) than magSize (2)"]);
   });
 });

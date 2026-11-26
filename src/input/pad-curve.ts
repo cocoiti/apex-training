@@ -133,7 +133,7 @@ const CURVE_TABLE: Readonly<Record<SimpleCurve, { responseCurve: number; deadzon
 function pick<T>(table: readonly T[], level: number): T {
   const index = Math.min(Math.max(Math.round(level), 1), table.length) - 1;
   const row = table[index];
-  if (row === undefined) throw new Error(`対応表にない値: ${level}`);
+  if (row === undefined) throw new Error(`value not in the table: ${level}`);
   return row;
 }
 

@@ -217,7 +217,7 @@ describe('INP-8: 入力の記録を外に出す操作がない', () => {
 
   it('結果のシェアの区画は、リザルト画面の「結果をシェア」のボタンと「X に投稿」のリンクと表示の欄だけ', () => {
     const block = SHARE_BLOCK.exec(screenHtml('result'))?.[0] ?? '';
-    expect(block).toContain('結果をシェア');
+    expect(block).toContain('data-i18n="share.button"');
     expect(block).not.toMatch(/\bdownload\b|<form\b|<input\b/i);
     expect([...block.matchAll(/<(a|button|textarea)\b/g)].map((m) => m[1])).toEqual(['button', 'a', 'textarea']);
     expect(block).toMatch(/href="https:\/\/x\.com\/intent\/post"/);

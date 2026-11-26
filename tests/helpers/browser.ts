@@ -2,7 +2,7 @@
 // 依存を増やさないよう、Playwright が置いた Chromium を DevTools プロトコルで直接動かす。
 // Chromium は環境変数 CHROMIUM_PATH か、~/Library/Caches/ms-playwright（Linux は ~/.cache/ms-playwright）から探す。
 // ポインターロックが使えるよう、chrome-headless-shell より通常の Chromium（Chrome for Testing）を先に選ぶ。
-// 環境変数 APEX_REQUIRE_CHROMIUM が 1 のとき（CI）は、見つからなければテストを飛ばさずに失敗する（docs/spec/architecture.md ARC-55）。
+// 環境変数 APEX_REQUIRE_CHROMIUM が 1 のとき（CI）は、見つからなければテストを飛ばさずに失敗する（docs/spec/architecture.md ARC-60）。
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
@@ -24,7 +24,7 @@ export const REQUIRE_CHROMIUM_ENV = 'APEX_REQUIRE_CHROMIUM';
 /**
  * 使える Chromium の実行ファイルを探す。見つからなければ undefined（ブラウザを使うテストは飛ばす）。
  * ただし env の APEX_REQUIRE_CHROMIUM が 1 なら、見つからないときは探した場所を示して例外を投げる。
- * テストのファイルの読み込みが失敗になるので、CI でブラウザを使うテストが飛ばされて成功になることがない（ARC-55）。
+ * テストのファイルの読み込みが失敗になるので、CI でブラウザを使うテストが飛ばされて成功になることがない（ARC-60）。
  */
 export function findChromium(env: Record<string, string | undefined> = process.env, home: string = homedir()): string | undefined {
   const caches = [join(home, 'Library/Caches/ms-playwright'), join(home, '.cache/ms-playwright')];
@@ -324,9 +324,21 @@ export class Page {
   }
 }
 
+/** 新しいタブを開くときの指定。 */
+export interface NewPageOptions {
+  /**
+   * ページから見えるブラウザの言語（navigator.language・navigator.languages）。既定は `ja-JP`（表示の言語が日本語になる。
+   * docs/spec/screens.md「最初の言語」）。英語の表示を確かめるテストは `en-US` などを渡す。
+   */
+  readonly language?: string;
+}
+
+/** 既定のブラウザの言語。日本語の文言を確かめるテストが、Chromium の言語の設定によらず日本語で開けるようにする。 */
+export const DEFAULT_PAGE_LANGUAGE = 'ja-JP';
+
 export interface Browser {
   /** このブラウザで新しいタブを開く。テストごとに開き、ブラウザは起動し直さない（ARC-26）。 */
-  newPage(): Promise<Page>;
+  newPage(options?: NewPageOptions): Promise<Page>;
   /** これまでに開いたタブをすべて閉じる。テストが終わるたびに呼び、裏で描画し続けるタブを残さない。 */
   closePages(): Promise<void>;
   close(): Promise<void>;
@@ -421,7 +433,7 @@ export async function launchBrowser(executable: string): Promise<Browser> {
   }
   const opened: { id: string; socket: WebSocket }[] = [];
   return {
-    async newPage() {
+    async newPage({ language = DEFAULT_PAGE_LANGUAGE }: NewPageOptions = {}) {
       const res = await fetch(`${endpoint}/json/new?about:blank`, { method: 'PUT' });
       const target = (await res.json()) as { id: string; webSocketDebuggerUrl: string };
       const socket = new WebSocket(target.webSocketDebuggerUrl);
@@ -435,6 +447,11 @@ export async function launchBrowser(executable: string): Promise<Browser> {
       await page.send('Page.enable');
       await page.send('Page.bringToFront');
       await page.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+      // ページのスクリプトより先に、ブラウザの言語を決まった値にする（Chromium の起動した環境の言語によらない）。
+      await page.addInitScript(
+        `Object.defineProperty(Navigator.prototype, 'language', { configurable: true, get: () => ${JSON.stringify(language)} });` +
+          `Object.defineProperty(Navigator.prototype, 'languages', { configurable: true, get: () => [${JSON.stringify(language)}] });`,
+      );
       return page;
     },
     async closePages() {

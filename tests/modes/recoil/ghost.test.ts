@@ -50,7 +50,7 @@ describe('反復練習のモード', () => {
   it('登録されたモードの最初に並ぶ', () => {
     const ids = modes.map((m) => m.id);
     expect(ids.indexOf('ghost')).toBe(0);
-    expect(ghostMode.name).toBe('反復練習');
+    expect(ghostMode.name).toEqual({ ja: '反復練習', en: 'Recoil Drill' });
   });
 
   it('補正のパネルは反復練習では設定によらず必ず出す（MODE-24）', () => {
@@ -60,8 +60,8 @@ describe('反復練習のモード', () => {
   it('ゴーストを持たないモードでは、セッションのゴーストがない', () => {
     const withoutGhost: TrainingMode = {
       id: 'plain',
-      name: 'ゴーストなし',
-      description: 'ゴーストなし',
+      name: { ja: 'ゴーストなし', en: 'ゴーストなし' },
+      description: { ja: 'ゴーストなし', en: 'ゴーストなし' },
       icon: 'spray',
       category: 'recoil',
       order: 0,

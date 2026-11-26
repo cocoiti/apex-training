@@ -612,8 +612,8 @@ const EXTRA_MODE = `import type { TrainingMode } from '../types';
 
 const mode: TrainingMode = {
   id: 'acceptance-extra',
-  name: '受け入れの追加モード',
-  description: '受け入れテストで足したモードの説明',
+  name: { ja: '受け入れの追加モード', en: 'Acceptance extra mode' },
+  description: { ja: '受け入れテストで足したモードの説明', en: 'A mode added by the acceptance test' },
   icon: 'spray',
   category: 'recoil',
   order: 100000,

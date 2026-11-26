@@ -13,17 +13,23 @@ export const SIMPLE_PATTERN_MAX_SEGMENTS = 5;
 /** 区切りの長さがこれより短いと「動かさない」にする（度）。 */
 const STILL_LENGTH = 0.1;
 
+/** 区切りの向き。8 方位と、動かさない（still）。向きの名前（上・右上・…）は画面の側が表示の言語で書く（src/ui/correction-panel.ts）。 */
+export type SegmentDirection = 'right' | 'up-right' | 'up' | 'up-left' | 'left' | 'down-left' | 'down' | 'down-right' | 'still';
+
 /** 8 方位。右を 0 として反時計回りに 45 度ずつ。 */
 const DIRECTIONS = [
-  { arrow: '→', name: '右' },
-  { arrow: '↗', name: '右上' },
-  { arrow: '↑', name: '上' },
-  { arrow: '↖', name: '左上' },
-  { arrow: '←', name: '左' },
-  { arrow: '↙', name: '左下' },
-  { arrow: '↓', name: '下' },
-  { arrow: '↘', name: '右下' },
-] as const;
+  { arrow: '→', direction: 'right' },
+  { arrow: '↗', direction: 'up-right' },
+  { arrow: '↑', direction: 'up' },
+  { arrow: '↖', direction: 'up-left' },
+  { arrow: '←', direction: 'left' },
+  { arrow: '↙', direction: 'down-left' },
+  { arrow: '↓', direction: 'down' },
+  { arrow: '↘', direction: 'down-right' },
+] as const satisfies readonly { arrow: string; direction: SegmentDirection }[];
+
+/** 動かさないときの矢印。 */
+export const STILL_ARROW = '\u30fb';
 
 /** 簡易版の折れ線の 1 本の直線。from 発目〜to 発目の頂点を結び、from+1〜to 発目を受け持つ。 */
 export interface SimpleSegment {
@@ -33,10 +39,8 @@ export interface SimpleSegment {
   readonly to: number;
   /** 照準を動かす向きの矢印（↑ ↗ → ↘ ↓ ↙ ← ↖、動かさないときは・）。 */
   readonly arrow: string;
-  /** 向きの名前（上・右上・…、動かさないときは「動かさない」）。 */
-  readonly direction: string;
-  /** 区切りの言葉（例:「1〜8 発: ↓ 下」）。 */
-  readonly label: string;
+  /** 向き（up・up-right・…、動かさないときは still）。 */
+  readonly direction: SegmentDirection;
 }
 
 export interface SimplePattern {
@@ -71,13 +75,13 @@ function segmentError(points: readonly Angles[], a: number, b: number): number {
 }
 
 /** 区切りの向き。右を 0 度として反時計回りに測った角度を 45 度で割って四捨五入した方位。 */
-function heading(from: Angles, to: Angles): { arrow: string; direction: string } {
+function heading(from: Angles, to: Angles): { arrow: string; direction: SegmentDirection } {
   const dyaw = to.yaw - from.yaw;
   const dpitch = to.pitch - from.pitch;
-  if (Math.hypot(dyaw, dpitch) < STILL_LENGTH) return { arrow: '・', direction: '動かさない' };
+  if (Math.hypot(dyaw, dpitch) < STILL_LENGTH) return { arrow: STILL_ARROW, direction: 'still' };
   const sector = Math.round((Math.atan2(dpitch, dyaw) * 180) / Math.PI / 45);
   const d = DIRECTIONS[((sector % 8) + 8) % 8] as (typeof DIRECTIONS)[number];
-  return { arrow: d.arrow, direction: d.name };
+  return { arrow: d.arrow, direction: d.direction };
 }
 
 /**
@@ -145,8 +149,7 @@ export function simplePattern(weapon: Pick<WeaponData, 'pattern' | 'magSize'>): 
     const to = vertices[s] as number;
     for (let i = from + 1; i <= to; i++) positions.push(i === to ? (points[to] as Angles) : along(points, from, to, i));
     const { arrow, direction } = heading(points[from] as Angles, points[to] as Angles);
-    const shots = from + 1 === to ? `${to}` : `${from + 1}〜${to}`;
-    segments.push({ from, to, arrow, direction, label: `${shots} 発: ${arrow} ${direction}` });
+    segments.push({ from, to, arrow, direction });
   }
   return { vertices, points: vertices.map((v) => points[v] as Angles), segments, positions, maxError };
 }

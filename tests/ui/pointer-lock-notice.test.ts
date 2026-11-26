@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { t } from '../../src/ui/i18n';
 import {
-  MOUSE_ACCELERATION_WARNING,
-  PAUSED_MESSAGE,
-  POINTER_LOCK_FAILED_MESSAGE,
   showPaused,
   showPointerLockNotice,
 } from '../../src/ui/pointer-lock-notice';
@@ -14,7 +12,7 @@ describe('ポインターロックの表示', () => {
     const element = notice();
     showPointerLockNotice(element, 'accelerated');
     expect(element.hidden).toBe(false);
-    expect(element.textContent).toBe(MOUSE_ACCELERATION_WARNING);
+    expect(element.textContent).toBe(t('play.mouseAcceleration'));
     expect(element.textContent).toContain('マウス加速');
     expect(element.dataset.kind).toBe('warning');
   });
@@ -23,7 +21,7 @@ describe('ポインターロックの表示', () => {
     const element = notice();
     showPointerLockNotice(element, 'failed');
     expect(element.hidden).toBe(false);
-    expect(element.textContent).toBe(POINTER_LOCK_FAILED_MESSAGE);
+    expect(element.textContent).toBe(t('play.pointerLockFailed'));
     expect(element.textContent).toContain('ポインターロックできませんでした');
     expect(element.dataset.kind).toBe('error');
   });
@@ -41,7 +39,7 @@ describe('ポインターロックの表示', () => {
     const element = { hidden: true, textContent: '' };
     showPaused(element, true);
     expect(element.hidden).toBe(false);
-    expect(element.textContent).toBe(PAUSED_MESSAGE);
+    expect(element.textContent).toBe(t('play.paused'));
     showPaused(element, false);
     expect(element.hidden).toBe(true);
   });

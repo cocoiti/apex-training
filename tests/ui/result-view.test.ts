@@ -16,7 +16,7 @@ import { parseWeapon, type WeaponData } from '../../src/sim/weapon';
 import { createWorld, type World } from '../../src/sim/world';
 import { parsePersonalBest, personalBestKey } from '../../src/ui/personal-best';
 import { historyKey, parseHistory } from '../../src/ui/practice-history';
-import { completePractice, metricRows, padTraceView, renderResult, type FinishedPractice } from '../../src/ui/result-view';
+import { commentText, completePractice, metricRows, padTraceView, renderResult, type FinishedPractice } from '../../src/ui/result-view';
 import { inputFromTimedActions } from '../../src/input/queue';
 import { anglesToPoint } from '../../src/sim/hit';
 import { vec3 } from '../../src/sim/vec3';
@@ -345,7 +345,7 @@ describe('リザルト画面と再生の採点', () => {
     const replayed = replayRecording(recording, { map: rangeMap(), weapon });
     expect(replayed.shots).toEqual(shots);
     expect(view.metrics).toEqual(metricRows(replayed.score));
-    expect(view.comments).toEqual(replayed.score.comments);
+    expect(view.comments).toEqual(replayed.score.comments.map(commentText));
     const saved = parsePersonalBest(storage.get(personalBestKey('mouse', 'lstar', 'ghost')));
     expect(saved?.meanError).toBe(replayed.score.meanDeviation);
   });
@@ -584,7 +584,7 @@ describe('追いエイムのリザルト（docs/spec/scoring.md「追いエイ�
       padName: undefined,
       duration: n * dt,
       modeResult: { steps, reversals: [], dt },
-      options: [{ id: speed, name: SPEEDS[speed], optionId: 'speed', label: '速さ' }],
+      options: [{ id: speed, name: { ja: SPEEDS[speed], en: SPEEDS[speed] }, optionId: 'speed', label: { ja: '速さ', en: '速さ' } }],
     };
     return { result, recording: { actions: [] }, world: rangeWorld(), input: 'mouse', dt };
   }

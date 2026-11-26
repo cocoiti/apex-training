@@ -4,6 +4,7 @@ import { anglesToPoint } from '../../sim/hit';
 import type { Box } from '../../sim/map';
 import { vec3, type Vec3 } from '../../sim/vec3';
 import type { World } from '../../sim/world';
+import { t } from '../../ui/i18n';
 import type { CompareMetric, MetricSpec, ModeContext, ModeOption, ModeOptionValues, ModeScore, ModeScoring, ScoringInput, TrainingMode } from '../types';
 
 /**
@@ -23,16 +24,16 @@ export const FLICK_DIRECTION_SPREAD = 20;
 
 /** 出る範囲（照準の中心からの角度の距離、度。min 以上 max 未満）。 */
 export const FLICK_RANGES = {
-  near: { name: '近い', min: 3, max: 8 },
-  normal: { name: 'ふつう', min: 8, max: 14 },
-  far: { name: '遠い', min: 14, max: 20 },
+  near: { name: { ja: '近い', en: 'Near' }, min: 3, max: 8 },
+  normal: { name: { ja: 'ふつう', en: 'Normal' }, min: 8, max: 14 },
+  far: { name: { ja: '遠い', en: 'Far' }, min: 14, max: 20 },
 } as const;
 
 /** 的の大きさ（見込み角、度。幅と高さ）。 */
 export const FLICK_SIZES = {
-  large: { name: '大', angle: 3 },
-  medium: { name: '中', angle: 2 },
-  small: { name: '小', angle: 1 },
+  large: { name: { ja: '大', en: 'Large' }, angle: 3 },
+  medium: { name: { ja: '中', en: 'Medium' }, angle: 2 },
+  small: { name: { ja: '小', en: 'Small' }, angle: 1 },
 } as const;
 
 export type FlickRange = keyof typeof FLICK_RANGES;
@@ -41,7 +42,7 @@ export type FlickSize = keyof typeof FLICK_SIZES;
 /** 出る範囲の選択肢。開いたときは「ふつう」。 */
 export const FLICK_RANGE_OPTION: ModeOption = {
   id: 'flick-range',
-  label: '出る範囲',
+  label: { ja: '出る範囲', en: 'Spawn range' },
   choices: (Object.keys(FLICK_RANGES) as FlickRange[]).map((id) => ({ id, name: FLICK_RANGES[id].name })),
   defaultChoice: 'normal',
 };
@@ -49,7 +50,7 @@ export const FLICK_RANGE_OPTION: ModeOption = {
 /** 的の大きさの選択肢。開いたときは「中」。 */
 export const FLICK_SIZE_OPTION: ModeOption = {
   id: 'flick-size',
-  label: '的の大きさ',
+  label: { ja: '的の大きさ', en: 'Target size' },
   choices: (Object.keys(FLICK_SIZES) as FlickSize[]).map((id) => ({ id, name: FLICK_SIZES[id].name })),
   defaultChoice: 'medium',
 };
@@ -141,7 +142,7 @@ const states = new WeakMap<ModeContext, FlickState>();
 
 function stateOf(context: ModeContext): FlickState {
   const state = states.get(context);
-  if (!state) throw new Error('フリックの練習の状態がない（setup の前に呼ばれた）');
+  if (!state) throw new Error('flick practice state is missing (called before setup)');
   return state;
 }
 
@@ -161,22 +162,51 @@ function angularDistance(a: Angles, b: Angles): number {
   return Math.hypot(normalizeYaw(a.yaw - b.yaw), a.pitch - b.pitch);
 }
 
-const seconds = (value: number) => `${value.toFixed(3)} 秒`;
+const seconds = (value: number) => t('unit.secondsValue', { value: value.toFixed(3) });
 
 /** 命中 1 回あたりの時間（秒）。比べる指標で、小さいほど良い。0 より大きい有限の数。 */
 export const TIME_PER_HIT_METRIC: CompareMetric = {
   id: 'timePerHit',
-  label: '命中 1 回あたりの時間',
-  unit: '秒',
+  get label() {
+    return t('metric.timePerHit');
+  },
+  get unit() {
+    return t('unit.seconds');
+  },
   better: 'lower',
-  averageLabel: '平均の命中 1 回あたりの時間',
+  get averageLabel() {
+    return t('metric.timePerHitAverage');
+  },
   format: seconds,
   valid: (value) => value > 0,
 };
 
-const MEAN_TIME: MetricSpec = { id: 'meanTime', label: '時間の平均', unit: '秒', format: seconds };
-const HIT_RATE: MetricSpec = { id: 'hitRate', label: '命中率', unit: '%', format: (value) => `${value.toFixed(1)}%` };
-const MEAN_ERROR: MetricSpec = { id: 'meanError', label: 'ズレの平均', unit: '°', format: (value) => `${value.toFixed(2)}°` };
+const MEAN_TIME: MetricSpec = {
+  id: 'meanTime',
+  get label() {
+    return t('metric.meanTime');
+  },
+  get unit() {
+    return t('unit.seconds');
+  },
+  format: seconds,
+};
+const HIT_RATE: MetricSpec = {
+  id: 'hitRate',
+  get label() {
+    return t('metric.hitRate');
+  },
+  unit: '%',
+  format: (value) => `${value.toFixed(1)}%`,
+};
+const MEAN_ERROR: MetricSpec = {
+  id: 'meanError',
+  get label() {
+    return t('metric.meanOffset');
+  },
+  unit: '°',
+  format: (value) => `${value.toFixed(2)}°`,
+};
 
 function isRecordList(value: unknown): value is FlickRecord[] {
   return (
@@ -218,7 +248,7 @@ export function scoreFlick(records: readonly FlickRecord[]): FlickScore {
   };
 }
 
-const orNone = (spec: Pick<MetricSpec, 'format'>, value: number | null) => (value === null ? 'なし' : spec.format(value));
+const orNone = (spec: Pick<MetricSpec, 'format'>, value: number | null) => (value === null ? t('none') : spec.format(value));
 
 /** フリックの採点。記録（モードの結果の targets）だけから決める。 */
 export const FLICK_SCORING: ModeScoring = {
@@ -234,7 +264,7 @@ export const FLICK_SCORING: ModeScoring = {
         { label: TIME_PER_HIT_METRIC.label, value: orNone(TIME_PER_HIT_METRIC, s.timePerHit) },
         { label: MEAN_TIME.label, value: orNone(MEAN_TIME, s.meanTime) },
         { label: HIT_RATE.label, value: rate },
-        { label: '命中数', value: s.targets === 0 ? 'なし' : `${s.hits} / ${s.targets}` },
+        { label: t('metric.hits'), value: s.targets === 0 ? t('none') : `${s.hits} / ${s.targets}` },
         { label: MEAN_ERROR.label, value: orNone(MEAN_ERROR, s.meanError) },
       ],
       fields: { meanTime: s.meanTime ?? 0, hitRate: s.hitRate ?? 0, hits: s.hits, targets: s.targets, meanError: s.meanError ?? 0 },
@@ -245,8 +275,8 @@ export const FLICK_SCORING: ModeScoring = {
 
 const flick: TrainingMode<FlickResult> = {
   id: 'flick',
-  name: 'フリック',
-  description: 'ランダムに出る的へ素早く照準を合わせて撃つ',
+  name: { ja: 'フリック', en: 'Flick' },
+  description: { ja: 'ランダムに出る的へ素早く照準を合わせて撃つ', en: 'Snap to targets that appear at random spots and shoot fast' },
   icon: 'flick',
   category: 'aim',
   // 反復練習（20）・追いエイム（30）・追いエイム＋リコイル（40）のあとに並ぶ（docs/spec/modes.md「モードの登録」）。
@@ -295,7 +325,7 @@ const flick: TrainingMode<FlickResult> = {
 
   status(context) {
     const state = states.get(context);
-    return state ? `的: ${state.records.length} / ${FLICK_TARGET_COUNT}` : undefined;
+    return state ? t('mode.flickTargets', { done: state.records.length, total: FLICK_TARGET_COUNT }) : undefined;
   },
 };
 

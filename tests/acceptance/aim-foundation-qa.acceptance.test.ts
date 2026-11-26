@@ -48,8 +48,8 @@ interface ModeSpec {
 function mode(spec: ModeSpec = {}): TrainingMode {
   return {
     id: 'qa-aim',
-    name: 'QA エイム',
-    description: 'QA のエイム',
+    name: { ja: 'QA エイム', en: 'QA エイム' },
+    description: { ja: 'QA のエイム', en: 'QA のエイム' },
     icon: 'track',
     category: 'aim',
     order: 1,

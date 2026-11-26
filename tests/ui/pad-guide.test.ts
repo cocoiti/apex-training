@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PAD_SETTINGS, stickPosition, type PadSettings } from '../../src/input/pad-curve';
-import { UNKNOWN_PAD_NAME } from '../../src/input/pad-layout';
 import { padGuideState, padGuideVisible, renderPadGuide } from '../../src/ui/pad-guide';
 
 const classic: PadSettings = { ...DEFAULT_PAD_SETTINGS, deadzone: 10, outerThreshold: 2, responseCurve: 8 };
@@ -48,7 +47,7 @@ describe('ガイドに出すもの', () => {
 
   it('名前が分からないときは「パッド」、今の位置は円の縁に収める', () => {
     const state = padGuideState({ idealRate: { yaw: 0, pitch: 0 }, ads: false, settings: classic, stick: { x: 1, y: 1 }, name: undefined });
-    expect(state.name).toBe(UNKNOWN_PAD_NAME);
+    expect(state.name).toBe('パッド');
     expect(state.current.x).toBeCloseTo(Math.SQRT1_2, 12);
     expect(state.current.y).toBeCloseTo(Math.SQRT1_2, 12);
     expect(state.ideal).toEqual({ x: 0, y: 0 });

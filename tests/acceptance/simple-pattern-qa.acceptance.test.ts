@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { simplePattern } from '../../src/sim/simple-pattern';
+import { segmentLabel } from '../../src/ui/correction-panel';
 import { idealPoints, oracleSimplePattern, positionsOf, type Deg } from '../helpers/simple-pattern-oracle';
 
 const ROOT = resolve(__dirname, '../..');
@@ -82,7 +83,7 @@ describe('WPN-24: 計測した武器データの簡易版は区切りが 5 本�
       const s = simplePattern(w as never);
       const o = oracleSimplePattern(w);
       expect([...s.vertices]).toEqual(o.vertices);
-      expect(s.segments.map((x) => x.label)).toEqual(o.segments.map((x) => x.label));
+      expect(s.segments.map(segmentLabel)).toEqual(o.segments.map((x) => x.label));
       expect(s.maxError).toBeCloseTo(o.maxError, 9);
     });
   }
@@ -93,7 +94,7 @@ describe('WPN-25: magSize 10・pattern がすべて (0, 1) の武器は、区切
     const s = simplePattern(weapon(Array.from({ length: 10 }, () => ({ dx: 0, dy: 1 }))) as never);
     expect(s.segments.length).toBe(1);
     expect([...s.vertices]).toEqual([0, 10]);
-    expect(s.segments.map((x) => x.label)).toEqual(['1〜10 発: ↓ 下']);
+    expect(s.segments.map(segmentLabel)).toEqual(['1〜10 発: ↓ 下']);
   });
 });
 
@@ -103,7 +104,7 @@ describe('WPN-26: 1〜5 発目 (0, 1)・6〜10 発目 (1, 0) の武器は、区�
     const s = simplePattern(weapon(pattern) as never);
     expect(s.segments.length).toBe(2);
     expect([...s.vertices]).toEqual([0, 5, 10]);
-    expect(s.segments.map((x) => x.label)).toEqual(['1〜5 発: ↓ 下', '6〜10 発: ← 左']);
+    expect(s.segments.map(segmentLabel)).toEqual(['1〜5 発: ↓ 下', '6〜10 発: ← 左']);
   });
 });
 
@@ -115,7 +116,7 @@ describe('WPN-27: pattern が同じで randomness が 0 と 0.5 の武器の簡�
       const shape = (s: ReturnType<typeof simplePattern>) => ({
         vertices: [...s.vertices],
         points: s.points.map((p) => [p.yaw, p.pitch]),
-        labels: s.segments.map((x) => x.label),
+        labels: s.segments.map(segmentLabel),
       });
       for (const r of results.slice(1)) expect(shape(r)).toEqual(shape(results[0]!));
     });
@@ -148,6 +149,6 @@ describe('WPN-28: magSize 20・奇数発目 (3, 0)・偶数発目 (-3, 0) の武
     let m = 0;
     for (let i = 1; i <= 20; i += 1) m = Math.max(m, d(pos[i]!, ideal[i]!));
     expect(m).toBeCloseTo(o.maxError, 9);
-    expect(s!.segments.map((x) => x.label).every((l) => /^\d+(〜\d+)? 発: /.test(l))).toBe(true);
+    expect(s!.segments.map(segmentLabel).every((l) => /^\d+(〜\d+)? 発: /.test(l))).toBe(true);
   });
 });
