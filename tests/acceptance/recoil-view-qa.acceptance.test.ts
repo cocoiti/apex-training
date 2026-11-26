@@ -142,8 +142,11 @@ describe.skipIf(NESTED || !chromium)('QA: UI-76 リコイルは視点が跳ね�
     await page.send('Emulation.setDeviceMetricsOverride', { width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false });
     await page.goto(`${upOrigin}${BASE}`);
     await page.evaluate('localStorage.clear()');
-    await page.evaluate('location.reload()');
-    await page.waitFor(`document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`);
+    // 読み込み直す前のページで開始を押さないように、印を付けてから読み込み直し、印がなく武器の選択肢がそろうまで待つ。
+    await page.evaluate('window.__beforeReload = true; location.reload()');
+    await page.waitFor(
+      `!window.__beforeReload && document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden && document.querySelector('#weapon').options.length > 0`,
+    );
     await page.clickSelector('[data-screen="top"] a[href="#/play"]');
     await page.waitFor(`!document.querySelector('[data-screen="play"]').hidden && ${AMMO} > 0`);
     await page.frames(5);
