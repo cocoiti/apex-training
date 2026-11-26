@@ -20,7 +20,7 @@ Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescrip
 | セットアップ | `npm ci` |
 | 開発サーバー | `npm run dev`（http://localhost:3100/apex-training/） |
 | 単体テスト | `npm test` |
-| ブラウザ（Chromium）を使うテストだけ | `npm run test:browser`（1 ファイルずつ流す） |
+| ブラウザ（Chromium）を使うテストだけ | `npm run test:browser`（既定で 3 ファイルずつ並行に流す。`APEX_BROWSER_WORKERS=1 npm run test:browser` で 1 ファイルずつ） |
 | ブラウザを使わないテストだけ | `npm run test:unit`（並列に流す） |
 | lint・型の確認 | `npm run lint` |
 | ビルド | `npm run build`（`dist/` に出る。配信先は `/apex-training/`） |
@@ -29,6 +29,8 @@ Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescrip
 | GitHub Pages への公開（手動） | `npm run deploy`（ビルドして `gh-pages` ブランチに push する） |
 
 - テストは `tests/` に `src/` と同じ構成で置く（`src/sim/` の依存の確認がテストのファイルを拾わないように）。
+- ブラウザを使うテストのファイルは、`npm test` でも `npm run test:browser` でも既定で 3 つを同時に流す。同時に流す数は環境変数
+  `APEX_BROWSER_WORKERS` に 1 以上の整数を渡して変える（`APEX_BROWSER_WORKERS=1` で 1 ファイルずつ。1 以上の整数でない値はテストを流す前に失敗する）。
 - `tests/helpers/browser.ts` を import するテストのファイルが、ブラウザを使うテストの組になる。テストが立てるサーバーはポート 0 で待ち受け（`tests/helpers/server.ts`）、
   画面の状態は sleep ではなく条件で待つ（`page.waitFor`・`page.frames`・`waitUntil`）。
 - マップなどのデータの JSON は `src/data/` に置き、`?url` の資産として fetch する（ADR: data-json-as-fetched-assets）。

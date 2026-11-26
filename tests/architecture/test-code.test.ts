@@ -1,11 +1,12 @@
-// テストの実行（docs/spec/architecture.md「テストの実行」、ARC-18・ARC-21・ARC-22）の確認。
+// テストの実行（docs/spec/architecture.md「テストの実行」、ARC-18・ARC-21・ARC-22・ARC-32・ARC-33）の確認。
+// ARC-35（CLAUDE.md の書き方）は tests/acceptance/parallel-browser-qa.acceptance.test.ts だけで確かめる。
 // このファイルは決まったポート番号や sleep の書き方を例として持つので、ARC-18 の確認の対象から外す。
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { browserTestFiles, listTestFiles, usesChromium } from '../../vite.config';
+import config, { BROWSER_WORKERS_ENV, browserTestFiles, browserWorkers, DEFAULT_BROWSER_WORKERS, listTestFiles, usesChromium } from '../../vite.config';
 import { listenOnFreePort, originOf, portOf } from '../helpers/server';
 import { codeOnly, findFixedPorts, findFixedSleeps } from '../helpers/test-code';
 import { waitUntil } from '../helpers/wait';
@@ -126,6 +127,33 @@ describe('ARC-21: ブラウザを使うテストとそれ以外を分けて流�
     expect([...browser, ...unit].sort()).toEqual(all);
     expect(all).toEqual(listTestFiles(ROOT));
   }, 120_000);
+});
+
+describe('ARC-32・ARC-33: ブラウザを使うテストのファイルを同時に流す数', () => {
+  it('既定の数は 2〜4 で、環境変数がない・空のときは既定の数になる', () => {
+    expect(DEFAULT_BROWSER_WORKERS).toBeGreaterThanOrEqual(2);
+    expect(DEFAULT_BROWSER_WORKERS).toBeLessThanOrEqual(4);
+    expect(browserWorkers({})).toBe(DEFAULT_BROWSER_WORKERS);
+    expect(browserWorkers({ [BROWSER_WORKERS_ENV]: '' })).toBe(DEFAULT_BROWSER_WORKERS);
+  });
+
+  it.each([['1', 1], ['2', 2], [' 4 ', 4], ['12', 12]])('APEX_BROWSER_WORKERS=%j なら %i', (value, n) => {
+    expect(browserWorkers({ APEX_BROWSER_WORKERS: value })).toBe(n);
+  });
+
+  it.each(['0', 'abc', '-1', '1.5', '2x', '1e3', '99999999999999999999'])('APEX_BROWSER_WORKERS=%j は環境変数の名前を示して失敗する', (value) => {
+    expect(() => browserWorkers({ APEX_BROWSER_WORKERS: value })).toThrow(/APEX_BROWSER_WORKERS/);
+  });
+
+  it('browser の組は、設定を読んだときの環境変数の数で並行に流し、unit の組とは順番の組（groupOrder）が違う', () => {
+    const projects = (config as { test?: { projects?: { test?: { name?: string; maxWorkers?: unknown; fileParallelism?: unknown; sequence?: { groupOrder?: number } } }[] } })
+      .test?.projects ?? [];
+    const byName = new Map(projects.map((p) => [p.test?.name, p.test]));
+    const browser = byName.get('browser');
+    expect(browser?.maxWorkers).toBe(browserWorkers(process.env));
+    expect(browser?.fileParallelism).toBeUndefined();
+    expect(browser?.sequence?.groupOrder).not.toBe(byName.get('unit')?.sequence?.groupOrder);
+  });
 });
 
 describe('ARC-22: ブラウザを使うテストは決まった時間の sleep で画面の状態を待たない', () => {

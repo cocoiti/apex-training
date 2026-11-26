@@ -33,8 +33,28 @@ export function browserTestFiles(root: string): string[] {
   return listTestFiles(root).filter((f) => usesChromium(readFileSync(join(root, f), 'utf8')));
 }
 
+/** ブラウザを使うテストのファイルを同時に流す数の既定値（docs/spec/architecture.md「テストの実行」。CLAUDE.md にも書く）。 */
+export const DEFAULT_BROWSER_WORKERS = 3;
+/** 同時に流すブラウザを使うテストのファイルの数を変える環境変数。 */
+export const BROWSER_WORKERS_ENV = 'APEX_BROWSER_WORKERS';
+
+/**
+ * 同時に流すブラウザを使うテストのファイルの数。環境変数 APEX_BROWSER_WORKERS がなければ（空なら）既定値、
+ * あれば 1 以上の整数として読む。1 以上の整数でなければ、テストを流す前にその環境変数の名前を示して失敗する（ARC-32, ARC-33）。
+ */
+export function browserWorkers(env: Record<string, string | undefined>): number {
+  const raw = env[BROWSER_WORKERS_ENV]?.trim();
+  if (raw === undefined || raw === '') return DEFAULT_BROWSER_WORKERS;
+  if (!/^\d+$/.test(raw) || Number(raw) < 1 || !Number.isSafeInteger(Number(raw))) {
+    throw new Error(`${BROWSER_WORKERS_ENV} は 1 以上の整数で指定する（指定された値: ${JSON.stringify(env[BROWSER_WORKERS_ENV])}）`);
+  }
+  return Number(raw);
+}
+
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const BROWSER_FILES = browserTestFiles(ROOT);
+// 値を確かめるのは Vitest が設定を読むときだけにする（npm run dev・build は環境変数によらず動く）。
+const BROWSER_WORKERS = process.env.VITEST ? browserWorkers(process.env) : DEFAULT_BROWSER_WORKERS;
 
 export default defineConfig({
   base: BASE_PATH,
@@ -52,7 +72,9 @@ export default defineConfig({
     testTimeout: 60_000,
     hookTimeout: 60_000,
     // テストは 2 つの組に分ける（docs/spec/architecture.md「テストの実行」）。npm test は両方を流す。
-    // unit（ブラウザを使わない）はファイル単位で並列に、browser（Chromium を使う）は 1 ファイルずつ流す。
+    // unit（ブラウザを使わない）はファイル単位で並列に、browser（Chromium を使う）は BROWSER_WORKERS ファイルずつ並行に流す。
+    // browser のファイルは、ポート（0 で待ち受け）・Chromium のプロファイルと一時ディレクトリ・ビルドの結果・Vite の cacheDir を
+    // ファイルごとの一時ディレクトリに持つので、並行に流しても取り合わない。
     // npm test では unit を流し終えてから browser を流す（sequence.groupOrder）。unit にはビルドや git の clone、入れ子の
     // npm test を子のプロセスで動かす重いテストがあり、同時に流すと描画の間隔が伸びて画面のテストが不安定になるため（ARC-20）。
     projects: [
@@ -72,7 +94,8 @@ export default defineConfig({
           sequence: { groupOrder: 1 },
           // 当たるファイルがないときも既定の include に戻らないよう、当たらないパターンを置く。
           include: BROWSER_FILES.length > 0 ? BROWSER_FILES : [`${TEST_DIR}/__no_browser_tests__${TEST_SUFFIX}`],
-          fileParallelism: false,
+          // npm test でも npm run test:browser でも同じ数で流す（groupOrder が unit と違うので、組ごとの maxWorkers が効く）。
+          maxWorkers: BROWSER_WORKERS,
         },
       },
     ],

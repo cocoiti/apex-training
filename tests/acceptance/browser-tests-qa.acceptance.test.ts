@@ -1,22 +1,16 @@
-// docs/spec/architecture.md「テストの実行」「テストの網羅の分担」（ARC-26〜ARC-29）の受け入れテスト（QA）。
-// 公開された入口（package.json の scripts、vite.config.ts が公開する browserTestFiles、tests/ のテストのコード、
-// tests/acceptance/README.md の表、vitest の JSON の報告）だけを使う。
+// docs/spec/architecture.md「テストの実行」「テストの網羅の分担」（ARC-26・ARC-29）の受け入れテスト（QA）。
+// 公開された入口（vite.config.ts が公開する browserTestFiles、tests/ のテストのコード、tests/acceptance/README.md の表）だけを使う。
 //
 // - ARC-26・ARC-29: いつも流す。ブラウザを使うテストのファイルを TypeScript の構文木で調べる。
-// - ARC-27・ARC-28: npm run test:browser を 1 回流すため 7 分ほどかかる。環境変数 APEX_ACCEPTANCE_TIMING=1 のときだけ流す。
-//   ほかの作業ツリーでテストを流していないときに、次のように流す。
-//   APEX_ACCEPTANCE_TIMING=1 npx vitest run --project unit tests/acceptance/browser-tests-qa.acceptance.test.ts
-import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { basename, join, relative, resolve } from 'node:path';
+// - npm run test:browser を実際に流して確かめる ARC-27・ARC-28・ARC-30〜ARC-34 と、ARC-35 は、
+//   tests/acceptance/parallel-browser-qa.acceptance.test.ts にまとめている（流す道具と重なりの数え方を 1 か所にするため）。
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import ts from 'typescript';
-import { afterAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { browserTestFiles } from '../../vite.config';
 
 const ROOT = resolve(__dirname, '../..');
-const NESTED = process.env.APEX_ACCEPTANCE_NESTED === '1';
-const TIMING = process.env.APEX_ACCEPTANCE_TIMING === '1' && !NESTED;
 const read = (file: string) => readFileSync(join(ROOT, file), 'utf8');
 const parse = (file: string, source: string) => ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
 const lineOf = (sf: ts.SourceFile, node: ts.Node) => sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
@@ -275,54 +269,4 @@ describe('ARC-29: tests/acceptance/README.md の表の ID は、表が示すフ�
     expect(tableRows('| ID | SPEC | ファイル |\n|--|--|--|\n| UI-1 | [s](x) | `tests/acceptance/a.acceptance.test.ts` |\n| 説明 | x | y |'))
       .toEqual([{ id: 'UI-1', file: 'tests/acceptance/a.acceptance.test.ts' }]);
   });
-});
-
-// ---------------------------------------------------------------- ARC-27・ARC-28（実際に流す）
-
-interface JsonReport { testResults: { name: string; assertionResults: { duration?: number | null; status: string }[] }[]; numFailedTests: number }
-
-describe.skipIf(!TIMING)('ARC-27・ARC-28: npm run test:browser の所要時間と、ファイルごとのテストの時間の合計', () => {
-  const work = mkdtempSync(join(tmpdir(), 'browser-tests-qa-'));
-  afterAll(() => rmSync(work, { recursive: true, force: true }));
-  let elapsed = 0;
-  let report: JsonReport | undefined;
-  let output = '';
-
-  const run = async () => {
-    if (report) return;
-    const out = join(work, 'report.json');
-    const started = Date.now();
-    const code = await new Promise<number>((ok) => {
-      const child = spawn('npm', ['run', 'test:browser', '--', '--reporter=json', `--outputFile=${out}`], {
-        cwd: ROOT,
-        env: { ...process.env, APEX_ACCEPTANCE_TIMING: '', FORCE_COLOR: '0' },
-      });
-      child.stdout.on('data', (d) => (output += String(d)));
-      child.stderr.on('data', (d) => (output += String(d)));
-      child.on('close', (c) => ok(c ?? 1));
-    });
-    elapsed = (Date.now() - started) / 1000;
-    report = JSON.parse(readFileSync(out, 'utf8')) as JsonReport;
-    console.log(`ARC-27 npm run test:browser: ${elapsed.toFixed(1)} 秒、終了コード ${code}、失敗 ${report.numFailedTests} 件`);
-  };
-
-  it('ARC-27: npm run test:browser が 415 秒以下で終わり、全件が通る', async () => {
-    await run();
-    expect(report!.numFailedTests, output.slice(-4000)).toBe(0);
-    expect(elapsed).toBeLessThanOrEqual(415);
-  }, 900_000);
-
-  it('ARC-28: retry-sets-qa 61 秒・ghost-follow-qa 45 秒・pad-navigation-qa 39 秒・result-qa 37 秒・measured-weapons-qa 30 秒以下', async () => {
-    await run();
-    const limits: Record<string, number> = { 'retry-sets-qa': 61, 'ghost-follow-qa': 45, 'pad-navigation-qa': 39, 'result-qa': 37, 'measured-weapons-qa': 30 };
-    const sums = Object.fromEntries(Object.keys(limits).map((k) => {
-      const file = report!.testResults.find((r) => basename(r.name) === `${k}.acceptance.test.ts`);
-      const sum = file ? file.assertionResults.reduce((s, a) => s + (a.duration ?? 0), 0) / 1000 : NaN;
-      return [k, sum];
-    }));
-    console.log(`ARC-28 テストの時間の合計（秒）: ${JSON.stringify(sums)}`);
-    console.log(`ARC-28 全ファイル: ${report!.testResults.map((r) => `${relative(ROOT, r.name)}=${(r.assertionResults.reduce((s, a) => s + (a.duration ?? 0), 0) / 1000).toFixed(1)}`).join(', ')}`);
-    const over = Object.entries(limits).filter(([k, limit]) => !(sums[k]! <= limit)).map(([k, limit]) => `${k}: ${sums[k]} > ${limit}`);
-    expect(over).toEqual([]);
-  }, 900_000);
 });

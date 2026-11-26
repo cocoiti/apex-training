@@ -1,6 +1,6 @@
 # テストは tests/helpers/browser.ts を import するかで Vitest の 2 つの project に分け、ポートは 0、待ちは条件で行う
 
-状態: 一部置き換え済み → 2026-11-26-test-render-off-manual-clock.md（仕様が時間を決めている所の待ち方）
+状態: 一部置き換え済み → 2026-11-26-test-render-off-manual-clock.md（仕様が時間を決めている所の待ち方）、2026-11-26-parallel-browser-test-files.md（browser の組を 1 ファイルずつ流すこと）
 
 ## 背景
 

@@ -165,7 +165,10 @@ describe.skipIf(NESTED || !chromium)('QA: マウス入力の受け入れ条件',
     server = await serveStatic(out, BASE);
     staticOrigin = originOf(server);
     // 開発サーバーもポート 0 で待ち受け、OS が選んだポートを読む（ARC-18）。
-    dev = await createServer({ root: ROOT, server: { port: 0, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
+    // 依存の事前バンドルの置き場（cacheDir）はファイルごとの一時ディレクトリにし、並行に流すほかのファイルと node_modules/.vite を取り合わない。
+    const cache = mkdtempSync(join(tmpdir(), 'mouse-qa-vite-cache-'));
+    temps.push(cache);
+    dev = await createServer({ root: ROOT, cacheDir: cache, server: { port: 0, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
     await dev.listen();
     devOrigin = originOf(dev.httpServer as Server);
     browser = await launchBrowser(chromium!);
