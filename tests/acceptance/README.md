@@ -89,6 +89,13 @@
 | OVR-8 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/deploy.acceptance.test.ts` |
 | OVR-9 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/deploy.acceptance.test.ts` |
 | OVR-20 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/share-results-qa.acceptance.test.ts` |
+| OVR-21 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
+| OVR-22 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
+| OVR-23 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
+| OVR-24 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
+| OVR-25 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
+| OVR-26 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
+| OVR-27 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
 | PAD-2 | [pad.md](../../docs/spec/pad.md) | `tests/acceptance/pad-settings-qa.acceptance.test.ts` |
 | PAD-3 | [pad.md](../../docs/spec/pad.md) | `tests/acceptance/pad-settings-qa.acceptance.test.ts` |
 | PAD-8 | [pad.md](../../docs/spec/pad.md) | `tests/acceptance/pad-settings-qa.acceptance.test.ts` |
@@ -254,6 +261,11 @@
 | UI-109 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
 | UI-110 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
 | UI-111 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/flick-browser-qa.acceptance.test.ts` |
+| UI-112 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
+| UI-113 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
+| UI-114 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
+| UI-115 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
+| UI-116 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
 | WPN-1 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-2 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
 | WPN-3 | [weapons.md](../../docs/spec/weapons.md) | `tests/acceptance/modes.acceptance.test.ts` |
