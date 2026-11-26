@@ -550,6 +550,8 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
     it('SCO-16: 反復練習で撃ち切ると、指標とコメント、弾痕の散布図、自分の照準と理想の軌道の重ね描きが表示される', async (ctx) => {
       serveDist(copyDist);
       const page = await openFresh();
+      // モードの選択肢は読み込み後に埋まる。埋まる前に読むと、遅い環境（Docker の中など）で選択肢が空に見えて飛ばしていた。
+      await page.waitFor(`document.querySelector('#mode').options.length > 0`);
       const modes = await page.evaluate<string[]>(`[...document.querySelector('#mode').options].map((o) => o.textContent.trim())`);
       if (!modes.includes('反復練習')) {
         console.warn(`反復練習がモードの選択肢にない（${modes.join(', ')}）。この確認は飛ばす`);

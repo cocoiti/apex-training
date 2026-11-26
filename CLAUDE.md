@@ -22,6 +22,7 @@ Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescrip
 | 単体テスト | `npm test` |
 | ブラウザ（Chromium）を使うテストだけ | `npm run test:browser`（既定で 3 ファイルずつ並行に流す。`APEX_BROWSER_WORKERS=1 npm run test:browser` で 1 ファイルずつ） |
 | ブラウザを使わないテストだけ | `npm run test:unit`（並列に流す） |
+| ブラウザを使うテストを Docker のコンテナの中で | `npm run test:remote`（下の「Docker でのブラウザのテスト」） |
 | lint・型の確認 | `npm run lint` |
 | ビルド | `npm run build`（`dist/` に出る。配信先は `/apex-training/`） |
 | サブパスでの配信の確認 | `npm run build && npm run check:subpath`（ポート 3102） |
@@ -37,6 +38,19 @@ Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescrip
   倒す・押す → `page.advanceClock`・`page.advanceClockUntil` で時計を進める → 戻す・離す、の形で与える（`tests/architecture/test-code.test.ts` が調べる）。
 - ブラウザを使うテストはページを固定の種で開く（`appUrl` の `seed` にファイルに書いた数を渡す。URL の `seed=<数>`）。失敗したときは使った種がメッセージに出る。
 - マップなどのデータの JSON は `src/data/` に置き、`?url` の資産として fetch する（ADR: data-json-as-fetched-assets）。
+
+## Docker でのブラウザのテスト
+
+`npm run test:remote` は、`Dockerfile.test`（Playwright の公式イメージ）でイメージを作り、コンテナの中で `npm run test:browser` を流す。
+
+- 前提として Docker が要る（`docker` のコマンドと、つながる Docker）。
+- 環境変数 `TEST_DOCKER_CONTEXT` に docker context の名前を渡す。既定は `macmini`（Mac mini の Docker）。
+  その context がないとき、またはその context の Docker につながらないときは、手元の Docker（今の docker context）で流す。どちらで流すかはテストの前に出力に出る。
+- 終了コードはコンテナの中の `npm run test:browser` の終了コード（1 件でも失敗すれば 0 以外）。イメージを作れなかったときも 0 以外。
+- コンテナの中ではブラウザを使うテストのファイルを既定で 2 つずつ流す（Mac mini で 3 つずつだと実時間で動くテストが待ちの上限に当たる）。
+  `APEX_BROWSER_WORKERS` を渡すと、その値がコンテナの中に渡る。
+- `Dockerfile.test` の Playwright の版は、CI のワークフローの `PLAYWRIGHT_VERSION` と揃える。依存は `package.json` と lockfile から先に入れるので、
+  ソースだけを変えたときは `npm ci` の層がキャッシュから使われる。CI ではこのコマンドを使わない。
 
 ## CI
 

@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:browser": "vitest run --project browser",
+    "test:remote": "node scripts/test-remote.mjs",
     "lint": "eslint . && tsc --noEmit",
     "check:subpath": "node scripts/check-subpath.mjs",
     "check:assets": "node scripts/check-assets.mjs",

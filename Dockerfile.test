@@ -1,0 +1,27 @@
+# ブラウザを使うテストを流すコンテナのイメージ（docs/spec/architecture.md「Docker でのブラウザのテスト」、ARC-69〜ARC-72）。
+# npm run test:remote（scripts/test-remote.mjs）がこのイメージを作り、コンテナの中で npm run test:browser を流す。
+# もとは Playwright の公式イメージ。版は CI が Chromium を入れる版（.github/workflows/ci.yml の PLAYWRIGHT_VERSION）と同じにする。
+# 公式イメージは arm64 と amd64 の両方があるので、Mac mini（Apple シリコン）でも Linux のマシンでも作れる。
+FROM mcr.microsoft.com/playwright:v1.65.0-noble
+
+WORKDIR /app
+
+# Chromium は公式イメージの /ms-playwright にある（tests/helpers/browser.ts の findChromium が PLAYWRIGHT_BROWSERS_PATH を見る）。
+# 見つからなければ、ブラウザを使うテストを飛ばして成功にせず失敗にする。
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    APEX_REQUIRE_CHROMIUM=1
+
+# 依存は package.json と lockfile だけから入れる。ソースだけを変えたときは、この層をキャッシュから使う（ARC-71）。
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+# .git はイメージに入れない（.dockerignore）。公開のテスト（tests/acceptance/deploy.acceptance.test.ts）がこのディレクトリを
+# git のリポジトリとして clone するので、コピーしたソースを 1 つのコミットにしておく（clone は --no-hardlinks で行う。
+# イメージの層からコンテナの層への hardlink は、overlayfs によっては git の確認で失敗する）。
+RUN git init --quiet --initial-branch=main \
+ && git add --all \
+ && git -c user.name="test image" -c user.email="test-image@example.invalid" commit --quiet -m "Dockerfile.test のソース"
+
+CMD ["npm", "run", "test:browser"]

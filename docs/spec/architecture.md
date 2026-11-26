@@ -189,6 +189,8 @@ src/
 - ビルドの結果は、サブパス `/apex-training/` に置いて配信したときにすべてのファイルを読み込める。
 - 全部のテスト（ブラウザを使うテストを含む）・lint・ビルド・配布物の検査は、下の「継続的インテグレーション（CI）」で流す。
   CI があることと、GitHub Actions の今の状態（有効で、GitHub がホストする標準の Linux の runner だけを使う）は `CLAUDE.md` に書いてある。
+- ブラウザを使うテストは、下の「Docker でのブラウザのテスト」で、手元のマシンの外（Docker の context で指定した別のマシン）か手元の Docker の
+  コンテナの中でも流せる。使い方は `CLAUDE.md` に書いてある。
 
 ### 継続的インテグレーション（CI）
 
@@ -206,6 +208,26 @@ src/
 - CI では、Chromium が見つからないときにブラウザを使うテストを飛ばして成功にしない。Chromium が見つからなければ、ブラウザを使うテストの段より前か、その段で失敗になる。
 - 同じブランチ（同じ PR）で新しい push があったら、そのブランチで走っている古い実行は取り消し、新しい実行だけを残す。
 - CI は macOS・Windows の runner を使わない。GitHub Pages への公開（`gh-pages` ブランチへの push）は CI では行わず、今までどおり手動（`npm run deploy`）で行う。
+
+### Docker でのブラウザのテスト
+
+- リポジトリの直下に、ブラウザを使うテストを流すコンテナのイメージを作る `Dockerfile.test` と、イメージに入れないものを決める `.dockerignore` がある。
+  - イメージは Playwright の公式イメージ（`mcr.microsoft.com/playwright`）をもとにし、arm64（aarch64）と amd64 のどちらのマシンでも作れる。
+    Playwright の版は CI が Chromium を入れる版と同じにする。
+  - イメージの中では、ブラウザを使うテストが Chromium を見つけられる。見つからなければ飛ばして成功にせず、失敗にする。
+  - イメージを作る手順は、`package.json` と lockfile だけを先にコピーして `npm ci` を実行し、そのあとでソースをコピーする。
+    `package.json` と lockfile を変えずにソースだけを変えて作り直したときは、`npm ci` の層はキャッシュから使い、依存を入れ直さない。
+  - `.dockerignore` は `node_modules`・`dist`・`.git` などを除き、手元の依存やビルドの結果がイメージに入らない。
+- `npm run test:remote` は、イメージを作ってからコンテナの中で `npm run test:browser` を流す。
+  - 環境変数 `TEST_DOCKER_CONTEXT`（既定は `macmini`）に書いた名前の docker context があり、その context の Docker につながるときは、
+    その context でイメージを作ってコンテナを動かす。
+  - その名前の context がないとき、またはその context の Docker につながらないときは、手元の Docker（今の docker context）で同じことをする。
+    どちらで流すかを、テストを流す前に出力に示す。
+  - 終了コードは、コンテナの中の `npm run test:browser` の終了コードをそのまま返す。テストが 1 件でも失敗すれば 0 以外になる。
+    イメージを作るのに失敗したときも 0 以外になる。
+  - コンテナの中で同時に流すブラウザを使うテストのファイルの数は、既定で 2 にする（手元で流すときの既定の 3 ではない）。
+    手元で流すときと同じく `APEX_BROWSER_WORKERS` で変えられ、渡した値がコンテナの中に渡る。
+- `npm run test:remote` は CI では使わない。CI は今までどおり runner の上で直接テストを流す。
 
 ### テストの実行
 
@@ -343,3 +365,8 @@ src/
   時計を進める前と後に実時間で 0 秒待ったときと 1 秒待ったときとで一致する（パッドの感度の設定は同じ）
 - **ARC-68**: ブラウザを使うテストのコードを調べたとき、スティックを倒している長さやボタンを押している長さを、実時間（決まった ms のタイマー、
   `performance.now()` の時刻まで待つ処理）や描画の回数で決めている箇所がない
+- **ARC-69**: Docker が使えるマシンで、`TEST_DOCKER_CONTEXT` に存在しない context の名前を渡して `npm run test:remote` を実行したとき、手元の Docker でイメージが作られてコンテナの中で `npm run test:browser` が流れ、手元で `npm run test:browser` を流したときと同じ数のテストが飛ばされずに通り、終了コードが 0 になる。出力には手元の Docker で流したことが示される
+- **ARC-70**: テストを 1 件わざと失敗させた状態で `npm run test:remote` を実行したとき、コンテナの中でそのテストが失敗し、`npm run test:remote` の終了コードが 0 以外になる
+- **ARC-71**: `npm run test:remote` を一度実行したあと、`package.json` と lockfile を変えずに `src/` か `tests/` のファイルだけを変えてもう一度実行したとき、イメージを作る出力で `npm ci` の層がキャッシュから使われている（`CACHED` などと出て、依存を入れ直していない）
+- **ARC-72**: `Dockerfile.test` と `.dockerignore` を調べたとき、もとのイメージが Playwright の公式イメージで、その版が CI のワークフローで Chromium を入れる Playwright の版と同じであり、`package.json` と lockfile のコピーと `npm ci` がソース全体のコピーより前にあり、`.dockerignore` が `node_modules`・`dist`・`.git` を除いている
+- **ARC-73**: `CLAUDE.md` を読んだとき、`npm run test:remote` の使い方（前提として Docker が要ること、`TEST_DOCKER_CONTEXT` での context の指定と既定の `macmini`、その context がないかつながらないときは手元の Docker で流れること、終了コードがコンテナの中のテストの結果になること）が書いてある

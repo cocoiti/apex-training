@@ -105,7 +105,7 @@ describe('CI のワークフロー', () => {
     expect(read('CLAUDE.md')).toMatch(/Node\.js 22\.12 以上/);
     const cache = steps.find((s) => s.uses?.startsWith('actions/cache@'));
     expect(cache?.lines).toContain('path: ~/.cache/ms-playwright');
-    expect(read('tests/helpers/browser.ts')).toContain("'.cache/ms-playwright'");
+    expect(read('tests/helpers/chromium.ts')).toContain("'.cache/ms-playwright'");
     expect(steps.indexOf(cache!)).toBeLessThan(steps.findIndex((s) => s.run?.includes(' install ')));
   });
 

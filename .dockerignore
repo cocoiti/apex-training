@@ -1,0 +1,10 @@
+# Dockerfile.test のイメージに入れないもの（docs/spec/architecture.md「Docker でのブラウザのテスト」、ARC-72）。
+# 手元の依存とビルドの結果は入れない（依存はイメージの中の npm ci で入れる）。
+node_modules
+dist
+.git
+.claude
+coverage
+.DS_Store
+.env
+.env.*

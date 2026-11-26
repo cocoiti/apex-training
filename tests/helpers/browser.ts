@@ -1,12 +1,12 @@
 // 受け入れテストで、ビルドの結果を実際のブラウザ（ヘッドレスの Chromium）で開くための小さな道具。
 // 依存を増やさないよう、Playwright が置いた Chromium を DevTools プロトコルで直接動かす。
-// Chromium は環境変数 CHROMIUM_PATH か、~/Library/Caches/ms-playwright（Linux は ~/.cache/ms-playwright）から探す。
+// Chromium は環境変数 CHROMIUM_PATH か PLAYWRIGHT_BROWSERS_PATH（Docker のイメージ）か、~/Library/Caches/ms-playwright（Linux は ~/.cache/ms-playwright）から探す。
 // ポインターロックが使えるよう、chrome-headless-shell より通常の Chromium（Chrome for Testing）を先に選ぶ。
 // 環境変数 APEX_REQUIRE_CHROMIUM が 1 のとき（CI）は、見つからなければテストを飛ばさずに失敗する（docs/spec/architecture.md ARC-60）。
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { extname, join, normalize } from 'node:path';
 import { noteOpenedUrl, reportSeedsOnFailure } from './seed-report';
 import { listenOnFreePort } from './server';
@@ -18,47 +18,7 @@ reportSeedsOnFailure();
 export { listenOnFreePort, originOf, portOf } from './server';
 export { waitUntil } from './wait';
 
-/** 1 のとき、Chromium が見つからなければ findChromium が例外を投げる環境変数（CI で設定する）。 */
-export const REQUIRE_CHROMIUM_ENV = 'APEX_REQUIRE_CHROMIUM';
-
-/**
- * 使える Chromium の実行ファイルを探す。見つからなければ undefined（ブラウザを使うテストは飛ばす）。
- * ただし env の APEX_REQUIRE_CHROMIUM が 1 なら、見つからないときは探した場所を示して例外を投げる。
- * テストのファイルの読み込みが失敗になるので、CI でブラウザを使うテストが飛ばされて成功になることがない（ARC-60）。
- */
-export function findChromium(env: Record<string, string | undefined> = process.env, home: string = homedir()): string | undefined {
-  const caches = [join(home, 'Library/Caches/ms-playwright'), join(home, '.cache/ms-playwright')];
-  const found = searchChromium(env.CHROMIUM_PATH, caches);
-  if (found === undefined && env[REQUIRE_CHROMIUM_ENV]?.trim() === '1') {
-    throw new Error(`${REQUIRE_CHROMIUM_ENV}=1 なのに Chromium が見つからない（CHROMIUM_PATH: ${JSON.stringify(env.CHROMIUM_PATH ?? '')}、探した場所: ${caches.join(', ')}）`);
-  }
-  return found;
-}
-
-function searchChromium(fromEnv: string | undefined, caches: string[]): string | undefined {
-  if (fromEnv && existsSync(fromEnv)) return fromEnv;
-  for (const cache of caches) {
-    if (!existsSync(cache)) continue;
-    const dirs = readdirSync(cache).sort().reverse();
-    for (const dir of dirs.filter((d) => d.startsWith('chromium-'))) {
-      for (const bin of [
-        join(cache, dir, 'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'),
-        join(cache, dir, 'chrome-mac/Chromium.app/Contents/MacOS/Chromium'),
-        join(cache, dir, 'chrome-linux/chrome'),
-        join(cache, dir, 'chrome-linux64/chrome'),
-      ]) {
-        if (existsSync(bin)) return bin;
-      }
-    }
-    for (const dir of dirs.filter((d) => d.startsWith('chromium_headless_shell-'))) {
-      for (const sub of ['chrome-headless-shell-mac-arm64', 'chrome-headless-shell-mac-x64', 'chrome-headless-shell-linux64']) {
-        const bin = join(cache, dir, sub, 'chrome-headless-shell');
-        if (existsSync(bin)) return bin;
-      }
-    }
-  }
-  return undefined;
-}
+export { findChromium, REQUIRE_CHROMIUM_ENV } from './chromium';
 
 /** dir を base のサブパスの下にだけ置く静的なサーバー（ほかのパスは 404）。ポートは OS が選ぶ（originOf で読む）。 */
 export async function serveStatic(dir: string, base: string): Promise<Server> {
