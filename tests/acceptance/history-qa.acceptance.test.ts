@@ -246,13 +246,15 @@ async function practice(page: Page, weapon: string, mode: string) {
 
 /** 履歴の画面の、表示名が label のボタン（リンク）を、見える所に出してからクリックする。 */
 async function clickHistoryButton(page: Page, label: string) {
-  const box = await page.evaluate<{ x: number; y: number } | null>(`(() => {
+  const found = await page.evaluate<boolean>(`(() => {
+    document.querySelectorAll('[data-qa-click]').forEach((e) => e.removeAttribute('data-qa-click'));
     const el = [...document.querySelectorAll('[data-screen="history"] a, [data-screen="history"] button')].find((e) => e.textContent.trim() === ${JSON.stringify(label)});
-    if (!el) return null;
+    if (!el) return false;
     el.scrollIntoView({ block: 'center' });
-    const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
-  if (!box) throw new Error(`履歴の画面に「${label}」がない`);
-  await page.click(box.x, box.y);
+    el.setAttribute('data-qa-click', ''); return true; })()`);
+  if (!found) throw new Error(`履歴の画面に「${label}」がない`);
+  // 読み込みのあとに並びが埋まってずれても、動かなくなってから押す。
+  await page.clickSelector('[data-qa-click]');
 }
 
 /**
@@ -546,10 +548,11 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
       const page = await openFresh();
       const link = await page.evaluate<boolean>(`[...document.querySelectorAll('[data-screen="top"] a, [data-screen="top"] button')].some((e) => e.textContent.trim() === '履歴')`);
       expect(link).toBe(true);
-      const box = await page.evaluate<{ x: number; y: number }>(`(() => {
+      await page.evaluate(`(() => {
         const el = [...document.querySelectorAll('[data-screen="top"] a, [data-screen="top"] button')].find((e) => e.textContent.trim() === '履歴');
-        el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
-      await page.click(box.x, box.y);
+        el.scrollIntoView({ block: 'center' }); el.setAttribute('data-qa-click', ''); })()`);
+      // 読み込みのあとに武器のカードが埋まって「履歴」がずれても、動かなくなってから押す。
+      await page.clickSelector('[data-qa-click]');
       await page.waitFor(`location.hash === '#/history'`);
       await page.frames(2);
       const h = await historyState(page);
