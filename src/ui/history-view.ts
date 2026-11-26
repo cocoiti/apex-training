@@ -1,13 +1,16 @@
+import { modeUsesWeakSections, modeUsesWeapon, type CompareMetric, type MetricSpec, type TrainingMode } from '../modes/types';
+import { compareMetric, formatMetric, historyColumns, NO_WEAPON_ID, SHOT_DEVIATION_COLUMNS, SHOT_DEVIATION_METRIC } from './mode-scoring';
 import type { InputMethod } from './personal-best';
 import {
   clearHistory,
   historyAverages,
-  loadHistory,
+  historyValues,
+  loadModeHistory,
   type HistoryEntry,
   type HistorySelection,
+  type StoredEntry,
 } from './practice-history';
 import { escapeHtml } from './result-plot';
-import { formatDegrees, formatPercent } from './result-view';
 import type { SafeStorage } from './storage';
 import {
   sectionRangeText,
@@ -34,8 +37,8 @@ export const HISTORY_UNAVAILABLE_MESSAGE = 'この環境では履歴を保存で
 export const HISTORY_CLEAR_CONFIRM = '選んでいる武器・モード・入力方式の履歴を消します。よろしいですか？';
 
 /**
- * 開いたときに選ぶ組（docs/spec/screens.md「履歴の画面」）。このページで最後に終えた練習があり、その武器とモードが
- * 選択肢にあればその組、なければ一覧の最初の武器・モードの並び順の最初のモード・マウス。
+ * 開いたときに選ぶ組（docs/spec/screens.md「履歴の画面」）。このページで最後に終えた練習があり、その武器（武器を使わないモードの練習なら
+ * NO_WEAPON_ID）とモードが選択肢にあればその組、なければ一覧の最初の武器・モードの並び順の最初のモード・マウス。
  * モードの選択肢は登録されたモード（src/modes/registry.ts）で、決定の理由は docs/adr/2026-11-26-all-modes-scored.md。
  */
 export function initialHistorySelection(
@@ -43,7 +46,7 @@ export function initialHistorySelection(
   weaponIds: readonly string[],
   modeIds: readonly string[],
 ): HistorySelection {
-  if (last && modeIds.includes(last.modeId) && weaponIds.includes(last.weaponId)) return last;
+  if (last && modeIds.includes(last.modeId) && (weaponIds.includes(last.weaponId) || last.weaponId === NO_WEAPON_ID)) return last;
   return { input: 'mouse', weaponId: weaponIds[0] ?? '', modeId: modeIds[0] ?? '' };
 }
 
@@ -63,37 +66,40 @@ function num(value: number): string {
   return String(rounded === 0 ? 0 : rounded);
 }
 
-/** 縦軸の上端（度）。 */
-function plotTop(entries: readonly Pick<HistoryEntry, 'meanError'>[]): number {
-  return Math.max(MIN_TOP, ...entries.map((e) => e.meanError * MARGIN));
+/** 縦軸の上端（比べる指標の値）。 */
+function plotTop(values: readonly number[]): number {
+  return Math.max(MIN_TOP, ...values.map((v) => v * MARGIN));
 }
 
-/** 回（1 から）の順の点の SVG の座標。 */
-export function historyPointPositions(entries: readonly Pick<HistoryEntry, 'meanError'>[]): { x: number; y: number }[] {
-  const top = plotTop(entries);
+/** 回（1 から）の順の点の SVG の座標。縦軸は比べる指標（既定は平均ズレ）の値で、0 が下。 */
+export function historyPointPositions(entries: readonly StoredEntry[], metric: Pick<CompareMetric, 'id'> = SHOT_DEVIATION_METRIC): { x: number; y: number }[] {
+  const values = historyValues(entries, metric);
+  const top = plotTop(values);
   const plotWidth = WIDTH - PAD_LEFT - PAD_RIGHT;
   const plotHeight = HEIGHT - PAD_TOP - PAD_BOTTOM;
-  const n = entries.length;
-  return entries.map((e, i) => ({
+  const n = values.length;
+  return values.map((v, i) => ({
     x: PAD_LEFT + (n === 1 ? plotWidth / 2 : (plotWidth * i) / (n - 1)),
-    y: PAD_TOP + plotHeight * (1 - e.meanError / top),
+    y: PAD_TOP + plotHeight * (1 - v / top),
   }));
 }
 
 /**
- * 平均ズレの推移のグラフの HTML。横軸は回（1 から件数まで）、縦軸は平均ズレ（度）で、各回の点を回の順に線で結ぶ。
- * 数と固定の文言だけを書く。
+ * 比べる指標（既定は平均ズレ）の推移のグラフの HTML。横軸は回（1 から件数まで）、縦軸は比べる指標の値で、各回の点を回の順に線で結ぶ。
+ * 数と固定の文言（指標の名前と単位はモードのもの）だけを書く。
  */
-export function historyPlotHtml(entries: readonly HistoryEntry[]): string {
-  const points = historyPointPositions(entries);
-  const top = plotTop(entries);
+export function historyPlotHtml(entries: readonly StoredEntry[], metric: CompareMetric = SHOT_DEVIATION_METRIC): string {
+  const values = historyValues(entries, metric);
+  const points = historyPointPositions(entries, metric);
+  const top = plotTop(values);
+  const unit = escapeHtml(metric.unit);
   const left = PAD_LEFT;
   const bottom = HEIGHT - PAD_BOTTOM;
   const parts = [
     `<line class="plot-axis" x1="${left}" y1="${bottom}" x2="${WIDTH - PAD_RIGHT}" y2="${bottom}" />`,
     `<line class="plot-axis" x1="${left}" y1="${PAD_TOP}" x2="${left}" y2="${bottom}" />`,
-    `<text class="plot-tick" x="${left - 4}" y="${bottom}" text-anchor="end">0°</text>`,
-    `<text class="plot-tick" x="${left - 4}" y="${PAD_TOP + 8}" text-anchor="end">${escapeHtml(top.toFixed(1))}°</text>`,
+    `<text class="plot-tick" x="${left - 4}" y="${bottom}" text-anchor="end">0${unit}</text>`,
+    `<text class="plot-tick" x="${left - 4}" y="${PAD_TOP + 8}" text-anchor="end">${escapeHtml(top.toFixed(1))}${unit}</text>`,
   ];
   if (points.length > 0) {
     const last = points[points.length - 1];
@@ -106,13 +112,14 @@ export function historyPlotHtml(entries: readonly HistoryEntry[]): string {
     );
   }
   const dots = points
-    .map((p, i) => `<circle cx="${num(p.x)}" cy="${num(p.y)}" r="3" data-round="${i + 1}" data-value="${entries[i]?.meanError ?? 0}" />`)
+    .map((p, i) => `<circle cx="${num(p.x)}" cy="${num(p.y)}" r="3" data-round="${i + 1}" data-value="${values[i] ?? 0}" />`)
     .join('');
-  parts.push(`<g class="plot-series plot-history" data-series="history" data-count="${points.length}">${dots}</g>`);
+  parts.push(`<g class="plot-series plot-history" data-series="history" data-count="${points.length}" data-metric="${escapeHtml(metric.id)}">${dots}</g>`);
+  const title = escapeHtml(`${metric.label}の推移`);
   return (
     `<figure class="plot plot-wide" data-plot="history">` +
-    `<figcaption>平均ズレの推移</figcaption>` +
-    `<svg viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="平均ズレの推移">${parts.join('')}</svg>` +
+    `<figcaption>${title}</figcaption>` +
+    `<svg viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="${title}">${parts.join('')}</svg>` +
     `</figure>`
   );
 }
@@ -127,33 +134,40 @@ export function formatHistoryTime(at: string): string {
 const finiteOrNull = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
 
-/** 一覧の HTML。回・終えた日時・平均ズレ・命中率・グルーピング半径を回の順に並べる。履歴がなければ空。 */
-export function historyListHtml(entries: readonly HistoryEntry[]): string {
+/**
+ * 一覧の HTML。回・終えた日時と、比べる指標・モードが履歴に持つ指標（既定は平均ズレ・命中率・グルーピング半径）を回の順に並べる。
+ * 数でない指標は「なし」と書く。履歴がなければ空。
+ */
+export function historyListHtml(
+  entries: readonly StoredEntry[],
+  metric: MetricSpec = SHOT_DEVIATION_METRIC,
+  columns: readonly MetricSpec[] = SHOT_DEVIATION_COLUMNS,
+): string {
   if (entries.length === 0) return '';
+  const fields = [metric, ...columns];
   const rows = entries
     .map(
       (e, i) =>
         `<tr data-round="${i + 1}"><td>${i + 1}</td><td>${escapeHtml(formatHistoryTime(e.at))}</td>` +
-        `<td data-field="meanError">${escapeHtml(formatDegrees(e.meanError))}</td>` +
-        `<td data-field="hitRate">${escapeHtml(formatPercent(finiteOrNull(e.hitRate)))}</td>` +
-        `<td data-field="groupingRadius">${escapeHtml(formatDegrees(finiteOrNull(e.groupingRadius)))}</td></tr>`,
+        fields.map((f) => `<td data-field="${escapeHtml(f.id)}">${escapeHtml(formatMetric(f, finiteOrNull(e[f.id])))}</td>`).join('') +
+        `</tr>`,
     )
     .join('');
-  return (
-    `<table class="history-table"><thead><tr><th>回</th><th>終えた日時</th><th>平均ズレ</th><th>命中率</th><th>グルーピング半径</th></tr></thead>` +
-    `<tbody>${rows}</tbody></table>`
-  );
+  const heads = fields.map((f) => `<th>${escapeHtml(f.label)}</th>`).join('');
+  return `<table class="history-table"><thead><tr><th>回</th><th>終えた日時</th>${heads}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-/** 3 つの平均の HTML（dl の中身）。 */
-export function historyAveragesHtml(entries: readonly HistoryEntry[], now: Date): string {
-  const averages = historyAverages(entries, now);
-  return [
-    ['今日の平均', averages.today],
-    ['直近 10 回の平均', averages.recent],
-    ['全体の平均', averages.overall],
-  ]
-    .map(([label, value]) => `<dt>${escapeHtml(String(label))}</dt><dd>${escapeHtml(formatDegrees(value as number | null))}</dd>`)
+/** 3 つの平均の HTML（dl の中身）。比べる指標（既定は平均ズレ）の値の平均。 */
+export function historyAveragesHtml(entries: readonly StoredEntry[], now: Date, metric: CompareMetric = SHOT_DEVIATION_METRIC): string {
+  const averages = historyAverages(entries, now, metric);
+  return (
+    [
+      ['今日の平均', averages.today],
+      ['直近 10 回の平均', averages.recent],
+      ['全体の平均', averages.overall],
+    ] as const
+  )
+    .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(formatMetric(metric, value))}</dd>`)
     .join('');
 }
 
@@ -236,6 +250,8 @@ export interface ChoiceElement {
 /** 履歴の画面の要素。index.html の #history-* の要素。 */
 export interface HistoryElements {
   readonly weapon: ChoiceElement;
+  /** 武器の選択肢の欄。武器を使わないモードを選んでいるあいだは隠す。 */
+  readonly weaponChoice?: Pick<HTMLElement, 'hidden'>;
   readonly mode: ChoiceElement;
   readonly input: ChoiceElement;
   readonly averages: Pick<HTMLElement, 'innerHTML'>;
@@ -264,9 +280,14 @@ export interface Clickable {
   addEventListener(type: 'click', listener: () => void): void;
 }
 
+/** 履歴の画面が使うモードの項目。 */
+export type HistoryMode = Pick<TrainingMode, 'id' | 'usesWeapon' | 'scoring' | 'weakSections'>;
+
 export interface HistoryViewOptions {
   readonly storage: Pick<SafeStorage, 'get' | 'remove' | 'onUnavailable'>;
   readonly now: () => Date;
+  /** 登録されたモード。選んだモードの id から、武器を使うか・比べる指標・苦手な区間を使うかを決める。省くと、どのモードも反復練習と同じ。 */
+  readonly modes?: readonly HistoryMode[];
 }
 
 /** 履歴の画面。 */
@@ -283,18 +304,26 @@ const INPUT_IDS: readonly string[] = INPUT_METHODS.map((m) => m.id);
  * 書き出しや外部への送信はしない。
  */
 export function bindHistoryView(elements: HistoryElements, options: HistoryViewOptions): HistoryView {
+  const mode = (): HistoryMode => options.modes?.find((m) => m.id === elements.mode.value) ?? { id: elements.mode.value };
+  // 武器を使わないモードの組は、武器の id の代わりに NO_WEAPON_ID のキーで持つ（docs/spec/scoring.md「保存の形」）。
+  // 武器の選択肢は隠すだけで値を残すので、武器を使うモードに選び直すと前に選んでいた武器の組になる。
   const selection = (): HistorySelection => ({
     input: INPUT_IDS.includes(elements.input.value) ? (elements.input.value as InputMethod) : 'mouse',
-    weaponId: elements.weapon.value,
+    weaponId: modeUsesWeapon(mode()) ? elements.weapon.value : NO_WEAPON_ID,
     modeId: elements.mode.value,
   });
+  const entriesOf = () => loadModeHistory(options.storage, selection(), compareMetric(mode()));
 
   const render = () => {
-    const entries = loadHistory(options.storage, selection());
-    elements.averages.innerHTML = historyAveragesHtml(entries, options.now());
-    elements.plot.innerHTML = historyPlotHtml(entries);
-    elements.weak.innerHTML = weakSectionHtml(entries);
-    elements.list.innerHTML = historyListHtml(entries);
+    const current = mode();
+    const metric = compareMetric(current);
+    const entries = entriesOf();
+    if (elements.weaponChoice) elements.weaponChoice.hidden = !modeUsesWeapon(current);
+    elements.averages.innerHTML = historyAveragesHtml(entries, options.now(), metric);
+    elements.plot.innerHTML = historyPlotHtml(entries, metric);
+    // 発の区間ごとのズレの図と苦手な区間は、苦手な区間を使うモード（反復練習）だけで出す。
+    elements.weak.innerHTML = modeUsesWeakSections(current) ? weakSectionHtml(entries as HistoryEntry[]) : '';
+    elements.list.innerHTML = historyListHtml(entries, metric, historyColumns(current));
     elements.empty.textContent = HISTORY_EMPTY_MESSAGE;
     elements.empty.hidden = entries.length > 0;
     elements.clear.disabled = entries.length === 0;
@@ -308,7 +337,7 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
 
   for (const choice of [elements.weapon, elements.mode, elements.input]) choice.addEventListener('change', render);
   elements.clear.addEventListener('click', () => {
-    if (loadHistory(options.storage, selection()).length === 0) return;
+    if (entriesOf().length === 0) return;
     showConfirm(true);
   });
   elements.confirm.ok.addEventListener('click', () => {
@@ -324,7 +353,8 @@ export function bindHistoryView(elements: HistoryElements, options: HistoryViewO
 
   return {
     open(next) {
-      elements.weapon.value = next.weaponId;
+      // 武器を使わないモードの組を開くときは、武器の選択肢を変えない。
+      if (next.weaponId !== NO_WEAPON_ID) elements.weapon.value = next.weaponId;
       elements.mode.value = next.modeId;
       elements.input.value = next.input;
       showConfirm(false);

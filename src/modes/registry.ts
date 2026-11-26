@@ -11,7 +11,39 @@ export interface ModeModule {
   readonly module: { readonly default?: unknown };
 }
 
-const CATEGORIES: readonly ModeCategory[] = ['recoil', 'movement', 'combined'];
+const CATEGORIES: readonly ModeCategory[] = ['recoil', 'aim', 'movement', 'combined'];
+
+/** 保存の形で使っている項目名。比べる指標と保存する指標の id には使えない（docs/spec/scoring.md「保存の形」）。 */
+const RESERVED_FIELDS = ['version', 'achievedAt', 'at'];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isMetric(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    value.id !== '' &&
+    !RESERVED_FIELDS.includes(value.id) &&
+    typeof value.label === 'string' &&
+    typeof value.unit === 'string' &&
+    typeof value.format === 'function'
+  );
+}
+
+/** 採点の仕方の形。省いたモードは弾痕のズレの採点。 */
+function isScoring(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!isRecord(value) || typeof value.score !== 'function') return false;
+  const compare = value.compare;
+  if (!isMetric(compare) || !isRecord(compare)) return false;
+  if (compare.better !== 'lower' && compare.better !== 'higher') return false;
+  if (compare.valid !== undefined && typeof compare.valid !== 'function') return false;
+  return value.columns === undefined || (Array.isArray(value.columns) && value.columns.every(isMetric));
+}
+
+const optional = (value: unknown, type: 'boolean' | 'function') => value === undefined || typeof value === type;
 
 function isTrainingMode(value: unknown): value is TrainingMode {
   if (typeof value !== 'object' || value === null) return false;
@@ -23,7 +55,12 @@ function isTrainingMode(value: unknown): value is TrainingMode {
     typeof mode.order === 'number' &&
     Number.isFinite(mode.order) &&
     ['setup', 'step', 'result', 'teardown'].every((key) => typeof mode[key] === 'function') &&
-    (mode.ghost === undefined || typeof mode.ghost === 'function')
+    optional(mode.ghost, 'function') &&
+    optional(mode.usesWeapon, 'boolean') &&
+    optional(mode.weakSections, 'boolean') &&
+    optional(mode.directionSound, 'boolean') &&
+    (mode.timeLimit === undefined || (typeof mode.timeLimit === 'number' && Number.isFinite(mode.timeLimit) && mode.timeLimit > 0)) &&
+    isScoring(mode.scoring)
   );
 }
 

@@ -17,6 +17,10 @@ import { createWorld, type World } from '../../src/sim/world';
 import { parsePersonalBest, personalBestKey } from '../../src/ui/personal-best';
 import { historyKey, parseHistory } from '../../src/ui/practice-history';
 import { completePractice, metricRows, padTraceView, renderResult, type FinishedPractice } from '../../src/ui/result-view';
+import { inputFromTimedActions } from '../../src/input/queue';
+import { anglesToPoint } from '../../src/sim/hit';
+import { vec3 } from '../../src/sim/vec3';
+import { aimMode, TARGET_SIZE } from '../helpers/aim-modes';
 import { SafeStorage } from '../../src/ui/storage';
 
 const DATA = resolve(__dirname, '../../src/data');
@@ -156,22 +160,24 @@ describe('リザルト画面に出すもの', () => {
   it('平均ズレと自己ベストを更新したかを出す', () => {
     const storage = memoryStorage();
     const first = completePractice(practice('lstar', 'ghost'), storage, NOW);
-    expect(first.meanDeviation).toBeCloseTo(meanOf(storage.items.get(LSTAR_GHOST)) ?? NaN, 9);
+    expect(first.value).toBeCloseTo(meanOf(storage.items.get(LSTAR_GHOST)) ?? NaN, 9);
     expect(first.bestUpdated).toBe(true);
     expect(completePractice(practice('lstar', 'ghost'), storage, NOW).bestUpdated).toBe(false);
   });
 
-  it('命中率（%）を出す（シェアの文に使う）', () => {
+  it('シェアの文の 3 行目に平均ズレと命中率（%）を出す', () => {
     const p = practice('lstar', 'ghost');
     const view = completePractice(p, memoryStorage(), NOW);
     const world = rangeWorld();
-    expect(view.hitRate).toBe(scoreShots(p.result.shots, world, targetRadius(world)).hitRate);
-    expect(view.metrics.find((row) => row.label === '命中率')?.value).toBe(`${view.hitRate?.toFixed(1)}%`);
+    const scored = scoreShots(p.result.shots, world, targetRadius(world));
+    const hitRate = view.metrics.find((row) => row.label === '命中率')?.value;
+    expect(hitRate).toBe(`${scored.hitRate?.toFixed(1)}%`);
+    expect(view.shareScore).toBe(`平均ズレ: ${scored.meanDeviation?.toFixed(2)}° / 命中率: ${hitRate}`);
   });
 
   it('MODE-23: 連続練習で回ごとに採点すると、自己ベストには回のうち平均ズレが最も小さい回の平均ズレが残る', () => {
     const storage = memoryStorage();
-    const means = [0.02, 0.005, 0.03, 0.01, 0.025].map((pullDown) => completePractice(practice('lstar', 'ghost', pullDown), storage, NOW).meanDeviation ?? NaN);
+    const means = [0.02, 0.005, 0.03, 0.01, 0.025].map((pullDown) => completePractice(practice('lstar', 'ghost', pullDown), storage, NOW).value ?? NaN);
     expect(new Set(means).size).toBe(5);
     expect(meanOf(storage.items.get(LSTAR_GHOST))).toBeCloseTo(Math.min(...means), 9);
   });
@@ -245,7 +251,7 @@ describe('練習の履歴の保存', () => {
 
   it('SCO-29: 履歴のキーに JSON として読めない値があっても、その練習の 1 件だけの履歴にする', () => {
     const storage = memoryStorage({ [LSTAR_GHOST_HISTORY]: '{broken' });
-    expect(completePractice(practice('lstar', 'ghost'), storage, NOW).meanDeviation).not.toBeNull();
+    expect(completePractice(practice('lstar', 'ghost'), storage, NOW).value).not.toBeNull();
     expect(parseHistory(storage.items.get(LSTAR_GHOST_HISTORY) ?? null)).toHaveLength(1);
   });
 });
@@ -477,5 +483,78 @@ describe('右スティックの入力推移のグラフ', () => {
     mineX?.points.forEach((point) => expect(point.value).toBeCloseTo(0.5, 9));
     expect(mineY?.points.every((point) => point.value === 0)).toBe(true);
     expect(idealY?.points.some((point) => point.value !== 0)).toBe(true);
+  });
+});
+
+describe('モードごとの採点', () => {
+  /** range のマップで、武器を使わない命中数のモードを練習する。的の中心に向けて hits 回、外へ向けて misses 回撃つ。 */
+  function aimPractice(hits: number, misses = 0, weapon?: WeaponData): FinishedPractice {
+    const world = rangeWorld();
+    const center = vec3(0, 1.6, -6);
+    const mode = aimMode({ id: 'flick', usesWeapon: weapon !== undefined, timeLimit: 3, targets: (c) => c.targets.add({ id: 't', size: TARGET_SIZE, position: center }) });
+    const on = anglesToPoint(world.player.position, center);
+    const start = world.player.aim;
+    const actions: TimedAction[] = [{ time: 0, action: { type: 'look', yaw: on.yaw - start.yaw, pitch: on.pitch - start.pitch } }];
+    let t = 0.1;
+    for (let i = 0; i < hits; i += 1, t += 0.1) actions.push({ time: t, action: { type: 'fire', pressed: true } }, { time: t + 0.05, action: { type: 'fire', pressed: false } });
+    actions.push({ time: t, action: { type: 'look', yaw: 20, pitch: 0 } });
+    for (let i = 0; i < misses; i += 1) {
+      t += 0.1;
+      actions.push({ time: t, action: { type: 'fire', pressed: true } }, { time: t + 0.05, action: { type: 'fire', pressed: false } });
+    }
+    const session = new PracticeSession({ world, weapon, mode, input: inputFromTimedActions(actions), seed: 1 });
+    while (!session.ended) session.step();
+    return { result: session.result!, recording: { actions }, world, input: 'mouse', dt: session.sim.dt };
+  }
+
+  it('SCO-41: 弾痕のズレの採点と苦手な区間を使わないモードは、そのモードの指標と比べる指標の自己ベストを出し、平均ズレ・グルーピング半径・散布図・軌道・苦手な区間を出さない', () => {
+    const storage = memoryStorage();
+    const view = completePractice(aimPractice(3, 2), storage, NOW);
+    expect(view.metrics).toEqual([
+      { label: '命中数', value: '3' },
+      { label: '撃った弾数', value: '5' },
+    ]);
+    expect(view.best).toBe('自己ベスト更新');
+    expect(view.value).toBe(3);
+    expect(view.plots).toEqual([]);
+    expect(view.weakSection).toBeNull();
+    expect(view.padTrace).toBeNull();
+    expect(view.summary).toBe('エイムのテスト — 5 発');
+    const labels = view.metrics.map((m) => m.label).join(' ');
+    expect(labels).not.toMatch(/平均ズレ|グルーピング半径/);
+    const again = completePractice(aimPractice(2), storage, NOW);
+    expect(again.best).toBe('自己ベスト 命中数 3');
+    expect(again.shareScore).toBe('命中数: 2');
+  });
+
+  it('SCO-42: 武器を使わないモードをマウスで終えると、自己ベストと履歴が - のキーに version 1 と比べる指標の値で保存される', () => {
+    const storage = memoryStorage();
+    completePractice(aimPractice(4), storage, NOW);
+    const best = JSON.parse(storage.items.get('apex-training:best:mouse:-:flick') ?? '') as Record<string, unknown>;
+    expect(best).toMatchObject({ version: 1, hits: 4 });
+    const history = JSON.parse(storage.items.get('apex-training:history:mouse:-:flick') ?? '') as { version: number; entries: Record<string, unknown>[] };
+    expect(history.version).toBe(1);
+    expect(history.entries).toEqual([{ at: NOW.toISOString(), hits: 4, shots: 4 }]);
+    expect([...storage.items.keys()].every((k) => k.includes(':-:flick'))).toBe(true);
+  });
+
+  it('武器を使うエイムのモードの保存のキーは武器の id で分ける', () => {
+    const storage = memoryStorage();
+    completePractice(aimPractice(1, 0, loadWeapon('lstar')), storage, NOW);
+    expect(storage.items.has('apex-training:best:mouse:lstar:flick')).toBe(true);
+    expect(storage.items.has('apex-training:history:mouse:lstar:flick')).toBe(true);
+  });
+
+  it('SCO-43: 反復練習の自己ベストと履歴の 1 件は、モードごとの採点を足す前と同じ項目を持つ', () => {
+    const storage = memoryStorage();
+    completePractice(practice('lstar', 'ghost'), storage, NOW);
+    const best = JSON.parse(storage.items.get(LSTAR_GHOST) ?? '') as Record<string, unknown>;
+    expect(Object.keys(best)).toEqual(['version', 'meanError', 'groupingRadius', 'hitRate', 'shots', 'achievedAt']);
+    const history = JSON.parse(storage.items.get(historyKey({ input: 'mouse', weaponId: 'lstar', modeId: 'ghost' })) ?? '') as { entries: Record<string, unknown>[] };
+    expect(Object.keys(history.entries[0] ?? {})).toEqual(['at', 'meanError', 'hitRate', 'groupingRadius', 'shots', 'sections']);
+    const view = completePractice(practice('lstar', 'ghost'), storage, NOW);
+    expect(view.metrics.map((m) => m.label)).toEqual(['平均ズレ', 'グルーピング半径', '命中率', '区間ごとのズレ', '横ブレ / 縦ブレ']);
+    expect(view.plots.map((p) => p.name)).toEqual(['scatter', 'trajectory']);
+    expect(view.best).toMatch(/^自己ベスト 平均ズレ \d+\.\d{2}°$/);
   });
 });

@@ -37,3 +37,19 @@ export function fillWeaponSelect(select: HTMLSelectElement, weapons: readonly We
     }),
   );
 }
+
+/** トップ画面の武器の欄と「パターンの音を聞く」の欄。 */
+export interface WeaponChoiceElements {
+  readonly weapon: Pick<HTMLElement, 'hidden'> | null;
+  readonly preview: Pick<HTMLElement, 'hidden'> | null;
+}
+
+/**
+ * 選んでいるモードが武器を使うかで、武器の欄と試聴の欄を出すか決める（docs/spec/screens.md「トップ画面」）。
+ * 欄は隠すだけで武器の select の値は変えないので、武器を使うモードに選び直すと前に選んでいた武器が選ばれている。
+ * 隠した欄（hidden）にはパッドでの項目の移動でもフォーカスが移らない（src/ui/pad-menu.ts）。
+ */
+export function showWeaponChoice(elements: WeaponChoiceElements, usesWeapon: boolean): void {
+  if (elements.weapon) elements.weapon.hidden = !usesWeapon;
+  if (elements.preview) elements.preview.hidden = !usesWeapon;
+}

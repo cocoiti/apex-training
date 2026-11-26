@@ -1,10 +1,20 @@
 import type { Random } from '../core/random';
 import { addAngles, directionFromAngles, type Angles } from './angles';
-import { angularDeviation, raycastBoxes } from './hit';
+import { angularDeviation, raycastScene } from './hit';
 import { addRecoilOffset, viewAngles } from './player';
 import type { Vec3 } from './vec3';
 import { fireInterval, type WeaponData } from './weapon';
 import type { World } from './world';
+
+/**
+ * 照準のレイ（目の位置から照準の向き = 利用者の照準 + リコイルのオフセット）が乗っている練習の的の識別子
+ * （docs/spec/architecture.md「照準と的の当たり」）。レイが最初に当たったものが出現している練習の的のときだけ返し、
+ * 外している・手前にマップの箱がある・出現していないときは undefined。
+ */
+export function aimedTarget(world: World): string | undefined {
+  const { player } = world;
+  return raycastScene(player.position, directionFromAngles(viewAngles(player)), world.boxes, world.targets.visible)?.target?.id;
+}
 
 /** 戻りの時間（秒）。撃ち終わりからリコイルの累積が 0 に戻るまで。 */
 export const RECOIL_RECOVERY_TIME = 0.5;
@@ -26,13 +36,38 @@ export interface ShotRecord {
   readonly position: Vec3 | null;
   /** 角度のズレ（水平・垂直、度。右と上が正）。外れなら null。 */
   readonly deviation: Angles | null;
+  /**
+   * 当たった練習の的の識別子（docs/spec/architecture.md「照準と的の当たり」）。練習の的に当たった弾（命中）だけが持つ。
+   * この弾の弾痕は表示しない。
+   */
+  readonly target?: string;
+}
+
+/** 弾を撃つもの。ステップごとに step を呼び、撃った弾を shots に足す。 */
+export interface Shooter {
+  /** 撃った弾の記録。撃った順。 */
+  readonly shots: readonly ShotRecord[];
+  /** 1 ステップ進める。入力を適用したあと（player.fire が更新されたあと）に呼ぶ。 */
+  step(world: World, dt: number): void;
+}
+
+/**
+ * 目の位置から angles の向きに撃った弾の当たり。マップの箱と出現している練習の的のうち、目の位置から最も近いものに当たる。
+ * 練習の的に当たったときは target にその識別子を入れる。
+ */
+export function traceShot(world: World, angles: Angles): Pick<ShotRecord, 'position' | 'deviation' | 'target'> {
+  const { player } = world;
+  const hit = raycastScene(player.position, directionFromAngles(angles), world.boxes, world.targets.visible);
+  if (!hit) return { position: null, deviation: null };
+  const deviation = angularDeviation(player.position, hit.position, world.center);
+  return hit.target ? { position: hit.position, deviation, target: hit.target.id } : { position: hit.position, deviation };
 }
 
 /**
  * 武器の発射・リコイル・当たり判定（docs/spec/weapons.md）。Simulation のステップごとの処理として step を呼ぶ。
  * リコイルの累積は Player の recoilOffset に持つ。
  */
-export class Gun {
+export class Gun implements Shooter {
   readonly weapon: WeaponData;
   /** 撃った弾の記録。撃った順。 */
   readonly shots: ShotRecord[] = [];
@@ -117,15 +152,7 @@ export class Gun {
     const r = this.weapon.randomness;
     const spread: Angles = r > 0 ? { yaw: (this.random.next() * 2 - 1) * r, pitch: (this.random.next() * 2 - 1) * r } : { yaw: 0, pitch: 0 };
     const angles = addAngles(viewAngles(player), spread);
-    const hit = raycastBoxes(player.position, directionFromAngles(angles), world.boxes);
-    this.shots.push({
-      shot: this.shots.length + 1,
-      patternShot,
-      time,
-      angles,
-      position: hit ? hit.position : null,
-      deviation: hit ? angularDeviation(player.position, hit.position, world.center) : null,
-    });
+    this.shots.push({ shot: this.shots.length + 1, patternShot, time, angles, ...traceShot(world, angles) });
   }
 
   /** 撃ち終わり（fire を離した、または撃ち切った）。ここから戻りの時間をかけて累積を 0 に戻す。 */

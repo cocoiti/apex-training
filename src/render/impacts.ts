@@ -17,7 +17,7 @@ export const IMPACT_NAME = 'impact';
 
 /**
  * 弾痕を描画の層に足す（docs/spec/modes.md「共通」）。シミュレーションの弾の記録を読むだけで、書き換えない。
- * 一度足した弾痕は clear するまで残る。どの箱にも当たらなかった弾（位置なし）は表示しない。
+ * 一度足した弾痕は clear するまで残る。どの箱にも当たらなかった弾（位置なし）と、練習の的に当たった弾（target を持つ）は表示しない。
  */
 export class ImpactMarks {
   private readonly layer: DisplayLayer;
@@ -31,8 +31,8 @@ export class ImpactMarks {
   /** 弾の記録のうち、まだ表示していない弾の弾痕を足す。eye は目の位置で、弾痕をその向きに向ける。 */
   sync(shots: readonly ShotRecord[], eye: Vec3): void {
     for (; this.synced < shots.length; this.synced += 1) {
-      const position = shots[this.synced]?.position;
-      if (position) this.layer.add(createMark(position, eye));
+      const shot = shots[this.synced];
+      if (shot?.position && shot.target === undefined) this.layer.add(createMark(shot.position, eye));
     }
   }
 

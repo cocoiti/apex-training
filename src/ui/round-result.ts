@@ -1,10 +1,11 @@
-import { formatDegrees, type ResultView } from './result-view';
+import { formatMetric } from './mode-scoring';
+import type { ResultView } from './result-view';
 
 /** 連続練習の短いリザルトに出すもの（docs/spec/modes.md「連続練習（セット）」）。 */
 export interface RoundResultTexts {
   /** 回の番号と回数。例: 「1 / 5 回目」。 */
   readonly round: string;
-  /** 平均ズレとコメント。 */
+  /** モードの比べる指標（反復練習は平均ズレ）とコメント。 */
   readonly score: string;
   /** その回で自己ベストを更新したときは「自己ベスト更新」、ほかは空。 */
   readonly best: string;
@@ -21,13 +22,13 @@ export function countdownSeconds(remaining: number): number {
 export function roundResultTexts(
   round: number,
   count: number,
-  view: Pick<ResultView, 'meanDeviation' | 'comments' | 'bestUpdated'>,
+  view: Pick<ResultView, 'metric' | 'value' | 'comments' | 'bestUpdated'>,
   remaining: number,
 ): RoundResultTexts {
   const comments = view.comments.join(' / ');
   return {
     round: `${round} / ${count} 回目`,
-    score: `平均ズレ ${formatDegrees(view.meanDeviation)}${comments ? ` — ${comments}` : ''}`,
+    score: `${view.metric.label} ${formatMetric(view.metric, view.value)}${comments ? ` — ${comments}` : ''}`,
     best: view.bestUpdated ? '自己ベスト更新' : '',
     countdown: `次の回まで ${countdownSeconds(remaining)} 秒`,
   };

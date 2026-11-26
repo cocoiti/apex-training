@@ -9,25 +9,26 @@ import {
   setTrendPlotHtml,
   summarizeSet,
 } from '../../src/ui/set-summary';
+import { HIT_COUNT } from '../helpers/aim-modes';
 
-const rounds = (means: readonly (number | null)[]): RoundRecord[] => means.map((meanDeviation, i) => ({ round: i + 1, meanDeviation }));
+const rounds = (means: readonly (number | null)[]): RoundRecord[] => means.map((value, i) => ({ round: i + 1, value }));
 const count = (html: string, pattern: RegExp) => html.match(pattern)?.length ?? 0;
 
 describe('セットのまとめ', () => {
   it('どれかの回で自己ベストを更新したかをまとめる', () => {
     expect(summarizeSet(rounds([1.0, 0.8]), 5).bestUpdated).toBe(false);
     const updated: RoundRecord[] = [
-      { round: 1, meanDeviation: 1.0, bestUpdated: false },
-      { round: 2, meanDeviation: 0.8, bestUpdated: true },
+      { round: 1, value: 1.0, bestUpdated: false },
+      { round: 2, value: 0.8, bestUpdated: true },
     ];
     expect(summarizeSet(updated, 5).bestUpdated).toBe(true);
   });
 
   it('UI-34: 各回の平均ズレを回の順に並べ、推移の図に点を打ち、セットの平均といちばん良かった回を出す', () => {
     const summary = summarizeSet(rounds([1.0, 0.8, 1.2, 0.6, 0.9]), 5);
-    expect(summary.rounds.map((r) => r.meanDeviation)).toEqual([1.0, 0.8, 1.2, 0.6, 0.9]);
+    expect(summary.rounds.map((r) => r.value)).toEqual([1.0, 0.8, 1.2, 0.6, 0.9]);
     expect(summary.average).toBeCloseTo(0.9, 9);
-    expect(summary.best).toEqual({ round: 4, meanDeviation: 0.6 });
+    expect(summary.best).toEqual({ round: 4, value: 0.6 });
     expect(setAverageText(summary)).toBe('セットの平均 0.90°');
     expect(setBestText(summary)).toBe('いちばん良かった回 4 回目（0.60°）');
 
@@ -53,13 +54,13 @@ describe('セットのまとめ', () => {
   });
 
   it('最も小さい回が複数あるときは番号の小さい回をいちばん良かった回にする', () => {
-    expect(summarizeSet(rounds([0.7, 0.5, 0.5]), 5).best).toEqual({ round: 2, meanDeviation: 0.5 });
+    expect(summarizeSet(rounds([0.7, 0.5, 0.5]), 5).best).toEqual({ round: 2, value: 0.5 });
   });
 
   it('平均ズレが「なし」の回は一覧に「なし」と出し、平均・いちばん良かった回・推移の図に入れない', () => {
     const summary = summarizeSet(rounds([1.0, null, 0.5]), 5);
     expect(summary.average).toBeCloseTo(0.75, 9);
-    expect(summary.best).toEqual({ round: 3, meanDeviation: 0.5 });
+    expect(summary.best).toEqual({ round: 3, value: 0.5 });
     expect(setRoundsHtml(summary)).toContain('<li data-round="2"><span class="set-round-number">2 回目</span> なし</li>');
     expect(count(setTrendPlotHtml(summary), /<circle /g)).toBe(2);
   });
@@ -94,5 +95,27 @@ describe('セットのまとめ', () => {
     expect(elements.best.textContent).toBe('いちばん良かった回 2 回目（0.20°）');
     expect(elements.rounds.innerHTML).toContain('data-round="2"');
     expect(elements.plot.innerHTML).toContain('<svg');
+  });
+
+  it('UI-97: 大きいほど良い命中数のモードで 10・14・12 の 3 回を終えたとき、3 回分の命中数が並び、セットの平均 12、いちばん良かった回 2 回目（14）', () => {
+    const summary = summarizeSet(rounds([10, 14, 12]), 3, HIT_COUNT);
+    expect(summary.best).toEqual({ round: 2, value: 14 });
+    expect(setAverageText(summary)).toBe('セットの平均 12');
+    expect(setBestText(summary)).toBe('いちばん良かった回 2 回目（14）');
+    const list = setRoundsHtml(summary);
+    expect([...list.matchAll(/<\/span> (\d+)/g)].map((m) => m[1])).toEqual(['10', '14', '12']);
+    expect(list).toContain('<li data-round="2" data-best="true">');
+    const plot = setTrendPlotHtml(summary);
+    expect(plot).toContain('命中数の推移');
+    expect(plot).not.toContain('°');
+  });
+
+  it('大きいほど良い指標で最も大きい回が複数あるときは番号の小さい回', () => {
+    expect(summarizeSet(rounds([3, 5, 5]), 3, HIT_COUNT).best).toEqual({ round: 2, value: 5 });
+  });
+
+  it('武器を使わないモードの見出しは武器を書かない', () => {
+    const summary = summarizeSet(rounds([1, 2]), 5, HIT_COUNT);
+    expect(setSummaryHeading(undefined, 'エイム', 'mouse', summary)).toBe('エイム / マウス — 2 / 5 回');
   });
 });

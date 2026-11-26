@@ -8,9 +8,15 @@ import {
   loadHistory,
   parseHistory,
   entrySections,
+  historyValues,
+  loadModeHistory,
+  parseHistoryEntries,
   recordHistory,
+  recordHistoryEntry,
   type HistoryEntry,
 } from '../../src/ui/practice-history';
+import { NO_WEAPON_ID } from '../../src/ui/mode-scoring';
+import { HIT_COUNT } from '../helpers/aim-modes';
 import { SafeStorage } from '../../src/ui/storage';
 
 /** Map で代用した保存先。 */
@@ -249,5 +255,54 @@ describe('履歴の平均', () => {
   it('10 件未満なら直近の平均はあるだけの件で求め、今日の件がなければ今日の平均は「なし」', () => {
     const entries = [entry(1), entry(3)];
     expect(historyAverages(entries, NOW)).toEqual({ today: null, recent: 2, overall: 2 });
+  });
+});
+
+describe('モードの比べる指標の履歴', () => {
+  const AIM = { input: 'mouse', weaponId: NO_WEAPON_ID, modeId: 'flick' } as const;
+  const AIM_KEY = 'apex-training:history:mouse:-:flick';
+
+  it('SCO-42: 武器を使わないモードの履歴は - のキーに、version 1 と比べる指標の値を持つ件として保存する', () => {
+    const storage = memoryStorage();
+    recordHistoryEntry(storage, AIM, HIT_COUNT, { value: 9, fields: { shots: 12 } }, NOW);
+    expect(historyKey(AIM)).toBe(AIM_KEY);
+    expect(JSON.parse(storage.items.get(AIM_KEY) ?? '')).toEqual({ version: 1, entries: [{ at: NOW.toISOString(), hits: 9, shots: 12 }] });
+  });
+
+  it('値が求まらない結果は足さない', () => {
+    const storage = memoryStorage();
+    expect(recordHistoryEntry(storage, AIM, HIT_COUNT, { value: null }, NOW)).toEqual([]);
+    expect(storage.items.size).toBe(0);
+  });
+
+  it('SCO-44: 比べる指標の項目が数でない件だけを読み飛ばし、ほかの件は推移・平均に使う', () => {
+    const raw = JSON.stringify({
+      version: 1,
+      entries: [
+        { at: '2026-11-25T01:00:00.000Z', hits: 10 },
+        { at: '2026-11-25T02:00:00.000Z', hits: 'many' },
+        { at: '2026-11-25T03:00:00.000Z' },
+        { at: '2026-11-25T04:00:00.000Z', hits: 14 },
+      ],
+    });
+    const entries = parseHistoryEntries(raw, HIT_COUNT);
+    expect(historyValues(entries, HIT_COUNT)).toEqual([10, 14]);
+    expect(historyAverages(entries, NOW, HIT_COUNT)).toEqual({ today: 12, recent: 12, overall: 12 });
+    const storage = memoryStorage({ [AIM_KEY]: raw });
+    expect(loadModeHistory(storage, AIM, HIT_COUNT)).toHaveLength(2);
+  });
+
+  it('SCO-44: 反復練習の履歴でも、meanError が数でない件だけを読み飛ばす', () => {
+    const raw = JSON.stringify({ version: 1, entries: [entry(1), { ...entry(2), meanError: 'x' }, entry(3)] });
+    expect(parseHistory(raw).map((e) => e.meanError)).toEqual([1, 3]);
+  });
+
+  it('足すときに読み飛ばした件は除き、上限を超えたら古い件から消す', () => {
+    const many = Array.from({ length: HISTORY_LIMIT }, (_, i) => ({ at: NOW.toISOString(), hits: i }));
+    const storage = memoryStorage({ [AIM_KEY]: JSON.stringify({ version: 1, entries: [{ at: 'bad', hits: 1 }, ...many] }) });
+    const kept = recordHistoryEntry(storage, AIM, HIT_COUNT, { value: 999 }, NOW);
+    expect(kept).toHaveLength(HISTORY_LIMIT);
+    expect(kept[0]?.hits).toBe(1);
+    expect(kept.at(-1)?.hits).toBe(999);
   });
 });

@@ -14,8 +14,8 @@ export function parsePracticeCount(value: string): number {
 export interface RoundRecord {
   /** 回の番号（1 から）。 */
   readonly round: number;
-  /** 平均ズレ（度）。「なし」の回は null。 */
-  readonly meanDeviation: number | null;
+  /** その回のモードの比べる指標の値（反復練習は平均ズレ、度）。求まらない回は null。 */
+  readonly value: number | null;
   /** その回で自己ベストを更新したか。省いたときは更新していない。 */
   readonly bestUpdated?: boolean;
 }
@@ -25,7 +25,7 @@ export type SetPhase = 'playing' | 'interlude' | 'done';
 
 /**
  * 回数を決めた連続練習（docs/spec/modes.md「連続練習（セット）」）。回数が 1 のときは 1 回分の練習と同じで、短いリザルトを挟まない。
- * 回の練習そのもの（World・シミュレーション）は持たず、回の番号と終えた回の平均ズレと、短いリザルトの時間だけを持つ。
+ * 回の練習そのもの（World・シミュレーション）は持たず、回の番号と終えた回の比べる指標の値と、短いリザルトの時間だけを持つ。
  * 時刻（now、秒）は短いリザルトの残り時間にだけ使い、呼び出し側の時計（performance.now() など）で渡す。
  */
 export class PracticeSet {
@@ -62,9 +62,9 @@ export class PracticeSet {
    * 今の回を最後まで終えた。最後の回なら done、そうでなければ短いリザルトを始めて interlude を返す。
    * 回数が 1 のときも done を返す（呼び出し側はリザルト画面を出す）。
    */
-  completeRound(meanDeviation: number | null, now: number, bestUpdated = false): SetPhase {
+  completeRound(value: number | null, now: number, bestUpdated = false): SetPhase {
     if (this.state !== 'playing') return this.state;
-    this.finished.push({ round: this.current, meanDeviation, bestUpdated });
+    this.finished.push({ round: this.current, value, bestUpdated });
     if (this.finished.length >= this.count) {
       this.state = 'done';
     } else {

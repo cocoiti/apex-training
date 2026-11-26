@@ -12,9 +12,10 @@
       <section class="screen" data-screen="top">
         <div class="panel">
           <h1>リコイル練習</h1>
-          <label class="choice">武器 <select id="weapon"></select></label>
+          <!-- 武器を使わないモードを選んでいるあいだは、武器の欄と試聴を隠す（docs/spec/screens.md「トップ画面」）。 -->
+          <label class="choice" id="weapon-choice">武器 <select id="weapon"></select></label>
           <!-- 選んでいる武器の簡易版のパターンを向きの音だけで流す（docs/spec/screens.md「音」の「試聴」）。 -->
-          <div class="choice sound-preview">
+          <div class="choice sound-preview" id="preview-sound-choice">
             <button type="button" id="preview-sound">パターンの音を聞く</button>
             <p class="note" id="preview-sound-note" hidden></p>
           </div>
@@ -309,7 +310,7 @@
           <p id="history-unavailable" class="history-unavailable" role="status" hidden></p>
           <div id="history-body">
             <div class="history-choices">
-              <label class="choice">武器 <select id="history-weapon"></select></label>
+              <label class="choice" id="history-weapon-choice">武器 <select id="history-weapon"></select></label>
               <label class="choice" id="history-mode-choice">モード <select id="history-mode"></select></label>
               <p class="choice" id="history-mode-only" hidden>モード <span id="history-mode-name" class="mode-name"></span></p>
               <label class="choice">入力方式

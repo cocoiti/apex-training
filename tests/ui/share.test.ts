@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { summarizeSet } from '../../src/ui/set-summary';
+import { HIT_COUNT } from '../helpers/aim-modes';
 import {
   browserShareTarget,
   COPIED_MESSAGE,
@@ -7,8 +8,10 @@ import {
   PUBLIC_URL,
   resultShare,
   resultShareText,
+  metricShareScore,
   setShare,
   setShareText,
+  shotDeviationShareScore,
   ShareControl,
   shareText,
   xPostUrl,
@@ -38,28 +41,28 @@ function elements() {
 
 describe('シェアの文（docs/spec/screens.md「シェアの文」）', () => {
   it('UI-87: 自己ベストを更新したリザルト画面の文は、SPEC の例と一致する', () => {
-    const text = resultShareText(resultShare(lstar, { meanDeviation: 0.85, hitRate: 72, bestUpdated: true }));
+    const text = resultShareText(resultShare(lstar, { shareScore: shotDeviationShareScore(0.85, 72), bestUpdated: true }));
     expect(text).toBe(EXAMPLE);
     expect(text).toContain('非公式ファンツール');
     expect(text).toContain(PUBLIC_URL);
   });
 
   it('UI-88: 自己ベストを更新しなかったときは「自己ベスト更新！」の行がなく、ほかの行は同じ', () => {
-    const text = resultShareText(resultShare(lstar, { meanDeviation: 0.85, hitRate: 72, bestUpdated: false }));
+    const text = resultShareText(resultShare(lstar, { shareScore: shotDeviationShareScore(0.85, 72), bestUpdated: false }));
     expect(text.split('\n')).toEqual(EXAMPLE.split('\n').filter((line) => line !== '自己ベスト更新！'));
   });
 
   it('「なし」の指標は「なし」と書く', () => {
-    const text = resultShareText(resultShare(lstar, { meanDeviation: null, hitRate: null, bestUpdated: false }));
+    const text = resultShareText(resultShare(lstar, { shareScore: shotDeviationShareScore(null, null), bestUpdated: false }));
     expect(text.split('\n')[2]).toBe('平均ズレ: なし / 命中率: なし');
   });
 
   it('UI-92: 回数 5 のセットを 3 回目まで終えた文は、セットの見出し・回数とセットの平均ズレ・公開 URL を含む', () => {
     const summary = summarizeSet(
       [
-        { round: 1, meanDeviation: 1.0 },
-        { round: 2, meanDeviation: 0.8 },
-        { round: 3, meanDeviation: 1.2 },
+        { round: 1, value: 1.0 },
+        { round: 2, value: 0.8 },
+        { round: 3, value: 1.2 },
       ],
       5,
     );
@@ -73,19 +76,19 @@ describe('シェアの文（docs/spec/screens.md「シェアの文」）', () =>
   });
 
   it('セットのどれかの回で自己ベストを更新したら「自己ベスト更新！」を入れる。セットの平均が「なし」なら「なし」と書く', () => {
-    const updated = summarizeSet([{ round: 1, meanDeviation: 0.9, bestUpdated: true }], 5);
+    const updated = summarizeSet([{ round: 1, value: 0.9, bestUpdated: true }], 5);
     expect(setShareText(setShare('L-STAR', '反復練習', updated)).split('\n')[3]).toBe('自己ベスト更新！');
-    const none = summarizeSet([{ round: 1, meanDeviation: null }], 5);
+    const none = summarizeSet([{ round: 1, value: null }], 5);
     expect(setShareText(setShare('L-STAR', '反復練習', none)).split('\n')[2]).toBe('回数: 1 / 5 回 / セットの平均ズレ: なし');
   });
 
   it('OVR-20: 文は「シェアの文」の行だけからなり、ほかの指標・各回の値・入力方式を含まない', () => {
-    const text = resultShareText(resultShare(lstar, { meanDeviation: 0.85, hitRate: 72, bestUpdated: true }));
+    const text = resultShareText(resultShare(lstar, { shareScore: shotDeviationShareScore(0.85, 72), bestUpdated: true }));
     expect(text).not.toMatch(/グルーピング|横ブレ|縦ブレ|区間|マウス|パッド|補正|軌道/);
     const summary = summarizeSet(
       [
-        { round: 1, meanDeviation: 1.0 },
-        { round: 2, meanDeviation: 0.8 },
+        { round: 1, value: 1.0 },
+        { round: 2, value: 0.8 },
       ],
       5,
     );
@@ -93,6 +96,27 @@ describe('シェアの文（docs/spec/screens.md「シェアの文」）', () =>
     // 各回の平均ズレ（1.00°・0.80°）は入れない。入るのはセットの平均（0.90°）だけ。
     expect(set).not.toMatch(/1\.00°|0\.80°|回目/);
     expect(set).toContain('0.90°');
+  });
+
+  it('UI-100: 武器を使わないモードでは 2 行目が「モード: <モードの名前>」だけで、3 行目がそのモードの比べる指標', () => {
+    const aim = { weapon: undefined, mode: { name: 'フリック' } };
+    const lines = resultShareText(resultShare(aim, { shareScore: metricShareScore(HIT_COUNT, 13), bestUpdated: false })).split('\n');
+    expect(lines).toEqual(['リコイル練習（非公式ファンツール）の結果', 'モード: フリック', '命中数: 13', PUBLIC_URL]);
+  });
+
+  it('ほかのモードのセットの文は、3 行目をセットの平均の比べる指標にし、武器を使わないモードでは武器を書かない', () => {
+    const summary = summarizeSet(
+      [
+        { round: 1, value: 10 },
+        { round: 2, value: 14 },
+        { round: 3, value: 12 },
+      ],
+      3,
+      HIT_COUNT,
+    );
+    const lines = setShareText(setShare(undefined, 'フリック', summary)).split('\n');
+    expect(lines[1]).toBe('モード: フリック');
+    expect(lines[2]).toBe('回数: 3 / 3 回 / セットの平均命中数: 12');
   });
 
   it('UI-94: 「X に投稿」の行き先は x.com の投稿画面に URL エンコードした文を付けたもの', () => {

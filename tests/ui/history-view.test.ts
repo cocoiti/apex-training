@@ -13,7 +13,9 @@ import {
   INPUT_METHODS,
   type HistoryElements,
 } from '../../src/ui/history-view';
-import { historyKey, loadHistory, recordHistory, type HistoryEntry } from '../../src/ui/practice-history';
+import { historyKey, loadHistory, recordHistory, recordHistoryEntry, type HistoryEntry } from '../../src/ui/practice-history';
+import { NO_WEAPON_ID } from '../../src/ui/mode-scoring';
+import { aimMode, HIT_COUNT } from '../helpers/aim-modes';
 import { SafeStorage } from '../../src/ui/storage';
 
 /** 値と change・click の登録だけを持つ要素。 */
@@ -303,5 +305,82 @@ describe('履歴の画面', () => {
     page.view.open(LSTAR_GHOST);
     const html = page.elements.plot.innerHTML + page.elements.list.innerHTML + page.elements.averages.innerHTML;
     expect(html).not.toMatch(/<a |<button|download|書き出|エクスポート|送信/);
+  });
+});
+
+describe('武器を使わないモードの履歴の画面', () => {
+  const flick = aimMode({ id: 'flick' });
+  const ghost = modes.find((m) => m.id === 'ghost')!;
+  const FLICK = { input: 'mouse', weaponId: NO_WEAPON_ID, modeId: 'flick' } as const;
+
+  function openAimPage(backing: FakeBacking) {
+    const storage = new SafeStorage(() => backing as unknown as Storage);
+    storage.probe();
+    const elements = {
+      weapon: new FakeControl(),
+      weaponChoice: { hidden: false },
+      mode: new FakeControl(),
+      input: new FakeControl(),
+      averages: { innerHTML: '' },
+      plot: { innerHTML: '' },
+      weak: { innerHTML: '' },
+      list: { innerHTML: '' },
+      empty: { hidden: true, textContent: '' },
+      clear: new FakeControl(),
+      unavailable: { hidden: true, textContent: '' },
+      body: { inert: false },
+      confirm: { root: { hidden: true }, message: { textContent: '' }, ok: new FakeControl(), cancel: new FakeControl() },
+    };
+    const view = bindHistoryView(elements satisfies HistoryElements, { storage, now: () => NOW, modes: [ghost, flick] });
+    return { storage, elements, view };
+  }
+
+  it('UI-96: 武器の欄を隠し、推移と一覧と平均がそのモードの比べる指標になり、発の区間の図と苦手な区間を出さない。反復練習に戻すと戻る', () => {
+    const backing = new FakeBacking();
+    const page = openAimPage(backing);
+    [10, 14, 12].forEach((hits) => recordHistoryEntry(page.storage, FLICK, HIT_COUNT, { value: hits, fields: { shots: 20 } }, NOW));
+    for (let i = 0; i < 5; i += 1) recordHistory(page.storage, LSTAR_GHOST, result(0.5), NOW);
+    page.view.open({ input: 'mouse', weaponId: 'lstar', modeId: 'ghost' });
+    expect(page.elements.weak.innerHTML).toContain('data-plot="sections"');
+
+    page.elements.mode.select('flick');
+    expect(page.elements.weaponChoice.hidden).toBe(true);
+    expect(pointCount(page.elements.plot.innerHTML)).toBe(3);
+    expect(page.elements.plot.innerHTML).toContain('命中数の推移');
+    expect(page.elements.plot.innerHTML).not.toContain('°');
+    expect([...page.elements.list.innerHTML.matchAll(/data-field="hits">([^<]*)</g)].map((m) => m[1])).toEqual(['10', '14', '12']);
+    expect(page.elements.list.innerHTML).toContain('<th>命中数</th><th>撃った弾数</th>');
+    expect(page.elements.list.innerHTML).not.toContain('平均ズレ');
+    expect(page.elements.averages.innerHTML).toContain('<dt>全体の平均</dt><dd>12</dd>');
+    expect(page.elements.weak.innerHTML).toBe('');
+
+    page.elements.mode.select('ghost');
+    expect(page.elements.weaponChoice.hidden).toBe(false);
+    expect(page.elements.weapon.value).toBe('lstar');
+    expect(page.elements.plot.innerHTML).toContain('平均ズレの推移');
+    expect(page.elements.weak.innerHTML).toContain('data-plot="sections"');
+  });
+
+  it('最後に終えた練習が武器を使わないモードなら、その組で開き、武器の選択は変えない', () => {
+    const page = openAimPage(new FakeBacking());
+    recordHistoryEntry(page.storage, FLICK, HIT_COUNT, { value: 3 }, NOW);
+    page.elements.weapon.value = 'car';
+    const selection = initialHistorySelection(FLICK, ['lstar', 'car'], ['ghost', 'flick']);
+    expect(selection).toEqual(FLICK);
+    page.view.open(selection);
+    expect(page.elements.weapon.value).toBe('car');
+    expect(pointCount(page.elements.plot.innerHTML)).toBe(1);
+  });
+
+  it('武器を使わないモードの組を消すと、その組だけが消える', () => {
+    const backing = new FakeBacking();
+    const page = openAimPage(backing);
+    recordHistoryEntry(page.storage, FLICK, HIT_COUNT, { value: 3 }, NOW);
+    recordHistory(page.storage, LSTAR_GHOST, result(0.5), NOW);
+    page.view.open(FLICK);
+    page.elements.clear.fire();
+    page.elements.confirm.ok.fire();
+    expect(backing.items.has(historyKey(FLICK))).toBe(false);
+    expect(backing.items.has(historyKey(LSTAR_GHOST))).toBe(true);
   });
 });
