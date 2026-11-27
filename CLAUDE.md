@@ -8,6 +8,8 @@ Issue 駆動。SPEC（`docs/spec/`）はプロダクト全体の仕様で、Issu
 PR で SPEC と実装・テストを一緒に更新する。立ち上げ時点では SPEC が実装より先にあり、MVP の Issue は
 「SPEC に合わせて実装する」ものになる。
 
+- 新しく足す受け入れ条件の ID は `<接頭辞>-<Issue 番号>-<その Issue の中の番号>`（例: Issue #81 なら `UI-81-1`）。
+  前からある `UI-43` などの ID は付け替えず、消した ID は欠番にして再利用しない（`docs/spec/README.md`「受け入れ条件の ID」）。
 - 決定の理由は ADR（`docs/adr/`）。目次の `docs/adr/README.md` だけを読み、関係するファイルを開く。
 - MVP の外の予定と未決定の事項は `docs/roadmap.md`。元の企画書は `docs/proposal.md`（更新しない）。
 

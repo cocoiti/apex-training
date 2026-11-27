@@ -7,6 +7,8 @@
   ほかのブラウザを使うファイルには、名前にその ID を含むテストを置かない（ARC-29。`tests/architecture/test-coverage.test.ts` が確かめる）。
 - テストの名前は、囲む `describe` の名前とテストの名前をつないだもの（Vitest が表示する名前）。`describe` に ID を書けば、その中のテストがその ID を確かめる。
 - ブラウザを使うテストの名前に受け入れ条件の ID を書いたら、この表にも行を足す。ファイルを移すときは表の行も移す。
+- ID は前からある `UI-43` の形と、新しく足す `UI-81-1`（`<接頭辞>-<Issue 番号>-<その Issue の中の番号>`）の形のどちらも同じように書く。
+  `UI-81-1` は 1 つの ID で、`UI-81` を確かめたことにはならない（docs/spec/README.md「受け入れ条件の ID」）。
 - 同じ武器 × モードの組み合わせを複数のファイルで最後まで練習しない（武器 × モードのすべての組は MODE-1 の持ち主が流す）。
 - ブラウザのテストは、描画を確かめるもののほかは `render=off` で、時間を決めている所は `clock=manual` で開く
   （`tests/helpers/browser.ts` の `appUrl`・`Page.advanceClock`・`Page.advanceClockUntil`）。
