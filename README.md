@@ -4,5 +4,6 @@
 
 ## 公開
 
-GitHub Actions は止めているため、手動で公開する。`npm run deploy` でビルドし、`gh-pages` ブランチのルートに push する
-（公開先は https://cocoiti.github.io/apex-training/ 、リポジトリの Pages の設定は「Deploy from a branch」の `gh-pages` / `(root)`）。
+公開先は https://cocoiti.github.io/apex-training/ 。`main` に push したコミットで CI（`.github/workflows/ci.yml`）が成功したあとに、
+公開のワークフロー（`.github/workflows/deploy.yml`）がそのコミットをビルドして GitHub Pages に公開する。CI が失敗したとき・PR では公開しない。
+手で公開し直すときは `gh workflow run deploy.yml`（`main` の今のコミットを公開する）。リポジトリの Pages の公開元は「GitHub Actions」にする。

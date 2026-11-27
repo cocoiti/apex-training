@@ -17,7 +17,7 @@ RUN npm ci
 
 COPY . .
 
-# .git はイメージに入れない（.dockerignore）。公開のテスト（tests/acceptance/deploy.acceptance.test.ts）がこのディレクトリを
+# .git はイメージに入れない（.dockerignore）。受け入れテスト（tests/acceptance/test-run-qa.acceptance.test.ts など）がこのディレクトリを
 # git のリポジトリとして clone するので、コピーしたソースを 1 つのコミットにしておく（clone は --no-hardlinks で行う。
 # イメージの層からコンテナの層への hardlink は、overlayfs によっては git の確認で失敗する）。
 RUN git init --quiet --initial-branch=main \

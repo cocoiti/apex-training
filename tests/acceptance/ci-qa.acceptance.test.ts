@@ -3,7 +3,7 @@
 // 実装の内部には依存しない。
 //
 // いつも流す確認:
-// - ワークフローの設定を読み、走るきっかけ・runner・ジョブの分け方と段の順・失敗で止まること・まとめのジョブ・取り消し・公開の手順がないことを確かめる。
+// - ワークフローの設定を読み、走るきっかけ・runner・ジョブの分け方と段の順・失敗で止まること・まとめのジョブ・取り消し・CI のワークフローに公開の手順がないことを確かめる。
 // - CI が実行するコマンド（ワークフローの run と env）を手元でそのとおりに実行し、テストの失敗・lint の誤りで失敗すること（ARC-58）、
 //   Chromium が見つからないときにブラウザを使うテストが飛ばされて成功にならないこと（ARC-60）を確かめる。
 // GitHub での実際の実行の確認（ARC-57・ARC-59・ARC-60・ARC-97-6 の実行の記録）は、ネットワークと push が要るため APEX_ACCEPTANCE_LIVE=1 のときだけ流す。
@@ -846,15 +846,16 @@ describe('ARC-61: CI は ubuntu-latest の runner だけを使い、GitHub Pages
     }
   });
 
-  it('gh-pages ブランチへの push や GitHub Pages への公開の手順がない', () => {
-    for (const w of workflows()) {
-      expect(w.source, w.file).not.toMatch(/gh-pages/);
-      expect(w.source, w.file).not.toMatch(/deploy-pages|upload-pages-artifact|configure-pages|peaceiris|JamesIves/i);
-      expect(w.source, w.file).not.toMatch(/npm run deploy|git push/);
-      expect(w.source, w.file).not.toMatch(/^\s*(pages|contents|id-token)\s*:\s*write/m);
-      for (const [name, job] of jobsOf(w)) {
-        expect(job.environment, `${w.file} のジョブ ${name} に公開先の environment がない`).toBeUndefined();
-      }
+  // GitHub Pages への公開は別の公開のワークフロー（deploy.yml、ARC-104-1〜ARC-104-3）が行う。CI のワークフローには公開の手順がない。
+  it('CI のワークフロー（ci.yml）に gh-pages ブランチへの push や GitHub Pages への公開の手順がない', () => {
+    const w = ciWorkflow();
+    expect(w.file).toBe('ci.yml');
+    expect(w.source, w.file).not.toMatch(/gh-pages/);
+    expect(w.source, w.file).not.toMatch(/deploy-pages|upload-pages-artifact|configure-pages|peaceiris|JamesIves/i);
+    expect(w.source, w.file).not.toMatch(/npm\s+run\s+deploy|git push/);
+    expect(w.source, w.file).not.toMatch(/^\s*(pages|contents|id-token)\s*:\s*write/m);
+    for (const [name, job] of jobsOf(w)) {
+      expect(job.environment, `${w.file} のジョブ ${name} に公開先の environment がない`).toBeUndefined();
     }
   });
 });

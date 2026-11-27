@@ -273,6 +273,7 @@ describe.skipIf(!HAS_BEFORE)(`QA ARC-101-5: 前の状態（${BEFORE}）と今の
   it('前に「置き換え済み」だった ADR は superseded、「承認」か「一部置き換え済み」だった ADR は accepted か withdrawn', () => {
     const problems: string[] = [];
     let seen = 0;
+    const beforeNames = new Set(beforeAdrs().map(({ file }) => file.replace(/\.md$/, '')));
     for (const { file, text } of beforeAdrs()) {
       const { value } = splitOldStatus(text);
       const path = join(ADR_DIR, file);
@@ -281,10 +282,13 @@ describe.skipIf(!HAS_BEFORE)(`QA ARC-101-5: 前の状態（${BEFORE}）と今の
         continue;
       }
       if (!existsSync(path)) continue;
-      const status = parseFront(readFileSync(path, 'utf8'))?.meta.status;
+      const meta = parseFront(readFileSync(path, 'utf8'))?.meta;
+      const status = meta?.status;
+      // 前の版のあとで書いた ADR に置き換えられたもの（前の版の docs/adr/ にない ADR を superseded_by が指す）は superseded でよい。
+      const laterSuperseded = status === 'superseded' && !!meta?.superseded_by && !beforeNames.has(meta.superseded_by);
       if (value.startsWith('一部置き換え済み') || value.startsWith('承認')) {
         seen++;
-        if (status !== 'accepted' && status !== 'withdrawn') problems.push(`${file}: 前は「${value}」で今は ${String(status)}`);
+        if (status !== 'accepted' && status !== 'withdrawn' && !laterSuperseded) problems.push(`${file}: 前は「${value}」で今は ${String(status)}`);
       } else if (value.startsWith('置き換え済み')) {
         seen++;
         if (status !== 'superseded') problems.push(`${file}: 前は「置き換え済み」で今は ${String(status)}`);
