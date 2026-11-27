@@ -7,7 +7,7 @@
 //   APEX_ACCEPTANCE_ID_RULE=1 のときだけ（npm test はブラウザのテストを含み時間がかかり、npm test の中で流すと入れ子になる）。
 //   APEX_ACCEPTANCE_ID_RULE=1 npx vitest run --project unit tests/acceptance/acceptance-id-rule-qa.acceptance.test.ts
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -172,11 +172,20 @@ describe('ARC-96-3: UI-999-1 と UI-999 は別の ID として照らす', () => 
   }, TIMEOUT);
 });
 
+/**
+ * main との分かれ目のコミット。ROOT が git の作業ツリーで main があるときだけ（ほかの受け入れテストが作る写しは
+ * .git がないか、コミットのない git init だけなので、そこでは main との比べを飛ばす）。
+ */
+const BASE = (() => {
+  const top = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: ROOT, encoding: 'utf8' });
+  if (top.status !== 0 || realpathSync(top.stdout.trim()) !== realpathSync(ROOT)) return undefined;
+  const base = spawnSync('git', ['merge-base', 'HEAD', 'main'], { cwd: ROOT, encoding: 'utf8' });
+  return base.status === 0 ? base.stdout.trim() : undefined;
+})();
+
 /** main との分かれ目の版のファイル（なければ undefined）。 */
 function atBase(file: string): string | undefined {
-  const base = spawnSync('git', ['merge-base', 'HEAD', 'main'], { cwd: ROOT, encoding: 'utf8' });
-  if (base.status !== 0) return undefined;
-  const show = spawnSync('git', ['show', `${base.stdout.trim()}:${file}`], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const show = spawnSync('git', ['show', `${BASE}:${file}`], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   return show.status === 0 ? show.stdout : undefined;
 }
 
@@ -184,7 +193,7 @@ const OLD_ROW = /^\|\s*([A-Z]{2,5}-\d+)\s*\|.*$/gm;
 const OLD_SPEC_ID = /\*\*([A-Z]{2,5}-\d+)\*\*/g;
 
 describe('ARC-96-4: 前からある <接頭辞>-<番号> の形の ID は付け替わらず、npm test と npm run lint が通る', () => {
-  it('main との分かれ目の版の表にあった <接頭辞>-<番号> の形の行は、どれもそのまま表に残っている', () => {
+  it.skipIf(!BASE)('main との分かれ目の版の表にあった <接頭辞>-<番号> の形の行は、どれもそのまま表に残っている', () => {
     const before = atBase(README);
     expect(before, 'main との分かれ目の版の表を読めない').toBeDefined();
     const oldRows = [...before!.matchAll(OLD_ROW)].map((m) => m[0].trim());
@@ -193,7 +202,7 @@ describe('ARC-96-4: 前からある <接頭辞>-<番号> の形の ID は付け�
     expect(oldRows.filter((row) => !now.has(row))).toEqual([]);
   });
 
-  it('main との分かれ目の版の SPEC にあった <接頭辞>-<番号> の形の ID は、どれも SPEC に残っている', () => {
+  it.skipIf(!BASE)('main との分かれ目の版の SPEC にあった <接頭辞>-<番号> の形の ID は、どれも SPEC に残っている', () => {
     const files = ['architecture.md', 'input.md', 'modes.md', 'mouse.md', 'overview.md', 'pad.md', 'scoring.md', 'screens.md', 'weapons.md'];
     const missing: string[] = [];
     let count = 0;
