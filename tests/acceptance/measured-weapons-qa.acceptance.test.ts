@@ -219,7 +219,7 @@ describe.skipIf(NESTED || !chromium)('計測した武器だけを選択肢に出
     await page.addInitScript(PAGE_INIT);
     await page.addInitScript(FAKE_PAD);
     await page.evaluate('window.__beforeReload = true');
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false, timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="top"]')`, 15_000);
     return page;
   }

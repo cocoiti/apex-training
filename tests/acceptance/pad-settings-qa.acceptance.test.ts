@@ -263,7 +263,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   }: { pads?: PadDef[]; seed?: Record<string, string>; clock?: boolean; render?: boolean } = {}): Promise<Page> {
     const page = await browser!.newPage();
     await page.addInitScript(PAGE_INIT);
-    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock: clock, seed: SEED }));
+    await page.goto(appUrl(origin, BASE, '#/', { render, manualClock: clock, seed: SEED }), { timeout: 15_000 });
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]);
       sessionStorage.setItem('__qaPads', ${JSON.stringify(JSON.stringify(pads))}); })()`);
     await reload(page);
@@ -274,7 +274,7 @@ describe.skipIf(NESTED || !chromium)('QA: パッドの設定・キャリブレ�
   /** 再読み込みする（つないだパッドの定義と localStorage は残る）。 */
   async function reload(page: Page) {
     await page.evaluate('window.__beforeReload = true');
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false, timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && !!window.__pads`, 15_000);
     await page.frames(5);
   }

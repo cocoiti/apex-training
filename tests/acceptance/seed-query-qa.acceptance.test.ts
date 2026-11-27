@@ -240,7 +240,7 @@ describe.skipIf(NESTED || !chromium)('QA: URL の seed による練習の乱数�
     await page.evaluate(`localStorage.clear()`);
     await page.addInitScript(PAGE_INIT);
     await page.evaluate(`window.__beforeReload = true`);
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false, timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && ${TOP_READY}`, 15_000);
     return page;
   }

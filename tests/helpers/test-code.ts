@@ -91,6 +91,21 @@ export function findFixedSleeps(file: string, source: string): TestCodeViolation
 }
 
 /**
+ * ページを開く・読み込み直す操作を、ブラウザの道具（Page.goto・Page.reload）を通さずに行う書き方。
+ * 道具を通さないと、アプリのデータの読み込みが終わる（data-app-state が ready か error になる）のを待たずに次へ進む
+ * （docs/spec/architecture.md「テストのための読み込みの完了の印」）。
+ */
+const DIRECT_LOAD_PATTERNS: [RegExp, string][] = [
+  [/['"`]Page\.(?:navigate|reload)['"`]/, 'DevTools の Page.navigate・Page.reload を直接送っている（page.goto・page.reload を使う）'],
+  [/\blocation\.reload\s*\(/, 'ページの中で location.reload() を呼んでいる（page.reload を使う）'],
+];
+
+/** ARC-103-2: ページを開く・読み込み直す操作を、データの読み込みを待つブラウザの道具を通さずに行っている箇所。 */
+export function findDirectLoads(file: string, source: string): TestCodeViolation[] {
+  return scan(file, source, DIRECT_LOAD_PATTERNS);
+}
+
+/**
  * 練習の入力（照準のスティック・fire / ADS のボタン・マウスのボタン）を倒す・押す書き方。照準の移動量や撃つ弾の数が、
  * 戻す・離すまでの長さで変わる入力だけを見る（A / B などの画面の操作のボタンや、キーボードのキーは押し始めだけが操作になる）。
  * 標準配置の右スティックは軸 2・3、R2 はボタン 7、L2 はボタン 6。

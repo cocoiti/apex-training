@@ -28,7 +28,7 @@ const chromium = findChromium();
 
 /** #/settings を直接開き、設定画面が表示され、武器データ（JSON）の読み込みが 404 にならないことを確かめる。 */
 async function expectSettingsWithWeapons(page: Page, url: string) {
-  await page.goto(url);
+  await page.goto(url, { timeout: 20_000 });
   await page.waitFor(`document.querySelector('[data-screen="settings"]') && !document.querySelector('[data-screen="settings"]').hidden`, 20_000);
   // 武器データ（JSON）の読み込みが終わって選択肢に出るまで待つ。
   await page.waitFor(

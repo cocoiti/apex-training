@@ -138,7 +138,7 @@ async function show(page: Page, hash: string, screen: string) {
 /** ページを読み込み直し、screen が表示されるまで待つ。 */
 async function reload(page: Page, screen: string) {
   await page.evaluate('window.__beforeReload = true');
-  await page.send('Page.reload', { ignoreCache: false });
+  await page.reload({ ignoreCache: false, timeout: 15_000 });
   await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="${screen}"]')`, 15_000);
   await page.frames(3);
 }
@@ -269,7 +269,7 @@ describe.skipIf(NESTED || !chromium)('QA: 画面の表示の計測', () => {
     if (opts.pad) await page.addInitScript(FAKE_PAD);
     for (const s of opts.init ?? []) await page.addInitScript(s);
     requests.length = 0;
-    await page.goto(appUrl(origin, BASE, hash, { render: false, manualClock: opts.manualClock ?? false, seed: SEED }));
+    await page.goto(appUrl(origin, BASE, hash, { render: false, manualClock: opts.manualClock ?? false, seed: SEED }), { timeout: 15_000 });
     await page.waitFor(`window.__vis('[data-screen="${screen}"]')`, 15_000);
     await page.frames(3);
     return { page, requests };

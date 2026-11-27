@@ -99,7 +99,7 @@ describe.skipIf(NESTED || !chromium)('render=off と clock=manual（QA）', () =
     const page = await browser!.newPage();
     for (const script of [PAGE_INIT, ...extra]) await page.addInitScript(script);
     await page.addInitScript(`if (!sessionStorage.getItem('__qa')) { localStorage.clear(); sessionStorage.setItem('__qa', '1'); }`);
-    await page.goto(appUrl(origin, BASE, '#/', { ...options, seed: SEED }));
+    await page.goto(appUrl(origin, BASE, '#/', { ...options, seed: SEED }), { timeout: 15_000 });
     await page.waitFor(`window.__shown('[data-screen="top"]') && document.querySelector('#weapon').options.length > 0`, 15_000);
     return page;
   }

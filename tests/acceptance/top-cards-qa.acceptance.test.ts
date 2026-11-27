@@ -218,7 +218,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     if (opts.pad) await page.addInitScript(FAKE_PAD);
     if (opts.init) await page.addInitScript(opts.init);
     await page.evaluate(`window.__beforeReload = true`);
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false, timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && ${TOP_READY}`, 15_000);
     return page;
   }
@@ -521,7 +521,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     const page = await browser!.newPage();
     requests = [];
     await page.addInitScript(PAGE_INIT);
-    await page.goto(appUrl(origin, BASE, '#/', { render: false, seed: SEED }));
+    await page.goto(appUrl(origin, BASE, '#/', { render: false, seed: SEED }), { timeout: 15_000 });
     await page.waitFor(TOP_READY, 15_000);
     await page.evaluate(`document.fonts.ready.then(() => true)`);
     await page.frames(5);

@@ -9,7 +9,7 @@ import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import config, { BROWSER_WORKERS_ENV, browserTestFiles, browserWorkers, DEFAULT_BROWSER_WORKERS, listTestFiles, usesChromium } from '../../vite.config';
 import { listenOnFreePort, originOf, portOf } from '../helpers/server';
-import { codeOnly, findFixedPorts, findFixedSleeps, findRealTimeHolds } from '../helpers/test-code';
+import { codeOnly, findDirectLoads, findFixedPorts, findFixedSleeps, findRealTimeHolds } from '../helpers/test-code';
 import { waitUntil } from '../helpers/wait';
 
 const ROOT = resolve(__dirname, '../..');
@@ -200,6 +200,33 @@ describe('ARC-22: ブラウザを使うテストは決まった時間の sleep �
     let n = 0;
     expect(await waitUntil(() => (n += 1) >= 3 && n, '3 回目', { interval: 0 })).toBe(3);
     await expect(waitUntil(() => false, '来ない状態', { timeout: 30, interval: 5 })).rejects.toThrow(/来ない状態/);
+  });
+});
+
+describe('ARC-103-2: ブラウザを使うテストは、ページを開く・読み込み直す操作をデータの読み込みを待つ道具で行う', () => {
+  it('ブラウザを使うテストのコードに、Page.navigate・Page.reload を直接送る箇所や location.reload() を呼ぶ箇所がない', () => {
+    const files = browserTestFiles(ROOT);
+    expect(files.length).toBeGreaterThan(0);
+    const found = files.flatMap((f) => findDirectLoads(f, readFileSync(join(ROOT, f), 'utf8')));
+    expect(found).toEqual([]);
+  });
+
+  it.each([
+    "await page.send('Page.reload', { ignoreCache: false });",
+    "await page.send('Page.navigate', { url });",
+    "await page.evaluate('window.__beforeReload = true; location.reload()');",
+    'await page.evaluate(`(() => { localStorage.clear(); location.reload(); })()`);',
+  ])('道具を通さずに開く・読み込み直す書き方を見つける: %s', (line) => {
+    expect(findDirectLoads('x.ts', line).length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    'await page.reload({ ignoreCache: false });',
+    "await page.goto(appUrl(origin, BASE, '#/', { seed: SEED }));",
+    "await page.goto(appUrl(origin, BASE, '#/', { seed: SEED }), { waitForApp: false });",
+    "await page.evaluate(`location.hash = '#/history'`);",
+  ])('道具で開く・読み込み直す書き方は見つけない: %s', (line) => {
+    expect(findDirectLoads('x.ts', line)).toEqual([]);
   });
 });
 

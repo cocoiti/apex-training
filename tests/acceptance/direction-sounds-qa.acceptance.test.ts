@@ -378,7 +378,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正の向きの音（UI-77〜UI-85�
     await page.goto(appUrl(origin, BASE, '#/', { render: false, manualClock, seed: SEED }));
     await page.evaluate('localStorage.clear()');
     await page.evaluate('window.__beforeReload = true');
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false, timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="top"]')`, 15_000);
     return page;
   }

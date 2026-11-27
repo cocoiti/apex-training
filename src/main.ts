@@ -34,6 +34,7 @@ import { DirectionSound, ShotSounds, soundBlockedReason, SoundPreview } from './
 import { fullscreenLabel, toggleFullscreen } from './ui/fullscreen';
 import { loadLanguage, localize, onLanguageChange, t } from './ui/i18n';
 import { StatusMessage } from './ui/status-message';
+import { AppStateMark } from './ui/app-state';
 import { bindHistoryView, initialHistorySelection, type HistoryElements } from './ui/history-view';
 import { renderHud, type HudElements } from './ui/hud';
 import { renderCalibration, calibrationRadii, type CalibrationElements } from './ui/pad-calibration';
@@ -99,6 +100,11 @@ function exposeTestClock(manual: ManualFrameClock): ManualFrameClock {
 }
 
 const flow = new PracticeFlow();
+/**
+ * データの読み込みの状態の印（docs/spec/architecture.md「テストのための読み込みの完了の印」）。
+ * index.html の <html> が最初から loading を持ち、トップ画面のカードと履歴の画面の選択肢を作り終えたら ready、読み込めなければ error にする。
+ */
+const appState = new AppStateMark(document.documentElement);
 /** 読み込みが終わった App。終わる前の画面の操作は捨てる（あとから古い画面の操作として効かないように）。 */
 let readyApp: App | undefined;
 // 保存したパッドのボタン割り当て。描画のたびに引くのでメモリに持つ（docs/spec/pad.md「ボタン割り当て」）。
@@ -604,6 +610,7 @@ async function start(): Promise<void> {
   const parsed = parseMap(await fetchMapJson('range'));
   if (!parsed.ok) {
     statusLine?.show('play.mapError', { errors: parsed.errors.map((e) => `${e.path} ${e.message}`).join(' / ') });
+    appState.fail();
     return;
   }
   const map: MapData = parsed.map;
@@ -612,6 +619,7 @@ async function start(): Promise<void> {
   const weapons = await loadWeapons();
   if (weapons.length === 0 || modes.length === 0) {
     statusLine?.show('play.dataError');
+    appState.fail();
     return;
   }
   fillWeaponSelect(weaponSelect, weapons);
@@ -1136,9 +1144,12 @@ async function start(): Promise<void> {
 
   readyApp = { begin, abort, openHistory, control, enter };
   resolveApp(readyApp);
+  // 読み込みが終わる前に入った画面の操作（開始・履歴の画面を開く）は、appReady を待っている then が続けて行う。
+  appState.ready();
 }
 
 startShell();
 void start().catch((error: unknown) => {
   statusLine?.showText(String(error));
+  appState.fail();
 });

@@ -131,7 +131,7 @@ describe.skipIf(NESTED || !chromium)('画面の表示の計測', () => {
     if (consent) saved[ANALYTICS_CONSENT_KEY] = consent;
     await page.evaluate(`(() => { localStorage.clear(); for (const [k, v] of Object.entries(${JSON.stringify(saved)})) localStorage.setItem(k, v); })()`);
     await page.addInitScript(PAGE_INIT + init);
-    await page.goto(appUrl(origin, BASE, hash, { render: false, manualClock, seed: SEED }));
+    await page.goto(appUrl(origin, BASE, hash, { render: false, manualClock, seed: SEED }), { timeout: 15_000 });
     await page.waitFor(READY, 15_000);
     return { page, requests };
   }
@@ -144,7 +144,8 @@ describe.skipIf(NESTED || !chromium)('画面の表示の計測', () => {
     await page.waitFor(screenVisible(screen));
   };
   const reload = async (page: Page) => {
-    await page.evaluate(`window.__beforeReload = true; location.reload()`);
+    await page.evaluate(`window.__beforeReload = true`);
+    await page.reload({ timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && ${READY}`, 15_000);
   };
   /**

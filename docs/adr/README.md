@@ -32,7 +32,7 @@ SPEC（`docs/spec/`）はプロダクトが今どう振る舞うかを書く。A
 <!-- adr-index:start -->
 | ドメイン | 有効な ADR | 目次 |
 |---------|-----------|------|
-| architecture | 23 | [index/architecture.md](index/architecture.md) |
+| architecture | 24 | [index/architecture.md](index/architecture.md) |
 | cross | 1 | [index/cross.md](index/cross.md) |
 | input | 3 | [index/input.md](index/input.md) |
 | modes | 11 | [index/modes.md](index/modes.md) |

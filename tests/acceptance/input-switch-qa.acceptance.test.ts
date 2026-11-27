@@ -191,7 +191,7 @@ describe.skipIf(NESTED || !chromium)('QA: 入力方式の切替（INP-9〜INP-14
     await page.goto(appUrl(origin, BASE, '#/', { render, manualClock, seed: SEED }));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]); })()`);
     await page.evaluate('window.__beforeReload = true');
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false, timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && !!document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`, 15_000);
     return page;
   }
