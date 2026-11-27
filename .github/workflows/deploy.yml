@@ -1,0 +1,61 @@
+# GitHub Pages への公開（docs/spec/architecture.md「公開のワークフロー」、ARC-104-1〜ARC-104-4、docs/spec/overview.md「公開」）。
+# - main への push で走った CI（ci.yml）の実行が成功で終わったとき、その CI が流れたコミットをビルドして公開する。
+#   CI が失敗・取り消しのときは公開のジョブを走らせない（ビルドもしない）。
+# - 手で走らせたとき（gh workflow run deploy.yml）は main の今のコミットをビルドして公開する。
+# - PR のイベントでは走らない。GitHub Pages への公開はこのワークフローだけが行う。
+# 公開の方法の理由は docs/adr/2026-11-28-pages-deploy-workflow-after-ci.md。
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 公開が走っている間に次の公開が始まっても、走っている公開は取り消さない。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: 公開
+    # 手で走らせたとき、または main への push で走った CI が成功したときだけ走る。
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # CI が流れたコミット（workflow_run.head_sha）を公開する。手で走らせたときは main。
+          ref: ${{ github.event.workflow_run.head_sha || 'main' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          # CI の検査のジョブと同じ版。
+          node-version: 22
+          cache: npm
+
+      - name: 依存の導入
+        run: npm ci
+
+      - name: ビルド
+        run: npm run build
+
+      - name: Pages の成果物の作成
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Pages への公開
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,8 +1,9 @@
 ---
-status: accepted
+status: superseded
 domain: architecture
 summary: GitHub Pages へは自前のスクリプトで一時的な作業ツリーから gh-pages ブランチへ手動で push して公開する
 related: [docs/spec/overview.md, scripts/deploy.mjs, package.json]
+superseded_by: 2026-11-28-pages-deploy-workflow-after-ci
 ---
 # GitHub Pages へは自前のスクリプトで gh-pages ブランチに手動で push して公開する
 

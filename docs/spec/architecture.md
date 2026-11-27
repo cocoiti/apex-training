@@ -247,7 +247,28 @@ src/
 - CI では、Chromium が見つからないときにブラウザを使うテストを飛ばして成功にしない。Chromium が見つからなければ、そのブラウザのテストのジョブが失敗になる。
   また、流れたブラウザを使うテストが 1 件もない組のジョブ（その組に入るファイルがない、全部が飛ばされたなど）は成功にせず、失敗にする。
 - 同じブランチ（同じ PR）で新しい push があったら、そのブランチで走っている古い実行は（すべてのジョブを）取り消し、新しい実行だけを残す。
-- CI は macOS・Windows の runner を使わない。GitHub Pages への公開（`gh-pages` ブランチへの push）は CI では行わず、今までどおり手動（`npm run deploy`）で行う。
+- CI は macOS・Windows の runner を使わない。CI のワークフローは GitHub Pages への公開をしない（公開は下の「公開のワークフロー」だけが行う）。
+
+### 公開のワークフロー
+
+- リポジトリの GitHub Actions に、CI のワークフロー（`.github/workflows/ci.yml`）とは別のファイルで、GitHub Pages へ公開するワークフロー
+  （`.github/workflows/deploy.yml`）が 1 つある。GitHub Pages への公開は、このワークフローだけが行う。
+- 次のときに走る。
+  - CI のワークフローの実行が終わったとき（`workflow_run` の `completed`）。対象は `main` のブランチの、`main` への push で走った実行だけ
+    （`branches: [main]`、実行のきっかけが `push`）。その実行の結果が成功（`conclusion == 'success'`）のときだけ公開のジョブが走り、
+    失敗・取り消し・そのほかの結果のときは公開のジョブを走らせない（ビルドもしない）。
+  - 手で走らせたとき（`workflow_dispatch`。`gh workflow run deploy.yml`）。このときは `main` を公開する。
+  - PR のイベント（`pull_request` など）では走らない。
+- 公開する中身は次のとおりに作る。
+  - `workflow_run` で走ったときは、その CI が流れたコミット（`workflow_run.head_sha`）を取り出す。手で走らせたときは `main` の今のコミットを取り出す。
+  - 依存の導入（`npm ci`。CI の検査のジョブと同じ版の Node.js）→ ビルド（`npm run build`）を流し、出た `dist/` を公開する。
+    ビルドの設定は手元の `npm run build` と同じで、サブパス `/apex-training/` で配信できる `dist/` になる。GTM のコンテナ ID はビルドの設定に書いた値が入り、
+    GitHub Actions の secret は使わない。
+- 公開の方法は GitHub 公式の `actions/upload-pages-artifact`（`dist/` を Pages の成果物にする）と `actions/deploy-pages`（その成果物を Pages に公開する）を使う。
+  `gh-pages` ブランチやほかのブランチへ push する手順はない。
+- ジョブはすべて `ubuntu-latest` の runner で動く。ワークフローの `permissions` は `contents: read`・`pages: write`・`id-token: write` の 3 つだけ。
+- `concurrency` の組は `pages` の 1 つで、`cancel-in-progress: false` にする。公開が走っている間に次の公開が始まっても、走っている公開は取り消さない。
+- 公開のどの段か（取り出し・依存の導入・ビルド・成果物の作成・公開）が失敗したときは、その実行は失敗になり、Pages の内容は前回の公開のまま変わらない。
 
 ### Docker でのブラウザのテスト
 
@@ -397,7 +418,7 @@ src/
 - **ARC-58**: ブラウザを使わないテストを 1 件わざと失敗させた状態で PR のブランチに push したとき、検査のジョブとまとめのジョブ（PR のチェック）が失敗になる。lint の誤りを入れた状態で push したときも失敗になる
 - **ARC-59**: CI の実行が走っている途中で同じブランチに新しい push をしたとき、古い実行が取り消され、新しい push の実行だけが結果を残す
 - **ARC-60**: CI で Chromium が見つからない状態になったとき、ブラウザを使うテストが飛ばされて成功になるのではなく、ブラウザのテストのジョブとまとめのジョブ（PR のチェック）が失敗になる。Chromium を導入できたときは、CI の実行の記録で、どのブラウザのテストのジョブでもブラウザを使うテストのファイルが飛ばされずに流れている
-- **ARC-61**: CI のワークフローの設定を調べたとき、使う runner は `ubuntu-latest` だけで（macOS・Windows の runner がない）、`gh-pages` ブランチへの push や GitHub Pages への公開の手順がない
+- **ARC-61**: CI のワークフロー（`.github/workflows/ci.yml`）の設定を調べたとき、使う runner は `ubuntu-latest` だけで（macOS・Windows の runner がない）、`gh-pages` ブランチへの push や GitHub Pages への公開の手順がない
 - **ARC-62**: `CLAUDE.md` を読んだとき、CI があること（走るきっかけと実行する内容）と、GitHub Actions が有効で標準の Linux の runner だけを使うことが書いてあり、Actions を止めている・ワークフローを足しても動かない、という記述がない
 - **ARC-63**: 板の中心を目の位置から 10 メートル先に置いた縮尺 1 の人型の板で、照準を板の中心・頭の中心 (0, +0.35)・右肩の内側 (+0.20, +0.05)・胴の右下の角の内側 (+0.21, −0.28) にそれぞれ向けたステップでは「乗っている」になり、
   頭と肩のあいだの空き (+0.13, +0.25)、胴の右の辺のすぐ外 (+0.24, 0)、頭のてっぺんのすぐ上 (0, +0.47)、胴の下端のすぐ下 (0, −0.32) に向けたステップでは「乗っていない」になる
@@ -431,3 +452,9 @@ src/
 - **ARC-101-3**: `docs/adr/README.md` を読んだとき、手で書いた ADR の一覧の表がなく、`<!-- adr-index:start -->` と `<!-- adr-index:end -->` の間にドメインの一覧がある。`CLAUDE.md` を読んだとき、ADR は `docs/adr/README.md` のドメインの一覧から対象の領域と `cross` の目次（`docs/adr/index/<ドメイン>.md`）だけを読んで関係する ADR を開くことと、ADR を足したら目次を作るスクリプトで作り直すことが書いてある
 - **ARC-101-4**: frontmatter を足す前の各 ADR と今の ADR を比べたとき、本文の違いは、先頭の frontmatter と、消した「状態:」の行（一部が置き換わった説明を本文の節に移したものを含む）だけである
 - **ARC-101-5**: frontmatter を足す前に状態が「置き換え済み」だった ADR はすべて `status` が `superseded` で、「承認」か「一部置き換え済み」だった ADR は `status` が `accepted` か `withdrawn` である
+- **ARC-104-1**: `.github/workflows/deploy.yml` を調べたとき、走るきっかけが CI のワークフローの `workflow_run`（`completed`、`branches: [main]`）と `workflow_dispatch` の 2 つだけで、`pull_request` などの PR のイベントと `push` がなく、公開のジョブ（ビルドを含む）に、`workflow_dispatch` のとき、または `workflow_run` の実行のきっかけが `push` で結果が `success` のときだけ走る条件がある
+- **ARC-104-2**: `.github/workflows/deploy.yml` を調べたとき、`workflow_run` で走ったときに取り出すコミットが `workflow_run.head_sha`、手で走らせたときが `main` で、取り出しのあとに `npm ci` → `npm run build` がこの順にあり、`actions/upload-pages-artifact` が `dist` を成果物にし、`actions/deploy-pages` がそれを公開する。`gh-pages` の文字と `git push` がない
+- **ARC-104-3**: `.github/workflows/deploy.yml` を調べたとき、すべてのジョブの runner が `ubuntu-latest` で、`permissions` が `contents: read`・`pages: write`・`id-token: write` の 3 つだけで、`concurrency` の組が `pages` で `cancel-in-progress` が `false` であり、secret を参照していない
+- **ARC-104-4**: `.github/workflows/deploy.yml` のビルドと同じ手順（`npm ci` → `npm run build`）で作った `dist/` をサブパス `/apex-training/` で配信して `#/settings` を直接開いたとき、設定画面が表示され、武器データの読み込みが 404 にならない（`npm run check:subpath` が成功する）
+- **ARC-104-5**: `CLAUDE.md` を読んだとき、コマンドの表に GitHub Pages へ公開する行がなく、CI の節に公開のワークフロー（`main` の CI が成功したときに走ること、手で走らせる `gh workflow run deploy.yml`、PR では走らないこと）が書いてあり、「守ること」に、公開は `deploy.yml` だけが行い CI が成功した `main` のコミットだけを公開することと、`ubuntu-latest` の runner だけを使うことが書いてある
+- **ARC-104-6**: `docs/adr/` を調べたとき、GitHub Actions の公開のワークフローで公開することを決めた ADR が `status: accepted` であり、`2026-11-25-manual-gh-pages-deploy-script` の `status` が `superseded` で `superseded_by` がその ADR を指し、ADR の目次を作るスクリプトを `--check` で実行したとき 0 で終わる

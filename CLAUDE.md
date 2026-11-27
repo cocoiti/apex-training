@@ -33,7 +33,6 @@ Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescrip
 | ビルド | `npm run build`（`dist/` に出る。配信先は `/apex-training/`） |
 | サブパスでの配信の確認 | `npm run build && npm run check:subpath`（ポート 3102） |
 | 配布物の画像・音声・3D モデルが素材の一覧（`src/assets/assets.json`）に載っていることの確認 | `npm run build && npm run check:assets` |
-| GitHub Pages への公開（手動） | `npm run deploy`（ビルドして `gh-pages` ブランチに push する） |
 
 - テストは `tests/` に `src/` と同じ構成で置く（`src/sim/` の依存の確認がテストのファイルを拾わないように）。
 - ブラウザを使うテストのファイルは、`npm test` でも `npm run test:browser` でも既定で 3 つを同時に流す。同時に流す数は環境変数
@@ -75,9 +74,20 @@ GitHub Actions は有効で、GitHub がホストする標準の Linux の runne
 - CI では `APEX_BROWSER_WORKERS=2` にして、組のジョブの中でブラウザを使うテストのファイルを 2 つずつ流す（runner の CPU が 4 つで、3 つでは実時間で動くテストが待ちの上限に当たる）。
 - 同じブランチ（同じ PR）に新しい push があると、走っている古い実行は取り消される。
 
+### 公開のワークフロー
+
+GitHub Pages（https://cocoiti.github.io/apex-training/ ）への公開は、CI とは別のワークフロー `.github/workflows/deploy.yml` が行う。
+
+- `main` に push したコミットで CI が成功したときに走り（`workflow_run`）、その CI が流れたコミットを `npm ci` → `npm run build` でビルドして、
+  `dist/` を Pages に公開する（`actions/upload-pages-artifact` → `actions/deploy-pages`）。CI が失敗・取り消しのときは公開しない。
+- 手で走らせるときは `gh workflow run deploy.yml`（`main` の今のコミットを公開する）。
+- PR を作ったとき・PR のブランチに push したときは走らない。手元から公開するコマンドはない。
+- リポジトリの Pages の公開元は「GitHub Actions」にする。
+
 ## 守ること
 
 - EA / Respawn の画像・ロゴ・武器モデル・効果音を使わない。自作などの画像・音声・3D モデルを足すときは `src/assets/assets.json` に出どころを書く。
 - 補正値のエクスポートや外部デバイスとの連携など、チートに転用できる出力を作らない。
 - `src/sim/` から Three.js と DOM を参照しない。
-- CI は GitHub がホストする標準の Linux の runner（`ubuntu-latest`）だけで動かす。macOS・Windows の runner を使わず、`gh-pages` への公開を CI でしない。
+- CI と公開のワークフローは GitHub がホストする標準の Linux の runner（`ubuntu-latest`）だけで動かす。macOS・Windows の runner を使わない。
+- GitHub Pages への公開は `deploy.yml` だけが行い、CI が成功した `main` のコミットだけを公開する（手で走らせたときは `main`）。CI のワークフロー（`ci.yml`）では公開しない。

@@ -5,7 +5,7 @@
 #   check を待たず、1 つの組が失敗してもほかの組は最後まで流す。
 # - summary: check と browser のすべてが終わってから走り、すべて成功したときだけ成功する。PR のチェックはこのジョブで見る。
 # 分け方の理由は docs/adr/2026-11-27-ci-browser-shards.md。
-# GitHub Pages への公開はここでは行わず、今までどおり手元から手動で行う。
+# GitHub Pages への公開はここでは行わない（main の CI が成功したあとに、別の公開のワークフローが行う）。
 name: CI
 
 on:
@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # 公開のテストなどが手元のリポジトリを clone して履歴を見るので、浅い clone にしない。
+          # 受け入れテストが手元のリポジトリを clone して履歴を見るので、浅い clone にしない。
           fetch-depth: 0
 
       - uses: actions/setup-node@v4

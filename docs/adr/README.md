@@ -42,5 +42,5 @@ SPEC（`docs/spec/`）はプロダクトが今どう振る舞うかを書く。A
 | scoring | 4 | [index/scoring.md](index/scoring.md) |
 | screens | 11 | [index/screens.md](index/screens.md) |
 | weapons | 7 | [index/weapons.md](index/weapons.md) |
-| （置き換え済み・廃止・取り下げ） | 1 | [index/inactive.md](index/inactive.md) |
+| （置き換え済み・廃止・取り下げ） | 2 | [index/inactive.md](index/inactive.md) |
 <!-- adr-index:end -->

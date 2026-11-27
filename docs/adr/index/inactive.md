@@ -5,3 +5,4 @@
 | ADR | 決定の要点 | 状態 |
 |-----|-----------|------|
 | [2026-11-25-history-scored-modes-list](../2026-11-25-history-scored-modes-list.md) | 履歴の画面のモードの選択肢は、採点するモードの id と名前の固定の一覧から作る | 置き換え済み → [2026-11-26-all-modes-scored](../2026-11-26-all-modes-scored.md) |
+| [2026-11-25-manual-gh-pages-deploy-script](../2026-11-25-manual-gh-pages-deploy-script.md) | GitHub Pages へは自前のスクリプトで一時的な作業ツリーから gh-pages ブランチへ手動で push して公開する | 置き換え済み → [2026-11-28-pages-deploy-workflow-after-ci](../2026-11-28-pages-deploy-workflow-after-ci.md) |

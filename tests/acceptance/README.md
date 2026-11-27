@@ -32,6 +32,7 @@
 | ARC-47 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/fixed-seed-qa.acceptance.test.ts` |
 | ARC-48 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/fixed-seed-qa.acceptance.test.ts` |
 | ARC-67 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/render-clock-qa.acceptance.test.ts` |
+| ARC-104-4 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/deploy.acceptance.test.ts` |
 | INP-4 | [input.md](../../docs/spec/input.md) | `tests/acceptance/input-recording-qa.acceptance.test.ts` |
 | INP-5 | [input.md](../../docs/spec/input.md) | `tests/acceptance/input-recording-qa.acceptance.test.ts` |
 | INP-6 | [input.md](../../docs/spec/input.md) | `tests/acceptance/input-recording-qa.acceptance.test.ts` |
@@ -102,9 +103,7 @@
 | OVR-4 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/overview.acceptance.test.ts` |
 | OVR-5 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/share-results-qa.acceptance.test.ts` |
 | OVR-6 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/overview.acceptance.test.ts` |
-| OVR-7 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/deploy.acceptance.test.ts` |
 | OVR-8 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/deploy.acceptance.test.ts` |
-| OVR-9 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/deploy.acceptance.test.ts` |
 | OVR-20 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/share-results-qa.acceptance.test.ts` |
 | OVR-21 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |
 | OVR-22 | [overview.md](../../docs/spec/overview.md) | `tests/acceptance/analytics-consent-qa.acceptance.test.ts` |

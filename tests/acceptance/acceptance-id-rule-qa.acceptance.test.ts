@@ -189,6 +189,11 @@ function atBase(file: string): string | undefined {
   return show.status === 0 ? show.stdout : undefined;
 }
 
+/**
+ * 分かれ目のあとで受け入れ条件ごと消して欠番にした ID（docs/spec/README.md「受け入れ条件の ID」）。付け替えではないので、
+ * SPEC と表から消えていてよい。Issue #104 で手元の公開のコマンドをなくしたときに OVR-7・OVR-9 を消した。
+ */
+const REMOVED = new Set(['OVR-7', 'OVR-9']);
 const OLD_ROW = /^\|\s*([A-Z]{2,5}-\d+)\s*\|.*$/gm;
 const OLD_SPEC_ID = /\*\*([A-Z]{2,5}-\d+)\*\*/g;
 
@@ -196,7 +201,7 @@ describe('ARC-96-4: 前からある <接頭辞>-<番号> の形の ID は付け�
   it.skipIf(!BASE)('main との分かれ目の版の表にあった <接頭辞>-<番号> の形の行は、どれもそのまま表に残っている', () => {
     const before = atBase(README);
     expect(before, 'main との分かれ目の版の表を読めない').toBeDefined();
-    const oldRows = [...before!.matchAll(OLD_ROW)].map((m) => m[0].trim());
+    const oldRows = [...before!.matchAll(OLD_ROW)].filter((m) => !REMOVED.has(m[1]!)).map((m) => m[0].trim());
     expect(oldRows.length).toBeGreaterThan(50);
     const now = new Set(read(README).split('\n').map((l) => l.trim()));
     expect(oldRows.filter((row) => !now.has(row))).toEqual([]);
@@ -212,7 +217,7 @@ describe('ARC-96-4: 前からある <接頭辞>-<番号> の形の ID は付け�
       const now = new Set([...read(`docs/spec/${f}`).matchAll(OLD_SPEC_ID)].map((m) => m[1]));
       for (const m of before.matchAll(OLD_SPEC_ID)) {
         count++;
-        if (!now.has(m[1])) missing.push(`${f}: ${m[1]}`);
+        if (!now.has(m[1]) && !REMOVED.has(m[1]!)) missing.push(`${f}: ${m[1]}`);
       }
     }
     expect(count).toBeGreaterThan(100);

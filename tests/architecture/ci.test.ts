@@ -114,10 +114,12 @@ describe('CI のワークフロー', () => {
   const summary = jobs.summary ?? '';
   const runsOf = (job: string) => workflowSteps(job).flatMap((s) => (s.run ? [installsChromium(s.run) ? 'Chromium の導入' : s.run] : []));
 
-  it(`ARC-57: ${WORKFLOW} が 1 つだけあり、PR（作成・更新）と main への push で走る`, () => {
+  it(`ARC-57: CI のワークフローは ${WORKFLOW} の 1 つだけで、PR（作成・更新）と main への push で走る`, () => {
     expect(text, `${WORKFLOW} がない`).not.toBe('');
+    // ほかのワークフローは公開のワークフロー（deploy.yml、ARC-104-1）だけで、PR と push では走らない。
     const workflows = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '.github/workflows'], { cwd: ROOT, encoding: 'utf8' });
-    expect(workflows.stdout.split('\n').filter(Boolean)).toEqual([WORKFLOW]);
+    expect(workflows.stdout.split('\n').filter(Boolean).sort()).toEqual([WORKFLOW, '.github/workflows/deploy.yml']);
+    expect(read('.github/workflows/deploy.yml')).not.toMatch(/^\s+(pull_request|push):/m);
     expect(text).toMatch(/^on:\s*\n\s+pull_request:\s*\n\s+push:\s*\n\s+branches:\s*\[main\]\s*$/m);
   });
 
