@@ -1,6 +1,10 @@
-# CI（docs/spec/architecture.md「継続的インテグレーション（CI）」、ARC-57〜ARC-61）。
-# PR を作ったとき・PR のブランチに push したときと、main に push したときに、ubuntu-latest の 1 つのジョブで
-# lint・テスト（ブラウザを使うものを含む）・ビルド・配布物の検査を順に流す。どれかが失敗したら後の段は流さない。
+# CI（docs/spec/architecture.md「継続的インテグレーション（CI）」、ARC-57〜ARC-61・ARC-97-1〜ARC-97-6）。
+# PR を作ったとき・PR のブランチに push したときと、main に push したときに、ubuntu-latest の runner で次のジョブを流す。
+# - check: lint・ブラウザを使わないテスト・ビルド・配布物の検査を順に流す。どれかが失敗したら後の段は流さない。
+# - browser: ブラウザを使うテストのファイルを 4 つの組（Vitest の --shard）に分け、組ごとに 1 つのジョブで同時に流す。
+#   check を待たず、1 つの組が失敗してもほかの組は最後まで流す。
+# - summary: check と browser のすべてが終わってから走り、すべて成功したときだけ成功する。PR のチェックはこのジョブで見る。
+# 分け方の理由は docs/adr/2026-11-27-ci-browser-shards.md。
 # GitHub Pages への公開はここでは行わず、今までどおり手元から手動で行う。
 name: CI
 
@@ -9,7 +13,7 @@ on:
   push:
     branches: [main]
 
-# 同じブランチ（同じ PR）で新しい push があったら、走っている古い実行を取り消す（ARC-59）。
+# 同じブランチ（同じ PR）で新しい push があったら、走っている古い実行（すべてのジョブ）を取り消す（ARC-59）。
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -24,8 +28,9 @@ env:
 
 jobs:
   check:
+    name: 検査
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,6 +52,37 @@ jobs:
       - name: ブラウザを使わないテスト
         run: npm run test:unit
 
+      - name: ビルド
+        run: npm run build
+
+      - name: サブパスでの配信の確認
+        run: npm run check:subpath
+
+      - name: 配布物が素材の一覧に載っていることの確認
+        run: npm run check:assets
+
+  browser:
+    name: ブラウザのテスト (${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # 1 つの組が失敗しても、ほかの組を取り消さずに最後まで流す（ARC-97-1）。
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 依存の導入
+        run: npm ci
+
       - name: Chromium のキャッシュ
         uses: actions/cache@v4
         with:
@@ -58,19 +94,27 @@ jobs:
         run: npx --yes playwright@${{ env.PLAYWRIGHT_VERSION }} install --with-deps chromium
 
       - name: ブラウザを使うテスト
-        # Chromium が見つからなければ、テストを飛ばして成功にせず失敗にする（ARC-60）。
-        run: npm run test:browser
-        # runner の CPU は 4 つで、ソフトウェアの WebGL で描く Chromium を 3 つ並べると実時間で動くテストが待ちの上限に当たる。
-        # CI では同時に流すファイルを 2 つにする。
+        # 組に入るファイルは Vitest が決める（ファイル単位で、どのファイルもちょうど 1 つの組に入る。ARC-97-2）。
+        run: npm run test:browser -- --shard=${{ matrix.shard }}/4
         env:
+          # Chromium が見つからなければ、テストを飛ばして成功にせず失敗にする（ARC-60）。
+          # 流れたブラウザを使うテストが 1 件もない組も失敗にする（ARC-97-3、vite.config.ts の requireBrowserTestsRan）。
           APEX_REQUIRE_CHROMIUM: '1'
+          # runner の CPU は 4 つで、ソフトウェアの WebGL で描く Chromium を 3 つ並べると実時間で動くテストが待ちの上限に当たる。
+          # ジョブの中で同時に流すファイルを 2 つにする。
           APEX_BROWSER_WORKERS: '2'
 
-      - name: ビルド
-        run: npm run build
+  summary:
+    name: まとめ
+    needs: [check, browser]
+    # 待ったジョブが失敗・取り消しになっても飛ばさずに走り、結果を失敗にする（ARC-97-4）。
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: サブパスでの配信の確認
-        run: npm run check:subpath
-
-      - name: 配布物が素材の一覧に載っていることの確認
-        run: npm run check:assets
+      - name: すべてのジョブの結果の確認
+        run: node scripts/ci-summary.mjs check browser
+        env:
+          NEEDS: ${{ toJSON(needs) }}

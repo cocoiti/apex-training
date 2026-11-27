@@ -1,7 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Plugin } from 'vite';
 import { configDefaults, defineConfig } from 'vitest/config';
+import type { Reporter, TestModule } from 'vitest/node';
 
 // 配信先のサブパス。ビルドの結果は /apex-training/ に置いて配信する（docs/spec/architecture.md ARC-14）。
 export const BASE_PATH = '/apex-training/';
@@ -64,6 +66,68 @@ export function browserWorkers(env: Record<string, string | undefined>): number 
   return Number(raw);
 }
 
+/**
+ * 1 のとき、流れたブラウザを使うテストが 1 件もない実行を失敗にする環境変数。Chromium を必須にする環境変数
+ * （tests/helpers/chromium.ts の REQUIRE_CHROMIUM_ENV）と同じ名前で、CI のブラウザのテストのジョブで 1 にする。
+ * Vite の設定の読み込み（configLoader: native）が拡張子のない import を扱えないので tests/ からは import せず、同じ名前であることはテストで確かめる。
+ */
+export const REQUIRE_BROWSER_TESTS_ENV = 'APEX_REQUIRE_CHROMIUM';
+
+/** ブラウザを使うテストの組の名前（vitest の --project に渡す名前）。 */
+export const BROWSER_PROJECT = 'browser';
+
+/** 1 回の実行でブラウザを使うテストの組から流れた（通った・落ちた）テストと、飛ばされたテストの件数。 */
+export interface BrowserRunCount {
+  ran: number;
+  skipped: number;
+}
+
+/** 終わったテストのファイルのうち、ブラウザを使うテストの組のものから件数を数える。 */
+export function countBrowserTests(modules: ReadonlyArray<Pick<TestModule, 'project' | 'children'>>): BrowserRunCount {
+  const count: BrowserRunCount = { ran: 0, skipped: 0 };
+  for (const m of modules) {
+    if (m.project.name !== BROWSER_PROJECT) continue;
+    for (const test of m.children.allTests()) {
+      const state = test.result().state;
+      if (state === 'passed' || state === 'failed') count.ran++;
+      else count.skipped++;
+    }
+  }
+  return count;
+}
+
+/**
+ * APEX_REQUIRE_CHROMIUM=1 のとき（CI）に、流れたブラウザを使うテストが 1 件もない実行を失敗にする理由。失敗にしないなら undefined。
+ * CI のブラウザのテストのジョブは組（--shard）ごとに分かれるので、組に入るファイルがない・全部が飛ばされたときに
+ * 成功にならないようにする（docs/spec/architecture.md「継続的インテグレーション（CI）」、ARC-97-3）。
+ */
+export function noBrowserTestsRan(env: Record<string, string | undefined>, count: BrowserRunCount): string | undefined {
+  if (env[REQUIRE_BROWSER_TESTS_ENV]?.trim() !== '1' || count.ran > 0) return undefined;
+  return `${REQUIRE_BROWSER_TESTS_ENV}=1 なのに、流れたブラウザを使うテストが 1 件もない（飛ばされたテスト: ${count.skipped} 件）`;
+}
+
+/**
+ * ブラウザを使うテストの組にだけ入れる Vitest のプラグイン。組が実行に含まれるときに報告の受け手を 1 つ足し、
+ * 実行の終わりに noBrowserTestsRan が理由を返したら、それを出して終了コードを 1 にする。
+ * 報告の受け手は設定の reporters ではなくここで足すので、コマンドの --reporter で置き換えても外れない。
+ */
+export function requireBrowserTestsRan(): Plugin {
+  return {
+    name: 'apex-require-browser-tests-ran',
+    configureVitest({ vitest }) {
+      const reporter: Reporter = {
+        onTestRunEnd(modules) {
+          const reason = noBrowserTestsRan(process.env, countBrowserTests(modules));
+          if (reason === undefined) return;
+          vitest.logger.error(reason);
+          process.exitCode = 1;
+        },
+      };
+      vitest.config.reporters.push(reporter);
+    },
+  };
+}
+
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const BROWSER_FILES = browserTestFiles(ROOT);
 // 値を確かめるのは Vitest が設定を読むときだけにする（npm run dev・build は環境変数によらず動く）。
@@ -108,8 +172,9 @@ export default defineConfig({
       },
       {
         extends: true,
+        plugins: [requireBrowserTestsRan()],
         test: {
-          name: 'browser',
+          name: BROWSER_PROJECT,
           sequence: { groupOrder: 1 },
           // 当たるファイルがないときも既定の include に戻らないよう、当たらないパターンを置く。
           include: BROWSER_FILES.length > 0 ? BROWSER_FILES : [`${TEST_DIR}/__no_browser_tests__${TEST_SUFFIX}`],

@@ -1,12 +1,12 @@
-// docs/spec/architecture.md「継続的インテグレーション（CI）」の受け入れ条件（ARC-57〜ARC-62）の受け入れテスト。
+// docs/spec/architecture.md「継続的インテグレーション（CI）」の受け入れ条件（ARC-57〜ARC-62・ARC-97-1〜ARC-97-6）の受け入れテスト。
 // 公開された入口（.github/workflows/ 以下のワークフローの設定、npm のコマンド、CLAUDE.md、GitHub の CI の実行の記録）だけを使い、
 // 実装の内部には依存しない。
 //
 // いつも流す確認:
-// - ワークフローの設定を読み、走るきっかけ・runner・段の順・失敗で止まること・取り消し・公開の手順がないことを確かめる。
+// - ワークフローの設定を読み、走るきっかけ・runner・ジョブの分け方と段の順・失敗で止まること・まとめのジョブ・取り消し・公開の手順がないことを確かめる。
 // - CI が実行するコマンド（ワークフローの run と env）を手元でそのとおりに実行し、テストの失敗・lint の誤りで失敗すること（ARC-58）、
 //   Chromium が見つからないときにブラウザを使うテストが飛ばされて成功にならないこと（ARC-60）を確かめる。
-// GitHub での実際の実行の確認（ARC-57・ARC-59・ARC-60 の実行の記録）は、ネットワークと push が要るため APEX_ACCEPTANCE_LIVE=1 のときだけ流す。
+// GitHub での実際の実行の確認（ARC-57・ARC-59・ARC-60・ARC-97-6 の実行の記録）は、ネットワークと push が要るため APEX_ACCEPTANCE_LIVE=1 のときだけ流す。
 //   見る実行のブランチは APEX_ACCEPTANCE_CI_BRANCH（なければ今のブランチ）。
 // ARC-13 の clone の中で npm test を実行したときに入れ子で重い確認をしないよう、APEX_ACCEPTANCE_NESTED が立っていたら子のプロセスを使う確認を飛ばす。
 // このファイルはブラウザを使う組に入らない（Chromium は子のプロセスの Vitest が使う）。
@@ -221,10 +221,30 @@ function ciWorkflow(): Workflow {
   return ci[0]!;
 }
 
-function onlyJob(w: Workflow): Obj {
-  const jobs = jobsOf(w);
-  expect(jobs, `${w.file} のジョブは 1 つ`).toHaveLength(1);
-  return jobs[0]![1];
+/** 段に stage を持つジョブ（ちょうど 1 つ）。 */
+function jobWithStage(w: Workflow, stage: string): [string, Obj] {
+  const found = jobsOf(w).filter(([, job]) => Array.isArray(job.steps) && stepsOf(job).some((s) => stageOf(runOf(s)) === stage));
+  expect(found.map(([n]) => n), `${w.file} で ${stage} を流すジョブは 1 つ`).toHaveLength(1);
+  return found[0]!;
+}
+
+/** 検査のジョブ（lint を流すジョブ）。 */
+const checkJob = (w: Workflow) => jobWithStage(w, 'npm run lint')[1];
+/** ブラウザのテストのジョブ（test:browser を流すジョブ。matrix で組ごとに 1 つずつ走る）。 */
+const browserJob = (w: Workflow) => jobWithStage(w, 'npm run test:browser')[1];
+
+/** まとめのジョブ（ほかのジョブを needs に持つジョブ。ちょうど 1 つ）。 */
+function summaryJob(w: Workflow): [string, Obj] {
+  const found = jobsOf(w).filter(([, job]) => job.needs !== undefined);
+  expect(found.map(([n]) => n), `${w.file} のまとめのジョブは 1 つ`).toHaveLength(1);
+  return found[0]!;
+}
+
+/** ジョブの設定の name（${{ matrix.xxx }} を含む）から、実行の記録のジョブの名前に当たる正規表現を作る。 */
+function jobNamePattern(id: string, job: Obj): RegExp {
+  const name = typeof job.name === 'string' ? job.name : id;
+  const parts = name.split(/\$\{\{[^}]*\}\}/).map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`^${parts.join('.+?')}$`);
 }
 
 function jobsOf(w: Workflow): [string, Obj][] {
@@ -248,7 +268,7 @@ function stepsOf(job: Obj): Obj[] {
 const runOf = (step: Obj): string => (typeof step.run === 'string' ? step.run.trim() : '');
 
 /** run を持つ段のうち、期待する段のどれに当たるか（当たらなければ undefined）。 */
-const STAGES: { name: string; match: (run: string) => boolean }[] = [
+const STAGE_MATCHERS: { name: string; match: (run: string) => boolean }[] = [
   { name: 'npm ci', match: (r) => /^npm ci(\s|$)/.test(r) },
   { name: 'npm run lint', match: (r) => /^npm run lint(\s|$)/.test(r) },
   { name: 'npm run test:unit', match: (r) => /^npm run test:unit(\s|$)/.test(r) },
@@ -260,8 +280,15 @@ const STAGES: { name: string; match: (run: string) => boolean }[] = [
 ];
 
 function stageOf(run: string): string | undefined {
-  return STAGES.find((s) => s.match(run))?.name;
+  return STAGE_MATCHERS.find((s) => s.match(run))?.name;
 }
+
+/** 検査のジョブが流す段の順。 */
+const CHECK_STAGES = ['npm ci', 'npm run lint', 'npm run test:unit', 'npm run build', 'npm run check:subpath', 'npm run check:assets'];
+/** ブラウザのテストのジョブ（各組）が流す段の順。 */
+const BROWSER_STAGES = ['npm ci', 'Chromium の導入', 'npm run test:browser'];
+/** ブラウザのテストの組の数。 */
+const SHARDS = 4;
 
 /** ${{ ... }} を含まない値だけの環境変数（ワークフロー・ジョブ・段の順に重ねる）。 */
 function literalEnv(...layers: (Yaml | undefined)[]): Record<string, string> {
@@ -276,10 +303,10 @@ function literalEnv(...layers: (Yaml | undefined)[]): Record<string, string> {
   return out;
 }
 
-/** CI の唯一のジョブと、ブラウザを使うテストの段の環境変数（ワークフロー・ジョブ・段）。 */
+/** CI のブラウザのテストのジョブの、ブラウザを使うテストの段の環境変数（ワークフロー・ジョブ・段）。 */
 function browserStageEnv(): Record<string, string> {
   const w = ciWorkflow();
-  const job = onlyJob(w);
+  const job = browserJob(w);
   const step = stepsOf(job).find((s) => stageOf(runOf(s)) === 'npm run test:browser');
   if (!step) throw new Error('ブラウザを使うテストの段がない');
   return literalEnv(w.doc.env, job.env, step.env);
@@ -350,27 +377,41 @@ function jobsOfRun(id: number): Job[] {
   return (gh(`api "repos/${repoSlug()}/actions/runs/${id}/jobs?filter=all"`) as { jobs: Job[] }).jobs;
 }
 
-/** 実行のジョブの段の名前（ワークフローの name）と、ワークフローの段の対応から、期待する段の順に並べた段の結果。 */
-function checkRunSteps(run: Run): void {
-  const w = ciWorkflow();
-  const wfJob = onlyJob(w);
+/** 実行の記録のジョブの段の結果を、ワークフローの段の名前から期待する段に直して並べる。 */
+function executedStages(wfJob: Obj, job: Job): { stage: string; conclusion: string | null }[] {
   const nameToStage = new Map<string, string>();
   for (const s of stepsOf(wfJob)) {
     const stage = stageOf(runOf(s));
     if (stage && typeof s.name === 'string') nameToStage.set(s.name, stage);
   }
-  const jobs = jobsOfRun(run.id);
-  expect(jobs, `実行 ${run.id} のジョブは 1 つ`).toHaveLength(1);
-  const job = jobs[0]!;
-  expect(job.labels, `実行 ${run.id} の runner`).toEqual(['ubuntu-latest']);
-  const executed = job.steps
+  return job.steps
     .slice()
     .sort((a, b) => a.number - b.number)
     .map((s) => ({ stage: nameToStage.get(s.name), conclusion: s.conclusion }))
     .filter((s): s is { stage: string; conclusion: string | null } => s.stage !== undefined);
-  expect(executed.map((s) => s.stage), `実行 ${run.id} の段の順`).toEqual(STAGES.map((s) => s.name));
-  expect(executed.every((s) => s.conclusion === 'success'), `実行 ${run.id} の段がすべて成功`).toBe(true);
-  expect(job.conclusion).toBe('success');
+}
+
+/** 成功した実行で、検査のジョブ・4 つの組のジョブ・まとめのジョブが ubuntu-latest で決まった順に段を流して成功している。 */
+function checkRunSteps(run: Run): void {
+  const w = ciWorkflow();
+  const jobs = jobsOfRun(run.id);
+  for (const job of jobs) expect(job.labels, `実行 ${run.id} のジョブ ${job.name} の runner`).toEqual(['ubuntu-latest']);
+  const [checkId, check] = jobWithStage(w, 'npm run lint');
+  const [browserId, browser] = jobWithStage(w, 'npm run test:browser');
+  const [summaryId, summary] = summaryJob(w);
+  const checks = jobs.filter((j) => jobNamePattern(checkId, check).test(j.name));
+  expect(checks, `実行 ${run.id} の検査のジョブ`).toHaveLength(1);
+  const browsers = jobs.filter((j) => jobNamePattern(browserId, browser).test(j.name));
+  expect(browsers, `実行 ${run.id} のブラウザのテストのジョブ`).toHaveLength(SHARDS);
+  for (const [wfJob, job, stages] of [[check, checks[0]!, CHECK_STAGES], ...browsers.map((b) => [browser, b, BROWSER_STAGES] as const)] as const) {
+    const executed = executedStages(wfJob, job);
+    expect(executed.map((s) => s.stage), `実行 ${run.id} のジョブ ${job.name} の段の順`).toEqual(stages);
+    expect(executed.every((s) => s.conclusion === 'success'), `実行 ${run.id} のジョブ ${job.name} の段がすべて成功`).toBe(true);
+    expect(job.conclusion).toBe('success');
+  }
+  const summaries = jobs.filter((j) => jobNamePattern(summaryId, summary).test(j.name));
+  expect(summaries, `実行 ${run.id} のまとめのジョブ`).toHaveLength(1);
+  expect(summaries[0]!.conclusion).toBe('success');
 }
 
 // ---- 受け入れテスト ----
@@ -401,25 +442,29 @@ describe('ARC-57: PR・PR のブランチへの push・main への push で、ub
     }
   });
 
-  it('ubuntu-latest の 1 つのジョブで、npm ci → lint → test:unit → Chromium の導入 → test:browser → build → check:subpath → check:assets の順に流す', () => {
+  it('ジョブはどれも ubuntu-latest で、検査のジョブが npm ci → lint → test:unit → build → check:subpath → check:assets の順に、ブラウザのテストのジョブが npm ci → Chromium の導入 → test:browser の順に流す', () => {
     const w = ciWorkflow();
-    const job = onlyJob(w);
-    expect(job['runs-on']).toBe('ubuntu-latest');
-    expect(job.if, 'ジョブに走る条件を付けない').toBeUndefined();
-    const steps = stepsOf(job);
-    const stages = steps.map((s) => stageOf(runOf(s))).filter((s): s is string => s !== undefined);
-    expect(stages).toEqual(STAGES.map((s) => s.name));
-    // 期待する段のほかに run の段を足さない（足すなら上の順のどれかに当たる）。
-    const others = steps.filter((s) => runOf(s) !== '' && stageOf(runOf(s)) === undefined).map(runOf);
-    expect(others, '決まった段のほかの run').toEqual([]);
-    // 各段は 1 つのコマンドだけを実行する（|| や ; で結果を書き換えない）。
-    for (const s of steps.filter((x) => runOf(x) !== '')) {
-      expect(runOf(s), `段 ${String(s.name)}`).not.toMatch(/\|\||;|\n\s*\S/);
+    for (const [name, job] of jobsOf(w)) expect(job['runs-on'], `ジョブ ${name}`).toBe('ubuntu-latest');
+    for (const [job, expected] of [[checkJob(w), CHECK_STAGES], [browserJob(w), BROWSER_STAGES]] as const) {
+      expect(job.if, 'ジョブに走る条件を付けない').toBeUndefined();
+      const steps = stepsOf(job);
+      const stages = steps.map((s) => stageOf(runOf(s))).filter((s): s is string => s !== undefined);
+      expect(stages).toEqual(expected);
+      // 期待する段のほかに run の段を足さない（足すなら上の順のどれかに当たる）。
+      const others = steps.filter((s) => runOf(s) !== '' && stageOf(runOf(s)) === undefined).map(runOf);
+      expect(others, '決まった段のほかの run').toEqual([]);
+      // 各段は 1 つのコマンドだけを実行する（|| や ; で結果を書き換えない）。
+      for (const s of steps.filter((x) => runOf(x) !== '')) {
+        expect(runOf(s), `段 ${String(s.name)}`).not.toMatch(/\|\||;|&&|\n\s*\S/);
+      }
     }
+    // ジョブは検査・ブラウザのテスト・まとめの 3 つだけ。
+    expect(jobsOf(w)).toHaveLength(3);
   });
 
-  it('Node.js は CLAUDE.md の版（22.12 以上）を使い、npm のキャッシュを使う', () => {
-    const job = onlyJob(ciWorkflow());
+  it.each(['検査', 'ブラウザのテスト'])('%s のジョブで、Node.js は CLAUDE.md の版（22.12 以上）を使い、npm のキャッシュを使う', (kind) => {
+    const w = ciWorkflow();
+    const job = kind === '検査' ? checkJob(w) : browserJob(w);
     const steps = stepsOf(job);
     const setup = steps.find((s) => typeof s.uses === 'string' && s.uses.startsWith('actions/setup-node@'));
     expect(setup, 'actions/setup-node の段').toBeDefined();
@@ -440,8 +485,8 @@ describe('ARC-57: PR・PR のブランチへの push・main への push で、ub
     expect(checkout).toBeLessThan(ciIndex);
   });
 
-  it('導入した Chromium をキャッシュして次の実行で使う（Playwright のキャッシュの場所）', () => {
-    const job = onlyJob(ciWorkflow());
+  it('導入した Chromium をキャッシュして次の実行とほかの組で使う（Playwright のキャッシュの場所）', () => {
+    const job = browserJob(ciWorkflow());
     const steps = stepsOf(job);
     const cache = steps.findIndex(
       (s) => typeof s.uses === 'string' && s.uses.startsWith('actions/cache@') && /ms-playwright/.test(String((s.with as Obj | undefined)?.path ?? '')),
@@ -474,13 +519,14 @@ describe('ARC-57: PR・PR のブランチへの push・main への push で、ub
 describe('ARC-58: テストの失敗や lint の誤りがあると CI のチェックが失敗になる', () => {
   it('どの段も失敗を無視しない（continue-on-error・always などで後の段へ進めない）', () => {
     const w = ciWorkflow();
-    const job = onlyJob(w);
-    expect(job['continue-on-error'], 'ジョブの continue-on-error').toBeUndefined();
+    for (const [name, job] of jobsOf(w)) {
+    expect(job['continue-on-error'], `ジョブ ${name} の continue-on-error`).toBeUndefined();
     for (const s of stepsOf(job)) {
       const label = String(s.name ?? s.uses ?? runOf(s));
       expect(s['continue-on-error'] === undefined || s['continue-on-error'] === false, `段 ${label} の continue-on-error`).toBe(true);
       expect(s.if, `段 ${label} に走る条件を付けない（失敗のあとも走る段を作らない）`).toBeUndefined();
       expect(s.shell, `段 ${label} は既定の shell（bash -e）で流す`).toBeUndefined();
+    }
     }
     expect(isObj(w.doc.defaults) ? (w.doc.defaults as Obj).run : undefined, '既定の shell を変えない').toBeUndefined();
   });
@@ -499,7 +545,7 @@ describe('ARC-58: テストの失敗や lint の誤りがあると CI のチェ�
 
     /** ワークフローの、その段の run を返す。 */
     const runFor = (stage: string): string => {
-      const job = onlyJob(ciWorkflow());
+      const job = jobWithStage(ciWorkflow(), stage)[1];
       const step = stepsOf(job).find((s) => stageOf(runOf(s)) === stage);
       if (!step) throw new Error(`${stage} の段がない`);
       return runOf(step);
@@ -542,8 +588,7 @@ describe('ARC-58: テストの失敗や lint の誤りがあると CI のチェ�
 describe('ARC-59: 同じブランチに新しい push があると、走っている古い実行が取り消される', () => {
   const concurrencyOf = (): Obj => {
     const w = ciWorkflow();
-    const job = onlyJob(w);
-    const c = w.doc.concurrency ?? job.concurrency;
+    const c = w.doc.concurrency;
     expect(isObj(c), 'concurrency を group と cancel-in-progress で書く').toBe(true);
     return c as Obj;
   };
@@ -591,10 +636,12 @@ describe('ARC-60: CI で Chromium が見つからないとき、ブラウザを�
 
   /** CI のブラウザを使うテストの段と同じコマンドで、1 ファイルだけを流す。 */
   const runBrowser = (env: Record<string, string | undefined>, home: string) => {
-    const job = onlyJob(ciWorkflow());
+    const job = browserJob(ciWorkflow());
     const step = stepsOf(job).find((s) => stageOf(runOf(s)) === 'npm run test:browser')!;
+    // 1 ファイルだけを流すので、組に分ける引数（--shard）を除く。
+    const command = evalExpr(runOf(step), { matrix: { shard: 1 } }).replace(/\s+--shard=\S+/, '').replace(/\s+--$/, '');
     const out = join(tempDir('arc47-out-'), 'report.json');
-    const r = sh(`${runOf(step)} -- ${browserFile} --reporter=default --reporter=json --outputFile.json="${out}"`, ROOT, {
+    const r = sh(`${command} -- ${browserFile} --reporter=default --reporter=json --outputFile.json="${out}"`, ROOT, {
       CHROMIUM_PATH: undefined,
       ...env,
       HOME: home,
@@ -640,25 +687,147 @@ describe('ARC-60: CI で Chromium が見つからないとき、ブラウザを�
     }, 300_000);
   });
 
-  it.runIf(LIVE)('GitHub の実行の記録で、ブラウザを使うテストの段がファイルを飛ばさずに流している', () => {
+  it.runIf(LIVE)('GitHub の実行の記録で、どのブラウザのテストのジョブもファイルを飛ばさずに流している', () => {
     const branch = liveBranch();
     const runs = ciRuns(`branch=${encodeURIComponent(branch)}&status=completed`).filter((r) => r.conclusion === 'success');
     expect(runs.length, `${branch} の成功した CI の実行`).toBeGreaterThan(0);
     const run = runs[0]!;
-    const job = jobsOfRun(run.id)[0]!;
-    const r = sh(`gh run view ${run.id} --repo ${repoSlug()} --log --job ${job.id}`, ROOT);
-    expect(r.status, r.output).toBe(0);
     const w = ciWorkflow();
-    const wfJob = onlyJob(w);
+    const [browserId, wfJob] = jobWithStage(w, 'npm run test:browser');
+    const jobs = jobsOfRun(run.id).filter((j) => jobNamePattern(browserId, wfJob).test(j.name));
+    expect(jobs).toHaveLength(SHARDS);
     const stepName = String(stepsOf(wfJob).find((s) => stageOf(runOf(s)) === 'npm run test:browser')!.name);
-    const lines = r.stdout.split('\n').filter((l) => l.includes(stepName));
-    const summary = lines.find((l) => /Test Files\s+/.test(l));
-    expect(summary, `ブラウザを使うテストの段の Test Files の行:\n${lines.slice(-30).join('\n')}`).toBeDefined();
-    expect(summary).toMatch(/Test Files\s+\d+ passed/);
-    expect(summary).not.toMatch(/skipped/);
-    const testsLine = lines.find((l) => /\bTests\s+\d+/.test(l));
-    expect(testsLine).toBeDefined();
-    expect(testsLine).not.toMatch(/skipped/);
+    for (const job of jobs) {
+      const r = sh(`gh run view ${run.id} --repo ${repoSlug()} --log --job ${job.id}`, ROOT);
+      expect(r.status, r.output).toBe(0);
+      const lines = r.stdout.split('\n').filter((l) => l.includes(stepName));
+      const summary = lines.find((l) => /Test Files\s+/.test(l));
+      expect(summary, `${job.name} のブラウザを使うテストの段の Test Files の行:\n${lines.slice(-30).join('\n')}`).toBeDefined();
+      expect(summary).toMatch(/Test Files\s+\d+ passed/);
+      expect(summary).not.toMatch(/skipped/);
+      const testsLine = lines.find((l) => /\bTests\s+\d+/.test(l));
+      expect(testsLine).toBeDefined();
+      expect(testsLine).not.toMatch(/skipped/);
+    }
+  });
+});
+
+describe('ARC-97-1・ARC-97-5: ブラウザのテストは 4 つの組の matrix のジョブで、検査を待たず、1 つの組が失敗してもほかの組を流す', () => {
+  it('4 つの組の matrix で、各組が --shard=<組の番号>/4 で test:browser を流す', () => {
+    const job = browserJob(ciWorkflow());
+    const strategy = job.strategy as Obj;
+    const matrix = strategy.matrix as Obj;
+    const [key, values] = Object.entries(matrix)[0]!;
+    expect(Object.keys(matrix)).toHaveLength(1);
+    expect(values).toEqual([1, 2, 3, 4]);
+    const step = stepsOf(job).find((s) => stageOf(runOf(s)) === 'npm run test:browser')!;
+    for (const shard of [1, 2, 3, 4]) {
+      expect(evalExpr(runOf(step), { matrix: { [key]: shard } })).toBe(`npm run test:browser -- --shard=${shard}/${SHARDS}`);
+    }
+  });
+
+  it('1 つの組が失敗しても、ほかの組を取り消さない（fail-fast: false）', () => {
+    expect((browserJob(ciWorkflow()).strategy as Obj)['fail-fast']).toBe(false);
+  });
+
+  it('ブラウザのテストのジョブは検査のジョブを待たない（needs に持たない）', () => {
+    expect(browserJob(ciWorkflow()).needs).toBeUndefined();
+  });
+
+  it('各組が Playwright の版ごとのキーで Chromium のキャッシュを使い、APEX_REQUIRE_CHROMIUM=1 と APEX_BROWSER_WORKERS=2 を付ける', () => {
+    const w = ciWorkflow();
+    const job = browserJob(w);
+    const cache = stepsOf(job).find((s) => typeof s.uses === 'string' && s.uses.startsWith('actions/cache@'))!;
+    const key = String((cache.with as Obj).key);
+    expect(key).toMatch(/PLAYWRIGHT_VERSION/);
+    const install = stepsOf(job).find((s) => stageOf(runOf(s)) === 'Chromium の導入')!;
+    expect(runOf(install)).toMatch(/PLAYWRIGHT_VERSION/);
+    expect(isObj(w.doc.env) ? String(w.doc.env.PLAYWRIGHT_VERSION) : '').toMatch(/^\d+\.\d+\.\d+$/);
+    expect(browserStageEnv()).toMatchObject({ APEX_REQUIRE_CHROMIUM: '1', APEX_BROWSER_WORKERS: '2' });
+  });
+});
+
+describe('ARC-97-2: 4 つの組で流れるファイルを合わせると、どのファイルもちょうど 1 つの組に入る', () => {
+  it.skipIf(NESTED)('CI の組の引数で集めたファイルが重ならず、合わせると分けずに test:browser で集めたファイルと同じ', () => {
+    const list = (extra: string[]) => {
+      const r = sh(['npx vitest list --filesOnly --json --project browser', ...extra].join(' '), ROOT);
+      expect(r.status, r.output).toBe(0);
+      return (JSON.parse(r.stdout) as { file: string }[]).map((x) => x.file);
+    };
+    const all = list([]);
+    const shards = [1, 2, 3, 4].map((i) => list([`--shard=${i}/${SHARDS}`]));
+    for (const files of shards) expect(files.length).toBeGreaterThan(0);
+    const merged = shards.flat();
+    expect(new Set(merged).size).toBe(merged.length);
+    expect(merged.sort()).toEqual(all.sort());
+  }, 300_000);
+});
+
+describe('ARC-97-3: 流れるブラウザを使うテストが 1 件もない組は失敗になる', () => {
+  it.skipIf(NESTED)('CI の段の環境変数で、ブラウザを使うテストが全部飛ばされるファイルだけを流すと失敗し、理由が出る', () => {
+    const work = tempDir('arc76-');
+    const clone = join(work, 'clone');
+    const c = sh(`git clone --quiet "${ROOT}" "${clone}"`, work);
+    expect(c.status, c.output).toBe(0);
+    symlinkSync(join(ROOT, 'node_modules'), join(clone, 'node_modules'));
+    const file = 'tests/zz-arc76-skipped-browser.test.ts';
+    // このファイル自身がブラウザを使う組に入らないよう、import の行は組み立てて書く。
+    const helper = ['.', 'helpers', 'browser'].join('/');
+    writeFileSync(
+      join(clone, file),
+      `import { it } from 'vitest';\nimport { findChromium } from '${helper}';\nit.skip('ARC-97-3 で飛ばすテスト', () => {\n  findChromium();\n});\n`,
+    );
+    const env = { ...browserStageEnv(), CI: 'true' };
+    const r = sh(`npm run test:browser -- ${file}`, clone, env);
+    expect(r.status, r.output).not.toBe(0);
+    expect(r.output).toMatch(/流れたブラウザを使うテストが 1 件もない/);
+    // 比べるため: CI の段の環境変数を付けないと、同じファイルは飛ばされて成功になる。
+    const local = sh(`npm run test:browser -- ${file}`, clone, Object.fromEntries(Object.keys(env).map((k) => [k, undefined])));
+    expect(local.status, local.output).toBe(0);
+  }, 300_000);
+});
+
+describe('ARC-97-4: まとめのジョブは、ほかのジョブのどれかが失敗・取り消しになっても走って失敗し、すべて成功したときだけ成功する', () => {
+  it('まとめのジョブが検査のジョブとブラウザのテストのジョブを待ち、always() で走る', () => {
+    const w = ciWorkflow();
+    const [, job] = summaryJob(w);
+    const others = jobsOf(w).map(([n]) => n).filter((n) => n !== summaryJob(w)[0]);
+    expect([...(job.needs as string[])].sort()).toEqual(others.sort());
+    expect(job.if).toBe('always()');
+  });
+
+  it.skipIf(NESTED).each([
+    [{ check: 'success', browser: 'success' }, true],
+    [{ check: 'failure', browser: 'success' }, false],
+    [{ check: 'success', browser: 'failure' }, false],
+    [{ check: 'cancelled', browser: 'success' }, false],
+    [{ check: 'success', browser: 'cancelled' }, false],
+    [{ check: 'success', browser: 'skipped' }, false],
+  ])('ジョブの結果が %o のとき、まとめのジョブの段が成功するか: %s', (results, ok) => {
+    const w = ciWorkflow();
+    const [, job] = summaryJob(w);
+    const needs = Object.fromEntries(Object.entries(results).map(([k, v]) => [k, { result: v, outputs: {} }]));
+    for (const step of stepsOf(job).filter((s) => runOf(s) !== '')) {
+      const env: Record<string, string> = {};
+      for (const [k, v] of Object.entries(isObj(step.env) ? step.env : {})) {
+        env[k] = String(v).replace(/\$\{\{\s*toJSON\(needs\)\s*\}\}/, JSON.stringify(needs));
+      }
+      const r = sh(runOf(step), ROOT, env);
+      expect(r.status === 0, r.output).toBe(ok);
+    }
+  });
+});
+
+describe('ARC-97-6: キャッシュのある状態で、実行の始まりからすべてのジョブの終わりまで 15 分以下', () => {
+  it.runIf(LIVE)('GitHub の実行の記録で、成功した最新の実行の始まりから最後のジョブの終わりまでが 15 分以下', () => {
+    const branch = liveBranch();
+    const runs = ciRuns(`branch=${encodeURIComponent(branch)}&status=completed`).filter((r) => r.conclusion === 'success');
+    expect(runs.length, `${branch} の成功した CI の実行`).toBeGreaterThan(0);
+    const run = runs[0]!;
+    const jobs = jobsOfRun(run.id) as (Job & { started_at: string; completed_at: string })[];
+    const start = Math.min(...jobs.map((j) => Date.parse(j.started_at)), Date.parse(run.created_at));
+    const end = Math.max(...jobs.map((j) => Date.parse(j.completed_at)));
+    expect((end - start) / 60_000, `実行 ${run.id} の時間（分）`).toBeLessThanOrEqual(15);
   });
 });
 
@@ -669,7 +838,9 @@ describe('ARC-61: CI は ubuntu-latest の runner だけを使い、GitHub Pages
     for (const w of all) {
       for (const [name, job] of jobsOf(w)) {
         expect(job['runs-on'], `${w.file} のジョブ ${name}`).toBe('ubuntu-latest');
-        expect(job.strategy, `${w.file} のジョブ ${name} は matrix で runner を増やさない`).toBeUndefined();
+        // matrix で組を分けても、runner の種類（runs-on）は matrix で変えない。
+        const matrix = isObj(job.strategy) ? job.strategy.matrix : undefined;
+        expect(isObj(matrix) ? Object.keys(matrix).filter((k) => /os|runner/i.test(k)) : [], `${w.file} のジョブ ${name} の matrix`).toEqual([]);
       }
       expect(w.source, w.file).not.toMatch(/macos|windows|self-hosted/i);
     }

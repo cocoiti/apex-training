@@ -58,11 +58,17 @@ Vite + TypeScript + Three.js、テストは Vitest、lint は ESLint（typescrip
 
 GitHub Actions は有効で、GitHub がホストする標準の Linux の runner だけを使う。CI のワークフローは `.github/workflows/ci.yml` の 1 つ。
 
-- PR を作ったとき・PR のブランチに push したときと、`main` に push したときに、`ubuntu-latest` の 1 つのジョブで走る。
-- `npm ci` → `npm run lint` → `npm run test:unit` → Chromium の導入（Playwright のキャッシュの場所）→ `npm run test:browser` → `npm run build` →
-  `npm run check:subpath` → `npm run check:assets` の順に流し、どれかが失敗したらそこで止まってチェックが失敗になる。
-- CI では `APEX_REQUIRE_CHROMIUM=1` にして、Chromium が見つからなければブラウザを使うテストを飛ばさずに失敗にする。
-- CI では `APEX_BROWSER_WORKERS=2` にして、ブラウザを使うテストのファイルを 2 つずつ流す（runner の CPU が 4 つで、3 つでは実時間で動くテストが待ちの上限に当たる）。
+- PR を作ったとき・PR のブランチに push したときと、`main` に push したときに、`ubuntu-latest` の runner で走る。ジョブは次の 3 種類。
+  - 検査（1 つ）: `npm ci` → `npm run lint` → `npm run test:unit` → `npm run build` → `npm run check:subpath` → `npm run check:assets` の順に流し、
+    どれかが失敗したらそこで止まる。
+  - ブラウザのテスト（4 つ）: ブラウザを使うテストのファイルを Vitest の `--shard=<組の番号>/4` で 4 つの組に分け、組ごとに
+    `npm ci` → Chromium の導入（Playwright のキャッシュの場所）→ `npm run test:browser -- --shard=<組の番号>/4` を流す。
+    検査を待たずに同時に始まり、1 つの組が失敗してもほかの組は最後まで流す。
+  - まとめ（1 つ）: ほかのジョブがすべて終わってから（失敗・取り消しでも）走り、すべて成功したときだけ成功する（`scripts/ci-summary.mjs`）。
+    PR のチェックの結果はこのジョブで見る。
+- CI のブラウザのテストでは `APEX_REQUIRE_CHROMIUM=1` にして、Chromium が見つからなければブラウザを使うテストを飛ばさずに失敗にする。
+  流れたブラウザを使うテストが 1 件もない組（ファイルがない・全部飛ばされた）も失敗にする（`vite.config.ts` の `requireBrowserTestsRan`）。
+- CI では `APEX_BROWSER_WORKERS=2` にして、組のジョブの中でブラウザを使うテストのファイルを 2 つずつ流す（runner の CPU が 4 つで、3 つでは実時間で動くテストが待ちの上限に当たる）。
 - 同じブランチ（同じ PR）に新しい push があると、走っている古い実行は取り消される。
 
 ## 守ること
