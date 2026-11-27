@@ -32,6 +32,9 @@
 | ARC-47 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/fixed-seed-qa.acceptance.test.ts` |
 | ARC-48 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/fixed-seed-qa.acceptance.test.ts` |
 | ARC-67 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/render-clock-qa.acceptance.test.ts` |
+| ARC-103-1 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/slow-data-load-qa.acceptance.test.ts` |
+| ARC-103-2 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/slow-data-load-qa.acceptance.test.ts` |
+| ARC-103-3 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/slow-data-load-qa.acceptance.test.ts` |
 | ARC-104-4 | [architecture.md](../../docs/spec/architecture.md) | `tests/acceptance/deploy.acceptance.test.ts` |
 | INP-4 | [input.md](../../docs/spec/input.md) | `tests/acceptance/input-recording-qa.acceptance.test.ts` |
 | INP-5 | [input.md](../../docs/spec/input.md) | `tests/acceptance/input-recording-qa.acceptance.test.ts` |
@@ -271,6 +274,8 @@
 | UI-101 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
 | UI-102 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
 | UI-103 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
+| UI-103-1 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/slow-data-load-qa.acceptance.test.ts` |
+| UI-103-2 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/slow-data-load-qa.acceptance.test.ts` |
 | UI-104 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
 | UI-105 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
 | UI-106 | [screens.md](../../docs/spec/screens.md) | `tests/acceptance/tracking-mode-browser-qa.acceptance.test.ts` |
