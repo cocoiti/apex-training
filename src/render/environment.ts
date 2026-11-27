@@ -162,7 +162,42 @@ export function ringSpecs(distance: number): RingSpec[] {
   return RING_ANGLES.map((angle) => ({ angle, radius: ringRadius(distance, angle), major: Number.isInteger(angle) }));
 }
 
-type Point2 = readonly [number, number];
+export type Point2 = readonly [number, number];
+
+/**
+ * 多角形を凸な多角形 convex（頂点の回る向きはどちらでもよい）の内側で切り取る（Sutherland–Hodgman）。
+ * 凸でない輪郭（人型の板）に描くときは、輪郭を凸な片（三角形）に分けて片ごとに切り取る。
+ */
+export function clipToConvex(polygon: readonly Point2[], convex: readonly Point2[]): Point2[] {
+  // 回る向き（反時計回りなら正）。辺の左側が内側になるよう、符号を合わせる。
+  let area = 0;
+  for (let i = 0; i < convex.length; i += 1) {
+    const a = convex[i] as Point2;
+    const b = convex[(i + 1) % convex.length] as Point2;
+    area += a[0] * b[1] - b[0] * a[1];
+  }
+  const orient = area >= 0 ? 1 : -1;
+  let out: Point2[] = [...polygon];
+  for (let e = 0; e < convex.length && out.length > 0; e += 1) {
+    const a = convex[e] as Point2;
+    const b = convex[(e + 1) % convex.length] as Point2;
+    const inside = (p: Point2) => orient * ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]));
+    const input = out;
+    out = [];
+    for (let i = 0; i < input.length; i += 1) {
+      const p = input[i] as Point2;
+      const q = input[(i + 1) % input.length] as Point2;
+      const dp = inside(p);
+      const dq = inside(q);
+      if (dp >= 0) out.push(p);
+      if (dp >= 0 !== dq >= 0) {
+        const t = dp / (dp - dq);
+        out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+      }
+    }
+  }
+  return out;
+}
 
 /** 凸な多角形を面の長方形で切り取る（Sutherland–Hodgman）。 */
 export function clipToRect(polygon: readonly Point2[], face: Pick<BoxFace, 'uMin' | 'uMax' | 'vMin' | 'vMax'>): Point2[] {
@@ -227,26 +262,37 @@ function decoration<T extends THREE.Object3D>(object: T, name: string, kind: str
   return object;
 }
 
-/** 中心 (cu, cv)・半径 inner〜outer の輪を面で切り取った三角形の頂点の列。 */
-function annulus(face: BoxFace, cu: number, cv: number, inner: number, outer: number, lift: number): number[] {
+/** 凸な多角形を面の長方形で切り取り、凸な片 pieces があればさらに片ごとに切り取って、扇に分けた三角形の頂点を out に足す。 */
+function clippedFan(face: BoxFace, polygon: readonly Point2[], pieces: readonly (readonly Point2[])[] | undefined, lift: number, out: number[]): void {
+  const inRect = clipToRect(polygon, face);
+  if (inRect.length < 3) return;
+  if (!pieces) {
+    fan(face, inRect, lift, out);
+    return;
+  }
+  for (const piece of pieces) fan(face, clipToConvex(inRect, piece), lift, out);
+}
+
+/** 中心 (cu, cv)・半径 inner〜outer の輪を面（と凸な片）で切り取った三角形の頂点の列。 */
+function annulus(face: BoxFace, cu: number, cv: number, inner: number, outer: number, lift: number, pieces?: readonly (readonly Point2[])[]): number[] {
   const out: number[] = [];
   for (let i = 0; i < ARC_SEGMENTS; i += 1) {
     const a0 = (i / ARC_SEGMENTS) * Math.PI * 2;
     const a1 = ((i + 1) / ARC_SEGMENTS) * Math.PI * 2;
     const at = (r: number, a: number): Point2 => [cu + r * Math.cos(a), cv + r * Math.sin(a)];
-    fan(face, clipToRect([at(inner, a0), at(outer, a0), at(outer, a1), at(inner, a1)], face), lift, out);
+    clippedFan(face, [at(inner, a0), at(outer, a0), at(outer, a1), at(inner, a1)], pieces, lift, out);
   }
   return out;
 }
 
-/** 中心 (cu, cv)・半径 r の塗りつぶした円を面で切り取った三角形の頂点の列。 */
-function disc(face: BoxFace, cu: number, cv: number, r: number, lift: number): number[] {
+/** 中心 (cu, cv)・半径 r の塗りつぶした円を面（と凸な片）で切り取った三角形の頂点の列。 */
+function disc(face: BoxFace, cu: number, cv: number, r: number, lift: number, pieces?: readonly (readonly Point2[])[]): number[] {
   const polygon = Array.from({ length: ARC_SEGMENTS }, (_, i): Point2 => {
     const a = (i / ARC_SEGMENTS) * Math.PI * 2;
     return [cu + r * Math.cos(a), cv + r * Math.sin(a)];
   });
   const out: number[] = [];
-  fan(face, clipToRect(polygon, face), lift, out);
+  clippedFan(face, polygon, pieces, lift, out);
   return out;
 }
 
@@ -282,8 +328,9 @@ export function ringBands(distance: number): RingBand[] {
 /**
  * 1 つの面に的のリングと中心点を描く。暗い線の下に、少し太い白に近い縁取りを敷く。
  * 描画を軽くするため、縁取りと暗い線をそれぞれ 1 つの形にまとめる。
+ * pieces（面の u・v の座標の凸な片の並び）を渡すと、面の長方形に加えて片の和の内側だけに描く（人型の板の輪郭の内側）。
  */
-export function ringMarks(target: TargetFace): THREE.Group {
+export function ringMarks(target: TargetFace, pieces?: readonly (readonly Point2[])[]): THREE.Group {
   const { face, center, distance } = target;
   const cu = center[face.u];
   const cv = center[face.v];
@@ -296,7 +343,7 @@ export function ringMarks(target: TargetFace): THREE.Group {
     const lift = outline ? LIFT.outline : LIFT.ring;
     const positions: number[] = [];
     for (const band of bands.filter((b) => b.outline === outline)) {
-      positions.push(...(band.inner > 0 ? annulus(face, cu, cv, band.inner, band.outer, lift) : disc(face, cu, cv, band.outer, lift)));
+      positions.push(...(band.inner > 0 ? annulus(face, cu, cv, band.inner, band.outer, lift, pieces) : disc(face, cu, cv, band.outer, lift, pieces)));
     }
     if (positions.length === 0) continue;
     const color = outline ? ENVIRONMENT_COLORS.ringOutline : ENVIRONMENT_COLORS.ring;

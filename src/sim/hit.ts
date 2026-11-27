@@ -1,6 +1,6 @@
 import { normalizeYaw, type Angles } from './angles';
 import type { Box } from './map';
-import { partCenter, type PracticeTarget, type TargetPart } from './targets';
+import { insideOutline, partCenter, type PracticeTarget, type TargetPart, type TargetPlate } from './targets';
 import { vec3, type Vec3 } from './vec3';
 
 /** レイと箱の最も近い交点。 */
@@ -58,12 +58,23 @@ export interface SceneHit {
   readonly box: Box | undefined;
   /** 当たった練習の的。マップの箱に当たったときは undefined。 */
   readonly target: PracticeTarget | undefined;
-  /** 当たった練習の的の部分の箱。マップの箱に当たったときは undefined。 */
+  /** 当たった練習の的の部分の箱。マップの箱と板の的に当たったときは undefined。 */
   readonly part: TargetPart | undefined;
 }
 
 /**
- * 始点から方向（長さ 1）へ飛ばしたレイが、マップの箱と出現している練習の的（の部分の箱）のなかで最初に当たるもの
+ * レイと板の的の当たり（docs/spec/architecture.md「練習の的」）。正面の面（的の中心を通る、+Z を向いた平面）と交わる点が
+ * 輪郭の内側（線の上を含む）なら、その t を返す。正面の側（+Z）から来たレイだけが当たり、厚みの側面と後ろの面は当たりに含めない。
+ */
+function intersectPlate(origin: Vec3, dir: Vec3, center: Vec3, plate: TargetPlate): number | undefined {
+  if (!(dir.z < 0) || !(origin.z > center.z)) return undefined;
+  const t = (center.z - origin.z) / dir.z;
+  if (!(t > 0)) return undefined;
+  return insideOutline(plate.outline, origin.x + dir.x * t - center.x, origin.y + dir.y * t - center.y) ? t : undefined;
+}
+
+/**
+ * 始点から方向（長さ 1）へ飛ばしたレイが、マップの箱と出現している練習の的（の部分の箱か板の輪郭の内側）のなかで最初に当たるもの
  * （docs/spec/architecture.md「照準と的の当たり」）。同じ距離ならマップの箱を先にする。どれにも当たらなければ undefined。
  */
 export function raycastScene(origin: Vec3, dir: Vec3, boxes: readonly Box[], targets: readonly PracticeTarget[]): SceneHit | undefined {
@@ -72,6 +83,13 @@ export function raycastScene(origin: Vec3, dir: Vec3, boxes: readonly Box[], tar
     ? { position: boxHit.position, distance: boxHit.distance, box: boxHit.box, target: undefined, part: undefined }
     : undefined;
   for (const target of targets) {
+    if (target.plate) {
+      // 板の的は正面の面と輪郭で決める。当たった点は正面の面の上（Z は的の中心の Z）。
+      const t = intersectPlate(origin, dir, target.center, target.plate);
+      if (t === undefined || (best && t >= best.distance)) continue;
+      best = { position: vec3(origin.x + dir.x * t, origin.y + dir.y * t, target.center.z), distance: t, box: undefined, target, part: undefined };
+      continue;
+    }
     // 的の部分の箱のどれかに当たれば、その的に当たる。部分の箱のあいだの空きは、どの部分にも当たらない。
     for (const part of target.parts) {
       const t = intersectBox(origin, dir, { center: partCenter(target.center, part), size: part.size });

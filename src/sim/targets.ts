@@ -11,10 +11,9 @@ const EPSILON = 1e-9;
 
 /**
  * 練習の的の部分の箱（docs/spec/architecture.md「練習の的」）。軸に平行な箱の大きさと、的の中心からの相対的な位置を持つ。
- * 人形の的（src/sim/humanoid.ts）は頭・胴・腕・脚の 6 つの部分の箱でできている。
  */
 export interface TargetPart {
-  /** 部分の識別子（人形では head・torso など）。的の中で重ならない。 */
+  /** 部分の識別子。的の中で重ならない。 */
   readonly id: string;
   /** 幅（X）・高さ（Y）・奥行き（Z）。メートル。 */
   readonly size: Vec3;
@@ -32,8 +31,42 @@ export function partCenter(center: Vec3, part: TargetPart): Vec3 {
   return vec3(center.x + part.offset.x, center.y + part.offset.y, center.z + part.offset.z);
 }
 
-/** 練習の的の形の決め方。1 つの箱だけの的は size、部分の箱を組み合わせた的（人形）は parts で渡す。 */
-export type PracticeTargetShape = { readonly size: Vec3; readonly parts?: undefined } | { readonly parts: readonly TargetPart[]; readonly size?: undefined };
+/** 板の輪郭の頂点（的の中心を原点に X が右・Y が上、メートル）。 */
+export interface PlatePoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/**
+ * 板の正面に描く区域の線（docs/spec/screens.md「3D の表示」）。中心（的の中心からの相対的な位置）と幅・高さ（メートル）の楕円。
+ * 見た目だけのもので、当たりの判定と採点に使わない。
+ */
+export interface PlateZone {
+  readonly id: string;
+  readonly center: PlatePoint;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * 板の形（docs/spec/architecture.md「練習の的」）。正面（目の側、+Z）を向いた平面の上の輪郭と厚みを持つ。
+ * 的の中心は正面の面の上にあり、厚みは正面から奥（-Z）の側にとる。当たりは正面の面と輪郭で決める（側面と後ろの面は含めない）。
+ * 人型の板（src/sim/humanoid.ts）は頭と肩・胴の輪郭を持つ。
+ */
+export interface TargetPlate {
+  /** 輪郭の頂点の並び（自分と交わらない多角形）。 */
+  readonly outline: readonly PlatePoint[];
+  /** 厚み（メートル）。 */
+  readonly thickness: number;
+  /** 正面に描く区域の線。省くと描かない。 */
+  readonly zones?: readonly PlateZone[];
+}
+
+/** 練習の的の形の決め方。1 つの箱だけの的は size、部分の箱を組み合わせた的は parts、板の的（人型の板）は plate で渡す。 */
+export type PracticeTargetShape =
+  | { readonly size: Vec3; readonly parts?: undefined; readonly plate?: undefined }
+  | { readonly parts: readonly TargetPart[]; readonly size?: undefined; readonly plate?: undefined }
+  | { readonly plate: TargetPlate; readonly size?: undefined; readonly parts?: undefined };
 
 /** 練習の的の決め方。モードが add に渡す。 */
 export type PracticeTargetSpec = PracticeTargetShape & PracticeTargetOptions;
@@ -65,8 +98,10 @@ export interface PracticeTargetOptions {
 /** 練習の的の今の状態。シミュレーションが書き換え、描画とモードは読むだけ。 */
 export interface PracticeTarget {
   readonly id: string;
-  /** 形（1 つ以上の部分の箱）。描画も同じ形を読んで表示を作る。 */
+  /** 形が部分の箱の並びのときの部分の箱（1 つ以上）。板の的では空。描画も同じ形を読んで表示を作る。 */
   readonly parts: readonly TargetPart[];
+  /** 形が板のときの板（輪郭と厚み）。部分の箱の並びの的では undefined。描画も同じ形を読んで表示を作る。 */
+  readonly plate: TargetPlate | undefined;
   /** 最後のステップの終わりの時刻の中心の位置。 */
   readonly center: Vec3;
   /** 直前のステップの終わりの時刻の中心の位置。描画の補間に使う。足したばかりの的では center と同じ。 */
@@ -86,6 +121,38 @@ export interface PracticeTarget {
 interface Entry {
   readonly spec: PracticeTargetSpec;
   state: PracticeTarget;
+}
+
+function copyPlate(plate: TargetPlate): TargetPlate {
+  if (plate.outline.length < 3) throw new Error('practice target plate outline needs 3 or more points');
+  const outline = plate.outline.map((p) => ({ x: p.x, y: p.y }));
+  const zones = plate.zones?.map((z) => ({ id: z.id, center: { x: z.center.x, y: z.center.y }, width: z.width, height: z.height }));
+  return zones ? { outline, thickness: plate.thickness, zones } : { outline, thickness: plate.thickness };
+}
+
+/**
+ * 点 (x, y) が輪郭の内側か（輪郭の線の上を含む）。偶奇の規則で数え、線の上は浮動小数の誤差の幅 EPSILON で含める。
+ */
+export function insideOutline(outline: readonly PlatePoint[], x: number, y: number): boolean {
+  let inside = false;
+  for (let i = 0, j = outline.length - 1; i < outline.length; j = i, i += 1) {
+    const a = outline[i] as PlatePoint;
+    const b = outline[j] as PlatePoint;
+    if (onSegment(a, b, x, y)) return true;
+    if (a.y > y !== b.y > y && x < a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y)) inside = !inside;
+  }
+  return inside;
+}
+
+function onSegment(a: PlatePoint, b: PlatePoint, x: number, y: number): boolean {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) return Math.hypot(x - a.x, y - a.y) <= EPSILON;
+  // 線分への距離が EPSILON 以下で、線分の端の内側にある。
+  const cross = Math.abs((x - a.x) * dy - (y - a.y) * dx) / length;
+  const along = ((x - a.x) * dx + (y - a.y) * dy) / (length * length);
+  return cross <= EPSILON && along >= -EPSILON && along <= 1 + EPSILON;
 }
 
 function positionAt(spec: PracticeTargetSpec, time: number): Vec3 {
@@ -150,7 +217,8 @@ export class PracticeTargets {
       spec,
       state: {
         id: spec.id,
-        parts: spec.parts ? [...spec.parts] : singleBoxParts(spec.size),
+        parts: spec.plate ? [] : spec.parts ? [...spec.parts] : singleBoxParts(spec.size),
+        plate: spec.plate ? copyPlate(spec.plate) : undefined,
         center,
         previousCenter: center,
         visible: this.time > 0 && visibleInStep(timing, this.time),

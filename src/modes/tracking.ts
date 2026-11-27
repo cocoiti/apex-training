@@ -1,4 +1,4 @@
-import { humanoidParts } from '../sim/humanoid';
+import { humanoidPlate } from '../sim/humanoid';
 import { viewAngles } from '../sim/player';
 import {
   angleToPoint,
@@ -178,8 +178,8 @@ export function createTrackingMode(spec: TrackingModeSpec): TrainingMode<Trackin
       const current = motion;
       steps = [];
       dt = 0;
-      // 的は縮尺 1 の人形で、的の中心（人形の中心 = 胴の中心）が動きの位置にある。
-      context.targets.add({ id: TRACKING_TARGET_ID, parts: humanoidParts(1), position: (time) => current.positionAt(time), highlightAimed: true });
+      // 的は縮尺 1 の人型の板で、的の中心（板の中心 = 胴の中心）が動きの位置にある。板は回転しない。
+      context.targets.add({ id: TRACKING_TARGET_ID, plate: humanoidPlate(1), position: (time) => current.positionAt(time), highlightAimed: true });
     },
     step(context, stepDt) {
       dt = stepDt;

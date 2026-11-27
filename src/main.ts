@@ -861,7 +861,7 @@ async function start(): Promise<void> {
         // 撃ち切ったときと練習が終わったときはゴーストを消す（session.ghost が undefined）。
         ghost.update(world.player.position, showGhost ? session.ghost : undefined);
         // 練習の的は読むだけで、シミュレーションの状態を変えない（ARC-43）。照準が乗っている的は違う色で出す（MODE-40）。
-        // リングを描く的（反復練習の人形）には、壁と的の箱と同じ角度の式で正面にリングを描く（UI-135）。
+        // リングを描く的（反復練習の人型の板）には、壁と的の箱と同じ角度の式で正面にリングを描く（UI-135）。
         targetMarks.update(world.targets.all, alpha, world.targets.aimed, world);
         // テストが時計を進めている途中の描画（clock.draws が false）では 3D を描かず、次の実際の描画で最後の状態を描く。
         if (clock.draws) view.render(world, interpolateAngles(session.previousViewAngles, viewAngles(world.player), alpha));

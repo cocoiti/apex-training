@@ -1,11 +1,12 @@
-// docs/spec/modes.md・screens.md の人形の的の表示の受け入れ条件（MODE-58・UI-135・UI-137）を、ビルドの結果をヘッドレスの Chromium で開いて確かめる（#90）。
-// QA が SPEC だけから書いたもの。公開された入口（/apex-training/ で配信した画面: トップ・設定・プレイ、キャンバスの画面写し）と、
-// FOV からの視野角の換算 fieldOfView（screens.md「FOV と画面への投影」）だけを使う。ブラウザを使わない部分は humanoid-dummy-qa.acceptance.test.ts にある。
+// docs/spec/modes.md・screens.md の人型の板の的の表示の受け入れ条件（MODE-58・UI-135・UI-137）を、ビルドの結果をヘッドレスの Chromium で開いて確かめる（#90, #95）。
+// 公開された入口（/apex-training/ で配信した画面: トップ・設定・プレイ、キャンバスの画面写し）と、
+// FOV からの視野角の換算 fieldOfView（screens.md「FOV と画面への投影」）だけを使う。
 //
-// 人形の見つけ方: 人形の色は SPEC では「マゼンタ」（追いエイムで照準が乗っているときは水色）としか決まっていないので、画面写しで人形の胴が
-// あるはずの所（反復練習と追いエイムの開始直後は画面の中心、フリックは的が出る前後の差）の色を人形の色とし、その色に近い画素を人形の画素とする。
-// 人形の画素の外接の長方形（人形の幅 0.82・高さ 1.8 の縮尺倍）から、SPEC の表の部分の箱の高さの行を求め、その行で人形の画素のまとまりを数える
-// （頭の行は 1 つ、胴と腕の行は腕・胴・腕の 3 つ以上、脚の行は 2 つ）。1 つの箱の的なら、どの行もまとまりは 1 つになる。
+// 板の見つけ方: 板の地の色は SPEC では「マゼンタ」（追いエイムで照準が乗っているときは水色）としか決まっていないので、画面写しで板の胴が
+// あるはずの所（反復練習と追いエイムの開始直後は画面の中心、フリックは的が出る前後の差）の色を板の地の色とし、その色に近い画素と、
+// 輪郭・区域の線（地より暗い赤紫の線。緑が赤と青より十分に小さい色）の画素を板の画素とする。
+// 板の画素の外接の長方形（板の幅 0.45・高さ 0.75 の縮尺倍）から、SPEC の輪郭の高さの行を求め、その行の板の画素の広がりを調べる
+// （頭の行は頭の幅ほどで真ん中、頭と肩のあいだの空きの点は板でない、胴の行は板の幅ほど）。1 つの箱の的なら、空きの点も板になる。
 // 時計は clock=manual で進め（ARC-22）、ページは固定の種で開く（ARC-49）。Chromium がなければ飛ばす。入れ子の実行（ARC-13）でも飛ばす。
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -34,10 +35,11 @@ const FOV = 90; // 既定の FOV（screens.md「設定」）
 const RING_ANGLES = [0.5, 1, 1.5, 2, 2.5, 3]; // 的のリング（screens.md「3D の表示」）
 const DOT_ANGLE = 0.1; // 中心点の半径（度）
 const IMPACT: RGB = [0xff, 0xd8, 0x4a]; // 弾痕の色
-const DUMMY_WIDTH = 0.82;
-const DUMMY_HEIGHT = 1.8;
-const HEAD_TOP = 0.525; // 人形の中心から頭の上端まで（縮尺 1）
-const DUMMY_FRONT = 9.6; // 反復練習の人形の正面（目から約 9.7 m の中心 − 奥行きの半分 0.125）
+const DUMMY_WIDTH = 0.45; // 人型の板の幅（肩の外側から外側まで）
+const DUMMY_HEIGHT = 0.75; // 人型の板の高さ（胴の下端から頭のてっぺんまで）
+const HEAD_TOP = 0.45; // 板の中心から頭のてっぺんまで（縮尺 1）
+const BOTTOM = 0.3; // 板の中心から胴の下端まで（縮尺 1）
+const DUMMY_FRONT = 9.85; // 反復練習の板の正面（目から 9.85 m。板の中心は正面の上）
 
 const REPEAT = '反復練習';
 const TRACK = '追いエイム';
@@ -106,20 +108,28 @@ interface Silhouette {
   right: number;
   top: number;
   bottom: number;
-  /** 人形の縮尺 1 の 1 メートルの画素数（外接の長方形の幅 ÷ 0.82）。 */
+  /** 板の縮尺 1 の 1 メートルの画素数（外接の長方形の幅 ÷ 0.45）。 */
   unit: number;
-  /** 人形の中心からの高さ y（メートル、縮尺 1）の行の、人形の画素のまとまり（[始まり, 終わり) の px）。 */
+  /** 板の中心からの高さ y（メートル、縮尺 1）の行の、板の画素のまとまり（[始まり, 終わり) の px）。 */
   runs(y: number): [number, number][];
+  /** 板の中心からの位置 (x, y)（メートル、縮尺 1。x は外接の長方形の左右の真ん中から）の画素が板の画素か。 */
+  at(x: number, y: number): boolean;
 }
 
-/** 人形の色 color に近い画素の外接の長方形と、行ごとのまとまり。 */
+/** 輪郭・区域の線（地より暗い赤紫）の画素か。リングの暗い線（色みのない暗い色）とは見分ける。 */
+const isPlateLine = (c: readonly number[]) => c[0]! - c[1]! > 25 && c[2]! - c[1]! > 20 && lum(c) < 420;
+
 /**
- * centerY を渡すと、行の高さを外接の長方形の上端からではなく、その画面の高さ（人形の中心）から求める（反復練習では頭の上端に 3 度のリングが重なり、
- * 人形の色の画素の上端が頭の上端より下になるため）。
+ * 板の地の色 color に近い画素と輪郭・区域の線の画素の外接の長方形と、行ごとのまとまり。
+ * centerY を渡すと、行の高さを外接の長方形の上端からではなく、その画面の高さ（板の中心）から求める（反復練習では頭のてっぺんに 2.5 度のリングが重なり、
+ * 板の画素の上端が頭のてっぺんより下になることがあるため）。
  */
 function silhouette(img: Image, color: RGB, centerY?: number): Silhouette {
   const region = { x0: 0, y0: 0, x1: img.width, y1: img.height };
-  const isFill = (x: number, y: number) => l1(img.pixel(x, y), color) < 60;
+  const isFill = (x: number, y: number) => {
+    const c = img.pixel(x, y);
+    return l1(c, color) < 60 || isPlateLine(c);
+  };
   let left = Infinity;
   let right = -Infinity;
   let top = Infinity;
@@ -135,16 +145,25 @@ function silhouette(img: Image, color: RGB, centerY?: number): Silhouette {
       bottom = Math.max(bottom, y + 1);
     }
   }
-  if (n < 50) throw new Error(`人形の色 ${color} の画素が見つからない（${n}）`);
+  if (n < 50) throw new Error(`板の色 ${color} の画素が見つからない（${n}）`);
   const unit = (right - left) / DUMMY_WIDTH;
+  const rowOf = (y: number) => Math.floor(centerY === undefined ? top + (HEAD_TOP - y) * unit : centerY - y * unit);
   return {
     left,
     right,
     top,
     bottom,
     unit,
+    at(x: number, y: number) {
+      const px0 = Math.floor((left + right) / 2 + x * unit);
+      const row = rowOf(y);
+      // まわり 3×3 の過半数が板の画素なら板。
+      let count = 0;
+      for (let dy = -1; dy <= 1; dy += 1) for (let dx = -1; dx <= 1; dx += 1) if (isFill(px0 + dx, row + dy)) count += 1;
+      return count >= 5;
+    },
     runs(y: number) {
-      const row = Math.floor(centerY === undefined ? top + (HEAD_TOP - y) * unit : centerY - y * unit);
+      const row = rowOf(y);
       const out: [number, number][] = [];
       let start: number | undefined;
       for (let x = left - 2; x <= right + 2; x += 1) {
@@ -161,28 +180,25 @@ function silhouette(img: Image, color: RGB, centerY?: number): Silhouette {
 }
 
 /**
- * 人形の画素が、頭・胴・左右の腕・左右の脚の部分が分かる人の形か。頭の行（中心から +0.455 m）は頭だけで、端から端までの幅が頭の幅（0.25 m）ほどで
- * 人形の左右の真ん中にある（斜めから見ると頭の側面が縁の線で分かれて見えるので、まとまりの数は数えない）。
- * 胴の行（−0.15 m）は腕・胴・腕の 3 つ以上のまとまりで端から端までが人形の幅ほど、脚の行（−0.6 m）は左右の脚の 2 つ以上のまとまり。
+ * 板の画素が、頭と肩・胴の輪郭が分かる人の上半身の形か。頭の行（中心から +0.35 m）は端から端までの幅が頭の幅（0.16 m）ほどで板の左右の真ん中にあり、
+ * 頭と肩のあいだの空き（(±0.13, +0.25)）は板の画素でなく、胴の行（−0.1 m）は端から端までが板の幅ほど。
  */
 function expectHumanShape(s: Silhouette, label: string, { fullHeight = true } = {}) {
-  const head = s.runs(0.455);
-  const torso = s.runs(-0.15);
-  const legs = s.runs(-0.6);
-  const info = `${label}: 外接 ${JSON.stringify([s.left, s.top, s.right, s.bottom])}・1 m ${s.unit.toFixed(1)} px・頭 ${JSON.stringify(head)}・胴 ${JSON.stringify(torso)}・脚 ${JSON.stringify(legs)}`;
+  const head = s.runs(0.35);
+  const torso = s.runs(-0.1);
+  const gaps = [s.at(0.13, 0.25), s.at(-0.13, 0.25)];
+  const info = `${label}: 外接 ${JSON.stringify([s.left, s.top, s.right, s.bottom])}・1 m ${s.unit.toFixed(1)} px・頭 ${JSON.stringify(head)}・胴 ${JSON.stringify(torso)}・空き ${JSON.stringify(gaps)}`;
   expect(head.length, `頭の行のまとまり（${info}）`).toBeGreaterThanOrEqual(1);
   const headWidth = (head.at(-1)![1] - head[0]![0]) / s.unit;
-  expect(headWidth, `頭の幅（${info}）`).toBeGreaterThan(0.25 * 0.6);
-  expect(headWidth, `頭の幅（${info}）`).toBeLessThan(0.25 * 1.5);
-  // 頭は人形の左右の真ん中にある。
+  expect(headWidth, `頭の幅（${info}）`).toBeGreaterThan(0.16 * 0.6);
+  expect(headWidth, `頭の幅（${info}）`).toBeLessThan(0.16 * 1.5);
+  // 頭は板の左右の真ん中にある。
   const headMid = (head[0]![0] + head.at(-1)![1]) / 2;
-  expect(Math.abs(headMid - (s.left + s.right) / 2) / s.unit, `頭の位置（${info}）`).toBeLessThan(0.08);
-  expect(torso.length, `胴と腕の行のまとまり（${info}）`).toBeGreaterThanOrEqual(3);
-  expect((torso.at(-1)![1] - torso[0]![0]) / s.unit, `胴と腕の行の幅（${info}）`).toBeGreaterThan(DUMMY_WIDTH * 0.9);
-  expect(legs.length, `脚の行のまとまり（${info}）`).toBeGreaterThanOrEqual(2);
-  // 左右の脚のあいだ（人形の左右の真ん中）は人形の画素でない。
-  const mid = (s.left + s.right) / 2;
-  expect(legs.some(([a, b]) => a <= mid - 1 && b >= mid + 1), `脚のあいだ（${info}）`).toBe(false);
+  expect(Math.abs(headMid - (s.left + s.right) / 2) / s.unit, `頭の位置（${info}）`).toBeLessThan(0.04);
+  // 頭の左右で肩の上の線より上は輪郭の外。
+  expect(gaps, `頭と肩のあいだの空き（${info}）`).toEqual([false, false]);
+  expect(torso.length, `胴の行のまとまり（${info}）`).toBeGreaterThanOrEqual(1);
+  expect((torso.at(-1)![1] - torso[0]![0]) / s.unit, `胴の行の幅（${info}）`).toBeGreaterThan(DUMMY_WIDTH * 0.9);
   if (fullHeight) {
     const aspect = (s.bottom - s.top) / (s.right - s.left);
     expect(aspect, `高さ ÷ 幅（${info}）`).toBeGreaterThan((DUMMY_HEIGHT / DUMMY_WIDTH) * 0.9);
@@ -190,7 +206,7 @@ function expectHumanShape(s: Silhouette, label: string, { fullHeight = true } = 
   }
 }
 
-describe.skipIf(NESTED || !chromium)('QA: 人形の的の表示（MODE-58・UI-135・UI-137）', () => {
+describe.skipIf(NESTED || !chromium)('QA: 人型の板の的の表示（MODE-58・UI-135・UI-137）', () => {
   let work = '';
   let server: Server | undefined;
   let browser: Browser | undefined;
@@ -245,25 +261,25 @@ describe.skipIf(NESTED || !chromium)('QA: 人形の的の表示（MODE-58・UI-1
     await page.advanceClock(after);
   }
 
-  describe('MODE-58: どのモードを始めても、頭・胴・腕・脚が分かる人形の的が表示される', () => {
-    it('反復練習: 画面の中心の人形が人の形で表示され、1 つの箱だけの的はない', async () => {
+  describe('MODE-58: どのモードを始めても、頭・肩・胴の輪郭が分かる人型の板の的が表示される', () => {
+    it('反復練習: 画面の中心の板が人の上半身の形で表示され、1 つの箱だけの的はない', async () => {
       const page = await openTop();
       await start(page, REPEAT);
       const img = await canvas(page);
-      // 人形の胴（中心から 0.3 度、中心点とリングのあいだ）の色を人形の色とする。
+      // 板の胴（中心から 0.3 度、中心点とリングのあいだ）の色を板の地の色とする。
       const r = px(0.3);
       const color = median([0, 90, 180, 270].map((a) => around(img, CX + r * Math.cos(rad(a)), CY + r * Math.sin(rad(a)))));
-      // 反復練習の人形の中心は画面の中心（開始時の照準は人形の中心を向く）。頭の上端に 3 度のリングが重なるので、高さ ÷ 幅は確かめない。
+      // 反復練習の板の中心は画面の中心（開始時の照準は板の中心を向く）。頭のてっぺんにリングが重なるので、高さ ÷ 幅は確かめない。
       expectHumanShape(silhouette(img, color, CY), REPEAT, { fullHeight: false });
       noExceptions(page);
     });
 
     for (const mode of [TRACK, TRACK_RECOIL]) {
-      it(`${mode}: 開始直後（的は画面の中心）の人形が人の形で表示され、1 つの箱だけの的はない`, async () => {
+      it(`${mode}: 開始直後（的は画面の中心）の板が人の上半身の形で表示され、1 つの箱だけの的はない`, async () => {
         const page = await openTop();
         await start(page, mode);
         const img = await canvas(page);
-        // 開始時の照準は的の中心（人形の胴の中心）を向く。中心のまわりの色を人形の色とする。
+        // 開始時の照準は的の中心（板の胴の中心）を向く。中心のまわりの色を板の地の色とする。
         const r = 6;
         const color = median([0, 90, 180, 270].map((a) => around(img, CX + r * Math.cos(rad(a)), CY + r * Math.sin(rad(a)))));
         expectHumanShape(silhouette(img, color), mode);
@@ -271,13 +287,13 @@ describe.skipIf(NESTED || !chromium)('QA: 人形の的の表示（MODE-58・UI-1
       });
     }
 
-    it('フリック（的の大きさ「大」）: 1 個目の的が出たあと、出た人形が人の形で表示され、1 つの箱だけの的はない', async () => {
+    it('フリック（的の大きさ「大」）: 1 個目の的が出たあと、出た板が人の上半身の形で表示され、1 つの箱だけの的はない', async () => {
       const page = await openTop();
       await start(page, FLICK, { 的の大きさ: '大' }, 0.9);
       const before = await canvas(page);
       await page.advanceClock(0.2);
       const after = await canvas(page);
-      // 的が出る前後で変わった画素の、いちばん多い色を人形の色とする。
+      // 的が出る前後で変わった画素の、いちばん多い色を板の地の色とする。
       const counts = new Map<string, number>();
       for (let y = 0; y < HEIGHT; y += 1) {
         for (let x = 0; x < WIDTH; x += 1) {
@@ -288,14 +304,14 @@ describe.skipIf(NESTED || !chromium)('QA: 人形の的の表示（MODE-58・UI-1
       const top = [...counts].sort((a, b) => b[1] - a[1])[0];
       expect(top, '1 個目の的が出たあとに画面が変わる').toBeDefined();
       const color = top![0].split(',').map(Number) as RGB;
-      // 人形の脚の下端は床に隠れることがある（modes.md「フリック」）ので、高さ ÷ 幅は確かめない。
+      // 板の下端は床に隠れることがある（modes.md「フリック」）ので、高さ ÷ 幅は確かめない。
       expectHumanShape(silhouette(after, color), FLICK, { fullHeight: false });
       noExceptions(page);
     });
   });
 
-  describe('UI-135: 反復練習の人形の胴・リング・中心点', () => {
-    it('画面の中心に人形の胴が見え、中心点が胴の中心にあり、リングが人形の正面と後ろの壁の両方に、人形の縁で途切れずにつながって描かれる', async () => {
+  describe('UI-135: 反復練習の人型の板の胴・リング・中心点', () => {
+    it('画面の中心に板の胴が見え、中心点が胴の中心にあり、リングが板の正面と後ろの壁の両方に、板の輪郭で途切れずにつながって描かれる', async () => {
       const page = await openTop();
       await start(page, REPEAT);
       const img = await canvas(page);
@@ -303,30 +319,29 @@ describe.skipIf(NESTED || !chromium)('QA: 人形の的の表示（MODE-58・UI-1
       const torso = [0, 45, 90, 135, 180, 225, 270, 315].map((a) => around(img, CX + r03 * Math.cos(rad(a)), CY + r03 * Math.sin(rad(a))));
       const color = median(torso);
       const isFill = (c: readonly number[]) => l1(c, color) < 60;
-      // 画面の中心のまわり（中心点とリングのあいだ）は人形の胴の色。
+      // 画面の中心のまわり（中心点とリングのあいだ）は板の胴の色。
       expect(torso.filter(isFill).length, `中心のまわりの色 ${JSON.stringify(torso)}`).toBe(8);
 
-      // 中心点: 画面の中心（半径 0.1 度の内）は人形の色でなく暗い。
+      // 中心点: 画面の中心（半径 0.1 度の内）は板の色でなく暗い。
       const dot = around(img, CX, CY);
       expect(isFill(dot), `中心の色 ${dot}`).toBe(false);
       expect(lum(dot), `中心点の明るさ ${dot}`).toBeLessThan(lum(color));
       expect(px(DOT_ANGLE)).toBeGreaterThan(1);
 
-      // 中心点は胴の中心にある: 人形の画素の外接の長方形から求めた胴の中心（左右の真ん中、上端から 0.525 m）が画面の中心。
-      // 左右は人形の画素の外接の長方形の真ん中、上下は脚の下端（頭の上端は 3 度のリングと重なる）から 1.275 m 上が胴の中心。
+      // 中心点は胴の中心にある: 左右は板の画素の外接の長方形の真ん中、上下は胴の下端（頭のてっぺんはリングと重なる）から 0.3 m 上が胴の中心。
       const s = silhouette(img, color, CY);
       expectHumanShape(s, REPEAT, { fullHeight: false });
       const box = JSON.stringify([s.left, s.top, s.right, s.bottom]);
       expect(Math.abs((s.left + s.right) / 2 - CX), `外接 ${box}`).toBeLessThanOrEqual(2);
-      expect(Math.abs(s.bottom - (DUMMY_HEIGHT - HEAD_TOP) * s.unit - CY), `外接 ${box}`).toBeLessThanOrEqual(2.5);
-      // 人形の正面の距離（約 9.6 m）: 人形の幅 0.82 m の画素数から（縮尺 1）。
+      expect(Math.abs(s.bottom - BOTTOM * s.unit - CY), `外接 ${box}`).toBeLessThanOrEqual(2.5);
+      // 板の正面の距離（9.85 m）: 板の幅 0.45 m の画素数から（縮尺 1）。
       expect(K / s.unit).toBeGreaterThan(DUMMY_FRONT * 0.95);
       expect(K / s.unit).toBeLessThan(DUMMY_FRONT * 1.05);
 
       // リング: 各リングの円の上の点を 2 度ごとに見て、半径 K·tanθ の ±1.5 px に前後より暗い所があるか。
-      // 点が人形の上か壁（と的の箱）の上かは、その点から半径の向きに ±0.2 度の所の色がどちらも人形の色か、どちらも明るい壁の色（人形の色でなく、
-      // 部分の箱の縁の暗い線でもない）かで決める。縁にかかる点と、脚のあいだのような細い空き（縁の線で埋まる）の点は除く。
-      // 壁と的の箱の地は灰色〜白（色みのない明るい色）。人形の色や縁の線と混ざった画素は色みがある。
+      // 点が板の上か壁（と的の箱）の上かは、その点から半径の向きに ±0.2 度の所の色がどちらも板の地の色か、どちらも明るい壁の色（板の色でなく、
+      // 輪郭の暗い線でもない）かで決める。輪郭にかかる点は除く。
+      // 壁と的の箱の地は灰色〜白（色みのない明るい色）。板の色や輪郭の線と混ざった画素は色みがある。
       const isWall = (c: RGB) => lum(c) > 300 && Math.max(...c) - Math.min(...c) < 40;
       const missing: string[] = [];
       const counted = { dummy: 0, wall: 0 };
@@ -348,24 +363,24 @@ describe.skipIf(NESTED || !chromium)('QA: 人形の的の表示（MODE-58・UI-1
           if (!ok) missing.push(`${theta}°@${phi}°(${where}: 内 ${inner} 外 ${outer} 最暗 ${darkest})`);
         }
       }
-      expect(counted.dummy, '人形の上で確かめたリングの点').toBeGreaterThan(200);
+      expect(counted.dummy, '板の上で確かめたリングの点').toBeGreaterThan(200);
       expect(counted.wall, '壁の上で確かめたリングの点').toBeGreaterThan(100);
-      expect(missing.join(" "), `リングの線が見つからない点（人形 ${counted.dummy}・壁 ${counted.wall} 点のうち）`).toBe("");
+      expect(missing.join(" "), `リングの線が見つからない点（板 ${counted.dummy}・壁 ${counted.wall} 点のうち）`).toBe("");
       noExceptions(page);
     });
   });
 
-  describe('UI-137: 人形の胴・頭の色', () => {
-    it('反復練習の人形の胴・頭の画素の色が、壁・床・空・リング・弾痕（#ffd84a）・ゴーストのどの色とも違う', async () => {
+  describe('UI-137: 人型の板の胴・頭の地と輪郭の線の色', () => {
+    it('反復練習の板の胴・頭の地の画素の色が、壁・床・空・リング・弾痕（#ffd84a）・ゴーストのどの色とも違い、輪郭の線の画素の色が地と壁の色と違う', async () => {
       const page = await openTop();
       await start(page, REPEAT);
       const img = await canvas(page);
-      // 胴: 中心から 0.3 度（中心点とリングのあいだ）。頭: 中心から上へ 2.2 度（頭の中心 0.4 m の少し下、2.0 度と 2.5 度のリングのあいだ）。
+      // 胴: 中心から 0.3 度（中心点とリングのあいだ）。頭: 中心から上へ 2.2 度（頭の中心 0.35 m の少し上、2.0 度と 2.5 度のリングのあいだ）。
       const r03 = px(0.3);
       const torso = [0, 90, 180, 270].map((a) => around(img, CX + r03 * Math.cos(rad(a)), CY + r03 * Math.sin(rad(a))));
       const headY = CY - px(2.2);
-      const head = [-0.04, 0, 0.04].map((dx) => around(img, CX + (dx / DUMMY_FRONT) * K, headY));
-      // 壁: 照準の中心から左右 8 度・上下 ±2 度（リングと人形の外）。床: 画面の下の端の近く。空: 画面の上の端の近く。
+      const head = [-0.02, 0, 0.02].map((dx) => around(img, CX + (dx / DUMMY_FRONT) * K, headY));
+      // 壁: 照準の中心から左右 8 度・上下 ±2 度（リングと板の外）。床: 画面の下の端の近く。空: 画面の上の端の近く。
       const wall = [-8, 8].flatMap((yaw) => [-2, 0, 2].map((pitch) => around(img, CX + px(yaw), CY - px(pitch))));
       const floor = [-0.3, 0, 0.3].map((f) => around(img, CX + f * WIDTH, HEIGHT - 8));
       const sky = [-0.3, 0, 0.3].map((f) => around(img, CX + f * WIDTH, 8));
@@ -398,8 +413,17 @@ describe.skipIf(NESTED || !chromium)('QA: 人形の的の表示（MODE-58・UI-1
           }
         }
       }
-      // 胴と頭は同じ人形の色。
+      // 胴と頭は同じ板の地の色。
       expect(dist(median(torso), median(head)), report).toBeLessThan(40);
+      // 輪郭の線: 胴の右の辺（中心から右へ 0.225 m）を横切る行で、板の地の色でも壁の色でもない、いちばん暗い画素。
+      const edgeX = CX + (0.225 / DUMMY_FRONT) * K;
+      const edgeRow: RGB[] = [];
+      for (let d = -4; d <= 2; d += 1) edgeRow.push(img.pixel(Math.floor(edgeX + d), Math.floor(CY + px(1.2))));
+      const edge = edgeRow.reduce((a, b) => (lum(b) < lum(a) ? b : a));
+      const fill = median(torso);
+      const edgeReport = JSON.stringify({ edgeRow, fill, wall });
+      expect(dist(edge, fill), `輪郭の線 ${edge} と地 ${fill}（${edgeReport}）`).toBeGreaterThan(60);
+      for (const w of wall) expect(dist(edge, w), `輪郭の線 ${edge} と壁 ${w}（${edgeReport}）`).toBeGreaterThan(60);
       noExceptions(page);
       noExceptions(ghostPage);
     });

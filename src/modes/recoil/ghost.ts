@@ -1,6 +1,6 @@
 import { addAngles, type Angles } from '../../sim/angles';
 import type { Gun } from '../../sim/gun';
-import { humanoidParts, placeHumanoid } from '../../sim/humanoid';
+import { humanoidPlate, placeHumanoid } from '../../sim/humanoid';
 import { idealCorrection } from '../../sim/weapon';
 import type { World } from '../../sim/world';
 import type { ModeResult, TrainingMode } from '../types';
@@ -19,12 +19,12 @@ export function ghostAngles(world: Readonly<Pick<World, 'center' | 'player'>>, g
   return addAngles(world.center, { yaw: ideal.yaw + recoilOffset.yaw, pitch: ideal.pitch + recoilOffset.pitch });
 }
 
-/** 反復練習の人形の練習の的の識別子。 */
+/** 反復練習の人型の板の練習の的の識別子。 */
 export const DRILL_DUMMY_ID = 'dummy';
 
 /**
- * 反復練習（docs/spec/modes.md）。壁の手前に縮尺 1 の人形を 1 体、練習のあいだずっと置く。人形は弾痕を残す練習の的で、
- * 正面に的のリングと中心点を描く（開始時の照準は人形の中心を向く）。補正のパネルを主な補助として必ず出し、採点する。id は表示名を変える前の `ghost` のまま
+ * 反復練習（docs/spec/modes.md）。壁の手前に縮尺 1 の人型の板を 1 枚、練習のあいだずっと置く。板は弾痕を残す練習の的で、
+ * 正面に的のリングと中心点を描く（開始時の照準は板の中心を向く）。補正のパネルを主な補助として必ず出し、採点する。id は表示名を変える前の `ghost` のまま
  * （履歴・自己ベストの保存のキーに使っている）。3D の中のゴーストは src/render/ghost.ts が ghost の返す向きで描き、
  * 設定のゴースト表示が OFF（既定）なら描画しない。
  * 採点はモードによらない共通の処理が行うので、結果に足すものはない。
@@ -42,9 +42,9 @@ const ghost: TrainingMode<ModeResult> = {
   correctionPanel: 'always',
   setup(context) {
     const { world } = context;
-    // 人形の中心はマップの開始時の照準（採点の中心）のレイの上にある。
+    // 板の中心はマップの開始時の照準（採点の中心）のレイの上にある。
     const dummy = placeHumanoid(world, world.center, 1);
-    context.targets.add({ id: DRILL_DUMMY_ID, parts: humanoidParts(dummy.scale), position: dummy.center, keepsImpacts: true, rings: true });
+    context.targets.add({ id: DRILL_DUMMY_ID, plate: humanoidPlate(dummy.scale), position: dummy.center, keepsImpacts: true, rings: true });
   },
   step() {
     return true;
