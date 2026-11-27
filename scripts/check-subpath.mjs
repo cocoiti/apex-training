@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
 
 const BASE = '/apex-training/';
+// 待ち受けのポート。PORT=0 を渡すと空いているポートを OS が選ぶ。
 const PORT = Number(process.env.PORT ?? 3102);
 const DIST = resolve(import.meta.dirname, '..', 'dist');
 
@@ -41,7 +42,8 @@ const server = createServer((req, res) => {
 });
 
 await new Promise((ok) => server.listen(PORT, '127.0.0.1', ok));
-const origin = `http://127.0.0.1:${PORT}`;
+// PORT=0 のときは OS が選んだ空きのポートで待ち受けるので、実際のポートは listen のあとに読む。
+const origin = `http://127.0.0.1:${server.address().port}`;
 const failures = [];
 
 async function get(path) {

@@ -7,7 +7,7 @@
 // - ARC-104-1: 公開のジョブの if は、GitHub Actions の式の小さな評価器で、きっかけ（手で走らせた・CI の実行の完了）ごとに評価する。
 // - ARC-104-4: deploy.yml のビルドの段（run）を読み、そのとおりに一時的な clone の中で流してから npm run check:subpath を流す。
 //   npm ci は依存を入れ直すだけで重いので、手元の node_modules をリンクして代える（ほかの段はワークフローの run のまま）。
-//   check:subpath の待ち受けのポートは 3110〜3119 のうち空いているものを使う（PORT）。
+//   check:subpath にはポート 0（PORT=0）を渡し、空いているポートを OS に選ばせる（固定のポートを確かめてから使うと、間に取られうる）。
 //   ARC-13 の clone の中で npm test を実行したときに入れ子で重い確認をしないよう、APEX_ACCEPTANCE_NESTED が立っていたら飛ばす。
 // - ARC-104-6: 目次を作るスクリプトはリポジトリの外（~/dotfiles）にあるので、ないとき（CI など）はその確認だけを飛ばす。
 // - OVR-8: 公開先を開く確認はネットワークと実際の公開が要るため、APEX_ACCEPTANCE_LIVE=1 のときだけ流す。
@@ -15,7 +15,6 @@
 //   ここでは公開先の #/settings の HTML と、そこから読み込むスクリプトと武器データ（JSON）が 404 にならないことを HTTP で確かめる。
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -524,20 +523,7 @@ describe('ARC-104-3: deploy.yml は ubuntu-latest だけで、permissions は 3 
 });
 
 describe.skipIf(NESTED)('ARC-104-4: deploy.yml と同じ手順（npm ci → npm run build）の dist/ を /apex-training/ で配信すると #/settings が 404 にならない', () => {
-  /** 3110〜3119 のうち空いているポート。 */
-  async function freePort(): Promise<number> {
-    for (let port = 3110; port <= 3119; port++) {
-      const ok = await new Promise<boolean>((done) => {
-        const srv = createServer();
-        srv.once('error', () => done(false));
-        srv.listen(port, '127.0.0.1', () => srv.close(() => done(true)));
-      });
-      if (ok) return port;
-    }
-    throw new Error('3110〜3119 に空いているポートがない');
-  }
-
-  it('deploy.yml のビルドの段を clone の中で流したあと、npm run check:subpath が成功する', async () => {
+  it('deploy.yml のビルドの段を clone の中で流したあと、npm run check:subpath が成功する', () => {
     const w = deploy();
     const runs = publishJobs(w)
       .flatMap(([, j]) => stepsOf(j))
@@ -560,8 +546,7 @@ describe.skipIf(NESTED)('ARC-104-4: deploy.yml と同じ手順（npm ci → npm 
       expect(r.status, `${run}\n${r.output}`).toBe(0);
     }
     expect(existsSync(join(clone, 'dist/index.html'))).toBe(true);
-    const port = await freePort();
-    const check = sh('npm run check:subpath', clone, { PORT: String(port) });
+    const check = sh('npm run check:subpath', clone, { PORT: '0' });
     expect(check.status, check.output).toBe(0);
   }, 600_000);
 });
