@@ -1,13 +1,13 @@
 import type { Random } from '../../core/random';
 import { addAngles, normalizeYaw, type Angles } from '../../sim/angles';
 import { anglesToPoint } from '../../sim/hit';
-import { humanoidParts, placeHumanoidSubtending, type HumanoidPlacement } from '../../sim/humanoid';
+import { humanoidPlate, placeHumanoidSubtending, type HumanoidPlacement } from '../../sim/humanoid';
 import type { World } from '../../sim/world';
 import { t } from '../../ui/i18n';
 import type { CompareMetric, MetricSpec, ModeContext, ModeOption, ModeOptionValues, ModeScore, ModeScoring, ScoringInput, TrainingMode } from '../types';
 
 /**
- * フリック（docs/spec/modes.md「フリック」）。壁の手前のランダムな位置に人形の的が 1 つずつ出て、照準を素早く合わせて 1 発撃つことを繰り返す。
+ * フリック（docs/spec/modes.md「フリック」）。壁の手前のランダムな位置に人型の板の的が 1 つずつ出て、照準を素早く合わせて 1 発撃つことを繰り返す。
  * 武器を使わないモードで、的の位置の並びは練習の始めに種付きの乱数と練習の選択肢の値だけから決める。
  * 採点は docs/spec/scoring.md「フリックの採点」。決定の理由は docs/adr/2026-11-26-flick-targets-planned-at-setup.md。
  */
@@ -28,7 +28,7 @@ export const FLICK_RANGES = {
   far: { name: { ja: '遠い', en: 'Far' }, min: 14, max: 20 },
 } as const;
 
-/** 的の大きさ（人形の胴の幅の見込み角、度）。 */
+/** 的の大きさ（人型の板の幅の見込み角、度）。 */
 export const FLICK_SIZES = {
   large: { name: { ja: '大', en: 'Large' }, angle: 3 },
   medium: { name: { ja: '中', en: 'Medium' }, angle: 2 },
@@ -83,9 +83,9 @@ export function flickOffsets(random: Random, range: FlickRange, count: number = 
 }
 
 /**
- * 照準の中心からのずれ offset の向きに置く人形の中心と縮尺（docs/spec/modes.md「フリック」）。目の位置からその向きのレイの上に、
- * 人形の後ろの面がマップの箱（壁と的の箱）のいちばん手前の面より 0.05 メートル手前になるように、正面を壁の正面と同じ向きにして置く。
- * 縮尺は、胴の幅が 2 × L × tan(見込み角 ÷ 2)（L は目の位置から人形の中心まで）になる値。
+ * 照準の中心からのずれ offset の向きに置く人型の板の中心と縮尺（docs/spec/modes.md「フリック」）。目の位置からその向きのレイの上に、
+ * 板の正面の面がマップの箱（壁と的の箱）のいちばん手前の面より 0.05 メートル手前になるように、正面を壁の正面と同じ向きにして置く。
+ * 縮尺は、板の幅が 2 × L × tan(見込み角 ÷ 2)（L は目の位置から板の中心まで）になる値。
  */
 export function flickDummy(world: Pick<World, 'boxes' | 'center' | 'player'>, offset: Angles, size: FlickSize): HumanoidPlacement {
   return placeHumanoidSubtending(world, addAngles(world.center, offset), FLICK_SIZES[size].angle);
@@ -97,7 +97,7 @@ export interface FlickRecord {
   readonly time: number;
   /** その的に当たったか。 */
   readonly hit: boolean;
-  /** 撃ったときの照準の向きと、目の位置から的の中心（人形の中心）への向きの角度の距離（度）。 */
+  /** 撃ったときの照準の向きと、目の位置から的の中心（板の中心）への向きの角度の距離（度）。 */
   readonly error: number;
 }
 
@@ -136,7 +136,7 @@ function placeTarget(context: ModeContext, state: FlickState, index: number, app
   if (!offset) return;
   const dummy = flickDummy(context.world, offset, state.size);
   const id = targetId(index);
-  context.targets.add({ id, parts: humanoidParts(dummy.scale), position: dummy.center, appearAt });
+  context.targets.add({ id, plate: humanoidPlate(dummy.scale), position: dummy.center, appearAt });
   state.current = { id, index, appearAt };
 }
 

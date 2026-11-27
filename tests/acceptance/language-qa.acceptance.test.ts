@@ -276,7 +276,7 @@ async function findTarget(page: Page): Promise<{ n: number; x: number; y: number
     clip: { ...CLIP, scale: 1 },
   });
   const img = decodePng(Buffer.from(data, 'base64'));
-  // 的は人形で、画素の重心は脚のあいだの近くに落ちるので、胴を狙う。
+  // 的は人型の板で、画素の重心は胴の中心より上（頭の側）に寄るので、胴を狙う。
   const color = targetColor;
   const isTarget = ([r, g, b]: readonly number[]) => Math.abs(r! - color[0]) + Math.abs(g! - color[1]) + Math.abs(b! - color[2]) < 60;
   let n = 0;
@@ -296,11 +296,11 @@ async function findTarget(page: Page): Promise<{ n: number; x: number; y: number
     }
   }
   if (n === 0) return { n, x: NaN, y: NaN };
-  // 縦は胴の中心（人形の上端から高さの 0.525 ÷ 1.8）。横は胴の高さの帯（上端から 0.275 ÷ 1.8〜0.825 ÷ 1.8）の的の色の画素の重心
-  // （胴が多くを占める。腕は細く、縁の線で見えたり消えたりするので、外枠の真ん中は使わない）。
+  // 縦は胴の中心（板の上端から高さの 0.45 ÷ 0.75）。横は胴の高さの帯（上端から 0.35 ÷ 0.75〜下端）の的の色の画素の重心
+  // （胴が多くを占める。頭は細く、縁の線で見えたり消えたりするので、頭の行は使わない）。
   const height = bottom - top;
-  const y = top + height * (0.525 / 1.8);
-  const [bandTop, bandBottom] = [top + height * (0.275 / 1.8), top + height * (0.825 / 1.8)];
+  const y = top + height * (0.45 / 0.75);
+  const [bandTop, bandBottom] = [top + height * (0.35 / 0.75), bottom];
   let m = 0;
   let sx = 0;
   for (let row = Math.max(0, Math.floor(bandTop) - CLIP.y); row < Math.min(img.height, Math.ceil(bandBottom) - CLIP.y); row += 1) {
@@ -339,9 +339,9 @@ async function aimAtTarget(page: Page, m: Mouse, limit = 10) {
     const t = await findTarget(page);
     if (t.n === 0) throw new Error(`画面に練習の的が見えない（${trail.join(' → ')}）`);
     trail.push(`${(t.x - CX).toFixed(1)},${(t.y - CY).toFixed(1)}`);
-    // 人形の腕・脚は細く、画素の端で 1〜3 px 跳ぶので、2 px 以内で合ったとする（小さい人形でも胴の幅は約 9 px）。
+    // 板の頭・縁は細く、画素の端で 1〜3 px 跳ぶので、2 px 以内で合ったとする（小さい板でも胴の幅は約 9 px）。
     if (Math.hypot(t.x - CX, t.y - CY) <= 2) return;
-    // 近くでは人形の画素が縁の線で 1〜2 px 跳ぶので、半分ずつ詰めて行き過ぎを繰り返さないようにする。
+    // 近くでは板の画素が縁の線で 1〜2 px 跳ぶので、半分ずつ詰めて行き過ぎを繰り返さないようにする。
     const gain = Math.hypot(t.x - CX, t.y - CY) < 6 ? 0.5 : 1;
     await moveBy(page, m, countsFor((t.x - CX) * gain), countsFor((t.y - CY) * gain));
     await page.advanceClock(1 / 30);

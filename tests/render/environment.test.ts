@@ -281,7 +281,7 @@ describe('切り取り', () => {
 });
 
 describe('見た目と練習の結果', () => {
-  it('照準を動かさずに randomness 0・pattern がすべて 0 の武器で撃つと、弾痕は人形の正面の中心点の上にある（UI-20・MODE-63）', () => {
+  it('照準を動かさずに randomness 0・pattern がすべて 0 の武器で撃つと、弾痕は人型の板の正面の中心点の上にある（UI-20・MODE-63）', () => {
     const world = rangeWorld();
     const view = new ViewScene(world);
     const impacts = new ImpactMarks(view.layer);
@@ -292,8 +292,8 @@ describe('見た目と練習の結果', () => {
     for (let i = 0; i < 120 && session.gun.shots.length < 3; i += 1) session.step();
     impacts.sync(session.gun.shots, world.player.position);
     marks.update(world.targets.all, 0, undefined, world);
-    // 反復練習では、開始時の照準の向きのいちばん手前の面は人形の胴の正面。リングと中心点はそこに描く。
-    const [group] = byName(view.scene, 'target-rings-dummy-torso');
+    // 反復練習では、開始時の照準の向きのいちばん手前の面は人型の板の正面（胴の中心）。リングと中心点はそこに描く。
+    const [group] = byName(view.scene, 'target-rings-dummy-plate');
     const center = group!.userData.center as { x: number; y: number; z: number };
     const dot = ringRadius(group!.userData.distance as number, CENTER_DOT_ANGLE);
     expect(session.gun.shots.length).toBeGreaterThanOrEqual(3);

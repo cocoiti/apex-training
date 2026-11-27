@@ -724,12 +724,12 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       }
       await start(page, origin, 'L-STAR', '反復練習');
       const img = await canvasOnly(page, { stable: true });
-      // 壁の色は、人形（頭の上端は中心から約 0.53 m 上）・的・リングより上で壁の上端より下の行（中心から 80 px 上）の、目地を避けた画素。
+      // 壁の色は、人型の板（頭のてっぺんは中心から 0.45 m 上）・的・リングより上で壁の上端より下の行（中心から 80 px 上）の、目地を避けた画素。
       // 目地は 1 m ごと（FOV 90 で約 64 px、FOV 110 で約 45 px ごと）で、中心の真上の列と、FOV 90 で中心から 90 px、FOV 110 で 63・108 px 上の行を通る。
       const row = CY - 80;
       const wall = img.pixel(CX + 20, row);
-      // 反復練習では壁の手前に人形がある（docs/spec/modes.md「反復練習」）。的として人形を測る。
-      // 人形の色は、中心の近くで壁と違う色のうち、いちばん多い色（リングの線の間に見える胴の色）。
+      // 反復練習では壁の手前に人型の板がある（docs/spec/modes.md「反復練習」）。的として板を測る。
+      // 板の色は、中心の近くで壁と違う色のうち、いちばん多い色（リングの線の間に見える胴の色）。
       const counts = new Map<string, [RGB, number]>();
       for (let dy = -12; dy <= 12; dy += 1) {
         for (let dx = -12; dx <= 12; dx += 1) {
@@ -743,14 +743,16 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       expect(distance(target, wall), '中心に的が見えない').toBeGreaterThan(40);
       const isWall = (c: RGB) => distance(c, wall) < 30;
       /**
-       * 人形の縁: 中心を通る行・列で、人形の色の画素のいちばん外側（リングの線は人形の上にも壁の上にも描かれるので、色が続く所では測らない）。
-       * 行では左右の腕の外側まで、列では頭の上端から胴の下端まで（その下は脚のあいだの空き）。
+       * 板の縁: 中心を通る行・列で、板の色の画素のいちばん外側（リングの線は板の上にも壁の上にも描かれるので、色が続く所では測らない）。
+       * 行では胴の左右の辺まで、列では頭のてっぺんから胴の下端まで。
        */
       const board = (axis: 'x' | 'y'): [number, number] => {
         const hits: number[] = [];
         for (let d = -60; d <= 60; d += 1) {
           const c = axis === 'x' ? img.pixel(CX + d, CY) : img.pixel(CX, CY + d);
-          if (distance(c, target) < 30) hits.push((axis === 'x' ? CX : CY) + d);
+          // 板の地の色か、輪郭の縁の線（地より暗い赤紫。緑が赤と青より十分に小さい色）の画素。
+          const plateLine = c[0] - c[1] > 25 && c[2] - c[1] > 20 && c[0] + c[1] + c[2] < 420;
+          if (distance(c, target) < 30 || plateLine) hits.push((axis === 'x' ? CX : CY) + d);
         }
         return [Math.min(...hits), Math.max(...hits) + 1];
       };
@@ -765,11 +767,11 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
 
     /** FOV で、出現位置から箱の手前の面の縁が画面のどこに出るか（screens.md の換算）。 */
     function expectedEdges(fov: number, kind: string) {
-      // 人形（縮尺 1）: 中心は目の位置から開始時の照準の向きに、後ろの面がマップの箱のいちばん手前の面より 0.05 m 手前（architecture.md「人形の的」）。
-      // 測るのは正面（奥行き 0.25 m）の、腕の外側から外側（幅 0.82 m）と、頭の上端（+0.525 m）から胴の下端（-0.275 m）。
-      const front = Math.max(...RANGE.boxes.map((b) => b.center[2] + b.size[2] / 2)) + 0.05 + 0.25;
+      // 人型の板（縮尺 1）: 中心は目の位置から開始時の照準の向きに、正面の面がマップの箱のいちばん手前の面より 0.05 m 手前（architecture.md「人型の板の的」）。
+      // 測るのは正面の、胴の左右の辺（幅 0.45 m）と、頭のてっぺん（+0.45 m）から胴の下端（-0.30 m）。
+      const front = Math.max(...RANGE.boxes.map((b) => b.center[2] + b.size[2] / 2)) + 0.05;
       const [ex0, ey0] = RANGE.spawn.position;
-      const dummy = { center: [ex0, ey0 + 0.125, front - 0.125] as [number, number, number], size: [0.82, 0.8, 0.25] as [number, number, number] };
+      const dummy = { center: [ex0, ey0 + 0.075, front - 0.005] as [number, number, number], size: [0.45, 0.75, 0.01] as [number, number, number] };
       const box = kind === 'dummy' ? dummy : RANGE.boxes.find((b) => b.kind === kind)!;
       const [ex, ey, ez] = RANGE.spawn.position;
       const dist = ez - (box.center[2] + box.size[2] / 2);
@@ -796,15 +798,15 @@ describe.skipIf(NESTED || !chromium)('QA: 反復練習と、設定の練習へ�
       for (const [fov, m] of [[90, at90], [110, at110]] as const) {
         const wall = expectedEdges(fov, 'wall');
         const target = expectedEdges(fov, 'dummy');
-        // 人形の縁には地より暗い縁の線があり、頭の上端（中心から約 3.1 度）は 3 度のリングの縁取りとも重なるので、人形は 3.5 px まで許す。
+        // 板の縁には地より暗い縁の線があり、頭のてっぺん（中心から約 2.6 度）は 2.5 度のリングの縁取りとも重なるので、板は 3.5 px まで許す。
         const check = (label: string, got: [number, number], want: readonly [number, number], tolerance = 2) => {
           expect(Math.abs(got[0] - want[0]), `FOV ${fov} ${label}: ${got} 期待 ${want.map((v) => v.toFixed(1))}`).toBeLessThanOrEqual(tolerance);
           expect(Math.abs(got[1] - want[1]), `FOV ${fov} ${label}: ${got} 期待 ${want.map((v) => v.toFixed(1))}`).toBeLessThanOrEqual(tolerance);
         };
         check('壁の左右', m.wallX, wall.x);
         check('壁の上下', m.wallY, wall.y);
-        check('人形の左右', m.targetX, target.x, 3.5);
-        check('人形の上下', m.targetY, target.y, 3.5);
+        check('板の左右', m.targetX, target.x, 3.5);
+        check('板の上下', m.targetY, target.y, 3.5);
       }
       expect(exceptions(page), page.errors.join('\n')).toEqual([]);
     }, 60_000);

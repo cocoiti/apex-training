@@ -39,12 +39,12 @@ describe('弾痕の表示', () => {
   it('ARC-65: 弾痕を残す練習の的に当たった弾（impactOnTarget を持つ）の弾痕は、当たった点に表示する', () => {
     const view = new ViewScene(rangeWorld());
     const impacts = new ImpactMarks(view.layer);
-    impacts.sync([{ ...shot(1, vec3(0.1, 1.7, -9.6)), target: 'dummy', impactOnTarget: true }, { ...shot(2, vec3(0, 1.6, -5)), target: 'mover' }], eye);
+    impacts.sync([{ ...shot(1, vec3(0.1, 1.7, -9.85)), target: 'dummy', impactOnTarget: true }, { ...shot(2, vec3(0, 1.6, -5)), target: 'mover' }], eye);
     const shown = marks(view);
     expect(shown).toHaveLength(1);
     expect(shown[0]!.position.x).toBeCloseTo(0.1, 2);
     expect(shown[0]!.position.y).toBeCloseTo(1.7, 2);
-    expect(shown[0]!.position.z).toBeGreaterThan(-9.6);
+    expect(shown[0]!.position.z).toBeGreaterThan(-9.85);
   });
 
   it('同じ記録で何度呼んでも増えず、新しく撃った分だけ足し、前の弾痕は残る', () => {

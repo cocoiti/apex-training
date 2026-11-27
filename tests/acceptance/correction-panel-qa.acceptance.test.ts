@@ -45,7 +45,7 @@ const settle = (page: Page, frames: number) => page.advanceClock(frames / 60);
 const GHOST = '反復練習';
 /**
  * ゴーストもパネルも出さない受け入れテスト用のモード。写しのビルドにだけ足す。ゴーストを見つける対照に使う。
- * 反復練習と同じ人形（docs/spec/modes.md「反復練習」）は置くよう、反復練習の setup をそのまま使う。
+ * 反復練習と同じ人型の板（docs/spec/modes.md「反復練習」）は置くよう、反復練習の setup をそのまま使う。
  */
 const PLAIN = 'QA-ゴーストなし';
 const PLAIN_MODE = `import drill from './ghost';

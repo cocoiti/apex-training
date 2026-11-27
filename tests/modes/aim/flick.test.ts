@@ -11,8 +11,8 @@ import { createRandom } from '../../../src/core/random';
 import { normalizeYaw, type Angles } from '../../../src/sim/angles';
 import { anglesToPoint } from '../../../src/sim/hit';
 import { parseMap } from '../../../src/sim/map';
-import { HUMANOID_DEPTH, HUMANOID_HEIGHT, humanoidParts } from '../../../src/sim/humanoid';
-import { partCenter, type PracticeTarget, type TargetPart } from '../../../src/sim/targets';
+import { HUMANOID_HEIGHT, HUMANOID_WIDTH, humanoidPlate } from '../../../src/sim/humanoid';
+import type { PracticeTarget } from '../../../src/sim/targets';
 import { vec3, type Vec3 } from '../../../src/sim/vec3';
 import { createWorld, type World } from '../../../src/sim/world';
 
@@ -94,15 +94,16 @@ function playThrough(d: Driver, delay = 0.2, yawOffset = 0): PracticeTarget[] {
 
 const modeResult = (d: Driver) => d.session.result!.modeResult as FlickResult;
 
-/** 人形の部分の箱。 */
-const part = (target: PracticeTarget, id: string): TargetPart => target.parts.find((p) => p.id === id)!;
-
-/** 人形の部分の箱をすべて囲む範囲（メートル）。 */
+/** 人型の板の輪郭を囲む範囲（メートル）。Z は正面の面（板の中心の Z）。 */
 function bounds(target: PracticeTarget): { min: Vec3; max: Vec3 } {
-  const lo = (axis: 'x' | 'y' | 'z') => Math.min(...target.parts.map((p) => partCenter(target.center, p)[axis] - p.size[axis] / 2));
-  const hi = (axis: 'x' | 'y' | 'z') => Math.max(...target.parts.map((p) => partCenter(target.center, p)[axis] + p.size[axis] / 2));
-  return { min: vec3(lo('x'), lo('y'), lo('z')), max: vec3(hi('x'), hi('y'), hi('z')) };
+  const outline = target.plate!.outline;
+  const xs = outline.map((p) => target.center.x + p.x);
+  const ys = outline.map((p) => target.center.y + p.y);
+  return { min: vec3(Math.min(...xs), Math.min(...ys), target.center.z), max: vec3(Math.max(...xs), Math.max(...ys), target.center.z) };
 }
+
+/** 人型の板の幅（メートル）。 */
+const widthOf = (target: PracticeTarget) => bounds(target).max.x - bounds(target).min.x;
 
 /** 目の位置から的の中心までの距離。 */
 const distanceTo = (d: Driver, target: PracticeTarget) => {
@@ -211,12 +212,12 @@ describe('フリックの練習の流れ', () => {
         expect(distance).toBeGreaterThanOrEqual(min - 1e-9);
         expect(distance).toBeLessThan(max);
         expect(Math.abs(pitch)).toBeLessThanOrEqual(distance * Math.sin((20 * Math.PI) / 180) + 1e-9);
-        // 人形の左右の端と頭の上端は壁の正面の範囲に収まる（脚の下端は床より下に出てもよい）。
+        // 板の左右の端と頭のてっぺんは壁の正面の範囲に収まる（下端は床より下に出てもよい）。
         const box = bounds(target);
         expect(box.min.x).toBeGreaterThanOrEqual(wall.center.x - wall.size.x / 2);
         expect(box.max.x).toBeLessThanOrEqual(wall.center.x + wall.size.x / 2);
         expect(box.max.y).toBeLessThanOrEqual(wall.center.y + wall.size.y / 2);
-        // 人形の後ろの面は、壁と的の箱のいちばん手前の面より 0.05 メートル手前。
+        // 板の正面の面は、壁と的の箱のいちばん手前の面より 0.05 メートル手前。
         const front = Math.max(...MAP.boxes.map((b) => b.center.z + b.size.z / 2));
         expect(box.min.z).toBeCloseTo(front + 0.05, 9);
       }
@@ -230,16 +231,17 @@ describe('フリックの練習の流れ', () => {
     expect(right).toBeLessThan(140);
   });
 
-  it.each(Object.keys(FLICK_SIZES))('MODE-51: 的の大きさ %s で、人形の中心から見込み角の半分よりわずかに小さくずらすと命中（胴の端の内側）、見込み角の 2 倍ずらすと外れ（人形の外形から十分外）', (size) => {
+  // 板は回転しないので、斜めから見ると左右の辺の見込みは cos(斜めの角度) 倍に縮む。出る範囲「近い」（8 度未満）なら 0.99 倍より大きい。
+  it.each(Object.keys(FLICK_SIZES))('MODE-51: 的の大きさ %s で、板の中心から見込み角の半分よりわずかに小さくずらすと命中（胴の左右の辺の内側）、わずかに大きくずらすと外れ（辺の外側）', (size) => {
     const half = FLICK_SIZES[size as keyof typeof FLICK_SIZES].angle / 2;
     for (const seed of [5, 6, 7]) {
       for (const [factor, inward, hit] of [
         [0.95, true, true],
         [0.95, false, true],
-        [4, true, false],
-        [4, false, false],
+        [1.05, true, false],
+        [1.05, false, false],
       ] as const) {
-        const d = start({ size }, seed);
+        const d = start({ range: 'near', size }, seed);
         const target = waitVisible(d);
         const angles = targetAngles(d, target);
         const side = (offsetOf(d, target).yaw > 0 ? 1 : -1) * (inward ? -1 : 1);
@@ -250,48 +252,49 @@ describe('フリックの練習の流れ', () => {
     }
   });
 
-  it.each(Object.keys(FLICK_SIZES))('MODE-62: 的の大きさ %s で、人形の胴の幅の見込み角が見込み角になり（胴の幅 = 2 × L × tan(見込み角 ÷ 2)）、人形の高さは胴の幅に比例する', (size) => {
+  it.each(Object.keys(FLICK_SIZES))('MODE-62: 的の大きさ %s で、板の幅の見込み角が見込み角になり（幅 = 2 × L × tan(見込み角 ÷ 2)）、板の高さは幅に比例する（0.75 ÷ 0.45）', (size) => {
     const angle = FLICK_SIZES[size as keyof typeof FLICK_SIZES].angle;
     const world = rangeWorld();
     const dummy = flickDummy(world, { yaw: 10, pitch: 2 }, size as keyof typeof FLICK_SIZES);
     const eye = world.player.position;
     const distance = Math.hypot(dummy.center.x - eye.x, dummy.center.y - eye.y, dummy.center.z - eye.z);
     expect(dummy.distance).toBeCloseTo(distance, 12);
-    const parts = humanoidParts(dummy.scale);
-    const torso = parts.find((p) => p.id === 'torso')!;
-    expect(torso.size.x).toBeCloseTo(2 * distance * Math.tan((angle * Math.PI) / 360), 12);
-    expect(2 * Math.atan(torso.size.x / 2 / distance) * (180 / Math.PI)).toBeCloseTo(angle, 9);
-    expect(HUMANOID_HEIGHT * dummy.scale).toBeCloseTo((torso.size.x / 0.5) * 1.8, 12);
-    // 人形の中心は照準の中心 + ずれの向き、後ろの面はマップの箱のいちばん手前の面より 0.05 メートル手前。
+    const xs = humanoidPlate(dummy.scale).outline.map((p) => p.x);
+    const width = Math.max(...xs) - Math.min(...xs);
+    expect(width).toBeCloseTo(HUMANOID_WIDTH * dummy.scale, 12);
+    expect(width).toBeCloseTo(2 * distance * Math.tan((angle * Math.PI) / 360), 12);
+    expect(2 * Math.atan(width / 2 / distance) * (180 / Math.PI)).toBeCloseTo(angle, 9);
+    expect(HUMANOID_HEIGHT * dummy.scale).toBeCloseTo((width / 0.45) * 0.75, 12);
+    // 板の中心は照準の中心 + ずれの向き、正面の面はマップの箱のいちばん手前の面より 0.05 メートル手前。
     const seen = anglesToPoint(eye, dummy.center);
     expect(seen.yaw).toBeCloseTo(10, 9);
     expect(seen.pitch).toBeCloseTo(2, 9);
     const front = Math.max(...MAP.boxes.map((b) => b.center.z + b.size.z / 2));
-    expect(dummy.center.z - (HUMANOID_DEPTH * dummy.scale) / 2).toBeCloseTo(front + 0.05, 12);
+    expect(dummy.center.z).toBeCloseTo(front + 0.05, 12);
   });
 
-  it('MODE-62: 同じずれなら、大・中・小の順に人形が小さくなる', () => {
+  it('MODE-62: 同じずれなら、大・中・小の順に板が小さくなる', () => {
     const world = rangeWorld();
     const scales = (['large', 'medium', 'small'] as const).map((size) => flickDummy(world, { yaw: -6, pitch: 1 }, size).scale);
     expect(scales[0]).toBeGreaterThan(scales[1]!);
     expect(scales[1]).toBeGreaterThan(scales[2]!);
   });
 
-  it('MODE-61: 出た人形の胴の中心を撃つと命中、人形の右端より幅の半分以上外か頭の上端より幅の半分以上上を撃つと外れ', () => {
+  it('MODE-61: 出た板の胴の中心を撃つと命中、頭と肩のあいだの空き（縮尺倍）か右の辺より幅の半分以上外を撃つと外れ', () => {
     for (const seed of [5, 6, 7]) {
       for (const [where, hit] of [
         ['torso', true],
         ['right', false],
-        ['above', false],
+        ['gap', false],
       ] as const) {
         const d = start({ range: 'near', size: 'large' }, seed);
         const target = waitVisible(d);
         const eye = d.session.world.player.position;
-        const torso = partCenter(target.center, part(target, 'torso'));
         const box = bounds(target);
         const half = (box.max.x - box.min.x) / 2;
-        const point =
-          where === 'torso' ? torso : where === 'right' ? vec3(box.max.x + half, target.center.y, target.center.z) : vec3(target.center.x, box.max.y + half, target.center.z);
+        const scale = widthOf(target) / HUMANOID_WIDTH;
+        const c = target.center;
+        const point = where === 'torso' ? c : where === 'right' ? vec3(box.max.x + half, c.y, c.z) : vec3(c.x + 0.13 * scale, c.y + 0.25 * scale, c.z);
         shootAt(d, anglesToPoint(eye, point));
         playThrough(d);
         expect([seed, where, modeResult(d).targets[0]!.hit]).toEqual([seed, where, hit]);
@@ -337,7 +340,7 @@ describe('フリックの練習の流れ', () => {
       const { distance } = offsetOf(d, target);
       expect(distance).toBeGreaterThanOrEqual(14);
       expect(distance).toBeLessThan(20);
-      expect(part(target, 'torso').size.x).toBeCloseTo(2 * distanceTo(d, target) * Math.tan((0.5 * Math.PI) / 180), 12);
+      expect(widthOf(target)).toBeCloseTo(2 * distanceTo(d, target) * Math.tan((0.5 * Math.PI) / 180), 12);
     }
     expect(d.session.result!.options.map((o) => [o.optionId, o.id, o.label.ja, o.name.ja])).toEqual([
       ['flick-range', 'far', '出る範囲', '遠い'],

@@ -10,7 +10,7 @@ import { ON_TARGET_RATE_METRIC, SPEED_OPTION, TRACKING_TARGET_ID, trackingScorin
 import { modeUsesDirectionSound, modeUsesWeakSections, modeUsesWeapon, type TrainingMode } from '../../src/modes/types';
 import { anglesToPoint } from '../../src/sim/hit';
 import { parseMap, type MapData } from '../../src/sim/map';
-import { HUMANOID_DEPTH, HUMANOID_WIDTH, humanoidParts } from '../../src/sim/humanoid';
+import { HUMANOID_WIDTH, humanoidPlate } from '../../src/sim/humanoid';
 import { createTrackingMotion, TRACKING_DURATION, type TrackingMotion } from '../../src/sim/tracking';
 import type { PracticeTargetSpec, PracticeTargets } from '../../src/sim/targets';
 import { vec3, type Vec3 } from '../../src/sim/vec3';
@@ -126,10 +126,10 @@ describe('追いエイムのモードの登録', () => {
 });
 
 describe('追いエイムの練習', () => {
-  it('的は縮尺 1 の人形で、練習のあいだずっと出現し、照準が乗ると違う色にする的', () => {
+  it('的は縮尺 1 の人型の板で、練習のあいだずっと出現し、照準が乗ると違う色にする的', () => {
     const { session } = run({ seconds: 1 });
     const target = session.world.targets.get(TRACKING_TARGET_ID)!;
-    expect(target.parts).toEqual(humanoidParts(1));
+    expect(target.plate).toEqual(humanoidPlate(1));
     expect(target.visible).toBe(true);
     expect(target.highlightAimed).toBe(true);
   });
@@ -262,7 +262,7 @@ describe('追いエイムの採点（練習から）', () => {
     expect(session.world.targets.aimed).toBeUndefined();
   });
 
-  it('MODE-59: 照準を人形の胴の中心に向け続けると乗っていた割合が 100%、人形の幅だけ左右にずらし続けると（肩の外側から幅の半分外）0%', () => {
+  it('MODE-59: 照準を板の胴の中心に向け続けると乗っていた割合が 100%、板の幅（0.45 メートル）だけ左右にずらし続けると（肩の外側から幅の半分外）0%', () => {
     const map = rangeMap();
     const eye = map.spawn.position;
     const at = (dx: number) => (t: number, motion: TrackingMotion) => {
@@ -273,23 +273,25 @@ describe('追いエイムの採点（練習から）', () => {
     for (const dx of [HUMANOID_WIDTH, -HUMANOID_WIDTH]) expect(score(run({ aim: at(dx) }).session.result!).value).toBe(0);
   });
 
-  it('ARC-63: 乗っているかは部分の箱の和で決まり、脇の下の空き（胴の右端と右腕の左端のあいだの中央）に向けたステップは、空きが目の位置から見通せるあいだ乗っていない', () => {
+  it('MODE-65: 的が基準の点から左右に 2 メートル以上離れて斜めから見えるステップでも、輪郭の内側に向けると乗っていて、輪郭のすぐ外では乗っていない', () => {
     const map = rangeMap();
     const eye = map.spawn.position;
-    // 脇の下の空きは幅 0.04 メートル、奥行き 0.25 メートル。視線が斜めになると側面で塞がるので、見通せるステップだけを数える。
-    const gapX = (0.25 + 0.29) / 2;
-    const seeThrough = (c: Vec3) => (Math.abs(c.x + gapX - eye.x) / Math.abs(c.z - eye.z)) * (HUMANOID_DEPTH / 2) < 0.02 - 1e-6;
-    const { session, motion } = run({ aim: (t, m) => {
-      const c = m.positionAt(t);
-      return anglesToPoint(eye, vec3(c.x + gapX, c.y, c.z));
-    } });
-    const steps = session.result!.modeResult.steps as { on: boolean }[];
-    const open = steps.filter((_, k) => seeThrough(motion.positionAt((k + 1) * session.sim.dt)));
-    expect(open.length).toBeGreaterThan(60);
-    expect(open.every((s) => !s.on)).toBe(true);
+    const check = (x: number, y: number, want: boolean) => {
+      const { session, motion } = run({ aim: (t, m) => {
+        const c = m.positionAt(t);
+        return anglesToPoint(eye, vec3(c.x + x, c.y + y, c.z));
+      } });
+      const base = motion.positionAt(0).x;
+      const steps = session.result!.modeResult.steps as { on: boolean }[];
+      const far = steps.filter((_, k) => Math.abs(motion.positionAt((k + 1) * session.sim.dt).x - base) >= 2);
+      expect(far.length, `(${x}, ${y})`).toBeGreaterThan(30);
+      expect(far.every((st) => st.on === want), `(${x}, ${y})`).toBe(true);
+    };
+    for (const [x, y] of [[0, 0], [0, 0.35]] as const) check(x, y, true);
+    for (const [x, y] of [[0.13, 0.25], [-0.13, 0.25], [0.245, 0], [-0.245, 0]] as const) check(x, y, false);
   });
 
-  it('MODE-60: 同じ種・同じ速さなら、的を人形にしても、人形の中心と同じ位置の 1 つの箱にしても、的の中心の位置と切り返しの時刻の列が一致する', () => {
+  it('MODE-60: 同じ種・同じ速さなら、的を人型の板にしても、板の中心と同じ位置の 1 つの箱にしても、的の中心の位置と切り返しの時刻の列が一致する', () => {
     const centers = (box: boolean) => {
       const mode = modeById('tracking');
       // 1 つの箱にする方は、モードが足す的の形だけを差し替える（動きの関数と識別子はモードのまま）。
@@ -298,7 +300,7 @@ describe('追いエイムの採点（練習から）', () => {
         setup(context) {
           const targets = context.targets as PracticeTargets;
           const add = targets.add.bind(targets);
-          targets.add = (spec: PracticeTargetSpec) => add({ ...spec, parts: undefined, size: vec3(0.5, 1.8, 0.25) });
+          targets.add = (spec: PracticeTargetSpec) => add({ ...spec, parts: undefined, plate: undefined, size: vec3(0.45, 0.75, 0.01) });
           try {
             mode.setup(context);
           } finally {
@@ -314,7 +316,9 @@ describe('追いエイムの採点（練習から）', () => {
         session.step();
         seen.push(world.targets.get(TRACKING_TARGET_ID)!.center);
       }
-      expect(world.targets.get(TRACKING_TARGET_ID)!.parts).toHaveLength(box ? 1 : 6);
+      const placed = world.targets.get(TRACKING_TARGET_ID)!;
+      expect(placed.parts).toHaveLength(box ? 1 : 0);
+      expect(placed.plate === undefined).toBe(box);
       return { seen, reversals: session.result!.modeResult.reversals };
     };
     const dummy = centers(false);

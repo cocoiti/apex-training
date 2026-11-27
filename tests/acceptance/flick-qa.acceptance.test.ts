@@ -249,7 +249,7 @@ describe('MODE-50: 出る範囲ごとの角度の距離と、壁の正面の範�
           expect(d).toBeLessThan(hi + 1e-6);
           expect(Math.abs(a.pitch - run.world.center.pitch)).toBeLessThanOrEqual(d * SIN20 + 1e-6);
           if (a.yaw > 0) right += 1;
-          // 的の中心（人形の中心）は壁の正面の範囲にある（撃った的は消えているので、中心で確かめる）。
+          // 的の中心（板の中心）は壁の正面の範囲にある（撃った的は消えているので、中心で確かめる）。
           expect(s.center.x).toBeGreaterThanOrEqual(wall.center[0] - wall.size[0] / 2);
           expect(s.center.x).toBeLessThanOrEqual(wall.center[0] + wall.size[0] / 2);
           expect(s.center.y).toBeGreaterThanOrEqual(wall.center[1] - wall.size[1] / 2);
@@ -267,7 +267,7 @@ describe('MODE-50: 出る範囲ごとの角度の距離と、壁の正面の範�
 
 describe('MODE-51: 的の大きさごとの命中の境目', () => {
   for (const size of Object.keys(SIZES) as SizeId[]) {
-    it(`「${size}」（見込み角 ${SIZES[size]} 度）: 人形の中心から見込み角の半分よりわずかに小さくヨーをずらすと命中（胴の端の内側）、見込み角の 2 倍ずらすと外れ（人形の外形から十分外）`, () => {
+    it(`「${size}」（見込み角 ${SIZES[size]} 度）: 板の中心から見込み角の半分よりわずかに小さくヨーをずらすと命中（胴の左右の辺の内側）、わずかに大きくずらすと外れ（辺の外側）`, () => {
       const run = begin(31337, 'near', size);
       const half = SIZES[size] / 2;
       const plan: boolean[] = [];
@@ -277,7 +277,7 @@ describe('MODE-51: 的の大きさごとの命中の境目', () => {
         const on = anglesTo(run.world, c);
         const toCenter = on.yaw > run.world.center.yaw ? -1 : 1;
         const sign = inside && i % 4 === 0 ? -toCenter : toCenter;
-        return { at: at + 0.2, aim: { yaw: on.yaw + sign * half * (inside ? 0.95 : 4), pitch: on.pitch } };
+        return { at: at + 0.2, aim: { yaw: on.yaw + sign * half * (inside ? 0.95 : 1.05), pitch: on.pitch } };
       });
       const recs = records(run);
       expect(recs).toHaveLength(20);
@@ -285,7 +285,7 @@ describe('MODE-51: 的の大きさごとの命中の境目', () => {
     });
   }
 
-  it('MODE-62: 人形の胴の幅は 2 × L × tan(見込み角 ÷ 2)（L は目から的の中心までの距離）で、人形の高さは胴の幅に比例する', () => {
+  it('MODE-62: 板の幅は 2 × L × tan(見込み角 ÷ 2)（L は目から的の中心までの距離）で、板の高さは幅に比例する（0.75 ÷ 0.45）', () => {
     for (const size of Object.keys(SIZES) as SizeId[]) {
       const run = begin(5, 'far', size);
       stepUntil(run, 1 + DT / 2);
@@ -293,11 +293,11 @@ describe('MODE-51: 的の大きさごとの命中の境目', () => {
       const eye = run.world.player.position;
       const L = Math.hypot(t.center.x - eye.x, t.center.y - eye.y, t.center.z - eye.z);
       const w = 2 * L * Math.tan((SIZES[size] * Math.PI) / 360);
-      const torso = t.parts.find((p) => p.id === 'torso')!;
-      expect(torso.size.x).toBeCloseTo(w, 6);
-      const top = Math.max(...t.parts.map((p) => p.offset.y + p.size.y / 2));
-      const bottom = Math.min(...t.parts.map((p) => p.offset.y - p.size.y / 2));
-      expect((top - bottom) / torso.size.x).toBeCloseTo(1.8 / 0.5, 9);
+      const xs = t.plate!.outline.map((p) => p.x);
+      const ys = t.plate!.outline.map((p) => p.y);
+      const width = Math.max(...xs) - Math.min(...xs);
+      expect(width).toBeCloseTo(w, 6);
+      expect((Math.max(...ys) - Math.min(...ys)) / width).toBeCloseTo(0.75 / 0.45, 9);
     }
   });
 });

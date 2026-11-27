@@ -18,7 +18,7 @@ export const IMPACT_NAME = 'impact';
 /**
  * 弾痕を描画の層に足す（docs/spec/modes.md「共通」）。シミュレーションの弾の記録を読むだけで、書き換えない。
  * 一度足した弾痕は clear するまで残る。どの箱にも当たらなかった弾（位置なし）と、弾痕を残さない練習の的に当たった弾
- * （target を持ち impactOnTarget を持たない）は表示しない。弾痕を残す練習の的（反復練習の人形）に当たった弾は、当たった点に表示する。
+ * （target を持ち impactOnTarget を持たない）は表示しない。弾痕を残す練習の的（反復練習の人型の板）に当たった弾は、当たった点に表示する。
  */
 export class ImpactMarks {
   private readonly layer: DisplayLayer;
