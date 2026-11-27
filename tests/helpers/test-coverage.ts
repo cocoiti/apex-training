@@ -2,8 +2,14 @@
 // 「テストの網羅の分担」、ARC-26・ARC-29）。テストの名前と、Chromium の起動・ページを開く箇所を読む。
 import ts from 'typescript';
 
-/** 受け入れ条件の ID（ARC-23、UI-5 など）。 */
-export const ACCEPTANCE_ID = /\b[A-Z]{2,5}-\d+\b/g;
+/**
+ * 受け入れ条件の ID。前からある `<接頭辞>-<番号>`（ARC-23、UI-5 など）と、
+ * `<接頭辞>-<Issue 番号>-<その Issue の中の番号>`（UI-81-1 など）の 2 つの形（docs/spec/README.md「受け入れ条件の ID」）。
+ * UI-81-1 は UI-81-1 という 1 つの ID として読み、UI-81 とは読まない。
+ */
+export const ACCEPTANCE_ID = /\b[A-Z]{2,5}-\d+(?:-\d+)?\b/g;
+/** ACCEPTANCE_ID の 1 つの ID だけからなる文字列。 */
+const WHOLE_ID = /^[A-Z]{2,5}-\d+(?:-\d+)?$/;
 
 /** 名前の中の受け入れ条件の ID（重なりなし、出た順）。 */
 export function acceptanceIds(text: string): string[] {
@@ -181,9 +187,36 @@ export function coverageTable(markdown: string): CoverageRow[] {
   for (const line of markdown.split('\n')) {
     const cells = line.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
     if (cells.length < 2) continue;
-    const id = cells[0]!.match(/^`?([A-Z]{2,5}-\d+)`?$/)?.[1];
+    const id = cells[0]!.replace(/^`|`$/g, '');
     const file = line.match(/tests\/[\w./-]+\.test\.ts/)?.[0];
-    if (id && file) rows.push({ id, file });
+    if (WHOLE_ID.test(id) && file) rows.push({ id, file });
   }
   return rows;
+}
+
+/** 表とテストの名前の食い違い（ARC-29）。どれも空なら、表のどの ID も表が示す 1 つのファイルだけが確かめている。 */
+export interface CoverageProblems {
+  /** 表が示すファイルに、名前にその ID を含むテストがない。 */
+  missing: string[];
+  /** 表が示すファイルのほかのブラウザを使うファイルにも、名前にその ID を含むテストがある。 */
+  elsewhere: string[];
+  /** ブラウザを使うテストの名前にある ID が、表に載っていない。 */
+  unlisted: string[];
+}
+
+/**
+ * 表の行と、ブラウザを使うファイルごとのテストの名前を照らす（ARC-29）。ID は ACCEPTANCE_ID で読み、
+ * 文字どおりに比べる（UI-81 と UI-81-1 は別の ID で、一方のテストや行がもう一方を満たすことはない）。
+ */
+export function coverageProblems(rows: readonly CoverageRow[], testNamesByFile: ReadonlyMap<string, readonly string[]>): CoverageProblems {
+  const idsByFile = new Map([...testNamesByFile].map(([f, names]) => [f, new Set(names.flatMap(acceptanceIds))]));
+  const files = [...idsByFile.keys()];
+  const listed = new Set(rows.map((r) => r.id));
+  return {
+    missing: rows.filter((r) => !idsByFile.get(r.file)?.has(r.id)).map((r) => `${r.id} が ${r.file} のテストの名前にない`),
+    elsewhere: rows.flatMap((r) =>
+      files.filter((f) => f !== r.file && idsByFile.get(f)?.has(r.id)).map((f) => `${r.id} が ${f} のテストの名前にもある`),
+    ),
+    unlisted: [...idsByFile].flatMap(([f, ids]) => [...ids].filter((id) => !listed.has(id)).map((id) => `${id}（${f}）`)),
+  };
 }

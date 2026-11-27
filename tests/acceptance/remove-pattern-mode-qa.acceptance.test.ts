@@ -80,7 +80,7 @@ const SPEC = (name: string) => readFileSync(join(ROOT, 'docs/spec', name), 'utf8
 const specIds = () =>
   readdirSync(join(ROOT, 'docs/spec'))
     .filter((f) => f.endsWith('.md'))
-    .flatMap((f) => [...SPEC(f).matchAll(/^- \*\*([A-Z]+-\d+)\*\*:/gm)].map((m) => m[1]!));
+    .flatMap((f) => [...SPEC(f).matchAll(/^- \*\*([A-Z]+-\d+(?:-\d+)?)\*\*:/gm)].map((m) => m[1]!));
 
 const PAGE_INIT = `
   window.__pad = { axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ value: 0, pressed: false, touched: false })) };

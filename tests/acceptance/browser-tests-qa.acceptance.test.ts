@@ -71,7 +71,8 @@ function testsOf(sf: ts.SourceFile): TestCase[] {
   return out;
 }
 
-const ID = /\b[A-Z]{2,5}-\d+\b/g;
+/** 受け入れ条件の ID（UI-43 の形と UI-81-1 の形。UI-81-1 は 1 つの ID で、UI-81 とは読まない）。 */
+const ID = /\b[A-Z]{2,5}-\d+(?:-\d+)?\b/g;
 const idsIn = (text: string) => [...text.matchAll(ID)].map((m) => m[0]);
 
 /** 名前つきの関数（function 宣言と、関数を入れた const）の本体。 */
@@ -232,7 +233,7 @@ function tableRows(markdown: string): { id: string; file: string }[] {
     if (cells.length < 4) continue;
     const id = cells[1]!;
     const file = cells.slice(2).map((c) => c.match(/`?(tests\/[^`\s]+\.test\.ts)`?/)?.[1]).find(Boolean);
-    if (/^[A-Z]{2,5}-\d+$/.test(id) && file) rows.push({ id, file });
+    if (/^[A-Z]{2,5}-\d+(?:-\d+)?$/.test(id) && file) rows.push({ id, file });
   }
   return rows;
 }
