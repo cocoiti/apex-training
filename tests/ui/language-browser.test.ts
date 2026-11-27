@@ -110,7 +110,8 @@ describe.skipIf(NESTED || !chromium)('表示の言語', () => {
    * 読み込み直す前の文書に印を付け、印のない文書になるまで待つ（遅いマシンで、読み込み直す前の文書を見て終わったと思わないように）。
    */
   async function reload(page: Page): Promise<void> {
-    await page.evaluate('window.__beforeReload = true; location.reload()');
+    await page.evaluate('window.__beforeReload = true');
+    await page.reload();
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && document.querySelectorAll('#mode-cards .card').length === 4`, 15_000);
   }
 

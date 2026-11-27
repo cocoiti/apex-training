@@ -241,7 +241,8 @@ describe.skipIf(NESTED || !chromium)('QA: 人型の板の的の表示（MODE-58�
     await page.addInitScript(PAGE_INIT);
     await page.goto(appUrl(origin, BASE, '#/', { manualClock: true, seed: SEED }));
     await page.evaluate('localStorage.clear()');
-    await page.evaluate(`window.__beforeReload = true; location.hash = '#/settings'; location.reload()`);
+    await page.evaluate(`window.__beforeReload = true; location.hash = '#/settings'`);
+    await page.reload();
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && !!document.getElementById('setting-ghost')`, 15_000);
     if (opts.ghost) {
       await page.clickSelector('#setting-ghost');

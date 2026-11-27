@@ -267,7 +267,8 @@ describe.skipIf(NESTED || !chromium)('QA: 壁のパネル・的のリング・�
     await page.evaluate('localStorage.clear()');
     await page.goto(appUrl(origin, BASE, '#/settings', { manualClock, seed: SEED }));
     // 読み込み直す前の文書に印を付け、印のない（読み込み直した）文書で設定画面の入力欄が埋まるまで待つ。
-    await page.evaluate('window.__beforeReload = true; location.reload()');
+    await page.evaluate('window.__beforeReload = true');
+    await page.reload();
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && document.getElementById('setting-fov') && document.getElementById('setting-fov').value !== ''`);
     if (options.fov !== undefined) {
       await page.clickSelector('#setting-fov');

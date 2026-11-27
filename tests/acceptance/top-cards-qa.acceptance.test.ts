@@ -218,7 +218,7 @@ describe.skipIf(!chromium || NESTED)('トップ画面のカード（UI-10・UI-1
     if (opts.pad) await page.addInitScript(FAKE_PAD);
     if (opts.init) await page.addInitScript(opts.init);
     await page.evaluate(`window.__beforeReload = true`);
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && ${TOP_READY}`, 15_000);
     return page;
   }

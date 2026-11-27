@@ -336,7 +336,7 @@ describe.skipIf(NESTED || !chromium)('リザルト画面と自己ベスト', () 
   }
   async function reload(page: Page) {
     await page.evaluate('window.__beforeReload = true');
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && !!document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`, 15_000);
   }
 

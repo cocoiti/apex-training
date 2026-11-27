@@ -65,7 +65,8 @@ describe.skipIf(NESTED || !chromium)('トップ画面のカード', () => {
     const page = await browser!.newPage();
     await page.addInitScript(PAD_INIT);
     await page.goto(appUrl(origin, BASE, '#/', APP));
-    await page.evaluate(`(() => { window.__beforeReload = true; localStorage.clear(); ${setup}; location.reload(); })()`);
+    await page.evaluate(`(() => { window.__beforeReload = true; localStorage.clear(); ${setup} })()`);
+    await page.reload();
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && document.querySelectorAll('#mode-cards .card').length > 0`, 15_000);
     return page;
   }

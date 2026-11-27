@@ -144,7 +144,8 @@ describe.skipIf(NESTED || !chromium)('画面の表示の計測', () => {
     await page.waitFor(screenVisible(screen));
   };
   const reload = async (page: Page) => {
-    await page.evaluate(`window.__beforeReload = true; location.reload()`);
+    await page.evaluate(`window.__beforeReload = true`);
+    await page.reload();
     await page.waitFor(`!window.__beforeReload && ${READY}`, 15_000);
   };
   /**

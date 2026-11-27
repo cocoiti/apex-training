@@ -465,7 +465,7 @@ describe.skipIf(NESTED || !chromium)('QA: 表示の言語（ブラウザ）', ()
   /** 読み込み直し、画面が表示されるまで待つ。 */
   async function reload(page: Page, screen = 'top') {
     await page.evaluate('window.__beforeReload = true');
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="${screen}"]')`, 15_000);
     await page.frames(3);
   }

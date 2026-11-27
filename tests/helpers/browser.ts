@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } fr
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, join, normalize } from 'node:path';
+import { APP_STATE_ATTRIBUTE } from '../../src/ui/app-state';
 import { noteOpenedUrl, reportSeedsOnFailure } from './seed-report';
 import { listenOnFreePort } from './server';
 import { waitUntil } from './wait';
@@ -41,6 +42,22 @@ export async function serveStatic(dir: string, base: string): Promise<Server> {
 }
 
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void };
+
+/** ページを開く・読み込み直すときの待ち方。 */
+export interface LoadOptions {
+  /**
+   * true（既定）なら、アプリのページのデータの読み込みが終わる（<html> の data-app-state が ready か error になる）まで待ってから戻る。
+   * data-app-state を持たないページ（テストが置いた空のページなど）は、文書の読み込みが終われば戻る。
+   * false は、読み込みが終わる前の振る舞いを確かめるテストだけが渡す。
+   */
+  readonly waitForApp?: boolean;
+}
+
+/** 開く前の文書に付ける印の名前（文書が変わったかを見分ける）。 */
+const PREVIOUS_DOCUMENT = '__apexPreviousDocument';
+
+/** アプリのデータの読み込みが終わったか（data-app-state がないか、loading でない）をページで調べる式。 */
+export const APP_SETTLED = `(document.documentElement.getAttribute(${JSON.stringify(APP_STATE_ATTRIBUTE)}) ?? 'ready') !== 'loading'`;
 
 /**
  * 種を付けずに開く印（appUrl の seed）。種を付けないときの振る舞い（練習ごとに種を選ぶ、画面に種が出ない）を確かめるテストだけが使い、
@@ -174,11 +191,40 @@ export class Page {
     await this.send('Page.addScriptToEvaluateOnNewDocument', { source });
   }
 
-  /** url を開き、読み込みが終わるまで待つ。 */
-  async goto(url: string): Promise<void> {
+  /**
+   * url を開き、文書の読み込みが終わるまで待つ。アプリのページなら、既定でデータの読み込みも終わる（data-app-state が ready か error になる）まで待つ
+   * （docs/spec/architecture.md「テストのための読み込みの完了の印」）。読み込みが終わる前の振る舞いを確かめるテストだけが waitForApp: false を渡す。
+   * 別の文書に移るときは、前の文書の状態で戻らないよう、新しい文書になるまで待つ。hash だけが変わるときは同じ文書のまま待つ。
+   */
+  async goto(url: string, { waitForApp = true }: LoadOptions = {}): Promise<void> {
     noteOpenedUrl(url);
-    await this.send('Page.navigate', { url });
-    await this.waitFor('document.readyState === "complete"');
+    await this.markDocument();
+    const { loaderId } = await this.send<{ loaderId?: string }>('Page.navigate', { url });
+    await this.waitForLoad({ newDocument: loaderId !== undefined, waitForApp });
+  }
+
+  /**
+   * 今のページを読み込み直し、goto と同じく新しい文書の読み込み（アプリのページなら既定でデータの読み込みも）が終わるまで待つ。
+   * ignoreCache なら、キャッシュを使わずに読み込み直す。
+   */
+  async reload({ ignoreCache = false, waitForApp = true }: LoadOptions & { ignoreCache?: boolean } = {}): Promise<void> {
+    await this.markDocument();
+    await this.send('Page.reload', { ignoreCache });
+    await this.waitForLoad({ newDocument: true, waitForApp });
+  }
+
+  /** 今の文書に印を付ける。新しい文書には付いていないので、印がないことで文書が変わったとわかる。 */
+  private async markDocument(): Promise<void> {
+    await this.evaluate(`document[${JSON.stringify(PREVIOUS_DOCUMENT)}] = true`);
+  }
+
+  private async waitForLoad({ newDocument, waitForApp }: { newDocument: boolean; waitForApp: boolean }): Promise<void> {
+    const conditions = [
+      ...(newDocument ? [`!document[${JSON.stringify(PREVIOUS_DOCUMENT)}]`] : []),
+      'document.readyState === "complete"',
+      ...(waitForApp ? [APP_SETTLED] : []),
+    ];
+    await this.waitFor(conditions.join(' && '));
   }
 
   /** ページの式が真になるまで待つ。timeout を過ぎたら、待っていた式を示して失敗する。 */

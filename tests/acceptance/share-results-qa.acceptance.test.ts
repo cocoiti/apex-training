@@ -462,7 +462,7 @@ describe.skipIf(NESTED || !chromium)('QA: 結果のシェア', () => {
     await page.addInitScript(envScript(opts.share ?? 'ok', opts.clip ?? 'ok'));
     if (opts.pad) await page.addInitScript(FAKE_PAD);
     await page.evaluate('window.__beforeReload = true');
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="top"]')`, 15_000);
     await page.frames(3);
     return page;

@@ -220,7 +220,7 @@ describe.skipIf(NESTED || !chromium)('QA: 設定画面の受け入れ条件', ()
   /** 設定画面を開き直す（再読み込み）。読み込む前の文書に印を付け、印のない新しい文書になったことを待つ。 */
   async function reload(p: Page) {
     await p.evaluate('window.__beforeReload = true');
-    await p.send('Page.reload', { ignoreCache: true });
+    await p.reload({ ignoreCache: true });
     await p.waitFor('!window.__beforeReload && document.readyState === "complete"');
     await waitSettings(p);
   }

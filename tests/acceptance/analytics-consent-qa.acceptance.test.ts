@@ -138,7 +138,7 @@ async function show(page: Page, hash: string, screen: string) {
 /** ページを読み込み直し、screen が表示されるまで待つ。 */
 async function reload(page: Page, screen: string) {
   await page.evaluate('window.__beforeReload = true');
-  await page.send('Page.reload', { ignoreCache: false });
+  await page.reload({ ignoreCache: false });
   await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="${screen}"]')`, 15_000);
   await page.frames(3);
 }

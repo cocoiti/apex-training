@@ -426,7 +426,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
     await page.goto(appUrl(origin, BASE, '#/', { render, manualClock: true, seed: SEED }));
     await page.evaluate('localStorage.clear()');
     await page.evaluate('window.__beforeReload = true');
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="top"]')`, 15_000);
     return page;
   }
@@ -434,7 +434,7 @@ describe.skipIf(NESTED || !chromium)('QA: 補正のパネル', () => {
   /** 再読み込みして設定画面を開き直す。 */
   async function reloadSettings(page: Page) {
     await page.evaluate('window.__beforeReload = true');
-    await page.send('Page.reload', { ignoreCache: true });
+    await page.reload({ ignoreCache: true });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete'`, 15_000);
     await page.evaluate(`location.hash = '#/settings'`);
     await page.waitFor(`window.__vis('[data-screen="settings"]') && document.getElementById('setting-fov').value !== ''`);

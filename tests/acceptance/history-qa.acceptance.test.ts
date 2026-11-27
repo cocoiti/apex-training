@@ -323,7 +323,7 @@ describe.skipIf(NESTED || !chromium)('練習の履歴と履歴の画面', () => 
   async function reload(page: Page) {
     // 履歴の画面などから再読み込みするときも、トップ画面の表示を待てるようにハッシュをトップに戻してから読み込み直す。
     await page.evaluate(`location.hash = '#/'; window.__beforeReload = true`);
-    await page.send('Page.reload', { ignoreCache: false });
+    await page.reload({ ignoreCache: false });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && !!document.querySelector('[data-screen="top"]') && !document.querySelector('[data-screen="top"]').hidden`, 15_000);
   }
 
