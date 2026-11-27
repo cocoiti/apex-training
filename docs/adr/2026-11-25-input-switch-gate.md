@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: input
+summary: 入力方式の切替はデバイスとキューの間の InputSwitch 1 か所で行い、操作は押し始め・デッドゾーンを出た瞬間で判定し、練習の入力方式は 1 発目のときの入力方式にする
+related: [docs/spec/input.md, docs/spec/modes.md, docs/spec/scoring.md, src/input/input-switch.ts, src/input/pad.ts, src/input/mouse.ts, src/modes/session.ts, src/main.ts]
+---
 # 入力方式の切替はデバイスとキューの間の InputSwitch 1 か所で行い、操作は押し始め・デッドゾーンを出た瞬間で判定する
-
-状態: 承認
 
 ## 背景
 

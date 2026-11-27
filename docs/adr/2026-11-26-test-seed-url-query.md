@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: テストのための乱数の種の固定は本番のビルドが URL のクエリ seed で行い、ブラウザのテストは appUrl の必須の seed で固定の種のページを開き、失敗したときは使った種をメッセージに足す
+related: [docs/spec/architecture.md, docs/spec/input.md, src/ui/page-options.ts, src/main.ts, tests/helpers/browser.ts, tests/helpers/seed-report.ts, tests/helpers/test-seed.ts]
+---
 # テストのための乱数の種の固定は URL のクエリ seed で行い、ブラウザのテストは appUrl の必須の seed で開き、失敗時に種をメッセージに足す
-
-状態: 承認
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: modes
+summary: やり直しと連続練習の各回はプレイ画面のまま練習を作り直し、セットの状態と短いリザルトの時間は sim の外の PracticeSet で持つ
+related: [docs/spec/modes.md, docs/spec/screens.md, src/ui/practice-set.ts, src/ui/practice-flow.ts, src/main.ts]
+---
 # やり直しと連続練習の各回はプレイ画面のまま練習を作り直し、セットの状態はシミュレーションの外に持つ
-
-状態: 承認
 
 ## 背景
 

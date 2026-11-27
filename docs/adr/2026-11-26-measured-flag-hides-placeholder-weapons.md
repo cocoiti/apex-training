@@ -1,8 +1,10 @@
+---
+status: accepted
+domain: weapons
+summary: 武器の JSON に必須の `measured` を持たせ、`false` の仮データの武器は残したまま武器の一覧から外す
+related: [docs/spec/weapons.md, docs/spec/modes.md, docs/spec/screens.md, src/data/weapons/, src/sim/weapon.ts]
+---
 # 武器の JSON に必須の `measured` を持たせ、`false` の仮データの武器は残したまま武器の一覧から外す
-
-## 状態
-
-承認
 
 ## 背景
 

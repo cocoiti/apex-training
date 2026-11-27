@@ -1,6 +1,14 @@
+---
+status: accepted
+domain: pad
+summary: 理想の補正速度は idealCorrectionRate 1 か所で求め、入力推移の理想はステップの入力を適用する前の状態から求め、ガイドはゴーストの表示の条件と今の入力方式がパッドのときに HTML の重ね表示で出す（一部は 2026-11-26-repeat-practice-panel-as-main-aid で置き換え）
+related: [docs/spec/pad.md, docs/spec/modes.md, docs/spec/scoring.md, src/sim/weapon.ts, src/sim/trajectory.ts, src/modes/session.ts, src/ui/pad-guide.ts, src/ui/result-view.ts, src/main.ts]
+---
 # パッド向けのガイドと入力推移の理想は、ステップの入力を適用する前の状態から求め、ガイドの表示はゴーストの表示に従わせる
 
-状態: 一部置き換え済み → [2026-11-26-repeat-practice-panel-as-main-aid](2026-11-26-repeat-practice-panel-as-main-aid.md)（ガイドの表示の条件。ゴースト表示の設定によらず出す）
+## 置き換え
+
+一部は次の ADR で置き換えた: [2026-11-26-repeat-practice-panel-as-main-aid](2026-11-26-repeat-practice-panel-as-main-aid.md)（ガイドの表示の条件。ゴースト表示の設定によらず出す）
 
 ## 背景
 

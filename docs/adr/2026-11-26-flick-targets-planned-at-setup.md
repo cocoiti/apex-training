@@ -1,6 +1,14 @@
+---
+status: accepted
+domain: modes
+summary: フリックの的の並びは setup で種付きの乱数から 20 個分を決め、的は壁と的の箱より手前の、壁の正面と平行な板として置き、練習ごとの状態は context を鍵にした WeakMap に持つ（一部は 2026-11-27-humanoid-target-parts で置き換え）
+related: [docs/spec/modes.md, docs/spec/scoring.md, src/modes/aim/flick.ts, src/ui/hud.ts]
+---
 # フリックの的の並びは setup で種付きの乱数から 20 個分を決め、的は壁と的の箱より手前の、壁の正面と平行な板として置く
 
-状態: 一部置き換え済み → [2026-11-27-humanoid-target-parts](2026-11-27-humanoid-target-parts.md)（的を板でなく人形として置く部分）
+## 置き換え
+
+一部は次の ADR で置き換えた: [2026-11-27-humanoid-target-parts](2026-11-27-humanoid-target-parts.md)（的を板でなく人形として置く部分）
 
 ## 背景
 

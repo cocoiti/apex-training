@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: テストのための描画の省略と時計の差し替えは、本番のビルドが URL のクエリ render=off・clock=manual で切り替え、時計は描画の予定ごと FrameClock で差し替える
+related: [docs/spec/architecture.md, src/main.ts, src/core/frame-clock.ts, src/ui/page-options.ts, src/render/scene.ts, tests/helpers/browser.ts]
+---
 # テストのための描画の省略と時計の差し替えは、本番のビルドが URL のクエリ render=off・clock=manual で切り替え、時計は描画の予定ごと差し替える
-
-状態: 承認
 
 ## 背景
 

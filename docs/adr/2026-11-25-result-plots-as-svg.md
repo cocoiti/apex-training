@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: scoring
+summary: リザルトの図は依存を足さず、度の座標の SVG を文字列で作って描く
+related: [docs/spec/scoring.md, src/ui/result-plot.ts, src/ui/result-view.ts, index.html]
+---
 # リザルトの図は依存を足さず、度の座標の SVG を文字列で作って描く
-
-状態: 承認
 
 ## 背景
 

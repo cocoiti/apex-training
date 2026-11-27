@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: 素材の検査は作者・出どころの名前を見ず、license を self-made と許可した SPDX 識別子との完全一致で判定し、OSS 系には source の URL を求める
+related: [docs/spec/overview.md, scripts/check-assets.mjs]
+---
 # 素材の検査は作者・出どころの名前を見ず、license を許可リストとの完全一致で判定する
-
-状態: 承認
 
 ## 背景
 

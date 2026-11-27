@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: screens
+summary: 履歴を消すときはキーを removeItem で消し、SafeStorage はこのページで消したことをメモリに持つ
+related: [docs/spec/screens.md, docs/spec/scoring.md, src/ui/storage.ts, src/ui/practice-history.ts]
+---
 # 履歴を消すときはキーを removeItem で消し、SafeStorage はこのページで消したことをメモリに持つ
-
-状態: 承認
 
 ## 背景
 

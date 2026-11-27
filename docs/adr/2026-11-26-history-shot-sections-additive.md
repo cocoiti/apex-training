@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: scoring
+summary: 履歴の 1 件に発の区間（5 発ごと）の集計を任意の項目 sections として足して版は 1 のままにし、苦手な区間は保存せず表示のたびに履歴から求める
+related: [docs/spec/scoring.md, docs/spec/screens.md, src/sim/scoring.ts, src/ui/practice-history.ts, src/ui/weak-section.ts, src/ui/history-view.ts, src/ui/correction-panel.ts]
+---
 # 履歴の 1 件に発の区間（5 発ごと）の集計を任意の項目 sections として足し、版は 1 のままにする
-
-状態: 承認
 
 ## 背景
 

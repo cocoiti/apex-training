@@ -1,6 +1,14 @@
+---
+status: accepted
+domain: architecture
+summary: "配布物の素材は src/assets/assets.json の一覧とパス・ハッシュを除いた名前で照らし、資産は大きさによらず data: URL に埋め込まない（一部は 2026-11-25-asset-license-allowlist で置き換え）"
+related: [docs/spec/overview.md, scripts/check-assets.mjs, src/assets/assets.json, vite.config.ts]
+---
 # 配布物の素材は src/assets/assets.json の一覧と名前で照らし、資産は大きさによらず data: URL に埋め込まない
 
-状態: 一部置き換え済み → 2026-11-25-asset-license-allowlist.md（公式の名前の判定）
+## 置き換え
+
+一部は次の ADR で置き換えた: 2026-11-25-asset-license-allowlist.md（公式の名前の判定）
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: weapons
+summary: 武器のリコイルは JSON のデータとして外に出す
+related: [docs/spec/weapons.md, src/data/weapons/]
+---
 # 武器のリコイルは JSON のデータとして外に出す
-
-状態: 承認
 
 ## 背景
 

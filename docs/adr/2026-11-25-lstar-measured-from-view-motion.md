@@ -1,8 +1,10 @@
+---
+status: accepted
+domain: weapons
+summary: L-STAR の跳ねは録画の画面の動きから求め、FOV の値の Hor+ 換算（ADS の倍率なし）で角度にする
+related: [docs/spec/weapons.md, src/data/weapons/lstar.json, docs/measurements/lstar.json]
+---
 # L-STAR の跳ねは録画の画面の動きから求め、FOV の値の Hor+ 換算（ADS の倍率なし）で角度にする
-
-## 状態
-
-承認
 
 ## 背景
 

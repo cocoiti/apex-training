@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: screens
+summary: パッドでの項目の移動は PadNavigator（読み取り）と PadMenu（画面への当て方）に分け、フォーカスは枠のクラスで表し、値は要素の値を変えて input・change を送り、入力方式の切替はプレイ画面の操作だけで数える
+related: [docs/spec/screens.md, docs/spec/pad.md, docs/spec/input.md, src/input/pad-navigation.ts, src/ui/pad-menu.ts, src/ui/history-view.ts, src/main.ts]
+---
 # パッドでの項目の移動は PadNavigator と PadMenu に分け、フォーカスは DOM のフォーカスでなく枠のクラスで表し、値は要素の値を変えて input・change を送る
-
-状態: 承認
 
 ## 背景
 

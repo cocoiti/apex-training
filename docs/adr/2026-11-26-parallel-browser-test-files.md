@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: ブラウザのテストは browser の組の maxWorkers で既定 3 ファイルを並行に流し、APEX_BROWSER_WORKERS（1 以上の整数でなければ設定の読み込みで失敗）で変え、Chromium の TMPDIR と Vite の cacheDir をファイルごとの一時ディレクトリにする
+related: [docs/spec/architecture.md, vite.config.ts, CLAUDE.md, tests/helpers/browser.ts, tests/acceptance/parallel-browser-qa.acceptance.test.ts]
+---
 # ブラウザのテストは browser の組の maxWorkers で既定 3 ファイルを並行に流し、APEX_BROWSER_WORKERS で変え、共有していた置き場をファイルごとにする
-
-状態: 承認
 
 ## 背景
 

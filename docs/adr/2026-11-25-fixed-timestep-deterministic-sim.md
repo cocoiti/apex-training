@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: 固定ステップで、DOM と Three.js から切り離し、入力だけで結果が決まるシミュレーションにする
+related: [docs/spec/architecture.md, docs/spec/input.md, src/core/, src/sim/]
+---
 # シミュレーションは固定ステップで、DOM と Three.js から切り離し、入力だけで結果が決まるようにする
-
-状態: 承認
 
 ## 背景
 

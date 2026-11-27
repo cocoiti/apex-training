@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: pad
+summary: パッドは描画ごとに使えるパッドと配置（PadLayout）を選び直し、割り当ては名前ごとの PadLayout の JSON で apex-training:pad-mapping に、パッドの区分は簡易・詳細の値を別々に apex-training:settings:pad に保存する
+related: [docs/spec/pad.md, docs/spec/screens.md, src/input/pad-layout.ts, src/input/pad.ts, src/ui/settings.ts, src/ui/pad-mappings.ts, src/ui/pad-settings-form.ts, src/ui/pad-calibration.ts, src/main.ts]
+---
 # パッドは描画ごとに「使えるパッド」と配置（PadLayout）を選び直し、割り当ては名前ごとの PadLayout の JSON で保存する
-
-状態: 承認
 
 ## 背景
 

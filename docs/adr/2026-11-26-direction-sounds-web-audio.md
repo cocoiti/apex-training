@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: screens
+summary: 向きの音は Web Audio の発振器でその場で合成し、描画のたびに増えた弾の記録の patternShot で鳴らす発を決め、試聴は押した時点の AudioContext の時刻を起点に、ページの時計で先読みして予約する
+related: [docs/spec/screens.md, docs/spec/modes.md, src/ui/direction-sound.ts, src/sim/gun.ts, src/ui/settings.ts, src/main.ts, index.html]
+---
 # 向きの音は Web Audio の発振器でその場で合成し、描画のたびに増えた弾の記録の patternShot で鳴らす発を決める
-
-状態: 承認
 
 ## 背景
 

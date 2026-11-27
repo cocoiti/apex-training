@@ -1,8 +1,10 @@
+---
+status: accepted
+domain: screens
+summary: リコイルは視点が跳ねる表示（カメラが動き、クロスヘアは中心のまま）だけにし、表示の方式を切り替える設定を作らない
+related: [docs/spec/screens.md, src/render/scene.ts, src/sim/player.ts, src/ui/style.css, src/ui/settings.ts, index.html]
+---
 # リコイルは視点が跳ねる表示（カメラが動き、クロスヘアは中心のまま）だけにし、表示の方式を切り替える設定を作らない
-
-## 状態
-
-承認
 
 ## 背景
 

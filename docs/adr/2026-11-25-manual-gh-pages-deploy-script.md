@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: GitHub Pages へは自前のスクリプトで一時的な作業ツリーから gh-pages ブランチへ手動で push して公開する
+related: [docs/spec/overview.md, scripts/deploy.mjs, package.json]
+---
 # GitHub Pages へは自前のスクリプトで gh-pages ブランチに手動で push して公開する
-
-状態: 承認
 
 ## 背景
 

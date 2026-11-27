@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: 描画はシーンとカメラ（ViewScene）と WebGL の描画器に分け、FOV の換算は fov.ts の 1 か所で行う
+related: [docs/spec/architecture.md, docs/spec/screens.md, src/render/]
+---
 # 描画はシーンとカメラ（ViewScene）と WebGL の描画器に分け、カメラ・視野角・層をブラウザなしで確かめる
-
-状態: 承認
 
 ## 背景
 

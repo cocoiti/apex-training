@@ -202,6 +202,25 @@ src/
 - ブラウザを使うテストは、下の「Docker でのブラウザのテスト」で、手元のマシンの外（Docker の context で指定した別のマシン）か手元の Docker の
   コンテナの中でも流せる。使い方は `CLAUDE.md` に書いてある。
 
+### 設計の決定記録（ADR）
+
+- 決定の理由は `docs/adr/` に、1 つの決定を 1 ファイルの `<YYYY-MM-DD>-<短い英語の名前>.md` として置く（フォルダは分けない）。
+  書くのは、決定が済んでいて、後からその決定を変える人が当時の制約と却下した案を知る必要があるものだけ。
+- `docs/adr/README.md` 以外の各 ADR は、ファイルの先頭に frontmatter（`---` で囲んだ部分）を持つ。項目は次のとおり。
+  - `status`: `accepted`（承認）・`superseded`（置き換え済み）・`withdrawn`（取り下げ。上の基準に合わないもの）のどれか。
+  - `domain`: 主に決めた振る舞いの SPEC の領域（`docs/spec/` の領域のファイル名から `.md` を除いたもの: `architecture`・`input`・`modes`・
+    `mouse`・`overview`・`pad`・`scoring`・`screens`・`weapons`）。テスト・CI・ビルド・配信・素材の扱いなど開発の仕組みの決定は `architecture`。
+    2 つ以上の領域にまたがり 1 つに決められないものだけ `cross`。
+  - `summary`: 決定の要点の 1 文（空にしない）。一部が別の ADR で置き換わったものは `accepted` のままにし、末尾に「（一部は <置き換えた ADR の名前> で置き換え）」と書く。
+  - `related`: 関係する SPEC・ソース・テストのパスの一覧。
+  - `superseded_by`: `status` が `superseded` のときだけ持ち、置き換えた ADR のファイル名から `.md` を除いたもの（`docs/adr/` にある ADR）。
+- ADR の状態は frontmatter だけに書き、本文に「状態:」の行を持たない。どの部分が置き換わったかの説明は本文の節（「置き換え」など）に書く。
+- 決定を変えるときは、古い ADR の本文を書き換えず、新しい ADR を書き、古い ADR の frontmatter の `status` と `superseded_by` を変える。
+- ADR の目次は手で書かない。`docs/adr/README.md` の `<!-- adr-index:start -->` と `<!-- adr-index:end -->` の間にドメインの一覧があり、
+  ドメインごとの有効な ADR の目次は `docs/adr/index/<ドメイン>.md`、置き換え済み・取り下げのものは `docs/adr/index/inactive.md` にある。
+  どれも各 ADR の frontmatter から目次を作るスクリプトで作り、ADR を足したり状態を変えたりしたら作り直してコミットする。
+  使い方（作り直すコマンドと、ADR を読むときに対象の領域と `cross` の目次だけを読むこと）は `CLAUDE.md` に書いてある。
+
 ### 継続的インテグレーション（CI）
 
 - リポジトリの GitHub Actions に CI のワークフローが 1 つある。PR を作ったとき・PR のブランチに push したとき（PR の更新）と、
@@ -407,3 +426,8 @@ src/
 - **ARC-97-4**: 検査のジョブかブラウザのテストのジョブのどれか 1 つが失敗または取り消しになったとき、まとめのジョブは飛ばされずに走って失敗になる。すべてが成功したときだけまとめのジョブが成功になる
 - **ARC-97-5**: CI のワークフローの設定を調べたとき、ブラウザのテストのジョブが 4 つの組の matrix で、各組が Vitest の `--shard=<組の番号>/4` で `npm run test:browser` を流し、各ジョブが Chromium のキャッシュ（Playwright の版ごとのキー）を使い、`APEX_REQUIRE_CHROMIUM=1` と `APEX_BROWSER_WORKERS=2` を付けており、ブラウザのテストのジョブが検査のジョブを待たない（`needs` に持たない）
 - **ARC-97-6**: キャッシュのある状態で CI を流したとき、CI の実行の記録で、実行の始まりからすべてのジョブ（まとめのジョブを含む）が終わるまでの時間が 15 分以下になる
+- **ARC-101-1**: `docs/adr/` の `README.md` 以外のすべての `.md` を調べたとき、どれも先頭に frontmatter を持ち、`status` が `accepted`・`superseded`・`withdrawn` のどれか、`domain` が `architecture`・`input`・`modes`・`mouse`・`overview`・`pad`・`scoring`・`screens`・`weapons`・`cross` のどれかで、`summary` が空でない。`status` が `superseded` のものはすべて `superseded_by` を持ち、その値の名前の ADR（`<値>.md`）が `docs/adr/` にある
+- **ARC-101-2**: リポジトリのルートで目次を作るスクリプトを確認のモード（`--check`）で実行したとき、終了コードが 0 で、標準エラーに frontmatter がない ADR が出ない
+- **ARC-101-3**: `docs/adr/README.md` を読んだとき、手で書いた ADR の一覧の表がなく、`<!-- adr-index:start -->` と `<!-- adr-index:end -->` の間にドメインの一覧がある。`CLAUDE.md` を読んだとき、ADR は `docs/adr/README.md` のドメインの一覧から対象の領域と `cross` の目次（`docs/adr/index/<ドメイン>.md`）だけを読んで関係する ADR を開くことと、ADR を足したら目次を作るスクリプトで作り直すことが書いてある
+- **ARC-101-4**: frontmatter を足す前の各 ADR と今の ADR を比べたとき、本文の違いは、先頭の frontmatter と、消した「状態:」の行（一部が置き換わった説明を本文の節に移したものを含む）だけである
+- **ARC-101-5**: frontmatter を足す前に状態が「置き換え済み」だった ADR はすべて `status` が `superseded` で、「承認」か「一部置き換え済み」だった ADR は `status` が `accepted` か `withdrawn` である

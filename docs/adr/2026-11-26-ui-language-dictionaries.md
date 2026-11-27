@@ -1,8 +1,10 @@
+---
+status: accepted
+domain: cross
+summary: 画面の文言は TypeScript の言語ごとの辞書と index.html のキーの属性から出し、モードの名前はモードのファイルが両方の言語で持ち、src/sim/ は識別子で返し、今の言語はページに 1 つ持って選び直しをその場で書き直す
+related: [docs/spec/screens.md, docs/spec/overview.md, docs/spec/modes.md, docs/spec/architecture.md, src/ui/i18n.ts, src/ui/messages/, src/ui/page-language.ts, index.html, src/modes/, src/sim/scoring.ts, src/sim/simple-pattern.ts]
+---
 # 画面の文言は TypeScript の言語ごとの辞書と index.html のキーの属性から出し、今の言語はページに 1 つ持って選び直しをその場で書き直す
-
-## 状態
-
-承認
 
 ## 背景
 

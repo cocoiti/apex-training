@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: overview
+summary: localStorage は例外を投げない SafeStorage を通し、失敗後もページを開いている間はメモリで値を持つ
+related: [docs/spec/overview.md, src/ui/storage.ts, src/main.ts]
+---
 # localStorage は例外を投げない SafeStorage を通し、失敗後もページを開いている間はメモリで値を持つ
-
-状態: 承認
 
 ## 背景
 

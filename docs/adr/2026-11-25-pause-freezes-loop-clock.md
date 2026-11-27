@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: mouse
+summary: 一時停止はループの時計を止めて止めていた時間を数えず、ポインターロックの結果は要求の Promise で判断する
+related: [docs/spec/mouse.md, src/core/loop.ts, src/input/mouse.ts, src/main.ts]
+---
 # 一時停止はループの時計を止めて止めていた時間を数えず、ポインターロックの結果は要求の Promise で判断する
-
-状態: 承認
 
 ## 背景
 

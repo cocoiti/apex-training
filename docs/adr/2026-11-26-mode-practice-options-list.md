@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: modes
+summary: 練習の選択肢はモードの任意の options（並び）で複数持て、保存のキーの末尾に並び順に値の id を足し、トップ画面と履歴の画面の欄は選択肢の id ごとに作って同じ選択肢のモードで共有する
+related: [docs/spec/modes.md, docs/spec/scoring.md, docs/spec/screens.md, src/modes/types.ts, src/modes/registry.ts, src/modes/session.ts, src/modes/tracking.ts, src/modes/aim/flick.ts, src/ui/option-choices.ts, src/ui/personal-best.ts, src/ui/practice-history.ts, src/ui/history-view.ts, src/ui/result-view.ts, src/ui/share.ts, src/main.ts, index.html]
+---
 # 練習の選択肢はモードの任意の options（並び）で複数持て、保存のキーの末尾に並び順に値の id を足し、トップ画面と履歴の画面の欄は選択肢の id ごとに作って同じ選択肢のモードで共有する
-
-状態: 承認
 
 ## 背景
 

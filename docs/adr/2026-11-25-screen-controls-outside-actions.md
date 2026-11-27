@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: screens
+summary: 画面の操作のキー（R・Space・Q）とパッドの A / ×・B / ○ はアクションの経路と入力の記録に入れず、押し始めだけを画面ごとの操作に変える
+related: [docs/spec/screens.md, docs/spec/pad.md, src/input/screen-controls.ts, src/ui/screen-commands.ts, src/main.ts]
+---
 # 画面の操作のキーとパッドのボタンはアクションの経路に入れず、押し始めだけを画面ごとの操作に変える
-
-状態: 承認
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: ブラウザで確かめる受け入れ条件は tests/acceptance/README.md の表で 1 ファイルに割り当て、describe を含むテストの名前の ID で照らす
+related: [docs/spec/architecture.md, tests/acceptance/README.md, tests/helpers/test-coverage.ts, tests/architecture/test-coverage.test.ts]
+---
 # ブラウザで確かめる受け入れ条件は tests/acceptance/README.md の表で 1 ファイルに割り当て、describe を含むテストの名前の ID で照らす
-
-状態: 承認
 
 ## 背景
 

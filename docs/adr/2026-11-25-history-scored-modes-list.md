@@ -1,6 +1,11 @@
+---
+status: superseded
+domain: screens
+summary: 履歴の画面のモードの選択肢は、採点するモードの id と名前の固定の一覧から作る
+related: [docs/spec/screens.md, src/ui/history-view.ts, src/main.ts]
+superseded_by: 2026-11-26-all-modes-scored
+---
 # 履歴の画面のモードの選択肢は、採点するモードの id と名前の固定の一覧から作る
-
-状態: 置き換え済み → [2026-11-26-all-modes-scored](2026-11-26-all-modes-scored.md)
 
 ## 背景
 

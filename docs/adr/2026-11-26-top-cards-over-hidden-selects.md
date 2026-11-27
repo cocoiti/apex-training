@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: screens
+summary: トップ画面の武器とモードはカードで選び、選んでいる値は隠した select が持ち、カードの並び全体（data-card-choice）を 1 つの選択肢の欄にし、モードは必須の説明とアイコンの形の名前を持つ
+related: [docs/spec/screens.md, docs/spec/modes.md, index.html, src/ui/card-choices.ts, src/ui/mode-cards.ts, src/ui/mode-icons.ts, src/ui/pad-menu.ts, src/modes/types.ts, src/modes/registry.ts, src/main.ts]
+---
 # トップ画面の武器とモードはカードで選び、選んでいる値は隠した select が持ち、カードの並び全体を 1 つの選択肢の欄にする
-
-状態: 承認
 
 ## 背景
 

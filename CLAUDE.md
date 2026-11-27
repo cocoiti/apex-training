@@ -10,7 +10,11 @@ PR で SPEC と実装・テストを一緒に更新する。立ち上げ時点�
 
 - 新しく足す受け入れ条件の ID は `<接頭辞>-<Issue 番号>-<その Issue の中の番号>`（例: Issue #81 なら `UI-81-1`）。
   前からある `UI-43` などの ID は付け替えず、消した ID は欠番にして再利用しない（`docs/spec/README.md`「受け入れ条件の ID」）。
-- 決定の理由は ADR（`docs/adr/`）。目次の `docs/adr/README.md` だけを読み、関係するファイルを開く。
+- 決定の理由は ADR（`docs/adr/`）。`docs/adr/README.md` のドメインの一覧から、対象の SPEC の領域と `cross` の目次
+  （`docs/adr/index/<ドメイン>.md`）だけを読み、関連（SPEC・パス）が合う行の ADR を開く。`index/inactive.md`（置き換え済み・取り下げ）は普段は読まない。
+- ADR は先頭に frontmatter（`status`・`domain`・`summary`・`related`、置き換え済みなら `superseded_by`）を持つ（書き方は `docs/adr/README.md`）。
+  目次は手で書かず、ADR を足したり状態を変えたりしたら `python3 ~/dotfiles/scripts/adr-index.py` で作り直して一緒にコミットする
+  （`--check` で目次が最新かを確かめる）。
 - MVP の外の予定と未決定の事項は `docs/roadmap.md`。元の企画書は `docs/proposal.md`（更新しない）。
 
 ## 技術スタック

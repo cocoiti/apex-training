@@ -1,6 +1,14 @@
+---
+status: accepted
+domain: modes
+summary: 反復練習は補正のパネルを主な補助にし、パネルの出し方はモードが持つ。表示名だけを変え、id `ghost` は残す（一部は 2026-11-26-remove-center-mode-and-panel-setting で置き換え）
+related: [docs/spec/modes.md, docs/spec/screens.md, docs/spec/pad.md, src/modes/types.ts, src/ui/correction-panel.ts, src/ui/settings.ts, src/main.ts]
+---
 # 反復練習は補正のパネルを主な補助にし、パネルの出し方はモードが持つ。表示名だけを変え、id `ghost` は残す
 
-状態: 一部置き換え済み → [2026-11-26-remove-center-mode-and-panel-setting](2026-11-26-remove-center-mode-and-panel-setting.md)（`'setting'` と設定の補正のパネル）
+## 置き換え
+
+一部は次の ADR で置き換えた: [2026-11-26-remove-center-mode-and-panel-setting](2026-11-26-remove-center-mode-and-panel-setting.md)（`'setting'` と設定の補正のパネル）
 
 ## 背景
 

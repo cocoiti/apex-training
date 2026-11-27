@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: overview
+summary: 計測は許可した人だけ GTM（gtm.js）を読み込み、アプリが dataLayer に積むのは画面の表示だけにし、それ以外を集めない GTM の設定は運用側の責任とする
+related: [docs/spec/overview.md, docs/spec/screens.md, index.html, src/main.ts, src/ui/]
+---
 # 計測は許可した人だけ GTM を読み込み、アプリが dataLayer に積むのは画面の表示だけにする
-
-状態: 承認
 
 ## 背景
 

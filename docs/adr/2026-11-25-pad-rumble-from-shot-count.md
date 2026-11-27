@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: pad
+summary: パッドの振動は描画のたびに増えた弾の数だけ要求し、シミュレーションと記録の再生からは出さない
+related: [docs/spec/pad.md, src/input/pad-rumble.ts, src/main.ts]
+---
 # パッドの振動は描画のたびに増えた弾の数だけ要求し、シミュレーションと記録の再生からは出さない
-
-状態: 承認
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: lint は ESLint（typescript-eslint）と tsc で行い、TypeScript は 6.0 系に留める
+related: [docs/spec/architecture.md, package.json, eslint.config.js, tests/helpers/sim-boundary.ts]
+---
 # lint は ESLint（typescript-eslint）と tsc で行い、TypeScript は 6.0 系に留める
-
-状態: 承認
 
 ## 背景
 
