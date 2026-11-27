@@ -1,8 +1,14 @@
+---
+status: accepted
+domain: weapons
+summary: 計測はアタッチメントをすべて紫にして撮り、外れた射撃は記録の excludedFromAverage に理由を書いて平均から外し、撮影者に確かめられなかった条件は仮定として記録する（一部は 2026-11-26-car-conditions-confirmed で置き換え）
+related: [docs/spec/weapons.md, docs/spec/modes.md, src/data/weapons/car.json, src/data/weapons/lstar.json, docs/measurements/]
+---
 # 計測はアタッチメントをすべて紫にして撮り、外れた射撃は記録に理由を書いて平均から外し、未確認の条件は仮定として記録する
 
-## 状態
+## 置き換え
 
-一部置き換え済み → [2026-11-26-car-conditions-confirmed](2026-11-26-car-conditions-confirmed.md)（C.A.R. SMG の撮影の条件の仮定）
+一部は次の ADR で置き換えた: [2026-11-26-car-conditions-confirmed](2026-11-26-car-conditions-confirmed.md)（C.A.R. SMG の撮影の条件の仮定）
 
 ## 背景
 

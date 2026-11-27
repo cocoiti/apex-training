@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: 新しく足す受け入れ条件の ID は `<接頭辞>-<Issue 番号>-<番号>` にし、前からある ID は付け替えず、`UI-81-1` を `UI-81` と別の 1 つの ID として読む
+related: [docs/spec/README.md, docs/spec/architecture.md, tests/helpers/test-coverage.ts, tests/architecture/test-coverage.test.ts]
+---
 # 新しく足す受け入れ条件の ID に Issue 番号を入れ、前からある ID は付け替えずに 2 つの形を並べて使う
-
-状態: 承認
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: input
+summary: 入力は最初からアクションと角度（度）に揃える
+related: [docs/spec/input.md, docs/spec/mouse.md, docs/spec/pad.md, src/input/]
+---
 # 入力は最初からアクションと角度（度）に揃える
-
-状態: 承認
 
 ## 背景
 

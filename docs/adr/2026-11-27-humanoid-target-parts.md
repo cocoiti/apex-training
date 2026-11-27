@@ -1,6 +1,14 @@
+---
+status: accepted
+domain: architecture
+summary: 練習の的の形は部分の箱の並びとしてシミュレーションが持ち、人形はその 6 つの箱で作って 3 次元の箱で当たりを求め、弾痕を残すかは的の keepsImpacts と弾の記録の impactOnTarget で持つ（一部は 2026-11-27-humanoid-silhouette-plate で置き換え）
+related: [docs/spec/architecture.md, docs/spec/modes.md, docs/spec/screens.md, src/sim/targets.ts, src/sim/humanoid.ts, src/sim/hit.ts, src/sim/gun.ts, src/render/targets.ts, src/render/impacts.ts, src/modes/]
+---
 # 練習の的の形は部分の箱の並びとしてシミュレーションが持ち、人形はその 6 つの箱で作り、弾痕を残すかは的と弾の記録の印で持つ
 
-状態: 一部置き換え済み → [2026-11-27-humanoid-silhouette-plate](2026-11-27-humanoid-silhouette-plate.md)（人形を 6 つの部分の箱で作り 3 次元の箱で当たりを求める部分）
+## 置き換え
+
+一部は次の ADR で置き換えた: [2026-11-27-humanoid-silhouette-plate](2026-11-27-humanoid-silhouette-plate.md)（人形を 6 つの部分の箱で作り 3 次元の箱で当たりを求める部分）
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: overview
+summary: サーバーなしの静的サイトにし、画面はハッシュで切り替える
+related: [docs/spec/overview.md, docs/spec/screens.md]
+---
 # サーバーなしの静的サイトにし、画面はハッシュで切り替える
-
-状態: 承認
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: overview
+summary: ブラウザ内の練習に限り、チートに転用できる出力とエイムアシストを作らない
+related: [docs/spec/overview.md, docs/spec/pad.md]
+---
 # ブラウザ内の練習に限り、チートに転用できる出力とエイムアシストを作らない
-
-状態: 承認
 
 ## 背景
 

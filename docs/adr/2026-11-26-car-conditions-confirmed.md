@@ -1,8 +1,10 @@
+---
+status: accepted
+domain: weapons
+summary: C.A.R. SMG の撮影の条件は撮影者に確かめた値とし、計測の記録から仮定の一覧をなくす
+related: [docs/spec/weapons.md, src/data/weapons/car.json, src/data/weapons/lstar.json, docs/measurements/]
+---
 # C.A.R. SMG の撮影の条件は撮影者に確かめた値とし、計測の記録から仮定の一覧をなくす
-
-## 状態
-
-承認
 
 ## 背景
 

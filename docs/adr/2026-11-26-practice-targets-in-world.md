@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: 練習の的は World が持ち、Simulation がステップの終わりの時刻で位置と出現を決め、照準と的の当たりは射撃のあとに PracticeSession が求め、武器を使わない練習は TapFire で撃つ
+related: [docs/spec/architecture.md, docs/spec/screens.md, src/sim/targets.ts, src/sim/hit.ts, src/sim/gun.ts, src/sim/tap-fire.ts, src/sim/simulation.ts, src/modes/session.ts, src/render/targets.ts]
+---
 # 練習の的は World が持ち、Simulation がステップの終わりの時刻で位置と出現を決め、照準と的の当たりは射撃のあとに PracticeSession が求め、武器を使わない練習は TapFire で撃つ
-
-状態: 承認
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: pad
+summary: パッドの look は描画ごとに読んだ値を保持し、固定ステップごとに「速度 × ステップの長さ」で積む
+related: [docs/spec/pad.md, src/input/pad.ts, src/input/pad-curve.ts, src/main.ts]
+---
 # パッドの look は描画ごとに読んだ値を保持し、固定ステップごとに「速度 × ステップの長さ」で積む
-
-状態: 承認
 
 ## 背景
 

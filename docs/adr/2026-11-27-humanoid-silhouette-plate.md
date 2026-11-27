@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: 練習の的の形に正面の輪郭と厚みを持つ板を足し、すべてのモードの的を人型の板にして、当たりは正面の面との交点が輪郭の内側かで求め、区域の線は見た目だけのデータとして持つ
+related: [docs/spec/architecture.md, docs/spec/modes.md, docs/spec/screens.md, src/sim/targets.ts, src/sim/hit.ts, src/sim/humanoid.ts, src/render/targets.ts, src/render/environment.ts, src/modes/]
+---
 # 練習の的の形に「板」（正面の輪郭と厚み）を足し、すべてのモードの的を人型の板にして、当たりは正面の面と輪郭の内外で求める
-
-状態: 承認
 
 ## 背景
 

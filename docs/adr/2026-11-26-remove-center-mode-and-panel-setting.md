@@ -1,6 +1,14 @@
+---
+status: accepted
+domain: modes
+summary: センター維持と補正のパネルの設定項目をなくし（古い設定の項目と以前のキーは読み飛ばして消さない）、登録されたモードが 1 つのときは select を残したまま選択欄を隠して名前だけを出す（一部は 2026-11-26-top-cards-over-hidden-selects で置き換え）
+related: [docs/spec/modes.md, docs/spec/screens.md, docs/spec/scoring.md, docs/spec/pad.md, src/modes/recoil/, src/modes/types.ts, src/ui/correction-panel.ts, src/ui/settings.ts, src/ui/mode-choices.ts, src/main.ts, index.html]
+---
 # センター維持と補正のパネルの設定項目をなくし、登録されたモードが 1 つのときはモードの選択欄を隠して名前だけを出す
 
-状態: 一部置き換え済み → [2026-11-26-top-cards-over-hidden-selects](2026-11-26-top-cards-over-hidden-selects.md)（トップ画面のモードの欄）
+## 置き換え
+
+一部は次の ADR で置き換えた: [2026-11-26-top-cards-over-hidden-selects](2026-11-26-top-cards-over-hidden-selects.md)（トップ画面のモードの欄）
 
 ## 背景
 

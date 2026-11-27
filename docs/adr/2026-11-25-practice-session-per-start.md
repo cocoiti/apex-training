@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: modes
+summary: "練習は「開始」ごとに World・入力のキュー・シミュレーション・ループを作り直し、「開始」を押さずに開いた #/play はトップに戻す"
+related: [docs/spec/modes.md, docs/spec/screens.md, src/main.ts, src/modes/session.ts, src/ui/practice-flow.ts]
+---
 # 練習は「開始」ごとに World・入力のキュー・シミュレーション・ループを作り直し、「開始」を押さずに開いた `#/play` はトップに戻す
-
-状態: 承認
 
 ## 背景
 

@@ -1,8 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: ブラウザのテストは Playwright の公式イメージのコンテナで流し、context に届かなければ手元の Docker に切り替え、作ったイメージは ID で動かす
+related: [docs/spec/architecture.md, Dockerfile.test, .dockerignore, scripts/test-remote.mjs, tests/helpers/chromium.ts]
+---
 # ブラウザのテストは Playwright の公式イメージのコンテナで流し、context に届かなければ手元の Docker に切り替え、作ったイメージは ID で動かす
-
-## 状態
-
-承認
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: screens
+summary: 補正のパネルの自分の線は PracticeSession が発射のステップで取った照準から描き、パネルは度の座標の SVG を HTML の重ね表示で置き直す
+related: [docs/spec/screens.md, docs/spec/modes.md, src/modes/session.ts, src/ui/correction-panel.ts, src/ui/settings.ts, src/main.ts, index.html]
+---
 # 補正のパネルの自分の線は PracticeSession が発射のステップで取った照準から描き、パネルは度の座標の SVG を HTML の重ね表示で置き直す
-
-状態: 承認
 
 ## 背景
 

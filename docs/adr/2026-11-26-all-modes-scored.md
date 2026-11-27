@@ -1,6 +1,14 @@
+---
+status: accepted
+domain: modes
+summary: パターン観察をなくしてすべてのモードを採点し、ModeResult の scored と採点しない道筋を消し、履歴の画面のモードの選択肢は登録されたモードから作り、以前のモードのキーは読まず消さない（一部は 2026-11-26-mode-scoring-and-weaponless-modes で置き換え）
+related: [docs/spec/modes.md, docs/spec/scoring.md, docs/spec/screens.md, docs/spec/pad.md, src/modes/types.ts, src/modes/recoil/, src/ui/result-view.ts, src/ui/round-result.ts, src/ui/history-view.ts, src/main.ts]
+---
 # すべてのモードを採点し、モードの結果から採点の印をなくし、履歴の画面のモードの選択肢は登録されたモードから作る
 
-状態: 一部置き換え済み → [2026-11-26-mode-scoring-and-weaponless-modes](2026-11-26-mode-scoring-and-weaponless-modes.md)（採点をモードによらない共通の処理とする部分）
+## 置き換え
+
+一部は次の ADR で置き換えた: [2026-11-26-mode-scoring-and-weaponless-modes](2026-11-26-mode-scoring-and-weaponless-modes.md)（採点をモードによらない共通の処理とする部分）
 
 ## 背景
 

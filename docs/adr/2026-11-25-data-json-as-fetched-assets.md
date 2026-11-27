@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: データの JSON は src/data/ に置き、Vite の資産として出してベースパス基準の URL で fetch する
+related: [docs/spec/architecture.md, src/data/maps/, vite.config.ts, scripts/check-subpath.mjs]
+---
 # データの JSON は src/data/ に置き、Vite の資産として出してベースパス基準の URL で fetch する
-
-状態: 承認
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: screens
+summary: 壁のパネル・的のリング・床・空は画像のテクスチャでなくコードで作る形で描き、レイに当てず、光の計算をしない材質で軽く描く
+related: [docs/spec/screens.md, src/render/environment.ts, src/render/scene.ts]
+---
 # 壁のパネル・的のリング・床・空は画像のテクスチャでなく、コードで作る形（三角形と線）で描き、レイに当てない
-
-状態: 承認
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: 倒している・押している長さを実時間で決めていないかは、練習の入力を押す書き方から離す書き方までの間に時計を進めているかを、テストのコードの行ごとに調べる
+related: [docs/spec/architecture.md, tests/helpers/test-code.ts, tests/architecture/test-code.test.ts, tests/acceptance/README.md]
+---
 # 倒している・押している長さを実時間で決めていないかは、押す書き方から離す書き方までの間に時計を進めているかで調べる
-
-状態: 承認
 
 ## 背景
 

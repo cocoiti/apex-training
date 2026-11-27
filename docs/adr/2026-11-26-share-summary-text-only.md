@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: screens
+summary: 結果のシェアは src/ui/share.ts が作る要約の文だけを navigator.share の text かクリップボードの writeText に渡し、公開 URL は固定の文字列にし、パッドの Y / △ は画面の操作として読む
+related: [docs/spec/screens.md, docs/spec/overview.md, docs/spec/pad.md, src/ui/share.ts, src/ui/screen-commands.ts, src/input/screen-controls.ts, src/main.ts, index.html]
+---
 # 結果のシェアは src/ui/share.ts が作る要約の文だけを navigator.share の text かクリップボードの writeText に渡し、公開 URL は固定の文字列にする
-
-状態: 承認
 
 ## 背景
 

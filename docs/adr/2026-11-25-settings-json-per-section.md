@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: screens
+summary: 設定は区分ごとに 1 つのキーに JSON で保存し、読むときに項目ごとに範囲に収めるか既定値にする
+related: [docs/spec/screens.md, docs/spec/input.md, docs/spec/mouse.md, src/ui/settings.ts, src/ui/settings-form.ts]
+---
 # 設定は区分ごとに 1 つのキーに JSON で保存し、読むときに項目ごとに範囲に収めるか既定値にする
-
-状態: 承認
 
 ## 背景
 

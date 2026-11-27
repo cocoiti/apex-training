@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: scoring
+summary: モードの採点は任意の scoring で持ち、保存は比べる指標の id を項目名にした版 1 の形にし、武器を使わないモードは武器の id を `-` にする
+related: [docs/spec/scoring.md, docs/spec/screens.md, docs/spec/modes.md, src/modes/types.ts, src/ui/mode-scoring.ts, src/ui/personal-best.ts, src/ui/practice-history.ts, src/ui/result-view.ts, src/ui/history-view.ts, src/ui/set-summary.ts, src/ui/share.ts]
+---
 # モードの採点は任意の scoring で持ち、保存は比べる指標の id を項目名にした版 1 の形にし、武器を使わないモードは武器の id を `-` にする
-
-状態: 承認
 
 ## 背景
 

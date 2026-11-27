@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: clock=manual の時計は進める前に今の時刻のまま 1 回描画し、止めている間に変えた入力をいつも止めた時刻で読み、押していた長さを進めた秒数だけで決める
+related: [docs/spec/architecture.md, src/core/frame-clock.ts, tests/core/frame-clock.test.ts, tests/acceptance/render-clock-qa.acceptance.test.ts]
+---
 # clock=manual の時計は、進める前に今の時刻のまま 1 回描画し、止めている間に変えた入力をいつも止めた時刻で読む
-
-状態: 承認
 
 ## 背景
 

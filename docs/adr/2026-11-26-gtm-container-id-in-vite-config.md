@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: architecture
+summary: GTM のコンテナ ID は vite.config.ts の定数から define で埋め込み、APEX_GTM_CONTAINER_ID で置き換えられるようにし、テストのビルドは既定で空にする
+related: [docs/spec/overview.md, docs/spec/screens.md, vite.config.ts, src/env.d.ts, src/ui/analytics.ts, tests/ui/analytics-browser.test.ts]
+---
 # GTM のコンテナ ID は vite.config.ts の定数から define で埋め込み、環境変数で置き換えられるようにし、テストのビルドは既定で空にする
-
-状態: 承認
 
 ## 背景
 

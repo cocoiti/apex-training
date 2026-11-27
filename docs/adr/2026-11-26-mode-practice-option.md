@@ -1,6 +1,14 @@
+---
+status: accepted
+domain: modes
+summary: 練習の選択肢はモードの任意の 1 つの option で持ち、保存のキーの末尾に値の id を足し、トップ画面と履歴の画面では 1 つの select を同じ選択肢のモードで共有する（一部は 2026-11-26-mode-practice-options-list で置き換え）
+related: [docs/spec/modes.md, docs/spec/scoring.md, docs/spec/screens.md, src/modes/types.ts, src/modes/registry.ts, src/modes/session.ts, src/ui/option-choices.ts, src/ui/personal-best.ts, src/ui/practice-history.ts, src/ui/history-view.ts, src/main.ts, index.html]
+---
 # 練習の選択肢はモードの任意の 1 つの option で持ち、保存のキーの末尾に値の id を足し、トップ画面と履歴の画面では 1 つの select を同じ選択肢のモードで共有する
 
-状態: 一部置き換え済み → [2026-11-26-mode-practice-options-list](2026-11-26-mode-practice-options-list.md)（選択肢を 1 つだけ持つ形。並び（options）で複数持てるようにした）
+## 置き換え
+
+一部は次の ADR で置き換えた: [2026-11-26-mode-practice-options-list](2026-11-26-mode-practice-options-list.md)（選択肢を 1 つだけ持つ形。並び（options）で複数持てるようにした）
 
 ## 背景
 

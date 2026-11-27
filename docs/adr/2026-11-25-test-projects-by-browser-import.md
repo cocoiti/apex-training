@@ -1,6 +1,14 @@
+---
+status: accepted
+domain: architecture
+summary: テストは tests/helpers/browser.ts を import するかで Vitest の unit と browser の project に分け（browser は 1 ファイルずつ）、サーバーはポート 0 で待ち受け、画面の状態は sleep でなく条件で待つ（一部は 2026-11-26-test-render-off-manual-clock・2026-11-26-parallel-browser-test-files で置き換え）
+related: [docs/spec/architecture.md, vite.config.ts, package.json, tests/helpers/browser.ts, tests/helpers/server.ts, tests/helpers/test-code.ts]
+---
 # テストは tests/helpers/browser.ts を import するかで Vitest の 2 つの project に分け、ポートは 0、待ちは条件で行う
 
-状態: 一部置き換え済み → 2026-11-26-test-render-off-manual-clock.md（仕様が時間を決めている所の待ち方）、2026-11-26-parallel-browser-test-files.md（browser の組を 1 ファイルずつ流すこと）
+## 置き換え
+
+一部は次の ADR で置き換えた: 2026-11-26-test-render-off-manual-clock.md（仕様が時間を決めている所の待ち方）、2026-11-26-parallel-browser-test-files.md（browser の組を 1 ファイルずつ流すこと）
 
 ## 背景
 

@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: weapons
+summary: 発射の時刻は押し始めのステップを起点に「発数 × 発射間隔」で決め、押し直しでは発射間隔を待たない
+related: [docs/spec/weapons.md, src/sim/gun.ts]
+---
 # 発射の時刻は押し始めのステップを起点に「発数 × 発射間隔」で決め、押し直しでは発射間隔を待たない
-
-状態: 承認
 
 ## 背景
 

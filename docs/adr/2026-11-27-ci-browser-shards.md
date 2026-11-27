@@ -1,8 +1,14 @@
+---
+status: accepted
+domain: architecture
+summary: CI は検査・Vitest の --shard で分けた 4 組のブラウザのテスト・always() で走るまとめのジョブに分け、流れたブラウザのテストが 0 件の組は browser の組の Vitest のプラグインで失敗にする
+related: [docs/spec/architecture.md, .github/workflows/ci.yml, vite.config.ts, scripts/ci-summary.mjs, tests/architecture/ci.test.ts, CLAUDE.md]
+---
 # CI は検査・4 組のブラウザのテスト・まとめのジョブに分け、組は Vitest の --shard で決め、流れたテストが 0 件の組は Vitest のプラグインで失敗にする
 
-## 状態
+## 置き換え
 
-承認（[2026-11-26-ci-github-actions-ubuntu](2026-11-26-ci-github-actions-ubuntu.md) の「1 つのジョブで順に流す」を置き換える。Chromium の導入・キャッシュ・起動の決定は引き継ぐ）
+[2026-11-26-ci-github-actions-ubuntu](2026-11-26-ci-github-actions-ubuntu.md) の「1 つのジョブで順に流す」を置き換える。Chromium の導入・キャッシュ・起動の決定は引き継ぐ。
 
 ## 背景
 

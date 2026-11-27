@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: input
+summary: 入力の記録はシミュレーションに積む入力の元で取り、練習ごとに種を決めて World から作り直し、再生と照準の軌道は記録から計算し直す
+related: [docs/spec/input.md, docs/spec/architecture.md, src/input/recording.ts, src/sim/practice.ts, src/sim/trajectory.ts, src/modes/session.ts, src/main.ts]
+---
 # 入力の記録はシミュレーションに積む入力の元で取り、再生と照準の軌道は記録から計算し直す
-
-状態: 承認
 
 ## 背景
 

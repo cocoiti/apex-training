@@ -1,6 +1,14 @@
+---
+status: accepted
+domain: scoring
+summary: 的の半径はマップの的の箱の見込み角から求め、外れの弾のズレは弾の向きと中心との差にする（一部は 2026-11-26-mode-scoring-and-weaponless-modes で置き換え）
+related: [docs/spec/scoring.md, src/sim/scoring.ts, src/sim/trajectory.ts, src/ui/result-view.ts]
+---
 # 的の半径はマップの的の箱の見込み角から求め、外れの弾のズレは弾の向きと中心との差にする
 
-状態: 一部置き換え済み → [2026-11-26-mode-scoring-and-weaponless-modes](2026-11-26-mode-scoring-and-weaponless-modes.md)（採点の入力を弾痕のズレだけとする部分）
+## 置き換え
+
+一部は次の ADR で置き換えた: [2026-11-26-mode-scoring-and-weaponless-modes](2026-11-26-mode-scoring-and-weaponless-modes.md)（採点の入力を弾痕のズレだけとする部分）
 
 ## 背景
 

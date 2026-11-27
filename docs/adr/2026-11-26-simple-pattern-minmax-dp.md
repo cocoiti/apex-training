@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: weapons
+summary: 簡易版のパターンは練習の始めに sim の純粋関数が動的計画法で厳密に求め、武器の JSON にも設定にも持たせない
+related: [docs/spec/weapons.md, docs/spec/screens.md, src/sim/simple-pattern.ts, src/ui/correction-panel.ts, src/ui/settings.ts]
+---
 # 簡易版のパターンは練習の始めに sim の純粋関数が動的計画法で厳密に求め、武器の JSON にも設定にも持たせない
-
-状態: 承認
 
 ## 背景
 

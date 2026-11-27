@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: screens
+summary: ADS 中のスコープは HTML と CSS の重ね表示で描き、表示の切替は積んだ ads の入力で決める
+related: [docs/spec/screens.md, index.html, src/ui/scope.ts, src/ui/style.css, src/main.ts]
+---
 # ADS 中のスコープは HTML と CSS の重ね表示で描き、表示の切替はシミュレーションの状態でなく積んだ ads の入力で決める
-
-状態: 承認
 
 ## 背景
 

@@ -1,8 +1,14 @@
+---
+status: accepted
+domain: architecture
+summary: CI は ubuntu-latest の 1 ジョブで順に流し、Chromium は版を決めた npx の Playwright で入れてキャッシュし、CI では APEX_REQUIRE_CHROMIUM=1 で見つからなければ失敗にする（一部は 2026-11-27-ci-browser-shards で置き換え）
+related: [docs/spec/architecture.md, .github/workflows/ci.yml, tests/helpers/browser.ts, CLAUDE.md]
+---
 # CI は GitHub Actions の ubuntu-latest の 1 ジョブで流し、Chromium は版を決めた npx の Playwright で入れ、CI では見つからなければ失敗にする
 
-## 状態
+## 置き換え
 
-一部置き換え済み → [2026-11-27-ci-browser-shards](2026-11-27-ci-browser-shards.md)（1 つのジョブで順に流すのをやめ、検査・4 組のブラウザのテスト・まとめのジョブに分ける）
+一部は次の ADR で置き換えた: [2026-11-27-ci-browser-shards](2026-11-27-ci-browser-shards.md)（1 つのジョブで順に流すのをやめ、検査・4 組のブラウザのテスト・まとめのジョブに分ける）
 
 ## 背景
 

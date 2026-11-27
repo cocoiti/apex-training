@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: modes
+summary: 追いエイムの的の動きは練習の始めに種から区間の列として決め、乗っていたかはモードがステップごとに記録して採点し、撃ち切ったあとの残弾の戻しは Gun の選択にする
+related: [docs/spec/modes.md, docs/spec/scoring.md, src/sim/tracking.ts, src/sim/gun.ts, src/modes/tracking.ts, src/modes/aim/, src/modes/session.ts, src/render/targets.ts]
+---
 # 追いエイムの的の動きは練習の始めに種から区間の列として決め、乗っていたかはモードがステップごとに記録して採点し、撃ち切ったあとの残弾の戻しは Gun の選択にする
-
-状態: 承認
 
 ## 背景
 

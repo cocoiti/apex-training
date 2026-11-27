@@ -1,6 +1,14 @@
+---
+status: accepted
+domain: modes
+summary: 練習モードは `src/modes/<category>/*.ts` の default export を import.meta.glob で集め、並び順とファイル名で並べる（一部は 2026-11-26-mode-scoring-and-weaponless-modes で置き換え）
+related: [docs/spec/modes.md, docs/spec/screens.md, src/modes/registry.ts, src/modes/types.ts, src/sim/practice.ts]
+---
 # 練習モードは `src/modes/<category>/*.ts` のファイルの default export を import.meta.glob で集め、並び順とファイル名で並べる
 
-状態: 一部置き換え済み → [2026-11-26-mode-scoring-and-weaponless-modes](2026-11-26-mode-scoring-and-weaponless-modes.md)（モードの種類に aim を足し、撃ち切りと「離して 2 秒」の終わりは武器を使うモードだけにする）
+## 置き換え
+
+一部は次の ADR で置き換えた: [2026-11-26-mode-scoring-and-weaponless-modes](2026-11-26-mode-scoring-and-weaponless-modes.md)（モードの種類に aim を足し、撃ち切りと「離して 2 秒」の終わりは武器を使うモードだけにする）
 
 ## 背景
 

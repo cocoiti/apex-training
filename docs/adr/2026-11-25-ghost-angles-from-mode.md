@@ -1,6 +1,10 @@
+---
+status: accepted
+domain: modes
+summary: ゴーストの向きはモードの任意の関数 ghost で求め、描画は src/render/ghost.ts が描画のたびに行う
+related: [docs/spec/modes.md, docs/spec/screens.md, src/modes/types.ts, src/modes/recoil/ghost.ts, src/render/ghost.ts, src/ui/practice-settings.ts]
+---
 # ゴーストの向きはモードの任意の関数 ghost で求め、描画は src/render/ghost.ts が描画のたびに行う
-
-状態: 承認
 
 ## 背景
 
