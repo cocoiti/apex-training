@@ -80,7 +80,7 @@ describe.skipIf(NESTED || !chromium)('補正のパネルのパターンの表示
     await page.goto(appUrl(origin, BASE, '#/', APP));
     const common = JSON.stringify({ patternDisplay, inputMethod: 'pad' });
     await page.evaluate(`(() => { window.__beforeReload = true; localStorage.clear(); localStorage.setItem('apex-training:settings:common', ${JSON.stringify(common)}) })()`);
-    await page.reload();
+    await page.reload({ timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && document.querySelector('#weapon').options.length > 0`, 15_000);
     await page.evaluate(`(() => {
       for (const [id, value] of [['weapon', 'lstar'], ['mode', 'ghost']]) {
@@ -121,7 +121,7 @@ describe.skipIf(NESTED || !chromium)('補正のパネルのパターンの表示
     const page = await browser!.newPage();
     await page.goto(appUrl(origin, BASE, '#/', APP));
     await page.evaluate(`(() => { window.__beforeReload = true; localStorage.clear(); location.hash = '#/settings' })()`);
-    await page.reload();
+    await page.reload({ timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && !document.querySelector('[data-screen="settings"]').hidden`, 15_000);
     const field = await page.evaluate<{ label: string; value: string; options: string[] }>(`(() => {
       const s = document.getElementById('setting-pattern-display');

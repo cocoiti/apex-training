@@ -455,7 +455,7 @@ describe.skipIf(NESTED || !chromium)('QA: 表示の言語（ブラウザ）', ()
     await page.addInitScript(PAGE_INIT);
     if (opts.pad) await page.addInitScript(FAKE_PAD);
     for (const s of opts.init ?? []) await page.addInitScript(s);
-    await page.goto(appUrl(origin, BASE, opts.hash ?? '#/', { render: opts.render ?? false, manualClock: true, seed: SEED }));
+    await page.goto(appUrl(origin, BASE, opts.hash ?? '#/', { render: opts.render ?? false, manualClock: true, seed: SEED }), { timeout: 15_000 });
     const screen = opts.screen ?? 'top';
     await page.waitFor(screen === 'top' ? TOP_READY : `window.__vis('[data-screen="${screen}"]')`, 15_000);
     await page.frames(3);
@@ -465,7 +465,7 @@ describe.skipIf(NESTED || !chromium)('QA: 表示の言語（ブラウザ）', ()
   /** 読み込み直し、画面が表示されるまで待つ。 */
   async function reload(page: Page, screen = 'top') {
     await page.evaluate('window.__beforeReload = true');
-    await page.reload({ ignoreCache: false });
+    await page.reload({ ignoreCache: false, timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="${screen}"]')`, 15_000);
     await page.frames(3);
   }

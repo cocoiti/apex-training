@@ -206,7 +206,7 @@ describe.skipIf(NESTED || !chromium)('QA: パターン観察モードをなく�
     await page.goto(appUrl(origin, BASE, '#/', APP));
     await page.evaluate(`localStorage.clear(); for (const [k, v] of Object.entries(${JSON.stringify(storage)})) localStorage.setItem(k, v);`);
     await page.evaluate('window.__beforeReload = true');
-    await page.reload({ ignoreCache: false });
+    await page.reload({ ignoreCache: false, timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete'`, 15_000);
     await waitTop(page);
     return page;

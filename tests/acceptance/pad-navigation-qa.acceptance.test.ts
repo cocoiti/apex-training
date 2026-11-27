@@ -257,7 +257,7 @@ describe.skipIf(NESTED || !chromium)('QA: すべての画面をパッドだけ�
 
   async function reload(page: Page) {
     await page.evaluate('window.__beforeReload = true');
-    await page.reload({ ignoreCache: false });
+    await page.reload({ ignoreCache: false, timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && !!window.__pads`, 15_000);
     await page.frames(5);
   }

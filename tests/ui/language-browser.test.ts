@@ -111,7 +111,7 @@ describe.skipIf(NESTED || !chromium)('表示の言語', () => {
    */
   async function reload(page: Page): Promise<void> {
     await page.evaluate('window.__beforeReload = true');
-    await page.reload();
+    await page.reload({ timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && document.querySelectorAll('#mode-cards .card').length === 4`, 15_000);
   }
 
@@ -248,7 +248,7 @@ describe.skipIf(NESTED || !chromium)('表示の言語', () => {
     const page = await browser!.newPage({ language: 'ja-JP' });
     await page.addInitScript(PAGE_INIT);
     await page.addInitScript(failing);
-    await page.goto(appUrl(origin, BASE, '#/settings', APP));
+    await page.goto(appUrl(origin, BASE, '#/settings', APP), { timeout: 15_000 });
     const status = () => textOf(page, '#status');
     await page.waitFor(`document.querySelector('#status').textContent === '武器またはモードのデータを読み込めない（コンソールを見る）'`, 15_000);
     await page.waitFor(`window.__vis(document.querySelector('[data-screen="settings"]'))`);

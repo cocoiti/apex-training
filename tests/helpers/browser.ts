@@ -51,6 +51,11 @@ export interface LoadOptions {
    * false は、読み込みが終わる前の振る舞いを確かめるテストだけが渡す。
    */
   readonly waitForApp?: boolean;
+  /**
+   * 新しい文書・文書の読み込み・データの読み込みをまとめて待つ上限（ミリ秒）。既定は waitFor と同じ 10 秒。
+   * 遅いマシン向けに、開いた・読み込み直したあとの待ちを長くしているテストは、同じ長さをここにも渡す（読み込みの待ちがその上限より先に切れないように）。
+   */
+  readonly timeout?: number;
 }
 
 /** 開く前の文書に付ける印の名前（文書が変わったかを見分ける）。 */
@@ -196,21 +201,21 @@ export class Page {
    * （docs/spec/architecture.md「テストのための読み込みの完了の印」）。読み込みが終わる前の振る舞いを確かめるテストだけが waitForApp: false を渡す。
    * 別の文書に移るときは、前の文書の状態で戻らないよう、新しい文書になるまで待つ。hash だけが変わるときは同じ文書のまま待つ。
    */
-  async goto(url: string, { waitForApp = true }: LoadOptions = {}): Promise<void> {
+  async goto(url: string, { waitForApp = true, timeout }: LoadOptions = {}): Promise<void> {
     noteOpenedUrl(url);
     await this.markDocument();
     const { loaderId } = await this.send<{ loaderId?: string }>('Page.navigate', { url });
-    await this.waitForLoad({ newDocument: loaderId !== undefined, waitForApp });
+    await this.waitForLoad({ newDocument: loaderId !== undefined, waitForApp, timeout });
   }
 
   /**
    * 今のページを読み込み直し、goto と同じく新しい文書の読み込み（アプリのページなら既定でデータの読み込みも）が終わるまで待つ。
    * ignoreCache なら、キャッシュを使わずに読み込み直す。
    */
-  async reload({ ignoreCache = false, waitForApp = true }: LoadOptions & { ignoreCache?: boolean } = {}): Promise<void> {
+  async reload({ ignoreCache = false, waitForApp = true, timeout }: LoadOptions & { ignoreCache?: boolean } = {}): Promise<void> {
     await this.markDocument();
     await this.send('Page.reload', { ignoreCache });
-    await this.waitForLoad({ newDocument: true, waitForApp });
+    await this.waitForLoad({ newDocument: true, waitForApp, timeout });
   }
 
   /** 今の文書に印を付ける。新しい文書には付いていないので、印がないことで文書が変わったとわかる。 */
@@ -218,13 +223,13 @@ export class Page {
     await this.evaluate(`document[${JSON.stringify(PREVIOUS_DOCUMENT)}] = true`);
   }
 
-  private async waitForLoad({ newDocument, waitForApp }: { newDocument: boolean; waitForApp: boolean }): Promise<void> {
+  private async waitForLoad({ newDocument, waitForApp, timeout }: { newDocument: boolean; waitForApp: boolean; timeout: number | undefined }): Promise<void> {
     const conditions = [
       ...(newDocument ? [`!document[${JSON.stringify(PREVIOUS_DOCUMENT)}]`] : []),
       'document.readyState === "complete"',
       ...(waitForApp ? [APP_SETTLED] : []),
     ];
-    await this.waitFor(conditions.join(' && '));
+    await this.waitFor(conditions.join(' && '), timeout);
   }
 
   /** ページの式が真になるまで待つ。timeout を過ぎたら、待っていた式を示して失敗する。 */

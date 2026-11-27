@@ -328,7 +328,7 @@ describe.skipIf(NESTED || !chromium)('すぐにやり直す操作と連続練習
     await page.addInitScript(PAGE_INIT);
     if (opts.pad) await page.addInitScript(FAKE_PAD);
     await page.evaluate('window.__beforeReload = true');
-    await page.reload({ ignoreCache: false });
+    await page.reload({ ignoreCache: false, timeout: 15_000 });
     // 武器とモードの欄は、武器のデータを読み込んだあとに埋まる（遅いマシンでは読み込み終わる前に欄を読まないよう待つ）。
     await page.waitFor(
       `!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="top"]') && document.querySelector('#weapon').options.length > 0 && document.querySelector('#mode').options.length > 0`,

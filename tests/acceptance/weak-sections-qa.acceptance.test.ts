@@ -381,7 +381,7 @@ describe.skipIf(NESTED || !chromium)('苦手な区間（scoring.md・screens.md�
     await page.addInitScript(PAGE_INIT);
     await page.goto(appUrl(origin, BASE, '#/', APP));
     await page.evaluate(`(() => { localStorage.clear(); const seed = ${JSON.stringify(seed)}; for (const k in seed) localStorage.setItem(k, seed[k]); window.__beforeReload = true; })()`);
-    await page.reload({ ignoreCache: false });
+    await page.reload({ ignoreCache: false, timeout: 15_000 });
     await page.waitFor(`!window.__beforeReload && document.readyState === 'complete' && window.__vis('[data-screen="top"]')`, 15_000);
     return page;
   }

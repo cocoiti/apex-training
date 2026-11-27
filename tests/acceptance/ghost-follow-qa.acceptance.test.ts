@@ -213,7 +213,7 @@ async function resetSettings(page: Page, origin: string, common?: Record<string,
   if (common) await page.evaluate(`localStorage.setItem(${JSON.stringify(COMMON_KEY)}, ${JSON.stringify(JSON.stringify(common))})`);
   // 開いた時点で読んだ設定（設定画面の表示）を、保存し直した値にするため読み込み直す。
   await page.evaluate('window.__beforeReload = true');
-  await page.reload({ ignoreCache: false });
+  await page.reload({ ignoreCache: false, timeout: 15_000 });
   await page.waitFor(`!window.__beforeReload && document.readyState === 'complete'`, 15_000);
 }
 
