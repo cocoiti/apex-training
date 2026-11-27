@@ -1,5 +1,5 @@
 // docs/spec/architecture.md「継続的インテグレーション（CI）」のうち、ブラウザのテストを 4 つの組のジョブに分けてまとめのジョブで
-// チェックを決める変更（#97）の受け入れ条件（ARC-57・ARC-58・ARC-60・ARC-74〜ARC-79）の受け入れテスト（QA）。
+// チェックを決める変更（#97）の受け入れ条件（ARC-57・ARC-58・ARC-60・ARC-97-1〜ARC-97-6）の受け入れテスト（QA）。
 // 公開された入口（.github/workflows/ 以下のワークフローの設定、そこに書かれた run のコマンドと env、npm のコマンドとその終了コード・
 // JSON の報告、GitHub の CI の実行の記録）だけを使い、実装の内部には依存しない。
 //
@@ -10,7 +10,7 @@
 //   ブラウザを使わないテストの失敗・lint の誤りでの失敗（作業ツリーの写しで）。
 // - APEX_ACCEPTANCE_SHARDS=1 のときだけ流す（Chromium が要り（なければ CI の段の設定で失敗する）、ブラウザを使うテストの全体を 2 回流すので 30 分ほどかかる）:
 //   作業ツリーの写しに 1 件わざと失敗するブラウザを使うテストを足し、分けずに 1 回と、CI の段のコマンドで 4 つの組を 1 回ずつ流して、
-//   組の分かれ方・件数の合計・飛ばされたテストがないこと・失敗した組だけが失敗することを確かめる（ARC-60・ARC-74・ARC-75）。
+//   組の分かれ方・件数の合計・飛ばされたテストがないこと・失敗した組だけが失敗することを確かめる（ARC-60・ARC-97-1・ARC-97-2）。
 //     APEX_ACCEPTANCE_SHARDS=1 npx vitest run --project unit tests/acceptance/ci-browser-shards-qa.acceptance.test.ts
 // - APEX_ACCEPTANCE_LIVE=1 のときだけ流す: GitHub の CI の実行の記録（ネットワークが要る）。見るブランチは
 //   APEX_ACCEPTANCE_CI_BRANCH（なければ今のブランチ）。
@@ -577,14 +577,14 @@ describe('ARC-60: Chromium が見つからないとき、ブラウザのテス�
   });
 });
 
-describe('ARC-76: 流れるブラウザを使うテストが 1 件もない組は、そのジョブとまとめのジョブが失敗になる', () => {
+describe('ARC-97-3: 流れるブラウザを使うテストが 1 件もない組は、そのジョブとまとめのジョブが失敗になる', () => {
   // 写しに、ブラウザを使うテストの組に入るがテストが全部飛ばされるファイルを足し、引数でそれらだけに絞って CI の段のコマンドを流す。
   const PREFIX = 'zz-arc76-qa-skipped-';
   const addSkippedFiles = (repo: string, n: number) => {
     for (let i = 1; i <= n; i++) {
       writeFileSync(
         join(repo, `tests/acceptance/${PREFIX}${i}.test.ts`),
-        browserTestSource(`it.skip('ARC-76 の QA で飛ばすテスト ${i}', () => {\n  findChromium();\n});`),
+        browserTestSource(`it.skip('ARC-97-3 の QA で飛ばすテスト ${i}', () => {\n  findChromium();\n});`),
       );
     }
   };
@@ -626,7 +626,7 @@ describe('ARC-76: 流れるブラウザを使うテストが 1 件もない組�
   }, 900_000);
 });
 
-describe('ARC-77: まとめのジョブは、どれかが失敗・取り消しでも飛ばされずに走って失敗し、すべて成功したときだけ成功する', () => {
+describe('ARC-97-4: まとめのジョブは、どれかが失敗・取り消しでも飛ばされずに走って失敗し、すべて成功したときだけ成功する', () => {
   it('まとめのジョブは検査のジョブとブラウザのテストのジョブをすべて needs に持ち、待ったジョブの結果によらず走る', () => {
     const w = ciWorkflow();
     const [summaryId, summary] = summaryJob(w);
@@ -660,7 +660,7 @@ describe('ARC-77: まとめのジョブは、どれかが失敗・取り消し�
   });
 });
 
-describe('ARC-78: ブラウザのテストのジョブは 4 組の matrix で、--shard で分け、Chromium のキャッシュと CI の環境変数を使い、検査を待たない', () => {
+describe('ARC-97-5: ブラウザのテストのジョブは 4 組の matrix で、--shard で分け、Chromium のキャッシュと CI の環境変数を使い、検査を待たない', () => {
   it('matrix は 4 つの組（1〜4）で、各組が npm run test:browser に --shard=<組の番号>/4 を付けて流す', () => {
     const [, job] = browserJob(ciWorkflow());
     const matrix = (job.strategy as Obj).matrix as Obj;
@@ -707,9 +707,9 @@ describe('ARC-78: ブラウザのテストのジョブは 4 組の matrix で、
   });
 });
 
-describe('ARC-74・ARC-75・ARC-60: CI の段のコマンドで 4 つの組を流す（APEX_ACCEPTANCE_SHARDS=1 のとき）', () => {
+describe('ARC-97-1・ARC-97-2・ARC-60: CI の段のコマンドで 4 つの組を流す（APEX_ACCEPTANCE_SHARDS=1 のとき）', () => {
   const FAIL_FILE = 'tests/acceptance/zz-arc74-qa-failing-browser.test.ts';
-  const FAIL_TITLE = 'ARC-74 の QA でわざと失敗させるブラウザを使うテスト';
+  const FAIL_TITLE = 'ARC-97-1 の QA でわざと失敗させるブラウザを使うテスト';
   let state:
     | {
         whole: ReturnType<typeof runBrowserStage>;
@@ -737,7 +737,7 @@ describe('ARC-74・ARC-75・ARC-60: CI の段のコマンドで 4 つの組を�
   const rel = (repo: string, f: string) => relative(repo, f.replace(/^\/private\//, '/'));
   const filesOf = (repo: string, r: { report: Report | undefined }) => (r.report?.testResults ?? []).map((t) => rel(repo.replace(/^\/private\//, '/'), t.name)).sort();
 
-  it.runIf(SHARD_RUN)('ARC-74: わざと失敗させたテストのファイルが入る組が失敗し、ほかの組は止められずに最後まで流れ、まとめのジョブが失敗する', () => {
+  it.runIf(SHARD_RUN)('ARC-97-1: わざと失敗させたテストのファイルが入る組が失敗し、ほかの組は止められずに最後まで流れ、まとめのジョブが失敗する', () => {
     const { shards, repo } = prepare();
     const withFail = shards.map((r, i) => ({ shard: i + 1, r })).filter(({ r }) => filesOf(repo, r).includes(FAIL_FILE));
     expect(withFail.map((x) => x.shard), 'わざと失敗させたファイルが入る組').toHaveLength(1);
@@ -764,7 +764,7 @@ describe('ARC-74・ARC-75・ARC-60: CI の段のコマンドで 4 つの組を�
     expect(s.ok, s.output).toBe(false);
   }, 3_600_000);
 
-  it.runIf(SHARD_RUN)('ARC-75: 4 つの組で流れたファイルを合わせると、どのファイルもちょうど 1 つの組で流れ、テストの件数の合計が分けずに流したときと同じ', () => {
+  it.runIf(SHARD_RUN)('ARC-97-2: 4 つの組で流れたファイルを合わせると、どのファイルもちょうど 1 つの組で流れ、テストの件数の合計が分けずに流したときと同じ', () => {
     const { whole, shards, repo } = prepare();
     const wholeFiles = filesOf(repo, whole);
     expect(wholeFiles.length).toBeGreaterThan(SHARDS);
@@ -796,7 +796,7 @@ describe('ARC-74・ARC-75・ARC-60: CI の段のコマンドで 4 つの組を�
     expect(pending).toBe(whole.report!.numPendingTests + whole.report!.numTodoTests);
   }, 3_600_000);
 
-  it.runIf(LIVE)('ARC-74: GitHub の実行の記録で、ブラウザのテストのジョブが失敗した実行では、ほかの組が取り消されずに終わり、まとめのジョブが失敗している', (ctx) => {
+  it.runIf(LIVE)('ARC-97-1: GitHub の実行の記録で、ブラウザのテストのジョブが失敗した実行では、ほかの組が取り消されずに終わり、まとめのジョブが失敗している', (ctx) => {
     const runs = liveRuns('status=completed').filter((r) => r.conclusion === 'failure');
     const target = runs.map((r) => ({ r, jobs: classifyJobs(r.id) })).find(({ jobs: j }) => j.browser.some((b) => b.conclusion === 'failure'));
     if (!target) ctx.skip(); // ブラウザのテストのジョブが失敗した実行がまだない
@@ -807,7 +807,7 @@ describe('ARC-74・ARC-75・ARC-60: CI の段のコマンドで 4 つの組を�
   });
 });
 
-describe('ARC-79: キャッシュのある状態で、実行の始まりからすべてのジョブ（まとめを含む）の終わりまで 15 分以下', () => {
+describe('ARC-97-6: キャッシュのある状態で、実行の始まりからすべてのジョブ（まとめを含む）の終わりまで 15 分以下', () => {
   it.runIf(LIVE)('GitHub の実行の記録で、成功した最新の実行の始まりから最後のジョブの終わりまでが 15 分以下', () => {
     const runs = liveRuns('status=completed').filter((r) => r.conclusion === 'success');
     expect(runs.length, `${liveBranch()} の成功した CI の実行`).toBeGreaterThan(0);
